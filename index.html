@@ -1,11 +1,25 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Dashboard Nhắc việc văn bản</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard Điều hành văn bản</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <style>
+    :root {
+      --main: #005b96;
+      --main2: #0077b6;
+      --red: #d90429;
+      --orange: #f77f00;
+      --blue: #0077b6;
+      --green: #2d6a4f;
+      --gray: #6c757d;
+      --bg: #f4f7fb;
+      --card: #ffffff;
+    }
+
     * {
       box-sizing: border-box;
     }
@@ -13,21 +27,25 @@
     body {
       margin: 0;
       font-family: Arial, sans-serif;
-      background: #f4f6fb;
+      background: var(--bg);
       color: #222;
     }
 
     header {
-      background: linear-gradient(135deg, #4b2e83, #1976d2);
+      background: linear-gradient(135deg, var(--main), var(--main2));
       color: white;
-      padding: 22px 18px;
+      padding: 22px 16px;
       text-align: center;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     }
 
     header h1 {
       margin: 0;
-      font-size: 24px;
-      line-height: 1.4;
+      font-size: 22px;
+      line-height: 1.35;
     }
 
     header p {
@@ -37,30 +55,31 @@
     }
 
     .container {
-      max-width: 1200px;
+      max-width: 1250px;
       margin: auto;
-      padding: 18px;
+      padding: 16px;
     }
 
     .cards {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
       gap: 14px;
-      margin-bottom: 18px;
+      margin-bottom: 16px;
     }
 
     .card {
-      background: white;
-      border-radius: 14px;
-      padding: 18px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      background: var(--card);
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.08);
       text-align: center;
+      border-left: 6px solid var(--main);
     }
 
     .card .number {
       font-size: 32px;
       font-weight: bold;
-      margin-bottom: 6px;
+      margin-bottom: 5px;
     }
 
     .card .label {
@@ -69,18 +88,38 @@
       font-weight: bold;
     }
 
-    .red { color: #d32f2f; }
-    .orange { color: #f57c00; }
-    .blue { color: #1976d2; }
-    .green { color: #2e7d32; }
-    .purple { color: #4b2e83; }
+    .red { color: var(--red); }
+    .orange { color: var(--orange); }
+    .blue { color: var(--blue); }
+    .green { color: var(--green); }
+    .gray { color: var(--gray); }
+
+    .charts {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .chart-box {
+      background: var(--card);
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+    }
+
+    .chart-box h3 {
+      margin: 0 0 12px;
+      color: var(--main);
+      font-size: 17px;
+    }
 
     .filters {
-      background: white;
+      background: var(--card);
       padding: 14px;
-      border-radius: 14px;
-      margin-bottom: 18px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      border-radius: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.08);
       display: grid;
       grid-template-columns: 1fr 220px 220px;
       gap: 12px;
@@ -88,38 +127,46 @@
 
     input, select {
       width: 100%;
-      padding: 11px;
-      border: 1px solid #ddd;
-      border-radius: 10px;
+      padding: 12px;
+      border: 1px solid #d6d6d6;
+      border-radius: 12px;
       font-size: 14px;
+      outline: none;
+    }
+
+    input:focus, select:focus {
+      border-color: var(--main2);
+      box-shadow: 0 0 0 3px rgba(0,119,182,0.12);
     }
 
     .section-title {
       font-size: 18px;
       font-weight: bold;
       margin: 20px 0 10px;
-      color: #4b2e83;
+      color: var(--main);
     }
 
     .table-wrap {
-      background: white;
-      border-radius: 14px;
+      background: var(--card);
+      border-radius: 16px;
       overflow-x: auto;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      box-shadow: 0 4px 14px rgba(0,0,0,0.08);
     }
 
     table {
       width: 100%;
       border-collapse: collapse;
-      min-width: 900px;
+      min-width: 920px;
     }
 
     th {
-      background: #4b2e83;
+      background: var(--main);
       color: white;
       padding: 12px;
       text-align: left;
       font-size: 14px;
+      position: sticky;
+      top: 0;
     }
 
     td {
@@ -130,12 +177,13 @@
     }
 
     tr:hover {
-      background: #f8f5ff;
+      background: #eef7ff;
+      cursor: pointer;
     }
 
     .badge {
       display: inline-block;
-      padding: 5px 9px;
+      padding: 6px 10px;
       border-radius: 999px;
       color: white;
       font-weight: bold;
@@ -143,59 +191,158 @@
       white-space: nowrap;
     }
 
-    .badge-red { background: #d32f2f; }
-    .badge-orange { background: #f57c00; }
-    .badge-blue { background: #1976d2; }
-    .badge-green { background: #2e7d32; }
-    .badge-gray { background: #777; }
+    .badge-red { background: var(--red); }
+    .badge-orange { background: var(--orange); }
+    .badge-blue { background: var(--blue); }
+    .badge-green { background: var(--green); }
+    .badge-gray { background: var(--gray); }
 
     .btn {
       display: inline-block;
       text-decoration: none;
-      background: #1976d2;
+      background: var(--main2);
       color: white;
-      padding: 7px 10px;
-      border-radius: 8px;
+      padding: 8px 11px;
+      border-radius: 9px;
       font-size: 13px;
       font-weight: bold;
     }
 
-    .ai-box {
-      max-width: 360px;
+    .mobile-list {
+      display: none;
+    }
+
+    .mobile-card {
+      background: white;
+      border-radius: 16px;
+      padding: 14px;
+      margin-bottom: 12px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+      border-left: 6px solid var(--main);
+    }
+
+    .mobile-card h3 {
+      margin: 0 0 8px;
+      font-size: 16px;
+      color: var(--main);
+    }
+
+    .mobile-card p {
+      margin: 6px 0;
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 99;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.55);
+      padding: 16px;
+    }
+
+    .modal-content {
+      background: white;
+      max-width: 760px;
+      margin: 40px auto;
+      border-radius: 18px;
+      padding: 20px;
+      max-height: 85vh;
+      overflow-y: auto;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.25);
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 10px;
+      margin-bottom: 12px;
+    }
+
+    .modal-header h2 {
+      margin: 0;
+      color: var(--main);
+      font-size: 20px;
+    }
+
+    .close {
+      font-size: 28px;
+      cursor: pointer;
+      color: #555;
+      font-weight: bold;
+    }
+
+    .detail-row {
+      margin: 10px 0;
+      line-height: 1.5;
+    }
+
+    .detail-row strong {
+      color: var(--main);
+    }
+
+    .ai-detail {
       white-space: pre-wrap;
-      font-size: 13px;
-      color: #444;
+      background: #f7f9fc;
+      padding: 12px;
+      border-radius: 12px;
+      border-left: 4px solid var(--main2);
+      line-height: 1.55;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 28px;
+      font-weight: bold;
+      color: var(--main);
     }
 
     .footer {
       text-align: center;
       color: #777;
-      padding: 25px;
+      padding: 24px;
       font-size: 13px;
     }
 
-    .loading {
-      text-align: center;
-      padding: 30px;
-      font-weight: bold;
-      color: #4b2e83;
-    }
-
-    @media (max-width: 760px) {
+    @media (max-width: 850px) {
       header h1 {
-        font-size: 19px;
-      }
-
-      .filters {
-        grid-template-columns: 1fr;
+        font-size: 18px;
       }
 
       .container {
         padding: 12px;
       }
 
+      .charts {
+        grid-template-columns: 1fr;
+      }
+
+      .filters {
+        grid-template-columns: 1fr;
+      }
+
+      .table-wrap {
+        display: none;
+      }
+
+      .mobile-list {
+        display: block;
+      }
+
       .card .number {
         font-size: 26px;
+      }
+
+      .modal-content {
+        margin: 20px auto;
+        padding: 16px;
       }
     }
   </style>
@@ -205,14 +352,14 @@
 
 <header>
   <h1>📑 HỆ THỐNG TRỢ LÝ SỐ ĐIỀU HÀNH VĂN BẢN</h1>
-  <p>Dashboard giám sát tiến độ thực hiện nhiệm vụ</p>
+  <p>Dashboard giám sát và quản trị tiến độ thực hiện nhiệm vụ</p>
 </header>
 
 <div class="container">
 
   <div class="cards">
     <div class="card">
-      <div class="number purple" id="tongVanBan">0</div>
+      <div class="number gray" id="tongVanBan">0</div>
       <div class="label">Tổng văn bản</div>
     </div>
 
@@ -237,8 +384,20 @@
     </div>
   </div>
 
+  <div class="charts">
+    <div class="chart-box">
+      <h3>📈 Biểu đồ theo trạng thái</h3>
+      <canvas id="chartTrangThai"></canvas>
+    </div>
+
+    <div class="chart-box">
+      <h3>🏢 Biểu đồ theo phòng ban</h3>
+      <canvas id="chartPhongBan"></canvas>
+    </div>
+  </div>
+
   <div class="filters">
-    <input type="text" id="tuKhoa" placeholder="🔍 Tìm số hiệu, trích yếu, phòng ban..." oninput="hienThiDuLieu()" />
+    <input type="text" id="tuKhoa" placeholder="🔍 Tìm số hiệu, trích yếu, phòng ban..." oninput="hienThiDuLieu()">
 
     <select id="locPhong" onchange="hienThiDuLieu()">
       <option value="">Tất cả phòng ban</option>
@@ -267,27 +426,43 @@
           <th>Hạn xử lý</th>
           <th>Trạng thái</th>
           <th>File</th>
-          <th>Gợi ý xử lý</th>
         </tr>
       </thead>
       <tbody id="bangDuLieu">
         <tr>
-          <td colspan="8" class="loading">Đang tải dữ liệu...</td>
+          <td colspan="7" class="loading">Đang tải dữ liệu...</td>
         </tr>
       </tbody>
     </table>
   </div>
 
+  <div class="mobile-list" id="mobileList">
+    <div class="loading">Đang tải dữ liệu...</div>
+  </div>
+
 </div>
 
 <div class="footer">
-  Trung tâm Bảo trợ xã hội Tân Hiệp - Dashboard theo dõi văn bản
+  Trung tâm Bảo trợ xã hội Tân Hiệp - Dashboard chỉ xem dành cho Ban Giám đốc
+</div>
+
+<div id="modalChiTiet" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>📄 Chi tiết văn bản</h2>
+      <span class="close" onclick="dongChiTiet()">&times;</span>
+    </div>
+
+    <div id="noiDungChiTiet"></div>
+  </div>
 </div>
 
 <script>
   const API_URL = "https://script.google.com/macros/s/AKfycbyMINgn39Y_zlvdG9nqMpDH9KeoBKXnR_ueWr_wpVLPu82QxZVPSH4tnkVR9oa7eTJ2KQ/exec";
 
   let duLieuGoc = [];
+  let chartTrangThai = null;
+  let chartPhongBan = null;
 
   async function taiDuLieu() {
     try {
@@ -298,7 +473,9 @@
       hienThiDuLieu();
     } catch (error) {
       document.getElementById("bangDuLieu").innerHTML =
-        `<tr><td colspan="8" class="loading red">Không tải được dữ liệu. Kiểm tra lại link Apps Script Web App.</td></tr>`;
+        '<tr><td colspan="7" class="loading red">Không tải được dữ liệu. Kiểm tra link Apps Script Web App.</td></tr>';
+      document.getElementById("mobileList").innerHTML =
+        '<div class="loading red">Không tải được dữ liệu.</div>';
       console.error(error);
     }
   }
@@ -320,14 +497,6 @@
     const locPhong = document.getElementById("locPhong").value;
     const locTrangThai = document.getElementById("locTrangThai").value;
 
-    let tong = 0;
-    let quaHan = 0;
-    let denHan = 0;
-    let sapHan = 0;
-    let conHan = 0;
-
-    let html = "";
-
     const duLieuLoc = duLieuGoc.filter(item => {
       const trangThai = tinhTrangThai(item.hanXuLy);
 
@@ -345,6 +514,15 @@
       return dungTuKhoa && dungPhong && dungTrangThai;
     });
 
+    capNhatThongKe();
+    veBang(duLieuLoc);
+    veMobile(duLieuLoc);
+    veBieuDo();
+  }
+
+  function capNhatThongKe() {
+    let tong = 0, quaHan = 0, denHan = 0, sapHan = 0, conHan = 0;
+
     duLieuGoc.forEach(item => {
       const trangThai = tinhTrangThai(item.hanXuLy);
       tong++;
@@ -355,35 +533,162 @@
       else if (trangThai === "CÒN HẠN") conHan++;
     });
 
-    if (duLieuLoc.length === 0) {
-      html = `<tr><td colspan="8" class="loading">Không có dữ liệu phù hợp.</td></tr>`;
-    } else {
-      duLieuLoc.forEach((item, index) => {
-        const trangThai = tinhTrangThai(item.hanXuLy);
-        const badgeClass = layMauTrangThai(trangThai);
-
-        html += `
-          <tr>
-            <td>${index + 1}</td>
-            <td><strong>${item.soHieu || ""}</strong></td>
-            <td>${item.trichYeu || ""}</td>
-            <td>${item.phongBan || ""}</td>
-            <td>${dinhDangNgay(item.hanXuLy)}</td>
-            <td><span class="badge ${badgeClass}">${trangThai}</span></td>
-            <td>${taoNutFile(item.file)}</td>
-            <td><div class="ai-box">${rutGon(item.goiYAI || "", 500)}</div></td>
-          </tr>
-        `;
-      });
-    }
-
     document.getElementById("tongVanBan").textContent = tong;
     document.getElementById("quaHan").textContent = quaHan;
     document.getElementById("denHan").textContent = denHan;
     document.getElementById("sapHan").textContent = sapHan;
     document.getElementById("conHan").textContent = conHan;
+  }
 
-    document.getElementById("bangDuLieu").innerHTML = html;
+  function veBang(data) {
+    const tbody = document.getElementById("bangDuLieu");
+
+    if (data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" class="loading">Không có dữ liệu phù hợp.</td></tr>';
+      return;
+    }
+
+    let html = "";
+
+    data.forEach((item, index) => {
+      const trangThai = tinhTrangThai(item.hanXuLy);
+      const badgeClass = layMauTrangThai(trangThai);
+
+      html += `
+        <tr onclick="moChiTiet(${duLieuGoc.indexOf(item)})">
+          <td>${index + 1}</td>
+          <td><strong>${safe(item.soHieu)}</strong></td>
+          <td>${safe(item.trichYeu)}</td>
+          <td>${safe(item.phongBan)}</td>
+          <td>${dinhDangNgay(item.hanXuLy)}</td>
+          <td><span class="badge ${badgeClass}">${trangThai}</span></td>
+          <td onclick="event.stopPropagation()">${taoNutFile(item.file)}</td>
+        </tr>
+      `;
+    });
+
+    tbody.innerHTML = html;
+  }
+
+  function veMobile(data) {
+    const box = document.getElementById("mobileList");
+
+    if (data.length === 0) {
+      box.innerHTML = '<div class="loading">Không có dữ liệu phù hợp.</div>';
+      return;
+    }
+
+    let html = "";
+
+    data.forEach((item) => {
+      const trangThai = tinhTrangThai(item.hanXuLy);
+      const badgeClass = layMauTrangThai(trangThai);
+
+      html += `
+        <div class="mobile-card" onclick="moChiTiet(${duLieuGoc.indexOf(item)})">
+          <h3>${safe(item.soHieu)}</h3>
+          <p><strong>Trích yếu:</strong> ${safe(item.trichYeu)}</p>
+          <p><strong>Phòng:</strong> ${safe(item.phongBan)}</p>
+          <p><strong>Hạn xử lý:</strong> ${dinhDangNgay(item.hanXuLy)}</p>
+          <p><span class="badge ${badgeClass}">${trangThai}</span></p>
+          <p onclick="event.stopPropagation()">${taoNutFile(item.file)}</p>
+        </div>
+      `;
+    });
+
+    box.innerHTML = html;
+  }
+
+  function veBieuDo() {
+    const thongKeTrangThai = {
+      "Quá hạn": 0,
+      "Đến hạn": 0,
+      "Sắp đến hạn": 0,
+      "Còn hạn": 0,
+      "Chưa có hạn": 0
+    };
+
+    const thongKePhong = {};
+
+    duLieuGoc.forEach(item => {
+      const tt = tinhTrangThai(item.hanXuLy);
+
+      if (tt === "QUÁ HẠN") thongKeTrangThai["Quá hạn"]++;
+      else if (tt === "ĐẾN HẠN HÔM NAY") thongKeTrangThai["Đến hạn"]++;
+      else if (tt === "SẮP ĐẾN HẠN") thongKeTrangThai["Sắp đến hạn"]++;
+      else if (tt === "CÒN HẠN") thongKeTrangThai["Còn hạn"]++;
+      else thongKeTrangThai["Chưa có hạn"]++;
+
+      const phong = item.phongBan || "Chưa xác định";
+      thongKePhong[phong] = (thongKePhong[phong] || 0) + 1;
+    });
+
+    if (chartTrangThai) chartTrangThai.destroy();
+    if (chartPhongBan) chartPhongBan.destroy();
+
+    chartTrangThai = new Chart(document.getElementById("chartTrangThai"), {
+      type: "doughnut",
+      data: {
+        labels: Object.keys(thongKeTrangThai),
+        datasets: [{
+          data: Object.values(thongKeTrangThai),
+          backgroundColor: ["#d90429", "#f77f00", "#0077b6", "#2d6a4f", "#6c757d"]
+        }]
+      }
+    });
+
+    chartPhongBan = new Chart(document.getElementById("chartPhongBan"), {
+      type: "bar",
+      data: {
+        labels: Object.keys(thongKePhong),
+        datasets: [{
+          label: "Số văn bản",
+          data: Object.values(thongKePhong),
+          backgroundColor: "#0077b6"
+        }]
+      },
+      options: {
+        plugins: {
+          legend: { display: false }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: { precision: 0 }
+          }
+        }
+      }
+    });
+  }
+
+  function moChiTiet(index) {
+    const item = duLieuGoc[index];
+    const trangThai = tinhTrangThai(item.hanXuLy);
+    const badgeClass = layMauTrangThai(trangThai);
+
+    document.getElementById("noiDungChiTiet").innerHTML = `
+      <div class="detail-row"><strong>Số hiệu:</strong> ${safe(item.soHieu)}</div>
+      <div class="detail-row"><strong>Trích yếu:</strong> ${safe(item.trichYeu)}</div>
+      <div class="detail-row"><strong>Phòng ban:</strong> ${safe(item.phongBan)}</div>
+      <div class="detail-row"><strong>Hạn xử lý:</strong> ${dinhDangNgay(item.hanXuLy)}</div>
+      <div class="detail-row"><strong>Trạng thái:</strong> <span class="badge ${badgeClass}">${trangThai}</span></div>
+      <div class="detail-row"><strong>File đính kèm:</strong> ${taoNutFile(item.file)}</div>
+      <div class="detail-row"><strong>Tóm tắt và gợi ý xử lý:</strong></div>
+      <div class="ai-detail">${safe(item.goiYAI || "Chưa có nội dung tổng hợp.")}</div>
+    `;
+
+    document.getElementById("modalChiTiet").style.display = "block";
+  }
+
+  function dongChiTiet() {
+    document.getElementById("modalChiTiet").style.display = "none";
+  }
+
+  window.onclick = function(event) {
+    const modal = document.getElementById("modalChiTiet");
+    if (event.target === modal) {
+      dongChiTiet();
+    }
   }
 
   function tinhTrangThai(hanXuLy) {
@@ -425,13 +730,15 @@
   function taoNutFile(link) {
     if (!link) return "";
 
-    return `<a class="btn" href="${link}" target="_blank">Mở file</a>`;
+    return `<a class="btn" href="${link}" target="_blank">📎 Mở file</a>`;
   }
 
-  function rutGon(text, max) {
-    if (!text) return "";
-    if (text.length <= max) return text;
-    return text.substring(0, max) + "...";
+  function safe(value) {
+    if (!value) return "";
+    return String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
   }
 
   taiDuLieu();
