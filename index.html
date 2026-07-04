@@ -310,7 +310,34 @@
       padding: 24px;
       font-size: 13px;
     }
+.pagination {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 18px 0;
+}
 
+.pagination button {
+  border: none;
+  background: white;
+  color: #005b96;
+  padding: 9px 13px;
+  border-radius: 10px;
+  font-weight: bold;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+  cursor: pointer;
+}
+
+.pagination button.active {
+  background: #005b96;
+  color: white;
+}
+
+.pagination button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
     @media (max-width: 850px) {
       header h1 {
         font-size: 18px;
@@ -439,7 +466,7 @@
   <div class="mobile-list" id="mobileList">
     <div class="loading">Đang tải dữ liệu...</div>
   </div>
-
+<div id="phanTrang" class="pagination"></div>
 </div>
 
 <div class="footer">
@@ -461,8 +488,11 @@
   const API_URL = "https://script.google.com/macros/s/AKfycbyMINgn39Y_zlvdG9nqMpDH9KeoBKXnR_ueWr_wpVLPu82QxZVPSH4tnkVR9oa7eTJ2KQ/exec";
 
   let duLieuGoc = [];
-  let chartTrangThai = null;
-  let chartPhongBan = null;
+let chartTrangThai = null;
+let chartPhongBan = null;
+
+let trangHienTai = 1;
+const SO_DONG_MOI_TRANG = 10;
 
   async function taiDuLieu() {
     try {
@@ -515,11 +545,94 @@
     });
 
     capNhatThongKe();
-    veBang(duLieuLoc);
-    veMobile(duLieuLoc);
-    veBieuDo();
+    trangHienTai = 1;
+veDuLieuTheoTrang(duLieuLoc);
+veBieuDo();
+  }
+function veDuLieuTheoTrang(data) {
+  const tongTrang = Math.ceil(data.length / SO_DONG_MOI_TRANG);
+
+  if (trangHienTai > tongTrang) trangHienTai = tongTrang || 1;
+
+  const batDau = (trangHienTai - 1) * SO_DONG_MOI_TRANG;
+  const ketThuc = batDau + SO_DONG_MOI_TRANG;
+  const dataTrang = data.slice(batDau, ketThuc);
+
+  veBang(dataTrang, batDau);
+  veMobile(dataTrang, batDau);
+  vePhanTrang(data);
+}
+
+function vePhanTrang(data) {
+  const tongTrang = Math.ceil(data.length / SO_DONG_MOI_TRANG);
+  const box = document.getElementById("phanTrang");
+
+  if (!box) return;
+
+  if (tongTrang <= 1) {
+    box.innerHTML = "";
+    return;
   }
 
+  let html = "";
+
+  html += `
+    <button onclick="doiTrang(${trangHienTai - 1})" ${trangHienTai === 1 ? "disabled" : ""}>
+      ‹ Trước
+    </button>
+  `;
+
+  for (let i = 1; i <= tongTrang; i++) {
+    html += `
+      <button onclick="doiTrang(${i})" class="${i === trangHienTai ? "active" : ""}">
+        ${i}
+      </button>
+    `;
+  }
+
+  html += `
+    <button onclick="doiTrang(${trangHienTai + 1})" ${trangHienTai === tongTrang ? "disabled" : ""}>
+      Sau ›
+    </button>
+  `;
+
+  box.innerHTML = html;
+}
+
+function doiTrang(trang) {
+  const tuKhoa = document.getElementById("tuKhoa").value.toLowerCase().trim();
+  const locPhong = document.getElementById("locPhong").value;
+  const locTrangThai = document.getElementById("locTrangThai").value;
+
+  const duLieuLoc = duLieuGoc.filter(item => {
+    const trangThai = tinhTrangThai(item.hanXuLy);
+
+    const textSearch = [
+      item.soHieu,
+      item.trichYeu,
+      item.phongBan,
+      item.goiYAI
+    ].join(" ").toLowerCase();
+
+    const dungTuKhoa = !tuKhoa || textSearch.includes(tuKhoa);
+    const dungPhong = !locPhong || item.phongBan === locPhong;
+    const dungTrangThai = !locTrangThai || trangThai === locTrangThai;
+
+    return dungTuKhoa && dungPhong && dungTrangThai;
+  });
+
+  const tongTrang = Math.ceil(duLieuLoc.length / SO_DONG_MOI_TRANG);
+
+  if (trang < 1 || trang > tongTrang) return;
+
+  trangHienTai = trang;
+  veDuLieuTheoTrang(duLieuLoc);
+
+  window.scrollTo({
+    top: document.querySelector(".section-title").offsetTop - 80,
+    behavior: "smooth"
+  });
+}
   function capNhatThongKe() {
     let tong = 0, quaHan = 0, denHan = 0, sapHan = 0, conHan = 0;
 
@@ -540,7 +653,7 @@
     document.getElementById("conHan").textContent = conHan;
   }
 
-  function veBang(data) {
+  function veBang(data, batDau) {
     const tbody = document.getElementById("bangDuLieu");
 
     if (data.length === 0) {
@@ -556,7 +669,7 @@
 
       html += `
         <tr onclick="moChiTiet(${duLieuGoc.indexOf(item)})">
-          <td>${index + 1}</td>
+          <td>${batDau + index + 1}</td>
           <td><strong>${safe(item.soHieu)}</strong></td>
           <td>${safe(item.trichYeu)}</td>
           <td>${safe(item.phongBan)}</td>
@@ -570,7 +683,7 @@
     tbody.innerHTML = html;
   }
 
-  function veMobile(data) {
+  function veMobile(data, batDau) {
     const box = document.getElementById("mobileList");
 
     if (data.length === 0) {
