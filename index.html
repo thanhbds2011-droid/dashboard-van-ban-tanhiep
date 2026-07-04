@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dashboard Điều hành văn bản</title>
-
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <style>
@@ -20,9 +19,7 @@
       --card: #ffffff;
     }
 
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
 
     body {
       margin: 0;
@@ -58,6 +55,29 @@
       max-width: 1250px;
       margin: auto;
       padding: 16px;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+
+    .tab-btn {
+      border: none;
+      padding: 12px 16px;
+      border-radius: 12px;
+      background: white;
+      color: var(--main);
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+    }
+
+    .tab-btn.active {
+      background: var(--main);
+      color: white;
     }
 
     .cards {
@@ -134,11 +154,6 @@
       outline: none;
     }
 
-    input:focus, select:focus {
-      border-color: var(--main2);
-      box-shadow: 0 0 0 3px rgba(0,119,182,0.12);
-    }
-
     .section-title {
       font-size: 18px;
       font-weight: bold;
@@ -165,8 +180,6 @@
       padding: 12px;
       text-align: left;
       font-size: 14px;
-      position: sticky;
-      top: 0;
     }
 
     td {
@@ -208,9 +221,7 @@
       font-weight: bold;
     }
 
-    .mobile-list {
-      display: none;
-    }
+    .mobile-list { display: none; }
 
     .mobile-card {
       background: white;
@@ -231,6 +242,35 @@
       margin: 6px 0;
       font-size: 14px;
       line-height: 1.45;
+    }
+
+    .pagination {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 18px 0;
+    }
+
+    .pagination button {
+      border: none;
+      background: white;
+      color: var(--main);
+      padding: 9px 13px;
+      border-radius: 10px;
+      font-weight: bold;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+      cursor: pointer;
+    }
+
+    .pagination button.active {
+      background: var(--main);
+      color: white;
+    }
+
+    .pagination button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
     }
 
     .modal {
@@ -284,9 +324,7 @@
       line-height: 1.5;
     }
 
-    .detail-row strong {
-      color: var(--main);
-    }
+    .detail-row strong { color: var(--main); }
 
     .ai-detail {
       white-space: pre-wrap;
@@ -310,67 +348,16 @@
       padding: 24px;
       font-size: 13px;
     }
-.pagination {
-  display: flex;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 18px 0;
-}
 
-.pagination button {
-  border: none;
-  background: white;
-  color: #005b96;
-  padding: 9px 13px;
-  border-radius: 10px;
-  font-weight: bold;
-  box-shadow: 0 3px 10px rgba(0,0,0,0.08);
-  cursor: pointer;
-}
-
-.pagination button.active {
-  background: #005b96;
-  color: white;
-}
-
-.pagination button:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
     @media (max-width: 850px) {
-      header h1 {
-        font-size: 18px;
-      }
-
-      .container {
-        padding: 12px;
-      }
-
-      .charts {
-        grid-template-columns: 1fr;
-      }
-
-      .filters {
-        grid-template-columns: 1fr;
-      }
-
-      .table-wrap {
-        display: none;
-      }
-
-      .mobile-list {
-        display: block;
-      }
-
-      .card .number {
-        font-size: 26px;
-      }
-
-      .modal-content {
-        margin: 20px auto;
-        padding: 16px;
-      }
+      header h1 { font-size: 18px; }
+      .container { padding: 12px; }
+      .charts { grid-template-columns: 1fr; }
+      .filters { grid-template-columns: 1fr; }
+      .table-wrap { display: none; }
+      .mobile-list { display: block; }
+      .card .number { font-size: 26px; }
+      .modal-content { margin: 20px auto; padding: 16px; }
     }
   </style>
 </head>
@@ -379,36 +366,22 @@
 
 <header>
   <h1>📑 HỆ THỐNG TRỢ LÝ SỐ ĐIỀU HÀNH VĂN BẢN</h1>
-  <p>Dashboard giám sát và quản trị tiến độ thực hiện nhiệm vụ</p>
+  <p>Dashboard giám sát, nhắc việc và lưu trữ kết quả thực hiện nhiệm vụ</p>
 </header>
 
 <div class="container">
 
+  <div class="tabs">
+    <button class="tab-btn active" id="btnTheoDoi" onclick="doiTab('theoDoi')">📌 Văn bản đang theo dõi</button>
+    <button class="tab-btn" id="btnLuuTru" onclick="doiTab('luuTru')">📁 Văn bản lưu trữ</button>
+  </div>
+
   <div class="cards">
-    <div class="card">
-      <div class="number gray" id="tongVanBan">0</div>
-      <div class="label">Tổng văn bản</div>
-    </div>
-
-    <div class="card">
-      <div class="number red" id="quaHan">0</div>
-      <div class="label">Quá hạn</div>
-    </div>
-
-    <div class="card">
-      <div class="number orange" id="denHan">0</div>
-      <div class="label">Đến hạn hôm nay</div>
-    </div>
-
-    <div class="card">
-      <div class="number blue" id="sapHan">0</div>
-      <div class="label">Sắp đến hạn ≤ 5 ngày</div>
-    </div>
-
-    <div class="card">
-      <div class="number green" id="conHan">0</div>
-      <div class="label">Còn hạn</div>
-    </div>
+    <div class="card"><div class="number gray" id="tongVanBan">0</div><div class="label">Tổng văn bản</div></div>
+    <div class="card"><div class="number red" id="quaHan">0</div><div class="label">Quá hạn</div></div>
+    <div class="card"><div class="number orange" id="denHan">0</div><div class="label">Đến hạn hôm nay</div></div>
+    <div class="card"><div class="number blue" id="sapHan">0</div><div class="label">Sắp đến hạn ≤ 5 ngày</div></div>
+    <div class="card"><div class="number green" id="conHan">0</div><div class="label">Còn hạn / Hoàn thành</div></div>
   </div>
 
   <div class="charts">
@@ -436,29 +409,18 @@
       <option value="ĐẾN HẠN HÔM NAY">Đến hạn hôm nay</option>
       <option value="SẮP ĐẾN HẠN">Sắp đến hạn</option>
       <option value="CÒN HẠN">Còn hạn</option>
-      <option value="CHƯA CÓ HẠN">Chưa có hạn</option>
+      <option value="HOÀN THÀNH ĐÚNG HẠN">Hoàn thành đúng hạn</option>
+      <option value="HOÀN THÀNH TRỄ HẠN">Hoàn thành trễ hạn</option>
     </select>
   </div>
 
-  <div class="section-title">📌 Danh sách văn bản đang theo dõi</div>
+  <div class="section-title" id="tieuDeBang">📌 Danh sách văn bản đang theo dõi</div>
 
   <div class="table-wrap">
     <table>
-      <thead>
-        <tr>
-          <th>STT</th>
-          <th>Số hiệu</th>
-          <th>Trích yếu</th>
-          <th>Phòng ban</th>
-          <th>Hạn xử lý</th>
-          <th>Trạng thái</th>
-          <th>File</th>
-        </tr>
-      </thead>
+      <thead id="theadBang"></thead>
       <tbody id="bangDuLieu">
-        <tr>
-          <td colspan="7" class="loading">Đang tải dữ liệu...</td>
-        </tr>
+        <tr><td colspan="8" class="loading">Đang tải dữ liệu...</td></tr>
       </tbody>
     </table>
   </div>
@@ -466,7 +428,9 @@
   <div class="mobile-list" id="mobileList">
     <div class="loading">Đang tải dữ liệu...</div>
   </div>
-<div id="phanTrang" class="pagination"></div>
+
+  <div id="phanTrang" class="pagination"></div>
+
 </div>
 
 <div class="footer">
@@ -479,7 +443,6 @@
       <h2>📄 Chi tiết văn bản</h2>
       <span class="close" onclick="dongChiTiet()">&times;</span>
     </div>
-
     <div id="noiDungChiTiet"></div>
   </div>
 </div>
@@ -487,32 +450,58 @@
 <script>
   const API_URL = "https://script.google.com/macros/s/AKfycbyMINgn39Y_zlvdG9nqMpDH9KeoBKXnR_ueWr_wpVLPu82QxZVPSH4tnkVR9oa7eTJ2KQ/exec";
 
-  let duLieuGoc = [];
-let chartTrangThai = null;
-let chartPhongBan = null;
+  let duLieuTheoDoi = [];
+  let duLieuLuuTru = [];
+  let tabHienTai = "theoDoi";
+  let chartTrangThai = null;
+  let chartPhongBan = null;
 
-let trangHienTai = 1;
-const SO_DONG_MOI_TRANG = 10;
+  let trangHienTai = 1;
+  const SO_DONG_MOI_TRANG = 10;
 
   async function taiDuLieu() {
     try {
       const response = await fetch(API_URL);
-      duLieuGoc = await response.json();
+      const data = await response.json();
+
+      duLieuTheoDoi = data.dangTheoDoi || [];
+      duLieuLuuTru = data.luuTru || [];
 
       napDanhSachPhong();
       hienThiDuLieu();
+
     } catch (error) {
       document.getElementById("bangDuLieu").innerHTML =
-        '<tr><td colspan="7" class="loading red">Không tải được dữ liệu. Kiểm tra link Apps Script Web App.</td></tr>';
+        '<tr><td colspan="8" class="loading red">Không tải được dữ liệu. Kiểm tra lại link Apps Script Web App.</td></tr>';
       document.getElementById("mobileList").innerHTML =
         '<div class="loading red">Không tải được dữ liệu.</div>';
       console.error(error);
     }
   }
 
+  function doiTab(tab) {
+    tabHienTai = tab;
+    trangHienTai = 1;
+
+    document.getElementById("btnTheoDoi").classList.toggle("active", tab === "theoDoi");
+    document.getElementById("btnLuuTru").classList.toggle("active", tab === "luuTru");
+
+    document.getElementById("tieuDeBang").textContent =
+      tab === "theoDoi"
+        ? "📌 Danh sách văn bản đang theo dõi"
+        : "📁 Danh sách văn bản đã lưu trữ";
+
+    hienThiDuLieu();
+  }
+
+  function layDuLieuHienTai() {
+    return tabHienTai === "theoDoi" ? duLieuTheoDoi : duLieuLuuTru;
+  }
+
   function napDanhSachPhong() {
     const select = document.getElementById("locPhong");
-    const dsPhong = [...new Set(duLieuGoc.map(x => x.phongBan).filter(Boolean))].sort();
+    const tatCa = [...duLieuTheoDoi, ...duLieuLuuTru];
+    const dsPhong = [...new Set(tatCa.map(x => x.phongBan).filter(Boolean))].sort();
 
     dsPhong.forEach(phong => {
       const option = document.createElement("option");
@@ -523,12 +512,16 @@ const SO_DONG_MOI_TRANG = 10;
   }
 
   function hienThiDuLieu() {
+    const dataHienTai = layDuLieuHienTai();
+
     const tuKhoa = document.getElementById("tuKhoa").value.toLowerCase().trim();
     const locPhong = document.getElementById("locPhong").value;
     const locTrangThai = document.getElementById("locTrangThai").value;
 
-    const duLieuLoc = duLieuGoc.filter(item => {
-      const trangThai = tinhTrangThai(item.hanXuLy);
+    const duLieuLoc = dataHienTai.filter(item => {
+      const trangThai = tabHienTai === "theoDoi"
+        ? tinhTrangThai(item.hanXuLy)
+        : tinhTrangThaiLuuTru(item.hanXuLy, item.ngayHoanThanh);
 
       const textSearch = [
         item.soHieu,
@@ -545,105 +538,32 @@ const SO_DONG_MOI_TRANG = 10;
     });
 
     capNhatThongKe();
-    trangHienTai = 1;
-veDuLieuTheoTrang(duLieuLoc);
-veBieuDo();
-  }
-function veDuLieuTheoTrang(data) {
-  const tongTrang = Math.ceil(data.length / SO_DONG_MOI_TRANG);
-
-  if (trangHienTai > tongTrang) trangHienTai = tongTrang || 1;
-
-  const batDau = (trangHienTai - 1) * SO_DONG_MOI_TRANG;
-  const ketThuc = batDau + SO_DONG_MOI_TRANG;
-  const dataTrang = data.slice(batDau, ketThuc);
-
-  veBang(dataTrang, batDau);
-  veMobile(dataTrang, batDau);
-  vePhanTrang(data);
-}
-
-function vePhanTrang(data) {
-  const tongTrang = Math.ceil(data.length / SO_DONG_MOI_TRANG);
-  const box = document.getElementById("phanTrang");
-
-  if (!box) return;
-
-  if (tongTrang <= 1) {
-    box.innerHTML = "";
-    return;
+    veDuLieuTheoTrang(duLieuLoc);
+    veBieuDo();
   }
 
-  let html = "";
-
-  html += `
-    <button onclick="doiTrang(${trangHienTai - 1})" ${trangHienTai === 1 ? "disabled" : ""}>
-      ‹ Trước
-    </button>
-  `;
-
-  for (let i = 1; i <= tongTrang; i++) {
-    html += `
-      <button onclick="doiTrang(${i})" class="${i === trangHienTai ? "active" : ""}">
-        ${i}
-      </button>
-    `;
-  }
-
-  html += `
-    <button onclick="doiTrang(${trangHienTai + 1})" ${trangHienTai === tongTrang ? "disabled" : ""}>
-      Sau ›
-    </button>
-  `;
-
-  box.innerHTML = html;
-}
-
-function doiTrang(trang) {
-  const tuKhoa = document.getElementById("tuKhoa").value.toLowerCase().trim();
-  const locPhong = document.getElementById("locPhong").value;
-  const locTrangThai = document.getElementById("locTrangThai").value;
-
-  const duLieuLoc = duLieuGoc.filter(item => {
-    const trangThai = tinhTrangThai(item.hanXuLy);
-
-    const textSearch = [
-      item.soHieu,
-      item.trichYeu,
-      item.phongBan,
-      item.goiYAI
-    ].join(" ").toLowerCase();
-
-    const dungTuKhoa = !tuKhoa || textSearch.includes(tuKhoa);
-    const dungPhong = !locPhong || item.phongBan === locPhong;
-    const dungTrangThai = !locTrangThai || trangThai === locTrangThai;
-
-    return dungTuKhoa && dungPhong && dungTrangThai;
-  });
-
-  const tongTrang = Math.ceil(duLieuLoc.length / SO_DONG_MOI_TRANG);
-
-  if (trang < 1 || trang > tongTrang) return;
-
-  trangHienTai = trang;
-  veDuLieuTheoTrang(duLieuLoc);
-
-  window.scrollTo({
-    top: document.querySelector(".section-title").offsetTop - 80,
-    behavior: "smooth"
-  });
-}
   function capNhatThongKe() {
+    const data = layDuLieuHienTai();
+
     let tong = 0, quaHan = 0, denHan = 0, sapHan = 0, conHan = 0;
 
-    duLieuGoc.forEach(item => {
-      const trangThai = tinhTrangThai(item.hanXuLy);
+    data.forEach(item => {
       tong++;
 
-      if (trangThai === "QUÁ HẠN") quaHan++;
-      else if (trangThai === "ĐẾN HẠN HÔM NAY") denHan++;
-      else if (trangThai === "SẮP ĐẾN HẠN") sapHan++;
-      else if (trangThai === "CÒN HẠN") conHan++;
+      if (tabHienTai === "theoDoi") {
+        const tt = tinhTrangThai(item.hanXuLy);
+
+        if (tt === "QUÁ HẠN") quaHan++;
+        else if (tt === "ĐẾN HẠN HÔM NAY") denHan++;
+        else if (tt === "SẮP ĐẾN HẠN") sapHan++;
+        else if (tt === "CÒN HẠN") conHan++;
+
+      } else {
+        const tt = tinhTrangThaiLuuTru(item.hanXuLy, item.ngayHoanThanh);
+
+        if (tt === "HOÀN THÀNH TRỄ HẠN") quaHan++;
+        else if (tt === "HOÀN THÀNH ĐÚNG HẠN") conHan++;
+      }
     });
 
     document.getElementById("tongVanBan").textContent = tong;
@@ -653,31 +573,90 @@ function doiTrang(trang) {
     document.getElementById("conHan").textContent = conHan;
   }
 
+  function veDuLieuTheoTrang(data) {
+    const tongTrang = Math.ceil(data.length / SO_DONG_MOI_TRANG);
+    if (trangHienTai > tongTrang) trangHienTai = tongTrang || 1;
+
+    const batDau = (trangHienTai - 1) * SO_DONG_MOI_TRANG;
+    const ketThuc = batDau + SO_DONG_MOI_TRANG;
+    const dataTrang = data.slice(batDau, ketThuc);
+
+    veBang(dataTrang, batDau);
+    veMobile(dataTrang, batDau);
+    vePhanTrang(data);
+  }
+
   function veBang(data, batDau) {
+    const thead = document.getElementById("theadBang");
     const tbody = document.getElementById("bangDuLieu");
 
+    if (tabHienTai === "theoDoi") {
+      thead.innerHTML = `
+        <tr>
+          <th>STT</th>
+          <th>Số hiệu</th>
+          <th>Trích yếu</th>
+          <th>Phòng ban</th>
+          <th>Hạn xử lý</th>
+          <th>Trạng thái</th>
+          <th>File</th>
+        </tr>
+      `;
+    } else {
+      thead.innerHTML = `
+        <tr>
+          <th>STT</th>
+          <th>Dấu thời gian</th>
+          <th>Số hiệu</th>
+          <th>Trích yếu</th>
+          <th>Phòng ban</th>
+          <th>Hạn xử lý</th>
+          <th>Ngày hoàn thành</th>
+          <th>Kết quả</th>
+        </tr>
+      `;
+    }
+
     if (data.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="7" class="loading">Không có dữ liệu phù hợp.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" class="loading">Không có dữ liệu phù hợp.</td></tr>';
       return;
     }
 
     let html = "";
 
     data.forEach((item, index) => {
-      const trangThai = tinhTrangThai(item.hanXuLy);
-      const badgeClass = layMauTrangThai(trangThai);
+      if (tabHienTai === "theoDoi") {
+        const trangThai = tinhTrangThai(item.hanXuLy);
+        const badgeClass = layMauTrangThai(trangThai);
 
-      html += `
-        <tr onclick="moChiTiet(${duLieuGoc.indexOf(item)})">
-          <td>${batDau + index + 1}</td>
-          <td><strong>${safe(item.soHieu)}</strong></td>
-          <td>${safe(item.trichYeu)}</td>
-          <td>${safe(item.phongBan)}</td>
-          <td>${dinhDangNgay(item.hanXuLy)}</td>
-          <td><span class="badge ${badgeClass}">${trangThai}</span></td>
-          <td onclick="event.stopPropagation()">${taoNutFile(item.file)}</td>
-        </tr>
-      `;
+        html += `
+          <tr onclick="moChiTiet(${duLieuTheoDoi.indexOf(item)})">
+            <td>${batDau + index + 1}</td>
+            <td><strong>${safe(item.soHieu)}</strong></td>
+            <td>${safe(item.trichYeu)}</td>
+            <td>${safe(item.phongBan)}</td>
+            <td>${dinhDangNgay(item.hanXuLy)}</td>
+            <td><span class="badge ${badgeClass}">${trangThai}</span></td>
+            <td onclick="event.stopPropagation()">${taoNutFile(item.file)}</td>
+          </tr>
+        `;
+      } else {
+        const ketQua = tinhTrangThaiLuuTru(item.hanXuLy, item.ngayHoanThanh);
+        const badgeClass = layMauTrangThai(ketQua);
+
+        html += `
+          <tr>
+            <td>${batDau + index + 1}</td>
+            <td>${dinhDangNgayGio(item.dauThoiGian)}</td>
+            <td><strong>${safe(item.soHieu)}</strong></td>
+            <td>${safe(item.trichYeu)}</td>
+            <td>${safe(item.phongBan)}</td>
+            <td>${dinhDangNgay(item.hanXuLy)}</td>
+            <td>${dinhDangNgayGio(item.ngayHoanThanh)}</td>
+            <td><span class="badge ${badgeClass}">${ketQua}</span></td>
+          </tr>
+        `;
+      }
     });
 
     tbody.innerHTML = html;
@@ -694,43 +673,84 @@ function doiTrang(trang) {
     let html = "";
 
     data.forEach((item) => {
-      const trangThai = tinhTrangThai(item.hanXuLy);
-      const badgeClass = layMauTrangThai(trangThai);
+      if (tabHienTai === "theoDoi") {
+        const trangThai = tinhTrangThai(item.hanXuLy);
+        const badgeClass = layMauTrangThai(trangThai);
 
-      html += `
-        <div class="mobile-card" onclick="moChiTiet(${duLieuGoc.indexOf(item)})">
-          <h3>${safe(item.soHieu)}</h3>
-          <p><strong>Trích yếu:</strong> ${safe(item.trichYeu)}</p>
-          <p><strong>Phòng:</strong> ${safe(item.phongBan)}</p>
-          <p><strong>Hạn xử lý:</strong> ${dinhDangNgay(item.hanXuLy)}</p>
-          <p><span class="badge ${badgeClass}">${trangThai}</span></p>
-          <p onclick="event.stopPropagation()">${taoNutFile(item.file)}</p>
-        </div>
-      `;
+        html += `
+          <div class="mobile-card" onclick="moChiTiet(${duLieuTheoDoi.indexOf(item)})">
+            <h3>${safe(item.soHieu)}</h3>
+            <p><strong>Trích yếu:</strong> ${safe(item.trichYeu)}</p>
+            <p><strong>Phòng:</strong> ${safe(item.phongBan)}</p>
+            <p><strong>Hạn xử lý:</strong> ${dinhDangNgay(item.hanXuLy)}</p>
+            <p><span class="badge ${badgeClass}">${trangThai}</span></p>
+            <p onclick="event.stopPropagation()">${taoNutFile(item.file)}</p>
+          </div>
+        `;
+      } else {
+        const ketQua = tinhTrangThaiLuuTru(item.hanXuLy, item.ngayHoanThanh);
+        const badgeClass = layMauTrangThai(ketQua);
+
+        html += `
+          <div class="mobile-card">
+            <h3>${safe(item.soHieu)}</h3>
+            <p><strong>Trích yếu:</strong> ${safe(item.trichYeu)}</p>
+            <p><strong>Phòng:</strong> ${safe(item.phongBan)}</p>
+            <p><strong>Hạn xử lý:</strong> ${dinhDangNgay(item.hanXuLy)}</p>
+            <p><strong>Ngày hoàn thành:</strong> ${dinhDangNgayGio(item.ngayHoanThanh)}</p>
+            <p><span class="badge ${badgeClass}">${ketQua}</span></p>
+          </div>
+        `;
+      }
     });
 
     box.innerHTML = html;
   }
 
-  function veBieuDo() {
-    const thongKeTrangThai = {
-      "Quá hạn": 0,
-      "Đến hạn": 0,
-      "Sắp đến hạn": 0,
-      "Còn hạn": 0,
-      "Chưa có hạn": 0
-    };
+  function vePhanTrang(data) {
+    const tongTrang = Math.ceil(data.length / SO_DONG_MOI_TRANG);
+    const box = document.getElementById("phanTrang");
 
+    if (tongTrang <= 1) {
+      box.innerHTML = "";
+      return;
+    }
+
+    let html = "";
+
+    html += `<button onclick="doiTrang(${trangHienTai - 1})" ${trangHienTai === 1 ? "disabled" : ""}>‹ Trước</button>`;
+
+    for (let i = 1; i <= tongTrang; i++) {
+      html += `<button onclick="doiTrang(${i})" class="${i === trangHienTai ? "active" : ""}">${i}</button>`;
+    }
+
+    html += `<button onclick="doiTrang(${trangHienTai + 1})" ${trangHienTai === tongTrang ? "disabled" : ""}>Sau ›</button>`;
+
+    box.innerHTML = html;
+  }
+
+  function doiTrang(trang) {
+    const data = layDuLieuHienTai();
+    const tongTrang = Math.ceil(data.length / SO_DONG_MOI_TRANG);
+
+    if (trang < 1 || trang > tongTrang) return;
+
+    trangHienTai = trang;
+    hienThiDuLieu();
+  }
+
+  function veBieuDo() {
+    const data = layDuLieuHienTai();
+
+    const thongKeTrangThai = {};
     const thongKePhong = {};
 
-    duLieuGoc.forEach(item => {
-      const tt = tinhTrangThai(item.hanXuLy);
+    data.forEach(item => {
+      const tt = tabHienTai === "theoDoi"
+        ? tinhTrangThai(item.hanXuLy)
+        : tinhTrangThaiLuuTru(item.hanXuLy, item.ngayHoanThanh);
 
-      if (tt === "QUÁ HẠN") thongKeTrangThai["Quá hạn"]++;
-      else if (tt === "ĐẾN HẠN HÔM NAY") thongKeTrangThai["Đến hạn"]++;
-      else if (tt === "SẮP ĐẾN HẠN") thongKeTrangThai["Sắp đến hạn"]++;
-      else if (tt === "CÒN HẠN") thongKeTrangThai["Còn hạn"]++;
-      else thongKeTrangThai["Chưa có hạn"]++;
+      thongKeTrangThai[tt] = (thongKeTrangThai[tt] || 0) + 1;
 
       const phong = item.phongBan || "Chưa xác định";
       thongKePhong[phong] = (thongKePhong[phong] || 0) + 1;
@@ -761,21 +781,14 @@ function doiTrang(trang) {
         }]
       },
       options: {
-        plugins: {
-          legend: { display: false }
-        },
-        scales: {
-          y: {
-            beginAtZero: true,
-            ticks: { precision: 0 }
-          }
-        }
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
       }
     });
   }
 
   function moChiTiet(index) {
-    const item = duLieuGoc[index];
+    const item = duLieuTheoDoi[index];
     const trangThai = tinhTrangThai(item.hanXuLy);
     const badgeClass = layMauTrangThai(trangThai);
 
@@ -799,9 +812,7 @@ function doiTrang(trang) {
 
   window.onclick = function(event) {
     const modal = document.getElementById("modalChiTiet");
-    if (event.target === modal) {
-      dongChiTiet();
-    }
+    if (event.target === modal) dongChiTiet();
   }
 
   function tinhTrangThai(hanXuLy) {
@@ -823,26 +834,43 @@ function doiTrang(trang) {
     return "CÒN HẠN";
   }
 
+  function tinhTrangThaiLuuTru(hanXuLy, ngayHoanThanh) {
+    const han = new Date(hanXuLy);
+    const ht = new Date(ngayHoanThanh);
+
+    if (isNaN(han) || isNaN(ht)) return "ĐÃ LƯU TRỮ";
+
+    han.setHours(0, 0, 0, 0);
+    ht.setHours(0, 0, 0, 0);
+
+    if (ht.getTime() <= han.getTime()) return "HOÀN THÀNH ĐÚNG HẠN";
+    return "HOÀN THÀNH TRỄ HẠN";
+  }
+
   function layMauTrangThai(trangThai) {
-    if (trangThai === "QUÁ HẠN") return "badge-red";
+    if (trangThai === "QUÁ HẠN" || trangThai === "HOÀN THÀNH TRỄ HẠN") return "badge-red";
     if (trangThai === "ĐẾN HẠN HÔM NAY") return "badge-orange";
     if (trangThai === "SẮP ĐẾN HẠN") return "badge-blue";
-    if (trangThai === "CÒN HẠN") return "badge-green";
+    if (trangThai === "CÒN HẠN" || trangThai === "HOÀN THÀNH ĐÚNG HẠN") return "badge-green";
     return "badge-gray";
   }
 
   function dinhDangNgay(value) {
     if (!value) return "";
-
     const d = new Date(value);
     if (isNaN(d)) return value;
-
     return d.toLocaleDateString("vi-VN");
+  }
+
+  function dinhDangNgayGio(value) {
+    if (!value) return "";
+    const d = new Date(value);
+    if (isNaN(d)) return value;
+    return d.toLocaleString("vi-VN");
   }
 
   function taoNutFile(link) {
     if (!link) return "";
-
     return `<a class="btn" href="${link}" target="_blank">📎 Mở file</a>`;
   }
 
