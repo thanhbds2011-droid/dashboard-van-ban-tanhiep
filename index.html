@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard Nhắc việc văn bản</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f4f6fb;
+      color: #222;
+    }
+
+    header {
+      background: linear-gradient(135deg, #4b2e83, #1976d2);
+      color: white;
+      padding: 22px 18px;
+      text-align: center;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 24px;
+      line-height: 1.4;
+    }
+
+    header p {
+      margin: 8px 0 0;
+      font-size: 14px;
+      opacity: 0.95;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: auto;
+      padding: 18px;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 14px;
+      padding: 18px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      text-align: center;
+    }
+
+    .card .number {
+      font-size: 32px;
+      font-weight: bold;
+      margin-bottom: 6px;
+    }
+
+    .card .label {
+      font-size: 14px;
+      color: #555;
+      font-weight: bold;
+    }
+
+    .red { color: #d32f2f; }
+    .orange { color: #f57c00; }
+    .blue { color: #1976d2; }
+    .green { color: #2e7d32; }
+    .purple { color: #4b2e83; }
+
+    .filters {
+      background: white;
+      padding: 14px;
+      border-radius: 14px;
+      margin-bottom: 18px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      display: grid;
+      grid-template-columns: 1fr 220px 220px;
+      gap: 12px;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 11px;
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      font-size: 14px;
+    }
+
+    .section-title {
+      font-size: 18px;
+      font-weight: bold;
+      margin: 20px 0 10px;
+      color: #4b2e83;
+    }
+
+    .table-wrap {
+      background: white;
+      border-radius: 14px;
+      overflow-x: auto;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 900px;
+    }
+
+    th {
+      background: #4b2e83;
+      color: white;
+      padding: 12px;
+      text-align: left;
+      font-size: 14px;
+    }
+
+    td {
+      padding: 12px;
+      border-bottom: 1px solid #eee;
+      vertical-align: top;
+      font-size: 14px;
+    }
+
+    tr:hover {
+      background: #f8f5ff;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 5px 9px;
+      border-radius: 999px;
+      color: white;
+      font-weight: bold;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .badge-red { background: #d32f2f; }
+    .badge-orange { background: #f57c00; }
+    .badge-blue { background: #1976d2; }
+    .badge-green { background: #2e7d32; }
+    .badge-gray { background: #777; }
+
+    .btn {
+      display: inline-block;
+      text-decoration: none;
+      background: #1976d2;
+      color: white;
+      padding: 7px 10px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: bold;
+    }
+
+    .ai-box {
+      max-width: 360px;
+      white-space: pre-wrap;
+      font-size: 13px;
+      color: #444;
+    }
+
+    .footer {
+      text-align: center;
+      color: #777;
+      padding: 25px;
+      font-size: 13px;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 30px;
+      font-weight: bold;
+      color: #4b2e83;
+    }
+
+    @media (max-width: 760px) {
+      header h1 {
+        font-size: 19px;
+      }
+
+      .filters {
+        grid-template-columns: 1fr;
+      }
+
+      .container {
+        padding: 12px;
+      }
+
+      .card .number {
+        font-size: 26px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+<header>
+  <h1>📑 HỆ THỐNG TRỢ LÝ SỐ ĐIỀU HÀNH VĂN BẢN</h1>
+  <p>Dashboard giám sát tiến độ thực hiện nhiệm vụ</p>
+</header>
+
+<div class="container">
+
+  <div class="cards">
+    <div class="card">
+      <div class="number purple" id="tongVanBan">0</div>
+      <div class="label">Tổng văn bản</div>
+    </div>
+
+    <div class="card">
+      <div class="number red" id="quaHan">0</div>
+      <div class="label">Quá hạn</div>
+    </div>
+
+    <div class="card">
+      <div class="number orange" id="denHan">0</div>
+      <div class="label">Đến hạn hôm nay</div>
+    </div>
+
+    <div class="card">
+      <div class="number blue" id="sapHan">0</div>
+      <div class="label">Sắp đến hạn ≤ 5 ngày</div>
+    </div>
+
+    <div class="card">
+      <div class="number green" id="conHan">0</div>
+      <div class="label">Còn hạn</div>
+    </div>
+  </div>
+
+  <div class="filters">
+    <input type="text" id="tuKhoa" placeholder="🔍 Tìm số hiệu, trích yếu, phòng ban..." oninput="hienThiDuLieu()" />
+
+    <select id="locPhong" onchange="hienThiDuLieu()">
+      <option value="">Tất cả phòng ban</option>
+    </select>
+
+    <select id="locTrangThai" onchange="hienThiDuLieu()">
+      <option value="">Tất cả trạng thái</option>
+      <option value="QUÁ HẠN">Quá hạn</option>
+      <option value="ĐẾN HẠN HÔM NAY">Đến hạn hôm nay</option>
+      <option value="SẮP ĐẾN HẠN">Sắp đến hạn</option>
+      <option value="CÒN HẠN">Còn hạn</option>
+      <option value="CHƯA CÓ HẠN">Chưa có hạn</option>
+    </select>
+  </div>
+
+  <div class="section-title">📌 Danh sách văn bản đang theo dõi</div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>STT</th>
+          <th>Số hiệu</th>
+          <th>Trích yếu</th>
+          <th>Phòng ban</th>
+          <th>Hạn xử lý</th>
+          <th>Trạng thái</th>
+          <th>File</th>
+          <th>Gợi ý xử lý</th>
+        </tr>
+      </thead>
+      <tbody id="bangDuLieu">
+        <tr>
+          <td colspan="8" class="loading">Đang tải dữ liệu...</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<div class="footer">
+  Trung tâm Bảo trợ xã hội Tân Hiệp - Dashboard theo dõi văn bản
+</div>
+
+<script>
+  const API_URL = "https://script.google.com/macros/s/AKfycbyMINgn39Y_zlvdG9nqMpDH9KeoBKXnR_ueWr_wpVLPu82QxZVPSH4tnkVR9oa7eTJ2KQ/exec";
+
+  let duLieuGoc = [];
+
+  async function taiDuLieu() {
+    try {
+      const response = await fetch(API_URL);
+      duLieuGoc = await response.json();
+
+      napDanhSachPhong();
+      hienThiDuLieu();
+    } catch (error) {
+      document.getElementById("bangDuLieu").innerHTML =
+        `<tr><td colspan="8" class="loading red">Không tải được dữ liệu. Kiểm tra lại link Apps Script Web App.</td></tr>`;
+      console.error(error);
+    }
+  }
+
+  function napDanhSachPhong() {
+    const select = document.getElementById("locPhong");
+    const dsPhong = [...new Set(duLieuGoc.map(x => x.phongBan).filter(Boolean))].sort();
+
+    dsPhong.forEach(phong => {
+      const option = document.createElement("option");
+      option.value = phong;
+      option.textContent = phong;
+      select.appendChild(option);
+    });
+  }
+
+  function hienThiDuLieu() {
+    const tuKhoa = document.getElementById("tuKhoa").value.toLowerCase().trim();
+    const locPhong = document.getElementById("locPhong").value;
+    const locTrangThai = document.getElementById("locTrangThai").value;
+
+    let tong = 0;
+    let quaHan = 0;
+    let denHan = 0;
+    let sapHan = 0;
+    let conHan = 0;
+
+    let html = "";
+
+    const duLieuLoc = duLieuGoc.filter(item => {
+      const trangThai = tinhTrangThai(item.hanXuLy);
+
+      const textSearch = [
+        item.soHieu,
+        item.trichYeu,
+        item.phongBan,
+        item.goiYAI
+      ].join(" ").toLowerCase();
+
+      const dungTuKhoa = !tuKhoa || textSearch.includes(tuKhoa);
+      const dungPhong = !locPhong || item.phongBan === locPhong;
+      const dungTrangThai = !locTrangThai || trangThai === locTrangThai;
+
+      return dungTuKhoa && dungPhong && dungTrangThai;
+    });
+
+    duLieuGoc.forEach(item => {
+      const trangThai = tinhTrangThai(item.hanXuLy);
+      tong++;
+
+      if (trangThai === "QUÁ HẠN") quaHan++;
+      else if (trangThai === "ĐẾN HẠN HÔM NAY") denHan++;
+      else if (trangThai === "SẮP ĐẾN HẠN") sapHan++;
+      else if (trangThai === "CÒN HẠN") conHan++;
+    });
+
+    if (duLieuLoc.length === 0) {
+      html = `<tr><td colspan="8" class="loading">Không có dữ liệu phù hợp.</td></tr>`;
+    } else {
+      duLieuLoc.forEach((item, index) => {
+        const trangThai = tinhTrangThai(item.hanXuLy);
+        const badgeClass = layMauTrangThai(trangThai);
+
+        html += `
+          <tr>
+            <td>${index + 1}</td>
+            <td><strong>${item.soHieu || ""}</strong></td>
+            <td>${item.trichYeu || ""}</td>
+            <td>${item.phongBan || ""}</td>
+            <td>${dinhDangNgay(item.hanXuLy)}</td>
+            <td><span class="badge ${badgeClass}">${trangThai}</span></td>
+            <td>${taoNutFile(item.file)}</td>
+            <td><div class="ai-box">${rutGon(item.goiYAI || "", 500)}</div></td>
+          </tr>
+        `;
+      });
+    }
+
+    document.getElementById("tongVanBan").textContent = tong;
+    document.getElementById("quaHan").textContent = quaHan;
+    document.getElementById("denHan").textContent = denHan;
+    document.getElementById("sapHan").textContent = sapHan;
+    document.getElementById("conHan").textContent = conHan;
+
+    document.getElementById("bangDuLieu").innerHTML = html;
+  }
+
+  function tinhTrangThai(hanXuLy) {
+    if (!hanXuLy) return "CHƯA CÓ HẠN";
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const han = new Date(hanXuLy);
+    if (isNaN(han)) return "CHƯA CÓ HẠN";
+
+    han.setHours(0, 0, 0, 0);
+
+    const diff = Math.round((han - today) / (1000 * 60 * 60 * 24));
+
+    if (diff < 0) return "QUÁ HẠN";
+    if (diff === 0) return "ĐẾN HẠN HÔM NAY";
+    if (diff > 0 && diff <= 5) return "SẮP ĐẾN HẠN";
+    return "CÒN HẠN";
+  }
+
+  function layMauTrangThai(trangThai) {
+    if (trangThai === "QUÁ HẠN") return "badge-red";
+    if (trangThai === "ĐẾN HẠN HÔM NAY") return "badge-orange";
+    if (trangThai === "SẮP ĐẾN HẠN") return "badge-blue";
+    if (trangThai === "CÒN HẠN") return "badge-green";
+    return "badge-gray";
+  }
+
+  function dinhDangNgay(value) {
+    if (!value) return "";
+
+    const d = new Date(value);
+    if (isNaN(d)) return value;
+
+    return d.toLocaleDateString("vi-VN");
+  }
+
+  function taoNutFile(link) {
+    if (!link) return "";
+
+    return `<a class="btn" href="${link}" target="_blank">Mở file</a>`;
+  }
+
+  function rutGon(text, max) {
+    if (!text) return "";
+    if (text.length <= max) return text;
+    return text.substring(0, max) + "...";
+  }
+
+  taiDuLieu();
+</script>
+
+</body>
+</html>
