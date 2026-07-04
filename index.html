@@ -115,18 +115,30 @@
     .gray { color: var(--gray); }
 
     .charts {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-      margin-bottom: 16px;
-    }
+  display: grid;
+  grid-template-columns: 0.8fr 1.2fr;
+  gap: 16px;
+  margin-bottom: 16px;
+  align-items: start;
+}
 
-    .chart-box {
-      background: var(--card);
-      border-radius: 16px;
-      padding: 16px;
-      box-shadow: 0 4px 14px rgba(0,0,0,0.08);
-    }
+.chart-box {
+  background: var(--card);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+  min-height: 320px;
+}
+
+.chart-small {
+  max-width: 360px;
+  height: 260px !important;
+  margin: 0 auto;
+}
+
+.chart-wide {
+  height: 260px !important;
+}
 
     .chart-box h3 {
       margin: 0 0 12px;
@@ -387,12 +399,12 @@
   <div class="charts">
     <div class="chart-box">
       <h3>📈 Biểu đồ theo trạng thái</h3>
-      <canvas id="chartTrangThai"></canvas>
+     <canvas id="chartTrangThai" class="chart-small"></canvas>
     </div>
 
     <div class="chart-box">
       <h3>🏢 Biểu đồ theo phòng ban</h3>
-      <canvas id="chartPhongBan"></canvas>
+      <canvas id="chartPhongBan" class="chart-wide"></canvas>
     </div>
   </div>
 
@@ -765,7 +777,7 @@
         labels: Object.keys(thongKeTrangThai),
         datasets: [{
           data: Object.values(thongKeTrangThai),
-          backgroundColor: ["#d90429", "#f77f00", "#0077b6", "#2d6a4f", "#6c757d"]
+          backgroundColor: ["#9CA3AF", "#F59E0B", "#60A5FA", "#34D399", "#CBD5E1"]
         }]
       }
     });
