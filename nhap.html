@@ -295,7 +295,17 @@
 
       payloadInput.value = JSON.stringify(payload);
       postForm.submit();
+setTimeout(function() {
+  if (btnGui.disabled) {
+    btnGui.disabled = false;
+    btnGui.textContent = "📤 Gửi văn bản";
 
+    hienThongBao(
+      "Hệ thống chưa phản hồi. Hãy kiểm tra Apps Script → Nhật ký thực thi. Không bấm gửi lại ngay để tránh nhập trùng.",
+      false
+    );
+  }
+}, 90000);
     } catch (err) {
       hienThongBao("Lỗi đọc file: " + err.toString(), false);
       btnGui.disabled = false;
