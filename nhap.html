@@ -4,18 +4,23 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <title>Nhập văn bản</title>
+  <title>Nhập văn bản nhắc việc</title>
 
   <style>
     :root {
       --main: #1f5f99;
-      --main2: #2f80c0;
-      --bg: #f3f7fb;
+      --main-dark: #174b7b;
+      --main-light: #eaf4fc;
+      --bg: #f2f6fb;
       --card: #ffffff;
-      --text: #1f2937;
-      --border: #d7dce2;
-      --red: #e76f51;
-      --green: #4f8a6d;
+      --text: #1e293b;
+      --muted: #64748b;
+      --border: #d7e0eb;
+      --green: #38775d;
+      --green-bg: #eaf7f0;
+      --red: #d95d4f;
+      --red-bg: #fff0ed;
+      --shadow: 0 10px 28px rgba(31, 67, 105, 0.10);
     }
 
     * {
@@ -24,141 +29,341 @@
 
     body {
       margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at top right, rgba(47, 128, 192, 0.12), transparent 30%),
+        var(--bg);
       font-family: Arial, sans-serif;
-      background: var(--bg);
       color: var(--text);
     }
 
-    header {
-      background: linear-gradient(135deg, var(--main), var(--main2));
+    .app-header {
+      background: linear-gradient(135deg, var(--main-dark), var(--main));
       color: white;
+      padding: 22px 16px 24px;
       text-align: center;
-      padding: 18px 14px;
-      box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+      box-shadow: 0 5px 18px rgba(16, 55, 92, 0.22);
     }
 
-    header h1 {
+    .app-header h1 {
       margin: 0;
-      font-size: 20px;
+      font-size: 22px;
       line-height: 1.35;
+      letter-spacing: 0.2px;
     }
 
-    header p {
-      margin: 7px 0 0;
-      font-size: 13.5px;
-      opacity: 0.95;
+    .app-header p {
+      margin: 8px 0 0;
+      font-size: 14px;
+      line-height: 1.45;
+      opacity: 0.94;
     }
 
     .container {
-      max-width: 760px;
-      margin: auto;
+      max-width: 780px;
+      margin: 0 auto;
+      padding: 18px 14px 34px;
+    }
+
+    .form-card {
+      background: var(--card);
+      border-radius: 22px;
+      padding: 22px;
+      box-shadow: var(--shadow);
+      border: 1px solid rgba(255,255,255,0.75);
+    }
+
+    .form-intro {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
       padding: 14px;
+      margin-bottom: 18px;
+      background: var(--main-light);
+      border-radius: 15px;
+      border-left: 4px solid var(--main);
     }
 
-    .card {
-      background: white;
-      border-radius: 18px;
-      padding: 18px;
-      box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+    .form-intro-icon {
+      font-size: 22px;
+      line-height: 1;
     }
 
-    label {
+    .form-intro strong {
       display: block;
-      font-weight: bold;
-      margin: 14px 0 6px;
-      color: var(--main);
+      color: var(--main-dark);
+      margin-bottom: 4px;
+      font-size: 15px;
+    }
+
+    .form-intro span {
+      font-size: 13px;
+      color: #41617b;
+      line-height: 1.45;
+    }
+
+    .section-title {
+      margin: 24px 0 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #e9eef4;
+      color: var(--main-dark);
+      font-size: 16px;
+      font-weight: 800;
+    }
+
+    .section-title:first-of-type {
+      margin-top: 0;
+    }
+
+    .field {
+      margin-bottom: 16px;
+    }
+
+    .field label,
+    .field-label {
+      display: block;
+      margin-bottom: 7px;
+      color: var(--main-dark);
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .required {
+      color: var(--red);
     }
 
     input,
     textarea,
     select {
       width: 100%;
-      padding: 13px;
       border: 1px solid var(--border);
+      background: #fff;
+      color: var(--text);
       border-radius: 13px;
+      padding: 13px 14px;
+      font: inherit;
       font-size: 15px;
       outline: none;
-      background: white;
+      transition: 0.2s ease;
     }
 
     textarea {
-      min-height: 100px;
+      min-height: 104px;
+      line-height: 1.45;
       resize: vertical;
     }
 
     input:focus,
     textarea:focus,
     select:focus {
-      border-color: var(--main2);
-      box-shadow: 0 0 0 3px rgba(47,128,192,0.12);
+      border-color: var(--main);
+      box-shadow: 0 0 0 3px rgba(47, 128, 192, 0.14);
     }
 
-    .check-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      margin-top: 8px;
-    }
-
-    .check-item {
-      background: #f7f9fc;
-      border: 1px solid var(--border);
-      border-radius: 12px;
+    input[type="file"] {
       padding: 10px;
-      font-size: 14px;
-    }
-
-    .check-item input {
-      width: auto;
-      margin-right: 6px;
-    }
-
-    .btn {
-      width: 100%;
-      margin-top: 18px;
-      border: none;
-      background: var(--main);
-      color: white;
-      padding: 14px;
-      border-radius: 14px;
-      font-size: 16px;
-      font-weight: bold;
       cursor: pointer;
     }
 
-    .btn:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-
-    .msg {
-      margin-top: 14px;
-      padding: 13px;
-      border-radius: 13px;
-      font-weight: bold;
-      display: none;
+    .hint {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 12.5px;
       line-height: 1.45;
     }
 
-    .msg.ok {
-      display: block;
-      background: #e8f5ee;
+    .file-box {
+      border: 1px dashed #a8c7df;
+      border-radius: 14px;
+      padding: 12px;
+      background: #f9fcff;
+    }
+
+    .file-name {
+      display: none;
+      margin-top: 9px;
+      padding: 10px 11px;
+      border-radius: 10px;
+      background: #edf7f2;
       color: var(--green);
-      border: 1px solid #b7e1c5;
-    }
-
-    .msg.err {
-      display: block;
-      background: #fff1ed;
-      color: var(--red);
-      border: 1px solid #f5c2b5;
-    }
-
-    .note {
       font-size: 13px;
-      color: #6b7280;
-      margin-top: 6px;
-      line-height: 1.4;
+      font-weight: 700;
+      word-break: break-word;
+    }
+
+    .file-name.show {
+      display: block;
+    }
+
+    /* PHÒNG BAN XỬ LÝ */
+    .multi-select {
+      position: relative;
+    }
+
+    .multi-trigger {
+      width: 100%;
+      min-height: 51px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      background: white;
+      color: var(--text);
+      border-radius: 13px;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+      transition: 0.2s ease;
+    }
+
+    .multi-trigger:hover,
+    .multi-trigger.active {
+      border-color: var(--main);
+      box-shadow: 0 0 0 3px rgba(47, 128, 192, 0.12);
+    }
+
+    .multi-trigger-text {
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      color: var(--muted);
+    }
+
+    .multi-trigger-text.has-value {
+      color: var(--text);
+      font-weight: 700;
+    }
+
+    .arrow {
+      flex: 0 0 auto;
+      color: var(--main);
+      font-size: 18px;
+      transition: transform 0.2s ease;
+    }
+
+    .multi-trigger.active .arrow {
+      transform: rotate(180deg);
+    }
+
+    .multi-dropdown {
+      display: none;
+      margin-top: 8px;
+      padding: 12px;
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: 0 10px 24px rgba(31, 67, 105, 0.13);
+    }
+
+    .multi-dropdown.open {
+      display: block;
+    }
+
+    .multi-actions {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .multi-actions button {
+      border: none;
+      background: transparent;
+      color: var(--main);
+      padding: 4px 0;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .department-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 9px;
+    }
+
+    .department-option {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 44px;
+      padding: 10px;
+      border: 1px solid #e0e8f0;
+      border-radius: 11px;
+      background: #f9fbfd;
+      color: #29465e;
+      font-size: 13.5px;
+      cursor: pointer;
+    }
+
+    .department-option:hover {
+      border-color: #9ec4e0;
+      background: #f1f8fd;
+    }
+
+    .department-option input {
+      width: auto;
+      margin: 0;
+      accent-color: var(--main);
+    }
+
+    .button-submit {
+      width: 100%;
+      margin-top: 20px;
+      border: none;
+      border-radius: 14px;
+      padding: 15px;
+      background: linear-gradient(135deg, var(--main-dark), var(--main));
+      color: white;
+      font-size: 16px;
+      font-weight: 800;
+      cursor: pointer;
+      box-shadow: 0 7px 15px rgba(31, 95, 153, 0.23);
+      transition: transform 0.15s ease, opacity 0.15s ease;
+    }
+
+    .button-submit:hover {
+      transform: translateY(-1px);
+    }
+
+    .button-submit:disabled {
+      opacity: 0.62;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .message {
+      display: none;
+      margin-top: 15px;
+      padding: 13px 14px;
+      border-radius: 13px;
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1.5;
+    }
+
+    .message.ok {
+      display: block;
+      background: var(--green-bg);
+      border: 1px solid #b8dfc7;
+      color: var(--green);
+    }
+
+    .message.error {
+      display: block;
+      background: var(--red-bg);
+      border: 1px solid #f4c4bc;
+      color: var(--red);
+    }
+
+    .footer-note {
+      margin-top: 16px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
     }
 
     iframe {
@@ -166,16 +371,33 @@
     }
 
     @media (max-width: 650px) {
-      header h1 {
-        font-size: 18px;
+      .app-header {
+        padding: 19px 14px 21px;
+      }
+
+      .app-header h1 {
+        font-size: 19px;
+      }
+
+      .app-header p {
+        font-size: 13px;
       }
 
       .container {
-        padding: 12px;
+        padding: 13px 11px 28px;
       }
 
-      .check-grid {
+      .form-card {
+        padding: 17px;
+        border-radius: 18px;
+      }
+
+      .department-grid {
         grid-template-columns: 1fr;
+      }
+
+      .section-title {
+        margin-top: 20px;
       }
     }
   </style>
@@ -183,173 +405,429 @@
 
 <body>
 
-<header>
-  <h1>📝 NHẬP VĂN BẢN NHẮC VIỆC</h1>
-  <p>Dành cho Văn thư tiếp nhận văn bản và chuyển xử lý</p>
-</header>
+  <header class="app-header">
+    <h1>📝 NHẬP VĂN BẢN NHẮC VIỆC</h1>
+    <p>Dành cho Văn thư tiếp nhận, cập nhật và chuyển xử lý văn bản</p>
+  </header>
 
-<div class="container">
-  <div class="card">
+  <main class="container">
+    <div class="form-card">
 
-    <form id="formNhap">
-
-      <label>Mật khẩu văn thư *</label>
-      <input type="password" id="matKhau" required placeholder="Nhập mật khẩu">
-
-      <label>Số hiệu văn bản *</label>
-      <input type="text" id="soHieu" required placeholder="Ví dụ: 8085/SYT-KHTC">
-
-      <label>File đính kèm *</label>
-      <input type="file" id="fileVanBan" required>
-      <div class="note">Nên dùng PDF hoặc ảnh scan. Dung lượng khuyến nghị dưới 10MB.</div>
-
-      <label>Trích yếu nội dung *</label>
-      <textarea id="trichYeu" required placeholder="Nhập trích yếu nội dung văn bản"></textarea>
-
-      <label>Phòng ban xử lý *</label>
-      <div class="check-grid">
-        <label class="check-item"><input type="checkbox" name="phongBan" value="PHÒNG TỔ CHỨC - HÀNH CHÍNH">Phòng Tổ chức - Hành chính</label>
-        <label class="check-item"><input type="checkbox" name="phongBan" value="PHÒNG KẾ HOẠCH TÀI CHÍNH">Phòng Kế hoạch tài chính</label>
-        <label class="check-item"><input type="checkbox" name="phongBan" value="PHÒNG CÔNG TÁC XÃ HỘI">Phòng Công tác xã hội</label>
-        <label class="check-item"><input type="checkbox" name="phongBan" value="PHÒNG Y TẾ">Phòng Y tế</label>
-        <label class="check-item"><input type="checkbox" name="phongBan" value="KHU I">Khu I</label>
-        <label class="check-item"><input type="checkbox" name="phongBan" value="KHU II">Khu II</label>
-        <label class="check-item"><input type="checkbox" name="phongBan" value="KHU III">Khu III</label>
+      <div class="form-intro">
+        <div class="form-intro-icon">📌</div>
+        <div>
+          <strong>Tiếp nhận văn bản mới</strong>
+          <span>Hệ thống kiểm tra trùng số hiệu, lưu file vào Drive và chuyển thông báo tự động đến các đơn vị liên quan.</span>
+        </div>
       </div>
 
-      <label>Hạn xử lý *</label>
-      <input type="date" id="hanXuLy" required>
+      <form id="formNhap">
 
-      <label>Ý kiến chỉ đạo</label>
-      <textarea id="yKienChiDao" placeholder="Có thể bỏ trống"></textarea>
+        <div class="section-title">1. Thông tin xác thực</div>
 
-      <label>Chỉ đạo khẩn</label>
-      <textarea id="chiDaoKhan" placeholder="Có thể bỏ trống"></textarea>
+        <div class="field">
+          <label for="matKhau">Mật khẩu Văn thư <span class="required">*</span></label>
+          <input
+            type="password"
+            id="matKhau"
+            required
+            autocomplete="current-password"
+            placeholder="Nhập mật khẩu Văn thư"
+          >
+        </div>
 
-      <button type="submit" class="btn" id="btnGui">📤 Gửi văn bản</button>
+        <div class="section-title">2. Thông tin văn bản</div>
 
-      <div id="thongBao" class="msg"></div>
+        <div class="field">
+          <label for="soHieu">Số hiệu văn bản <span class="required">*</span></label>
+          <input
+            type="text"
+            id="soHieu"
+            required
+            placeholder="Ví dụ: 8085/SYT-KHTC"
+          >
+        </div>
 
-    </form>
+        <div class="field">
+          <label for="fileVanBan">File đính kèm <span class="required">*</span></label>
 
-    <form id="postForm" method="POST" target="hiddenFrame" style="display:none;">
-      <input type="hidden" name="payload" id="payload">
-    </form>
+          <div class="file-box">
+            <input
+              type="file"
+              id="fileVanBan"
+              required
+              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+            >
 
-    <iframe name="hiddenFrame"></iframe>
+            <div class="hint">
+              Hỗ trợ PDF, Word, ảnh scan. Khuyến nghị file dưới 10 MB.
+            </div>
 
-  </div>
-</div>
+            <div id="fileName" class="file-name"></div>
+          </div>
+        </div>
 
-<script>
-  const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyMINgn39Y_zlvdG9nqMpDH9KeoBKXnR_ueWr_wpVLPu82QxZVPSH4tnkVR9oa7eTJ2KQ/exec";
+        <div class="field">
+          <label for="trichYeu">Trích yếu nội dung <span class="required">*</span></label>
+          <textarea
+            id="trichYeu"
+            required
+            placeholder="Nhập trích yếu nội dung văn bản..."
+          ></textarea>
+        </div>
 
-  const formNhap = document.getElementById("formNhap");
-  const postForm = document.getElementById("postForm");
-  const payloadInput = document.getElementById("payload");
-  const thongBao = document.getElementById("thongBao");
-  const btnGui = document.getElementById("btnGui");
+        <div class="section-title">3. Phân công xử lý</div>
 
-  postForm.action = APPS_SCRIPT_URL;
+        <div class="field">
+          <div class="field-label">Phòng ban xử lý <span class="required">*</span></div>
 
-  formNhap.addEventListener("submit", async function(e) {
-    e.preventDefault();
+          <div class="multi-select" id="multiSelectPhong">
+            <button
+              type="button"
+              class="multi-trigger"
+              id="phongTrigger"
+              aria-expanded="false"
+            >
+              <span id="phongTriggerText" class="multi-trigger-text">
+                Bấm để chọn phòng ban xử lý
+              </span>
+              <span class="arrow">⌄</span>
+            </button>
 
-    thongBao.className = "msg";
-    thongBao.style.display = "none";
+            <div class="multi-dropdown" id="phongDropdown">
+              <div class="multi-actions">
+                <button type="button" id="chonTatCa">Chọn tất cả</button>
+                <button type="button" id="boChonTatCa">Bỏ chọn tất cả</button>
+              </div>
 
-    const file = document.getElementById("fileVanBan").files[0];
+              <div class="department-grid">
+                <label class="department-option">
+                  <input type="checkbox" name="phongBan" value="PHÒNG TỔ CHỨC - HÀNH CHÍNH">
+                  Phòng Tổ chức - Hành chính
+                </label>
 
-    if (!file) {
-      hienThongBao("Vui lòng chọn file đính kèm.", false);
-      return;
+                <label class="department-option">
+                  <input type="checkbox" name="phongBan" value="PHÒNG KẾ HOẠCH TÀI CHÍNH">
+                  Phòng Kế hoạch tài chính
+                </label>
+
+                <label class="department-option">
+                  <input type="checkbox" name="phongBan" value="PHÒNG CÔNG TÁC XÃ HỘI">
+                  Phòng Công tác xã hội
+                </label>
+
+                <label class="department-option">
+                  <input type="checkbox" name="phongBan" value="PHÒNG Y TẾ">
+                  Phòng Y tế
+                </label>
+
+                <label class="department-option">
+                  <input type="checkbox" name="phongBan" value="KHU I">
+                  Khu I
+                </label>
+
+                <label class="department-option">
+                  <input type="checkbox" name="phongBan" value="KHU II">
+                  Khu II
+                </label>
+
+                <label class="department-option">
+                  <input type="checkbox" name="phongBan" value="KHU III">
+                  Khu III
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="hint">Có thể chọn một hoặc nhiều đơn vị cùng phối hợp xử lý.</div>
+        </div>
+
+        <div class="field">
+          <label for="hanXuLy">Hạn xử lý <span class="required">*</span></label>
+          <input type="date" id="hanXuLy" required>
+        </div>
+
+        <div class="section-title">4. Thông tin chỉ đạo</div>
+
+        <div class="field">
+          <label for="yKienChiDao">Ý kiến chỉ đạo</label>
+          <textarea
+            id="yKienChiDao"
+            placeholder="Có thể bỏ trống"
+          ></textarea>
+        </div>
+
+        <div class="field">
+          <label for="chiDaoKhan">Chỉ đạo khẩn</label>
+          <textarea
+            id="chiDaoKhan"
+            placeholder="Có thể bỏ trống"
+          ></textarea>
+        </div>
+
+        <button type="submit" class="button-submit" id="btnGui">
+          📤 Gửi văn bản
+        </button>
+
+        <div id="thongBao" class="message"></div>
+
+      </form>
+
+      <form id="postForm" method="POST" target="hiddenFrame" style="display:none;">
+        <input type="hidden" name="payload" id="payload">
+      </form>
+
+      <iframe name="hiddenFrame"></iframe>
+
+      <div class="footer-note">
+        Hệ thống tự động kiểm tra văn bản trùng trước khi tiếp nhận.
+      </div>
+
+    </div>
+  </main>
+
+  <script>
+    const APPS_SCRIPT_URL =
+      "https://script.google.com/macros/s/AKfycbyMINgn39Y_zlvdG9nqMpDH9KeoBKXnR_ueWr_wpVLPu82QxZVPSH4tnkVR9oa7eTJ2KQ/exec";
+
+    const formNhap = document.getElementById("formNhap");
+    const postForm = document.getElementById("postForm");
+    const payloadInput = document.getElementById("payload");
+    const thongBao = document.getElementById("thongBao");
+    const btnGui = document.getElementById("btnGui");
+
+    const fileInput = document.getElementById("fileVanBan");
+    const fileName = document.getElementById("fileName");
+
+    const phongTrigger = document.getElementById("phongTrigger");
+    const phongDropdown = document.getElementById("phongDropdown");
+    const phongTriggerText = document.getElementById("phongTriggerText");
+    const multiSelectPhong = document.getElementById("multiSelectPhong");
+
+    const checkboxesPhong = document.querySelectorAll('input[name="phongBan"]');
+
+    let timeoutGui = null;
+
+    postForm.action = APPS_SCRIPT_URL;
+
+    /* HIỂN THỊ TÊN FILE */
+    fileInput.addEventListener("change", function() {
+      const file = fileInput.files[0];
+
+      if (!file) {
+        fileName.textContent = "";
+        fileName.classList.remove("show");
+        return;
+      }
+
+      fileName.textContent = "📎 Đã chọn: " + file.name;
+      fileName.classList.add("show");
+    });
+
+    /* MỞ / ĐÓNG DANH SÁCH PHÒNG BAN */
+    phongTrigger.addEventListener("click", function() {
+      const isOpen = phongDropdown.classList.contains("open");
+
+      phongDropdown.classList.toggle("open", !isOpen);
+      phongTrigger.classList.toggle("active", !isOpen);
+      phongTrigger.setAttribute("aria-expanded", String(!isOpen));
+    });
+
+    document.addEventListener("click", function(event) {
+      if (!multiSelectPhong.contains(event.target)) {
+        phongDropdown.classList.remove("open");
+        phongTrigger.classList.remove("active");
+        phongTrigger.setAttribute("aria-expanded", "false");
+      }
+    });
+
+    document.getElementById("chonTatCa").addEventListener("click", function() {
+      checkboxesPhong.forEach(function(checkbox) {
+        checkbox.checked = true;
+      });
+
+      capNhatTenPhongDaChon();
+    });
+
+    document.getElementById("boChonTatCa").addEventListener("click", function() {
+      checkboxesPhong.forEach(function(checkbox) {
+        checkbox.checked = false;
+      });
+
+      capNhatTenPhongDaChon();
+    });
+
+    checkboxesPhong.forEach(function(checkbox) {
+      checkbox.addEventListener("change", capNhatTenPhongDaChon);
+    });
+
+    function capNhatTenPhongDaChon() {
+      const phongDaChon = Array
+        .from(checkboxesPhong)
+        .filter(function(checkbox) {
+          return checkbox.checked;
+        })
+        .map(function(checkbox) {
+          return checkbox.parentElement.textContent.trim();
+        });
+
+      if (phongDaChon.length === 0) {
+        phongTriggerText.textContent = "Bấm để chọn phòng ban xử lý";
+        phongTriggerText.classList.remove("has-value");
+        return;
+      }
+
+      if (phongDaChon.length === 1) {
+        phongTriggerText.textContent = phongDaChon[0];
+      } else {
+        phongTriggerText.textContent = "Đã chọn " + phongDaChon.length + " phòng ban";
+      }
+
+      phongTriggerText.classList.add("has-value");
     }
 
-    const phongBan = Array
-      .from(document.querySelectorAll('input[name="phongBan"]:checked'))
-      .map(x => x.value);
+    /* GỬI VĂN BẢN */
+    formNhap.addEventListener("submit", async function(event) {
+      event.preventDefault();
 
-    if (phongBan.length === 0) {
-      hienThongBao("Vui lòng chọn ít nhất một phòng ban.", false);
-      return;
+      anThongBao();
+
+      const file = fileInput.files[0];
+
+      if (!file) {
+        hienThongBao("⚠️ Vui lòng chọn file đính kèm.", false);
+        return;
+      }
+
+      const phongBan = Array
+        .from(checkboxesPhong)
+        .filter(function(checkbox) {
+          return checkbox.checked;
+        })
+        .map(function(checkbox) {
+          return checkbox.value;
+        });
+
+      if (phongBan.length === 0) {
+        hienThongBao("⚠️ Vui lòng chọn ít nhất một phòng ban xử lý.", false);
+
+        phongDropdown.classList.add("open");
+        phongTrigger.classList.add("active");
+        phongTrigger.setAttribute("aria-expanded", "true");
+        return;
+      }
+
+      btnGui.disabled = true;
+      btnGui.textContent = "⏳ Đang gửi, vui lòng chờ...";
+
+      try {
+        const fileBase64 = await docFileBase64(file);
+
+        const payload = {
+          matKhau: document.getElementById("matKhau").value.trim(),
+          soHieu: document.getElementById("soHieu").value.trim(),
+          fileName: file.name,
+          fileMimeType: file.type || "application/octet-stream",
+          fileBase64: fileBase64,
+          trichYeu: document.getElementById("trichYeu").value.trim(),
+          phongBan: phongBan.join(", "),
+          hanXuLy: document.getElementById("hanXuLy").value,
+          yKienChiDao: document.getElementById("yKienChiDao").value.trim(),
+          chiDaoKhan: document.getElementById("chiDaoKhan").value.trim()
+        };
+
+        payloadInput.value = JSON.stringify(payload);
+        postForm.submit();
+
+        clearTimeout(timeoutGui);
+
+        timeoutGui = setTimeout(function() {
+          if (btnGui.disabled) {
+            btnGui.disabled = false;
+            btnGui.textContent = "📤 Gửi văn bản";
+
+            hienThongBao(
+              "⚠️ Hệ thống chưa phản hồi. Không gửi lại ngay để tránh nhập trùng. Hãy kiểm tra Nhật ký thực thi trong Apps Script.",
+              false
+            );
+          }
+        }, 90000);
+
+      } catch (error) {
+        btnGui.disabled = false;
+        btnGui.textContent = "📤 Gửi văn bản";
+
+        hienThongBao(
+          "⚠️ Không đọc được file: " + error.toString(),
+          false
+        );
+      }
+    });
+
+    function docFileBase64(file) {
+      return new Promise(function(resolve, reject) {
+        const reader = new FileReader();
+
+        reader.onload = function() {
+          resolve(reader.result);
+        };
+
+        reader.onerror = function() {
+          reject(reader.error);
+        };
+
+        reader.readAsDataURL(file);
+      });
     }
 
-    btnGui.disabled = true;
-    btnGui.textContent = "⏳ Đang gửi, vui lòng chờ...";
+    /* NHẬN PHẢN HỒI TỪ APPS SCRIPT */
+    window.addEventListener("message", function(event) {
+      const data = event.data || {};
 
-    try {
-      const fileBase64 = await docFileBase64(file);
+      if (!data || typeof data !== "object" || !("ok" in data)) {
+        return;
+      }
 
-      const payload = {
-        matKhau: document.getElementById("matKhau").value,
-        soHieu: document.getElementById("soHieu").value,
-        fileName: file.name,
-        fileMimeType: file.type,
-        fileBase64: fileBase64,
-        trichYeu: document.getElementById("trichYeu").value,
-        phongBan: phongBan.join(", "),
-        hanXuLy: document.getElementById("hanXuLy").value,
-        yKienChiDao: document.getElementById("yKienChiDao").value,
-        chiDaoKhan: document.getElementById("chiDaoKhan").value
-      };
+      clearTimeout(timeoutGui);
 
-      payloadInput.value = JSON.stringify(payload);
-      postForm.submit();
-setTimeout(function() {
-  if (btnGui.disabled) {
-    btnGui.disabled = false;
-    btnGui.textContent = "📤 Gửi văn bản";
-
-    hienThongBao(
-      "Hệ thống chưa phản hồi. Hãy kiểm tra Apps Script → Nhật ký thực thi. Không bấm gửi lại ngay để tránh nhập trùng.",
-      false
-    );
-  }
-}, 90000);
-    } catch (err) {
-      hienThongBao("Lỗi đọc file: " + err.toString(), false);
       btnGui.disabled = false;
       btnGui.textContent = "📤 Gửi văn bản";
-    }
-  });
 
-  function docFileBase64(file) {
-    return new Promise(function(resolve, reject) {
-      const reader = new FileReader();
+      if (data.ok) {
+        hienThongBao(
+          "✅ " + data.message + " Số hiệu: " + (data.soHieu || ""),
+          true
+        );
 
-      reader.onload = function() {
-        resolve(reader.result);
-      };
+        formNhap.reset();
 
-      reader.onerror = function() {
-        reject(reader.error);
-      };
+        fileName.textContent = "";
+        fileName.classList.remove("show");
 
-      reader.readAsDataURL(file);
+        capNhatTenPhongDaChon();
+
+        phongDropdown.classList.remove("open");
+        phongTrigger.classList.remove("active");
+        phongTrigger.setAttribute("aria-expanded", "false");
+
+      } else {
+        hienThongBao(
+          "⚠️ " + (data.message || "Không gửi được văn bản."),
+          false
+        );
+      }
     });
-  }
 
-  window.addEventListener("message", function(event) {
-    const data = event.data || {};
-
-    btnGui.disabled = false;
-    btnGui.textContent = "📤 Gửi văn bản";
-
-    if (data.ok) {
-      hienThongBao("✅ " + data.message + " Số hiệu: " + data.soHieu, true);
-      formNhap.reset();
-    } else {
-      hienThongBao("⚠️ " + (data.message || "Không gửi được văn bản."), false);
+    function hienThongBao(text, ok) {
+      thongBao.textContent = text;
+      thongBao.className = ok ? "message ok" : "message error";
     }
-  });
 
-  function hienThongBao(text, ok) {
-    thongBao.textContent = text;
-    thongBao.className = ok ? "msg ok" : "msg err";
-    thongBao.style.display = "block";
-  }
-</script>
+    function anThongBao() {
+      thongBao.textContent = "";
+      thongBao.className = "message";
+    }
+  </script>
 
 </body>
 </html>
-
