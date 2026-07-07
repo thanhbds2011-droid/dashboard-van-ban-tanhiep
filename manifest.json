@@ -1,1 +1,9 @@
-
+{
+  "name": "Hệ thống nhắc việc văn bản",
+  "short_name": "Nhắc việc",
+  "start_url": "/dashboard-van-ban-tanhiep/",
+  "scope": "/dashboard-van-ban-tanhiep/",
+  "display": "standalone",
+  "background_color": "#f3f7fb",
+  "theme_color": "#1f5f99"
+}
