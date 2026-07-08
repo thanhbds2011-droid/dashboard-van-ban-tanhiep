@@ -693,6 +693,7 @@
       duLieuLuuTru = data.luuTru || [];
 
       hienThiDuLieu();
+moVanBanTuThongBaoNeuCo();
 
     } catch (error) {
       document.getElementById("bangDuLieu").innerHTML =
@@ -1123,6 +1124,28 @@
   }
 
   taiDuLieu();
+  function moVanBanTuThongBaoNeuCo() {
+  const params = new URLSearchParams(window.location.search);
+  const soHieuCanMo = params.get("soHieu");
+
+  if (!soHieuCanMo) return;
+
+  const index = duLieuTheoDoi.findIndex(function(item) {
+    return chuanHoaSoHieuClient_(item.soHieu) === chuanHoaSoHieuClient_(soHieuCanMo);
+  });
+
+  if (index >= 0) {
+    doiTab("theoDoi");
+    moChiTiet(index);
+  }
+}
+
+function chuanHoaSoHieuClient_(text) {
+  return String(text || "")
+    .toUpperCase()
+    .replace(/\s+/g, "")
+    .trim();
+}
 </script>
 
 </body>
