@@ -9,7 +9,7 @@
 
   <title>Hệ thống nhắc việc văn bản</title>
 
-  <link rel="manifest" href="manifest.json">
+  <link rel="manifest" href="manifest.json?v=20260708">
   <meta name="theme-color" content="#1f5f99">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -421,6 +421,9 @@
   <button id="btnBatThongBao" class="btn-bat-thong-bao" type="button">
     🔔 Bật thông báo
   </button>
+  <button class="btn-bat-thong-bao" type="button" onclick="capNhatUngDung()">
+  🔄 Cập nhật giao diện
+</button>
 </header>
 
 <div class="container">
@@ -1126,29 +1129,56 @@ moVanBanTuThongBaoNeuCo();
       .replace(/'/g, "&#039;");
   }
 
-  taiDuLieu();
   function moVanBanTuThongBaoNeuCo() {
-  const params = new URLSearchParams(window.location.search);
-  const soHieuCanMo = params.get("soHieu");
+    const params = new URLSearchParams(window.location.search);
+    const soHieuCanMo = params.get("soHieu");
 
-  if (!soHieuCanMo) return;
+    if (!soHieuCanMo) return;
 
-  const index = duLieuTheoDoi.findIndex(function(item) {
-    return chuanHoaSoHieuClient_(item.soHieu) === chuanHoaSoHieuClient_(soHieuCanMo);
-  });
+    const index = duLieuTheoDoi.findIndex(function(item) {
+      return chuanHoaSoHieuClient_(item.soHieu) === chuanHoaSoHieuClient_(soHieuCanMo);
+    });
 
-  if (index >= 0) {
-    doiTab("theoDoi");
-    moChiTiet(index);
+    if (index >= 0) {
+      doiTab("theoDoi");
+      moChiTiet(index);
+    }
   }
-}
 
-function chuanHoaSoHieuClient_(text) {
-  return String(text || "")
-    .toUpperCase()
-    .replace(/\s+/g, "")
-    .trim();
-}
+  function chuanHoaSoHieuClient_(text) {
+    return String(text || "")
+      .toUpperCase()
+      .replace(/\s+/g, "")
+      .trim();
+  }
+
+  function capNhatUngDung() {
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(regs) {
+        regs.forEach(function(reg) {
+          try {
+            reg.update();
+          } catch (e) {
+            console.log("Không cập nhật được Service Worker:", e);
+          }
+        });
+
+        setTimeout(function() {
+          window.location.href =
+            window.location.pathname +
+            "?v=" +
+            Date.now();
+        }, 500);
+      });
+    } else {
+      window.location.href =
+        window.location.pathname +
+        "?v=" +
+        Date.now();
+    }
+  }
+
+  taiDuLieu();
 </script>
 
 </body>
