@@ -8,6 +8,7 @@
 
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#1f5f99">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Nhắc việc">
@@ -406,32 +407,6 @@
   </style>
 
   <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
-
-  <script>
-    window.OneSignalDeferred = window.OneSignalDeferred || [];
-
-    const ONESIGNAL_APP_ID = "1a1d8e66-d523-4a9a-84be-1d3c248bad61";
-    const ONESIGNAL_SAFARI_WEB_ID = "web.onesignal.auto.12e0c5f3-6b76-47bb-8015-fa3026009bd5";
-    const ONESIGNAL_EXTERNAL_ID_KEY = "nhac_viec_van_ban_external_id";
-
-    OneSignalDeferred.push(async function(OneSignal) {
-      await OneSignal.init({
-        appId: ONESIGNAL_APP_ID,
-        safari_web_id: ONESIGNAL_SAFARI_WEB_ID,
-        serviceWorkerPath: "/dashboard-van-ban-tanhiep/OneSignalSDKWorker.js",
-serviceWorkerUpdaterPath: "/dashboard-van-ban-tanhiep/OneSignalSDKWorker.js",
-serviceWorkerParam: {
-  scope: "/dashboard-van-ban-tanhiep/"
-},
-        notifyButton: {
-          enable: false
-        },
-        welcomeNotification: {
-          disable: true
-        }
-      });
-    });
-  </script>
 </head>
 
 <body>
@@ -513,13 +488,18 @@ serviceWorkerParam: {
 <script>
   const API_URL = "https://script.google.com/macros/s/AKfycbyMINgn39Y_zlvdG9nqMpDH9KeoBKXnR_ueWr_wpVLPu82QxZVPSH4tnkVR9oa7eTJ2KQ/exec";
 
+  const ONESIGNAL_APP_ID = "1a1d8e66-d523-4a9a-84be-1d3c248bad61";
+  const ONESIGNAL_SAFARI_WEB_ID = "web.onesignal.auto.12e0c5f3-6b76-47bb-8015-fa3026009bd5";
+  const ONESIGNAL_EXTERNAL_ID_KEY = "nhac_viec_van_ban_external_id";
+
   let duLieuTheoDoi = [];
   let duLieuLuuTru = [];
   let tabHienTai = "theoDoi";
   let trangHienTai = 1;
+  let oneSignalReady = false;
+  let oneSignalInstance = null;
 
   const SO_DONG_MOI_TRANG = 10;
-
   const btnBatThongBao = document.getElementById("btnBatThongBao");
 
   function laIPhoneHoacIPad() {
@@ -535,12 +515,10 @@ serviceWorkerParam: {
 
   function taoExternalId() {
     let id = localStorage.getItem(ONESIGNAL_EXTERNAL_ID_KEY);
-
     if (!id) {
       id = "vanban_" + Date.now() + "_" + Math.random().toString(36).slice(2, 12);
       localStorage.setItem(ONESIGNAL_EXTERNAL_ID_KEY, id);
     }
-
     return id;
   }
 
@@ -560,108 +538,151 @@ serviceWorkerParam: {
 
   function baoLoiThongBao(text) {
     alert(text);
-    if (btnBatThongBao) {
-      btnBatThongBao.disabled = false;
-      btnBatThongBao.textContent = "🔔 Bật thông báo";
-      btnBatThongBao.classList.remove("da-bat");
+    capNhatNutThongBao(false);
+  }
+
+  function layTrangThaiSubscription(OneSignal) {
+    return {
+      id: OneSignal.User.PushSubscription.id || "",
+      token: OneSignal.User.PushSubscription.token || "",
+      optedIn: OneSignal.User.PushSubscription.optedIn === true,
+      permission: Notification.permission
+    };
+  }
+
+  function choDenKhiSubscriptionSanSang(OneSignal) {
+    return new Promise(function(resolve) {
+      const hienTai = layTrangThaiSubscription(OneSignal);
+
+      if (hienTai.id && hienTai.optedIn) {
+        resolve(hienTai);
+        return;
+      }
+
+      const handler = function() {
+        const moi = layTrangThaiSubscription(OneSignal);
+
+        console.log("OneSignal Subscription changed:", moi);
+
+        if (moi.id && moi.optedIn) {
+          try {
+            OneSignal.User.PushSubscription.removeEventListener("change", handler);
+          } catch (e) {}
+
+          resolve(moi);
+        }
+      };
+
+      OneSignal.User.PushSubscription.addEventListener("change", handler);
+
+      const kiemTraLai = layTrangThaiSubscription(OneSignal);
+      if (kiemTraLai.id && kiemTraLai.optedIn) {
+        try {
+          OneSignal.User.PushSubscription.removeEventListener("change", handler);
+        } catch (e) {}
+
+        resolve(kiemTraLai);
+      }
+    });
+  }
+
+  function khoiTaoOneSignal() {
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+
+    window.OneSignalDeferred.push(async function(OneSignal) {
+      try {
+        oneSignalInstance = OneSignal;
+
+        await OneSignal.init({
+          appId: ONESIGNAL_APP_ID,
+          safari_web_id: ONESIGNAL_SAFARI_WEB_ID,
+          serviceWorkerPath: "/dashboard-van-ban-tanhiep/OneSignalSDKWorker.js",
+          serviceWorkerUpdaterPath: "/dashboard-van-ban-tanhiep/OneSignalSDKWorker.js",
+          serviceWorkerParam: {
+            scope: "/dashboard-van-ban-tanhiep/"
+          },
+          notifyButton: {
+            enable: false
+          },
+          welcomeNotification: {
+            disable: true
+          }
+        });
+
+        oneSignalReady = true;
+
+        const trangThai = layTrangThaiSubscription(OneSignal);
+        console.log("OneSignal init state:", trangThai);
+
+        capNhatNutThongBao(trangThai.id && trangThai.optedIn);
+
+        OneSignal.User.PushSubscription.addEventListener("change", function() {
+          const tt = layTrangThaiSubscription(OneSignal);
+          console.log("OneSignal PushSubscription:", tt);
+          capNhatNutThongBao(tt.id && tt.optedIn);
+        });
+
+      } catch (error) {
+        console.error("Lỗi khởi tạo OneSignal:", error);
+        capNhatNutThongBao(false);
+      }
+    });
+  }
+
+  async function batThongBaoOneSignal() {
+    try {
+      const OneSignal = oneSignalInstance;
+
+      if (!oneSignalReady || !OneSignal) {
+        baoLoiThongBao("OneSignal chưa sẵn sàng. Vui lòng tải lại trang rồi thử lại.");
+        return;
+      }
+
+      if (!OneSignal.Notifications.isPushSupported()) {
+        baoLoiThongBao("Thiết bị hoặc trình duyệt này chưa hỗ trợ nhận thông báo web.");
+        return;
+      }
+
+      if (laIPhoneHoacIPad() && !daMoTuManHinhChinh()) {
+        baoLoiThongBao("Trên iPhone/iPad: mở Dashboard bằng Safari → Chia sẻ → Thêm vào Màn hình chính → mở lại từ biểu tượng ngoài màn hình → bấm Bật thông báo.");
+        return;
+      }
+
+      btnBatThongBao.disabled = true;
+      btnBatThongBao.textContent = "⏳ Đang bật thông báo...";
+
+      await OneSignal.Notifications.requestPermission(true);
+
+      if (Notification.permission !== "granted") {
+        baoLoiThongBao("Trình duyệt chưa cho phép nhận thông báo. Hãy cấp quyền thông báo rồi thử lại.");
+        return;
+      }
+
+      await OneSignal.User.PushSubscription.optIn();
+
+      const sub = await choDenKhiSubscriptionSanSang(OneSignal);
+
+      const externalId = taoExternalId();
+      await OneSignal.login(externalId);
+
+      console.log("OneSignal External ID:", externalId);
+      console.log("OneSignal Subscription ID:", sub.id);
+      console.log("OneSignal Opted In:", sub.optedIn);
+
+      capNhatNutThongBao(true);
+      alert("✅ Đã bật thông báo thành công. Thiết bị đã đăng ký nhận thông báo từ hệ thống.");
+
+    } catch (error) {
+      console.error("Lỗi bật thông báo OneSignal:", error);
+      baoLoiThongBao("Chưa bật được thông báo. Hãy kiểm tra Console hoặc quyền thông báo của trình duyệt.");
     }
   }
 
-  window.OneSignalDeferred = window.OneSignalDeferred || [];
+  if (btnBatThongBao) {
+    btnBatThongBao.addEventListener("click", batThongBaoOneSignal);
+  }
 
-  OneSignalDeferred.push(async function(OneSignal) {
-    try {
-      const externalId = taoExternalId();
-
-      try {
-        await OneSignal.login(externalId);
-      } catch (e) {
-        console.warn("OneSignal login chưa hoàn tất:", e);
-      }
-
-      setTimeout(function() {
-        try {
-          capNhatNutThongBao(OneSignal.User.PushSubscription.optedIn);
-        } catch (e) {}
-      }, 1200);
-
-      try {
-        OneSignal.User.PushSubscription.addEventListener("change", function() {
-          capNhatNutThongBao(OneSignal.User.PushSubscription.optedIn);
-          console.log("OneSignal Subscription ID:", OneSignal.User.PushSubscription.id);
-        });
-      } catch (e) {}
-
-      try {
-        OneSignal.Notifications.addEventListener("permissionChange", function() {
-          capNhatNutThongBao(OneSignal.User.PushSubscription.optedIn);
-          console.log("OneSignal Permission:", OneSignal.Notifications.permission);
-          console.log("OneSignal Subscription ID:", OneSignal.User.PushSubscription.id);
-        });
-      } catch (e) {}
-
-      if (btnBatThongBao) {
-        btnBatThongBao.addEventListener("click", async function() {
-          try {
-            if (!OneSignal.Notifications.isPushSupported()) {
-              baoLoiThongBao("Thiết bị hoặc trình duyệt này chưa hỗ trợ nhận thông báo web.");
-              return;
-            }
-
-            if (laIPhoneHoacIPad() && !daMoTuManHinhChinh()) {
-              baoLoiThongBao("Trên iPhone/iPad: mở Dashboard bằng Safari → bấm Chia sẻ → Thêm vào Màn hình chính → mở lại từ biểu tượng ngoài màn hình → rồi bấm Bật thông báo.");
-              return;
-            }
-
-            btnBatThongBao.disabled = true;
-            btnBatThongBao.textContent = "⏳ Đang bật thông báo...";
-
-            await OneSignal.Notifications.requestPermission(true);
-
-await new Promise(function(resolve) {
-  setTimeout(resolve, 1500);
-});
-
-await OneSignal.login(externalId);
-
-try {
-  await OneSignal.User.PushSubscription.optIn();
-} catch (e) {
-  console.warn("optIn chưa hoàn tất:", e);
-}
-
-await new Promise(function(resolve) {
-  setTimeout(resolve, 2500);
-});
-
-            setTimeout(function() {
-              const daBat = OneSignal.User.PushSubscription.optedIn;
-              const subId = OneSignal.User.PushSubscription.id;
-
-              console.log("OneSignal External ID:", externalId);
-              console.log("OneSignal Subscription ID:", subId);
-              console.log("OneSignal Opted In:", daBat);
-
-              if (daBat && subId) {
-                capNhatNutThongBao(true);
-              } else {
-                capNhatNutThongBao(false);
-                alert("Đã xin quyền thông báo nhưng chưa tạo được Subscription. Hãy tải lại trang và bấm Bật thông báo lại một lần.");
-              }
-            }, 5000);
-
-          } catch (error) {
-            console.error("Lỗi bật OneSignal:", error);
-            baoLoiThongBao("Chưa bật được thông báo. Hãy kiểm tra quyền thông báo của trình duyệt và thử lại.");
-          }
-        });
-      }
-
-    } catch (error) {
-      console.error("Không khởi tạo được OneSignal:", error);
-      capNhatNutThongBao(false);
-    }
-  });
+  khoiTaoOneSignal();
 
   async function taiDuLieu() {
     try {
