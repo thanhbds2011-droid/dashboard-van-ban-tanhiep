@@ -1,3 +1,8 @@
+const DA_DANG_KY = localStorage.getItem("nhac_viec_da_dang_ky_nhan_su");
+
+if (!DA_DANG_KY) {
+    window.location.replace("login.html");
+}
 <!DOCTYPE html>
 <html lang="vi">
 <head>
