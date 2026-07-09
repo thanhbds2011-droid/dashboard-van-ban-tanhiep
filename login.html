@@ -77,25 +77,27 @@
       margin-bottom: 7px;
     }
 
-    input {
-      width: 100%;
-      height: 54px;
-      border: 1px solid #d7dce2;
-      border-radius: 14px;
-      padding: 0 14px;
-      font-size: 20px;
-      outline: none;
-      background: #fff;
-      color: #111827;
-      text-transform: uppercase;
-      -webkit-appearance: none;
-      appearance: none;
-    }
+    textarea {
+  width: 100%;
+  height: 54px;
+  border: 1px solid #d7dce2;
+  border-radius: 14px;
+  padding: 14px;
+  font-size: 20px;
+  outline: none;
+  background: #fff;
+  color: #111827;
+  text-transform: uppercase;
+  resize: none;
+  overflow: hidden;
+  -webkit-appearance: none;
+  appearance: none;
+}
 
-    input:focus {
-      border-color: #2f80c0;
-      box-shadow: 0 0 0 3px rgba(47,128,192,.13);
-    }
+textarea:focus {
+  border-color: #2f80c0;
+  box-shadow: 0 0 0 3px rgba(47,128,192,.13);
+}
 
     button {
       width: 100%;
@@ -167,18 +169,17 @@
   <p>Nhập mã nhân sự để hệ thống xác định đúng người dùng, phòng ban và thiết bị nhận thông báo.</p>
 
   <label for="maNhanSu">Mã nhân sự</label>
-  <input
-    id="maNhanSu"
-    name="maNhanSu"
-    type="text"
-    placeholder="Ví dụ: NV001"
-    autocomplete="off"
-    autocorrect="off"
-    autocapitalize="characters"
-    spellcheck="false"
-    enterkeyhint="done"
-  >
-
+  <textarea
+  id="maNhanSu"
+  name="maNhanSu"
+  rows="1"
+  placeholder="Ví dụ: NV001"
+  autocomplete="off"
+  autocorrect="off"
+  autocapitalize="characters"
+  spellcheck="false"
+  enterkeyhint="done"
+></textarea>
   <button id="btnDangKy" type="button" disabled>Đang kết nối hệ thống...</button>
 
   <div class="note">
