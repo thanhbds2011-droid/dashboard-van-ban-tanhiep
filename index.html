@@ -1527,11 +1527,16 @@
     }
   }
 
- taiDuLieu();
+ // taiDuLieu();
 kiemTraPhienBanMoi();
 
-// Tắt tự động đồng bộ mỗi 10 giây để tránh ChatGPT Preview hỏi quyền mạng liên tục
-// Dữ liệu vẫn tải 1 lần khi mở dashboard
+// Tắt gọi Apps Script khi xem trong ChatGPT Preview
+document.getElementById("bangDuLieu").innerHTML =
+  '<tr><td colspan="8" class="loading">Đang xem thử giao diện trong ChatGPT. Đã tắt kết nối Apps Script.</td></tr>';
+
+document.getElementById("mobileList").innerHTML =
+  '<div class="loading">Đang xem thử giao diện trong ChatGPT. Đã tắt kết nối Apps Script.</div>';
+
 // setInterval(function() {
 //   taiDuLieu(true);
 // }, TU_DONG_DONG_BO_MS);
