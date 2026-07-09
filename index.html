@@ -1527,12 +1527,19 @@
     }
   }
 
-  taiDuLieu();
-  kiemTraPhienBanMoi();
+ // taiDuLieu();
+kiemTraPhienBanMoi();
 
-  setInterval(function() {
-    taiDuLieu(true);
-  }, TU_DONG_DONG_BO_MS);
+// Tắt gọi Apps Script khi xem trong ChatGPT Preview
+document.getElementById("bangDuLieu").innerHTML =
+  '<tr><td colspan="8" class="loading">Đang xem thử giao diện trong ChatGPT. Đã tắt kết nối Apps Script.</td></tr>';
+
+document.getElementById("mobileList").innerHTML =
+  '<div class="loading">Đang xem thử giao diện trong ChatGPT. Đã tắt kết nối Apps Script.</div>';
+
+// setInterval(function() {
+//   taiDuLieu(true);
+// }, TU_DONG_DONG_BO_MS);
 </script>
 
 </body>
