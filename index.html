@@ -1,8 +1,3 @@
-const DA_DANG_KY = localStorage.getItem("nhac_viec_da_dang_ky_nhan_su");
-
-if (!DA_DANG_KY) {
-    window.location.replace("login.html");
-}
 <!DOCTYPE html>
 <html lang="vi">
 <head>
@@ -10,7 +5,13 @@ if (!DA_DANG_KY) {
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
   <title>Hệ thống nhắc việc văn bản</title>
+<script>
+  const DA_DANG_KY = localStorage.getItem("nhac_viec_da_dang_ky_nhan_su");
 
+  if (!DA_DANG_KY) {
+    window.location.replace("/dashboard-van-ban-tanhiep/login.html");
+  }
+</script>
   <link rel="manifest" href="/dashboard-van-ban-tanhiep/manifest.json?v=20260709.1" />
   <link rel="apple-touch-icon" href="/dashboard-van-ban-tanhiep/icon-192.png" />
 
