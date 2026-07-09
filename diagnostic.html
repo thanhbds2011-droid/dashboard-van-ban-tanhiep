@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Chẩn đoán OneSignal</title>
+  <title>Kiểm tra thông báo hệ thống</title>
 
   <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
 
@@ -25,31 +25,31 @@
 
 <body>
 <header>
-  <h1>🔔 Chẩn đoán OneSignal</h1>
-  <p>Kiểm tra thiết bị có đăng ký nhận thông báo hay chưa</p>
+ <h1>🔔 Kiểm tra thông báo hệ thống</h1>
+<p>Kiểm tra thiết bị đã đăng ký nhận thông báo hay chưa</p>
 </header>
 
 <div class="box">
   <h2>Thông tin thiết bị</h2>
 
   <div class="row">
-    <div class="label">Permission</div>
-    <div class="value" id="permission">Đang kiểm tra...</div>
+    <div class="label">Quyền thông báo</div>
+    <div class="value" id="Quyền thông báo">Đang kiểm tra...</div>
   </div>
 
   <div class="row">
-    <div class="label">Subscription ID</div>
-    <div class="value" id="subscriptionId">Đang kiểm tra...</div>
+    <div class="label">Mã đăng ký thiết bị</div>
+    <div class="value" id="Mã đăng ký thiết bị">Đang kiểm tra...</div>
   </div>
 
   <div class="row">
-    <div class="label">External ID</div>
-    <div class="value" id="externalId">Đang kiểm tra...</div>
+    <div class="label">Mã thiết bị nội bộ</div>
+    <div class="value" id="Mã thiết bị nội bộ">Đang kiểm tra...</div>
   </div>
 
   <div class="row">
-    <div class="label">Opted In</div>
-    <div class="value" id="optedIn">Đang kiểm tra...</div>
+    <div class="label">Trạng thái nhận thông báo</div>
+    <div class="value" id="Trạng thái nhận thông báo">Đang kiểm tra...</div>
   </div>
 
   <div class="row">
@@ -67,8 +67,8 @@
     <div class="value" id="pwa"></div>
   </div>
 
-  <button onclick="batThongBao()">🔔 Bật / đăng ký lại thông báo</button>
-  <button onclick="guiTestThietBi()">📨 Gửi test riêng thiết bị này</button>
+  <button onclick="batThongBao()">🔔 Đăng ký nhận thông báo</button>
+<button onclick="guiTestThietBi()">📨 Gửi thử thông báo đến thiết bị này</button>
 
   <div id="ketQua" style="margin-top:15px;font-weight:bold"></div>
 </div>
@@ -124,7 +124,7 @@ async function capNhatChanDoan(){
   hienThi("pwa", isPWA() ? "Đã mở dạng ứng dụng/PWA" : "Chưa mở từ màn hình chính", isPWA() ? "ok" : "warn");
 
   if(!OneSignalRef){
-    hienThi("subscriptionId","OneSignal chưa sẵn sàng","bad");
+    hienThi("subscriptionId","Hệ thống thông báo chưa sẵn sàng","bad");
     return;
   }
 
