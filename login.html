@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Đăng ký thiết bị</title>
+
+  <link rel="manifest" href="/dashboard-van-ban-tanhiep/manifest.json">
+  <link rel="apple-touch-icon" href="/dashboard-van-ban-tanhiep/icon-192.png">
+
+  <meta name="theme-color" content="#1f5f99">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Nhắc việc">
+
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", Roboto, Arial, sans-serif;
+      background: linear-gradient(135deg, #174b7b, #2f80c0);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+      color: #1f2937;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 430px;
+      background: #fff;
+      border-radius: 24px;
+      padding: 24px;
+      box-shadow: 0 18px 50px rgba(0,0,0,.25);
+    }
+
+    .logo {
+      width: 64px;
+      height: 64px;
+      border-radius: 18px;
+      background: linear-gradient(135deg, #1f5f99, #2f80c0);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 32px;
+      margin-bottom: 14px;
+    }
+
+    h1 {
+      margin: 0;
+      color: #1f5f99;
+      font-size: 24px;
+      line-height: 1.35;
+    }
+
+    p {
+      color: #5b6472;
+      line-height: 1.55;
+      font-size: 15px;
+      margin: 10px 0 18px;
+    }
+
+    label {
+      display: block;
+      font-weight: 800;
+      color: #1f5f99;
+      margin-bottom: 7px;
+    }
+
+    input {
+      width: 100%;
+      border: 1px solid #d7dce2;
+      border-radius: 14px;
+      padding: 14px;
+      font-size: 16px;
+      outline: none;
+      text-transform: uppercase;
+    }
+
+    input:focus {
+      border-color: #2f80c0;
+      box-shadow: 0 0 0 3px rgba(47,128,192,.13);
+    }
+
+    button {
+      width: 100%;
+      margin-top: 16px;
+      border: none;
+      border-radius: 15px;
+      padding: 15px;
+      background: #1f5f99;
+      color: white;
+      font-weight: 850;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: .65;
+      cursor: not-allowed;
+    }
+
+    .note {
+      background: #f3f7fb;
+      border-left: 4px solid #2f80c0;
+      border-radius: 13px;
+      padding: 12px;
+      margin-top: 14px;
+      font-size: 13.5px;
+      line-height: 1.5;
+      color: #374151;
+    }
+
+    .msg {
+      margin-top: 14px;
+      padding: 13px;
+      border-radius: 13px;
+      font-weight: 750;
+      line-height: 1.45;
+      display: none;
+    }
+
+    .ok {
+      display: block;
+      background: #e8f5ee;
+      color: #28704f;
+      border: 1px solid #b7dfc6;
+    }
+
+    .err {
+      display: block;
+      background: #fff1ed;
+      color: #d9534f;
+      border: 1px solid #f5c2b5;
+    }
+  </style>
+
+  <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+</head>
+
+<body>
+
+<div class="card">
+  <div class="logo">📑</div>
+
+  <h1>Đăng ký thiết bị</h1>
+  <p>Nhập mã nhân sự để hệ thống xác định đúng người dùng, phòng ban và thiết bị nhận thông báo.</p>
+
+  <label for="maNhanSu">Mã nhân sự</label>
+  <input id="maNhanSu" placeholder="Ví dụ: NV001">
+
+  <button id="btnDangKy" onclick="dangKyThietBi()">Đăng ký thiết bị</button>
+
+  <div class="note">
+    Trên iPhone: cần mở bằng Safari, thêm vào Màn hình chính, sau đó mở từ biểu tượng ngoài màn hình để nhận thông báo.
+  </div>
+
+  <div id="msg" class="msg"></div>
+</div>
+
+<script>
+  const API_URL = "https://script.google.com/macros/s/AKfycbyMINgn39Y_zlvdG9nqMpDH9KeoBKXnR_ueWr_wpVLPu82QxZVPSH4tnkVR9oa7eTJ2KQ/exec";
+
+  const ONESIGNAL_APP_ID = "1a1d8e66-d523-4a9a-84be-1d3c248bad61";
+  const ONESIGNAL_SAFARI_WEB_ID = "web.onesignal.auto.12e0c5f3-6b76-47bb-8015-fa3026009bd5";
+
+  const KEY_EXTERNAL_ID = "nhac_viec_van_ban_external_id";
+  const KEY_DA_DANG_KY = "nhac_viec_da_dang_ky_nhan_su";
+  const KEY_MA_NHAN_SU = "nhac_viec_ma_nhan_su";
+  const KEY_HO_TEN = "nhac_viec_ho_ten";
+  const KEY_PHONG = "nhac_viec_phong";
+  const KEY_VAI_TRO = "nhac_viec_vai_tro";
+
+  let OneSignalRef = null;
+  let oneSignalReady = false;
+
+  function hienThongBao(text, ok) {
+    const msg = document.getElementById("msg");
+    msg.textContent = text;
+    msg.className = ok ? "msg ok" : "msg err";
+  }
+
+  function taoExternalId() {
+    let id = localStorage.getItem(KEY_EXTERNAL_ID);
+    if (!id) {
+      id = "vanban_" + Date.now() + "_" + Math.random().toString(36).slice(2, 12);
+      localStorage.setItem(KEY_EXTERNAL_ID, id);
+    }
+    return id;
+  }
+
+  function laIPhoneHoacIPad() {
+    const ua = navigator.userAgent || "";
+    return /iPad|iPhone|iPod/.test(ua) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  }
+
+  function daMoTuManHinhChinh() {
+    return window.matchMedia("(display-mode: standalone)").matches ||
+      window.navigator.standalone === true;
+  }
+
+  function choDenKhiSubscriptionSanSang(OneSignal) {
+    return new Promise(function(resolve) {
+      const hienTai = {
+        id: OneSignal.User.PushSubscription.id || "",
+        optedIn: OneSignal.User.PushSubscription.optedIn === true
+      };
+
+      if (hienTai.id && hienTai.optedIn) {
+        resolve(hienTai);
+        return;
+      }
+
+      const handler = function() {
+        const moi = {
+          id: OneSignal.User.PushSubscription.id || "",
+          optedIn: OneSignal.User.PushSubscription.optedIn === true
+        };
+
+        if (moi.id && moi.optedIn) {
+          try {
+            OneSignal.User.PushSubscription.removeEventListener("change", handler);
+          } catch (e) {}
+          resolve(moi);
+        }
+      };
+
+      OneSignal.User.PushSubscription.addEventListener("change", handler);
+    });
+  }
+
+  window.OneSignalDeferred = window.OneSignalDeferred || [];
+  OneSignalDeferred.push(async function(OneSignal) {
+    try {
+      OneSignalRef = OneSignal;
+
+      await OneSignal.init({
+        appId: ONESIGNAL_APP_ID,
+        safari_web_id: ONESIGNAL_SAFARI_WEB_ID,
+        serviceWorkerPath: "/dashboard-van-ban-tanhiep/OneSignalSDKWorker.js",
+        serviceWorkerUpdaterPath: "/dashboard-van-ban-tanhiep/OneSignalSDKWorker.js",
+        serviceWorkerParam: {
+          scope: "/dashboard-van-ban-tanhiep/"
+        },
+        notifyButton: {
+          enable: false
+        },
+        welcomeNotification: {
+          disable: true
+        }
+      });
+
+      oneSignalReady = true;
+
+    } catch (err) {
+      hienThongBao("Không khởi tạo được hệ thống thông báo: " + err.toString(), false);
+    }
+  });
+
+  async function dangKyThietBi() {
+    const btn = document.getElementById("btnDangKy");
+    const maNhanSu = document.getElementById("maNhanSu").value.trim().toUpperCase();
+
+    if (!maNhanSu) {
+      hienThongBao("Vui lòng nhập mã nhân sự.", false);
+      return;
+    }
+
+    if (!oneSignalReady || !OneSignalRef) {
+      hienThongBao("Hệ thống thông báo chưa sẵn sàng. Vui lòng tải lại trang.", false);
+      return;
+    }
+
+    if (laIPhoneHoacIPad() && !daMoTuManHinhChinh()) {
+      hienThongBao("Trên iPhone/iPad: hãy thêm trang vào Màn hình chính, sau đó mở từ biểu tượng ngoài màn hình rồi đăng ký lại.", false);
+      return;
+    }
+
+    try {
+      btn.disabled = true;
+      btn.textContent = "Đang đăng ký...";
+
+      await OneSignalRef.Notifications.requestPermission(true);
+
+      if (typeof Notification !== "undefined" && Notification.permission !== "granted") {
+        hienThongBao("Trình duyệt hoặc điện thoại chưa cấp quyền thông báo.", false);
+        return;
+      }
+
+      await OneSignalRef.User.PushSubscription.optIn();
+
+      const sub = await choDenKhiSubscriptionSanSang(OneSignalRef);
+      const externalId = taoExternalId();
+
+      await OneSignalRef.login(externalId);
+
+      const payload = {
+        action: "dang_ky_thiet_bi",
+        maNhanSu: maNhanSu,
+        externalId: externalId,
+        subscriptionId: sub.id
+      };
+
+      const form = new FormData();
+      form.append("payload", JSON.stringify(payload));
+
+      await fetch(API_URL, {
+        method: "POST",
+        body: form,
+        mode: "no-cors"
+      });
+
+      localStorage.setItem(KEY_DA_DANG_KY, "1");
+      localStorage.setItem(KEY_MA_NHAN_SU, maNhanSu);
+
+      hienThongBao("✅ Đã gửi đăng ký thiết bị. Nếu mã nhân sự đúng, bạn có thể quay lại Dashboard.", true);
+
+      setTimeout(function() {
+        window.location.href = "/dashboard-van-ban-tanhiep/index.html";
+      }, 1200);
+
+    } catch (err) {
+      hienThongBao("Lỗi đăng ký thiết bị: " + err.toString(), false);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Đăng ký thiết bị";
+    }
+  }
+</script>
+
+</body>
+</html>
