@@ -373,20 +373,26 @@ async function dangKyThietBi() {
     const form = new FormData();
     form.append("payload", JSON.stringify(payload));
 
-    await fetch(API_URL, {
-      method: "POST",
-      body: form,
-      mode: "no-cors"
-    });
+    const response = await fetch(API_URL, {
+  method: "POST",
+  body: form
+});
 
-    localStorage.setItem(KEY_DA_DANG_KY, "1");
-    localStorage.setItem(KEY_MA_NHAN_SU, maNhanSu);
+const text = await response.text();
 
-    hienThongBao("✅ Đã đăng ký thiết bị. Đang chuyển về Dashboard...", true);
+if (!text.includes('"ok":true')) {
+  hienThongBao("Mã nhân sự không hợp lệ hoặc chưa có trong hệ thống.", false);
+  return;
+}
 
-    setTimeout(function() {
-      window.location.href = "/dashboard-van-ban-tanhiep/index.html";
-    }, 1200);
+localStorage.setItem(KEY_DA_DANG_KY, "1");
+localStorage.setItem(KEY_MA_NHAN_SU, maNhanSu);
+
+hienThongBao("✅ Đã đăng ký thiết bị. Đang chuyển về Dashboard...", true);
+
+setTimeout(function() {
+  window.location.href = "/dashboard-van-ban-tanhiep/index.html";
+}, 1200);
 
   } catch (err) {
     hienThongBao("Lỗi đăng ký: " + err.toString(), false);
