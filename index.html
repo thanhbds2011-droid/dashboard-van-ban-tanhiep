@@ -1,20 +1,20 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<meta http-equiv="Pragma" content="no-cache">
-<meta http-equiv="Expires" content="0">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <title>Hệ thống nhắc việc văn bản</title>
 
-  <link rel="manifest" href="manifest.json?v=20260708">
+  <link rel="manifest" href="manifest.json?v=20260708.4">
   <meta name="theme-color" content="#1f5f99">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Nhắc việc">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
 
   <style>
     :root {
@@ -36,38 +36,57 @@
 
     * { box-sizing: border-box; }
 
+    html {
+      -webkit-text-size-adjust: 100%;
+      text-rendering: optimizeLegibility;
+    }
+
     body {
       margin: 0;
       min-height: 100vh;
-      font-family: Arial, sans-serif;
+      font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
       background: radial-gradient(circle at top right, rgba(47,128,192,0.12), transparent 30%), var(--bg);
       color: var(--text);
     }
 
     header {
-      background: linear-gradient(135deg, var(--main-dark), var(--main2));
+      position: relative;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at top left, rgba(255,255,255,0.22), transparent 32%),
+        linear-gradient(135deg, var(--main-dark), var(--main2));
       color: white;
       text-align: center;
-      padding: 20px 14px 18px;
-      box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+      padding: 22px 14px 20px;
+      box-shadow: 0 8px 24px rgba(23,75,123,0.22);
     }
 
     header h1 {
       margin: 0;
-      font-size: 21px;
+      font-size: 22px;
       line-height: 1.35;
       font-weight: 800;
+      letter-spacing: -0.2px;
     }
 
     header p {
-      margin: 7px 0 0;
-      font-size: 13.5px;
-      line-height: 1.45;
-      opacity: 0.95;
+      margin: 8px auto 0;
+      max-width: 760px;
+      font-size: 14px;
+      line-height: 1.5;
+      opacity: 0.96;
+      font-weight: 500;
+    }
+
+    .header-actions {
+      margin-top: 13px;
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
     }
 
     .btn-bat-thong-bao {
-      margin-top: 13px;
       padding: 10px 16px;
       border: 1px solid rgba(255,255,255,0.75);
       border-radius: 12px;
@@ -89,6 +108,120 @@
       border-color: #b7dfc6;
       color: #28704f;
       cursor: default;
+    }
+
+
+    .app-setup-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 9998;
+      background: rgba(15, 23, 42, 0.45);
+      padding: 16px;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .app-setup-modal.show {
+      display: flex;
+    }
+
+    .app-setup-card {
+      width: 100%;
+      max-width: 420px;
+      background: white;
+      border-radius: 22px;
+      padding: 20px;
+      box-shadow: 0 18px 50px rgba(0,0,0,0.25);
+      border: 1px solid rgba(215,220,226,0.85);
+    }
+
+    .app-setup-icon {
+      width: 52px;
+      height: 52px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, var(--main), var(--main2));
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+      margin-bottom: 12px;
+    }
+
+    .app-setup-title {
+      color: var(--main);
+      font-size: 19px;
+      font-weight: 800;
+      margin-bottom: 8px;
+      line-height: 1.35;
+    }
+
+    .app-setup-text {
+      color: #4b5563;
+      font-size: 14.5px;
+      line-height: 1.55;
+      margin-bottom: 14px;
+    }
+
+    .app-setup-note {
+      background: #f3f7fb;
+      border-left: 4px solid var(--main2);
+      border-radius: 12px;
+      padding: 11px 12px;
+      color: #374151;
+      font-size: 13.5px;
+      line-height: 1.45;
+      margin-bottom: 14px;
+    }
+
+    .app-setup-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .setup-primary,
+    .setup-secondary {
+      border: none;
+      border-radius: 13px;
+      padding: 12px 10px;
+      font-weight: 800;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    .setup-primary {
+      background: var(--main);
+      color: white;
+    }
+
+    .setup-secondary {
+      background: #eef2f7;
+      color: #4b5563;
+    }
+
+    .setup-primary:disabled,
+    .setup-secondary:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+
+    .sync-bar {
+      text-align: center;
+      background: #eaf4ff;
+      color: var(--main);
+      font-weight: bold;
+      font-size: 13px;
+      padding: 8px 12px;
+      border-bottom: 1px solid #d7e8f8;
+    }
+
+    .sync-bar.error {
+      background: #fff1ed;
+      color: var(--red);
+      border-bottom-color: #f5c2b5;
     }
 
     .container {
@@ -390,10 +523,98 @@
       font-size: 13px;
     }
 
+    .update-toast {
+      position: fixed;
+      left: 14px;
+      right: 14px;
+      bottom: 16px;
+      background: white;
+      border-left: 5px solid var(--main);
+      box-shadow: 0 8px 28px rgba(0,0,0,0.2);
+      border-radius: 16px;
+      padding: 14px;
+      z-index: 9999;
+      display: none;
+    }
+
+    .update-toast.show { display: block; }
+
+    .update-toast-title {
+      font-weight: bold;
+      color: var(--main);
+      margin-bottom: 6px;
+    }
+
+    .update-toast-text {
+      font-size: 14px;
+      color: #444;
+      margin-bottom: 10px;
+      line-height: 1.45;
+    }
+
+    .update-toast button {
+      background: var(--main);
+      color: white;
+      border: none;
+      padding: 10px 14px;
+      border-radius: 12px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+
+
+    .tab-btn,
+    .card,
+    .filters,
+    .table-wrap,
+    .mobile-card,
+    .modal-content {
+      backdrop-filter: saturate(120%);
+    }
+
+    .tab-btn,
+    input,
+    select,
+    button {
+      font-family: inherit;
+    }
+
+    .card {
+      transition: transform .18s ease, box-shadow .18s ease;
+    }
+
+    .card:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 22px rgba(31,95,153,0.12);
+    }
+
+    .filters input,
+    .filters select {
+      min-height: 46px;
+      font-weight: 600;
+      color: #334155;
+    }
+
+    th {
+      font-weight: 800;
+      letter-spacing: .1px;
+    }
+
+    td {
+      color: #334155;
+    }
+
+    .mobile-card h3,
+    .section-title,
+    .modal-header h2 {
+      letter-spacing: -0.1px;
+    }
+
     @media (max-width: 850px) {
       header { padding: 17px 14px; }
-      header h1 { font-size: 18px; }
-      header p { font-size: 13px; }
+      header h1 { font-size: 19px; }
+      header p { font-size: 13.5px; }
       .container { padding: 12px; }
       .tabs { gap: 10px; }
       .tab-btn { padding: 13px 8px; font-size: 15px; }
@@ -418,13 +639,11 @@
   <h1>📑 HỆ THỐNG NHẮC VIỆC VĂN BẢN</h1>
   <p>Dashboard giám sát, nhắc việc và lưu trữ kết quả thực hiện nhiệm vụ</p>
 
-  <button id="btnBatThongBao" class="btn-bat-thong-bao" type="button">
-    🔔 Bật thông báo
-  </button>
-  <button class="btn-bat-thong-bao" type="button" onclick="capNhatUngDung()">
-  🔄 Cập nhật giao diện
-</button>
 </header>
+
+<div id="syncBar" class="sync-bar">
+  <span id="syncText">Đang đồng bộ dữ liệu...</span>
+</div>
 
 <div class="container">
 
@@ -491,7 +710,32 @@
   </div>
 </div>
 
+
+<div id="notificationSetupModal" class="app-setup-modal" aria-hidden="true">
+  <div class="app-setup-card">
+    <div class="app-setup-icon">🔔</div>
+    <div class="app-setup-title">Thiết lập thông báo nhắc việc</div>
+    <div class="app-setup-text" id="notificationSetupText">
+      Hệ thống sẽ gửi thông báo khi có văn bản mới, văn bản khẩn, văn bản sắp đến hạn hoặc quá hạn.
+    </div>
+    <div class="app-setup-note" id="notificationSetupNote">
+      Sau khi bật, bạn có thể tắt trong phần Cài đặt thông báo của điện thoại hoặc trình duyệt.
+    </div>
+    <div class="app-setup-actions">
+      <button id="btnChoPhepThongBao" class="setup-primary" type="button">Cho phép</button>
+      <button id="btnBoQuaThongBao" class="setup-secondary" type="button">Để sau</button>
+    </div>
+  </div>
+</div>
+
+<div id="updateToast" class="update-toast">
+  <div class="update-toast-title">🆕 Có phiên bản giao diện mới</div>
+  <div class="update-toast-text">Bấm cập nhật để tải giao diện mới nhất. Dữ liệu vẫn tự đồng bộ, không cần cập nhật thủ công.</div>
+  <button onclick="capNhatUngDung()">Cập nhật ngay</button>
+</div>
+
 <script>
+  const APP_VERSION = "20260708.3";
   const API_URL = "https://script.google.com/macros/s/AKfycbyMINgn39Y_zlvdG9nqMpDH9KeoBKXnR_ueWr_wpVLPu82QxZVPSH4tnkVR9oa7eTJ2KQ/exec";
 
   const ONESIGNAL_APP_ID = "1a1d8e66-d523-4a9a-84be-1d3c248bad61";
@@ -504,9 +748,17 @@
   let trangHienTai = 1;
   let oneSignalReady = false;
   let oneSignalInstance = null;
+  let dangTaiDuLieu = false;
+  let daMoTuThongBao = false;
 
   const SO_DONG_MOI_TRANG = 10;
-  const btnBatThongBao = document.getElementById("btnBatThongBao");
+  const TU_DONG_DONG_BO_MS = 10000;
+  const notificationSetupModal = document.getElementById("notificationSetupModal");
+  const notificationSetupText = document.getElementById("notificationSetupText");
+  const notificationSetupNote = document.getElementById("notificationSetupNote");
+  const btnChoPhepThongBao = document.getElementById("btnChoPhepThongBao");
+  const btnBoQuaThongBao = document.getElementById("btnBoQuaThongBao");
+  const NOTIFICATION_DISMISSED_KEY = "nhac_viec_thong_bao_de_sau";
 
   function laIPhoneHoacIPad() {
     const ua = navigator.userAgent || "";
@@ -528,23 +780,53 @@
     return id;
   }
 
-  function capNhatNutThongBao(daBat) {
-    if (!btnBatThongBao) return;
+  function hienThiThietLapThongBao(text, note) {
+    if (!notificationSetupModal) return;
 
+    if (text && notificationSetupText) notificationSetupText.textContent = text;
+    if (note && notificationSetupNote) notificationSetupNote.textContent = note;
+
+    notificationSetupModal.classList.add("show");
+    notificationSetupModal.setAttribute("aria-hidden", "false");
+  }
+
+  function anThietLapThongBao() {
+    if (!notificationSetupModal) return;
+
+    notificationSetupModal.classList.remove("show");
+    notificationSetupModal.setAttribute("aria-hidden", "true");
+  }
+
+  function capNhatNutThongBao(daBat) {
     if (daBat) {
-      btnBatThongBao.textContent = "✅ Đã bật thông báo";
-      btnBatThongBao.classList.add("da-bat");
-      btnBatThongBao.disabled = true;
-    } else {
-      btnBatThongBao.textContent = "🔔 Bật thông báo";
-      btnBatThongBao.classList.remove("da-bat");
-      btnBatThongBao.disabled = false;
+      anThietLapThongBao();
+      localStorage.removeItem(NOTIFICATION_DISMISSED_KEY);
+      return;
     }
+
+    const daBoQua = localStorage.getItem(NOTIFICATION_DISMISSED_KEY) === "1";
+    if (daBoQua) return;
+
+    if (laIPhoneHoacIPad() && !daMoTuManHinhChinh()) {
+      hienThiThietLapThongBao(
+        "Để nhận thông báo trên iPhone/iPad, hãy thêm hệ thống vào Màn hình chính trước.",
+        "Mở bằng Safari → Chia sẻ → Thêm vào Màn hình chính → mở lại từ biểu tượng mới → chọn Cho phép."
+      );
+      return;
+    }
+
+    hienThiThietLapThongBao(
+      "Bật thông báo để nhận văn bản mới, văn bản khẩn và các nhắc việc đến hạn.",
+      "Sau khi bật, nếu muốn tắt bạn vào Cài đặt thông báo của điện thoại hoặc trình duyệt."
+    );
   }
 
   function baoLoiThongBao(text) {
     alert(text);
-    capNhatNutThongBao(false);
+    if (btnChoPhepThongBao) {
+      btnChoPhepThongBao.disabled = false;
+      btnChoPhepThongBao.textContent = "Cho phép";
+    }
   }
 
   function layTrangThaiSubscription(OneSignal) {
@@ -552,7 +834,7 @@
       id: OneSignal.User.PushSubscription.id || "",
       token: OneSignal.User.PushSubscription.token || "",
       optedIn: OneSignal.User.PushSubscription.optedIn === true,
-      permission: Notification.permission
+      permission: typeof Notification !== "undefined" ? Notification.permission : "unknown"
     };
   }
 
@@ -654,12 +936,15 @@
         return;
       }
 
-      btnBatThongBao.disabled = true;
-      btnBatThongBao.textContent = "⏳ Đang bật thông báo...";
+      if (btnChoPhepThongBao) {
+        btnChoPhepThongBao.disabled = true;
+        btnChoPhepThongBao.textContent = "Đang thiết lập...";
+      }
+      if (btnBoQuaThongBao) btnBoQuaThongBao.disabled = true;
 
       await OneSignal.Notifications.requestPermission(true);
 
-      if (Notification.permission !== "granted") {
+      if (typeof Notification !== "undefined" && Notification.permission !== "granted") {
         baoLoiThongBao("Trình duyệt chưa cho phép nhận thông báo. Hãy cấp quyền thông báo rồi thử lại.");
         return;
       }
@@ -676,32 +961,58 @@
       console.log("OneSignal Opted In:", sub.optedIn);
 
       capNhatNutThongBao(true);
+      if (btnChoPhepThongBao) {
+        btnChoPhepThongBao.disabled = false;
+        btnChoPhepThongBao.textContent = "Cho phép";
+      }
+      if (btnBoQuaThongBao) btnBoQuaThongBao.disabled = false;
       alert("✅ Đã bật thông báo thành công. Thiết bị đã đăng ký nhận thông báo từ hệ thống.");
 
     } catch (error) {
       console.error("Lỗi bật thông báo OneSignal:", error);
-      baoLoiThongBao("Chưa bật được thông báo. Hãy kiểm tra Console hoặc quyền thông báo của trình duyệt.");
+      if (btnBoQuaThongBao) btnBoQuaThongBao.disabled = false;
+      baoLoiThongBao("Chưa bật được thông báo. Hãy kiểm tra quyền thông báo của trình duyệt hoặc điện thoại.");
     }
   }
 
-  if (btnBatThongBao) {
-    btnBatThongBao.addEventListener("click", batThongBaoOneSignal);
+  if (btnChoPhepThongBao) {
+    btnChoPhepThongBao.addEventListener("click", batThongBaoOneSignal);
+  }
+
+  if (btnBoQuaThongBao) {
+    btnBoQuaThongBao.addEventListener("click", function() {
+      localStorage.setItem(NOTIFICATION_DISMISSED_KEY, "1");
+      anThietLapThongBao();
+    });
   }
 
   khoiTaoOneSignal();
 
-  async function taiDuLieu() {
+  async function taiDuLieu(tuDong) {
+    if (dangTaiDuLieu) return;
+    dangTaiDuLieu = true;
+
     try {
-      const response = await fetch(API_URL);
+      if (!tuDong) {
+        capNhatTrangThaiDongBo("Đang đồng bộ dữ liệu...", false);
+      }
+
+      const response = await fetch(API_URL + "?t=" + Date.now(), {
+        cache: "no-store"
+      });
+
       const data = await response.json();
 
       duLieuTheoDoi = data.dangTheoDoi || [];
       duLieuLuuTru = data.luuTru || [];
 
       hienThiDuLieu();
-moVanBanTuThongBaoNeuCo();
+      moVanBanTuThongBaoNeuCo();
+      capNhatTrangThaiDongBo(null, false);
 
     } catch (error) {
+      capNhatTrangThaiDongBo("Không đồng bộ được dữ liệu. Kiểm tra kết nối hoặc API.", true);
+
       document.getElementById("bangDuLieu").innerHTML =
         '<tr><td colspan="8" class="loading red">Không tải được dữ liệu. Kiểm tra lại link Apps Script Web App.</td></tr>';
 
@@ -709,7 +1020,30 @@ moVanBanTuThongBaoNeuCo();
         '<div class="loading red">Không tải được dữ liệu.</div>';
 
       console.error(error);
+    } finally {
+      dangTaiDuLieu = false;
     }
+  }
+
+  function capNhatTrangThaiDongBo(message, isError) {
+    const syncBar = document.getElementById("syncBar");
+    const syncText = document.getElementById("syncText");
+    if (!syncText || !syncBar) return;
+
+    syncBar.classList.toggle("error", !!isError);
+
+    if (message) {
+      syncText.textContent = message;
+      return;
+    }
+
+    const now = new Date();
+    syncText.textContent = "✅ Đã đồng bộ dữ liệu lúc " +
+      now.toLocaleTimeString("vi-VN", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit"
+      }) + " • Tự cập nhật mỗi 10 giây";
   }
 
   function doiTab(tab) {
@@ -1044,6 +1378,45 @@ moVanBanTuThongBaoNeuCo();
     if (event.target === modal) dongChiTiet();
   };
 
+  function moVanBanTuThongBaoNeuCo() {
+    if (daMoTuThongBao) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const soHieuCanMo = params.get("soHieu");
+    const tabMo = params.get("tab") || "theoDoi";
+
+    if (!soHieuCanMo) return;
+
+    if (tabMo === "luuTru") {
+      const indexLT = duLieuLuuTru.findIndex(function(item) {
+        return chuanHoaSoHieuClient_(item.soHieu) === chuanHoaSoHieuClient_(soHieuCanMo);
+      });
+
+      if (indexLT >= 0) {
+        daMoTuThongBao = true;
+        doiTab("luuTru");
+        return;
+      }
+    }
+
+    const index = duLieuTheoDoi.findIndex(function(item) {
+      return chuanHoaSoHieuClient_(item.soHieu) === chuanHoaSoHieuClient_(soHieuCanMo);
+    });
+
+    if (index >= 0) {
+      daMoTuThongBao = true;
+      doiTab("theoDoi");
+      moChiTiet(index);
+    }
+  }
+
+  function chuanHoaSoHieuClient_(text) {
+    return String(text || "")
+      .toUpperCase()
+      .replace(/\s+/g, "")
+      .trim();
+  }
+
   function phongBanCoChua(giaTri, phongCanTim) {
     if (!giaTri || !phongCanTim) return false;
     return chuanHoa(giaTri).includes(chuanHoa(phongCanTim));
@@ -1129,56 +1502,37 @@ moVanBanTuThongBaoNeuCo();
       .replace(/'/g, "&#039;");
   }
 
-  function moVanBanTuThongBaoNeuCo() {
-    const params = new URLSearchParams(window.location.search);
-    const soHieuCanMo = params.get("soHieu");
+  function kiemTraPhienBanMoi() {
+    const oldVersion = localStorage.getItem("APP_VERSION");
 
-    if (!soHieuCanMo) return;
-
-    const index = duLieuTheoDoi.findIndex(function(item) {
-      return chuanHoaSoHieuClient_(item.soHieu) === chuanHoaSoHieuClient_(soHieuCanMo);
-    });
-
-    if (index >= 0) {
-      doiTab("theoDoi");
-      moChiTiet(index);
+    if (oldVersion && oldVersion !== APP_VERSION) {
+      const box = document.getElementById("updateToast");
+      if (box) box.classList.add("show");
     }
-  }
 
-  function chuanHoaSoHieuClient_(text) {
-    return String(text || "")
-      .toUpperCase()
-      .replace(/\s+/g, "")
-      .trim();
+    localStorage.setItem("APP_VERSION", APP_VERSION);
   }
 
   function capNhatUngDung() {
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.getRegistrations().then(function(regs) {
         regs.forEach(function(reg) {
-          try {
-            reg.update();
-          } catch (e) {
-            console.log("Không cập nhật được Service Worker:", e);
-          }
+          reg.update();
         });
 
-        setTimeout(function() {
-          window.location.href =
-            window.location.pathname +
-            "?v=" +
-            Date.now();
-        }, 500);
+        window.location.href = window.location.pathname + "?v=" + Date.now();
       });
     } else {
-      window.location.href =
-        window.location.pathname +
-        "?v=" +
-        Date.now();
+      window.location.href = window.location.pathname + "?v=" + Date.now();
     }
   }
 
   taiDuLieu();
+  kiemTraPhienBanMoi();
+
+  setInterval(function() {
+    taiDuLieu(true);
+  }, TU_DONG_DONG_BO_MS);
 </script>
 
 </body>
