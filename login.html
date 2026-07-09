@@ -21,7 +21,23 @@
     h1{margin:0;color:#1f5f99;font-size:24px;line-height:1.35}
     p{color:#5b6472;line-height:1.55;font-size:15px;margin:10px 0 18px}
     label{display:block;font-weight:800;color:#1f5f99;margin-bottom:7px}
-    input{width:100%;border:1px solid #d7dce2;border-radius:14px;padding:14px;font-size:16px;outline:none;text-transform:uppercase}
+    input {
+  width: 100%;
+  border: 1px solid #d7dce2;
+  border-radius: 14px;
+  padding: 14px;
+  font-size: 18px;
+  outline: none;
+  text-transform: uppercase;
+  background: #fff;
+  color: #111827;
+  -webkit-user-select: text;
+  user-select: text;
+  pointer-events: auto;
+  position: relative;
+  z-index: 10;
+  touch-action: manipulation;
+}
     input:focus{border-color:#2f80c0;box-shadow:0 0 0 3px rgba(47,128,192,.13)}
     button{width:100%;margin-top:16px;border:none;border-radius:15px;padding:15px;background:#1f5f99;color:white;font-weight:850;font-size:16px;cursor:pointer}
     button:disabled{opacity:.65;cursor:not-allowed}
@@ -267,6 +283,21 @@ async function dangKyThietBi() {
 }
 
 napOneSignalSDK();
+document.addEventListener("DOMContentLoaded", function () {
+  const input = document.getElementById("maNhanSu");
+
+  if (input) {
+    input.addEventListener("touchend", function () {
+      setTimeout(function () {
+        input.focus();
+      }, 80);
+    });
+
+    input.addEventListener("click", function () {
+      input.focus();
+    });
+  }
+});
 </script>
 
 </body>
