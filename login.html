@@ -66,7 +66,8 @@
   spellcheck="false"
   placeholder="Ví dụ: NV001"
 />
-  <button id="btnDangKy" onclick="dangKyThietBi()" disabled>Đang kết nối hệ thống...</button>
+  <button id="btnNhapMa" onclick="nhapMaNhanSu()">Nhập mã nhân sự</button>
+<button id="btnDangKy" onclick="dangKyThietBi()" disabled>Đang kết nối hệ thống...</button>
 
   <div class="note">
     iPhone: mở bằng Safari → Thêm vào Màn hình chính → mở từ biểu tượng ngoài màn hình → đăng ký.
@@ -210,7 +211,19 @@ function napOneSignalSDK() {
   };
   document.head.appendChild(s);
 }
+function nhapMaNhanSu() {
+  var ma = prompt("Nhập mã nhân sự\nVí dụ: NV001", "");
 
+  if (!ma) {
+    hienThongBao("Bạn chưa nhập mã nhân sự.", false);
+    return;
+  }
+
+  ma = ma.trim().toUpperCase();
+  document.getElementById("maNhanSu").value = ma;
+
+  hienThongBao("Đã nhập mã: " + ma + ". Bấm Đăng ký thiết bị để tiếp tục.", true);
+}
 async function dangKyThietBi() {
   const maNhanSu = document.getElementById("maNhanSu").value.trim().toUpperCase();
 
