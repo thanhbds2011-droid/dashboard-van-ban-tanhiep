@@ -2,21 +2,27 @@
   "name": "Hệ thống nhắc việc văn bản",
   "short_name": "Nhắc việc",
   "description": "Dashboard giám sát, nhắc việc và lưu trữ kết quả thực hiện nhiệm vụ",
+  "id": "/dashboard-van-ban-tanhiep/",
   "start_url": "/dashboard-van-ban-tanhiep/index.html",
   "scope": "/dashboard-van-ban-tanhiep/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
+  "orientation": "portrait-primary",
   "background_color": "#f3f7fb",
   "theme_color": "#1f5f99",
+  "categories": ["productivity", "utilities"],
   "icons": [
     {
       "src": "/dashboard-van-ban-tanhiep/icon-192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
       "src": "/dashboard-van-ban-tanhiep/icon-512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }
