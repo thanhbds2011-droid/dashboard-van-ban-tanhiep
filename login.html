@@ -61,12 +61,10 @@
   id="maNhanSu"
   name="maNhanSu"
   type="text"
-  inputmode="text"
   autocomplete="off"
   autocapitalize="characters"
+  spellcheck="false"
   placeholder="Ví dụ: NV001"
-  onclick="this.focus()"
-  ontouchend="this.focus()"
 />
   <button id="btnDangKy" onclick="dangKyThietBi()" disabled>Đang kết nối hệ thống...</button>
 
@@ -283,21 +281,6 @@ async function dangKyThietBi() {
 }
 
 napOneSignalSDK();
-document.addEventListener("DOMContentLoaded", function () {
-  const input = document.getElementById("maNhanSu");
-
-  if (input) {
-    input.addEventListener("touchend", function () {
-      setTimeout(function () {
-        input.focus();
-      }, 80);
-    });
-
-    input.addEventListener("click", function () {
-      input.focus();
-    });
-  }
-});
 </script>
 
 </body>
