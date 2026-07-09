@@ -41,8 +41,17 @@
   <p>Nhập mã nhân sự để hệ thống xác định đúng người dùng, phòng ban và thiết bị nhận thông báo.</p>
 
   <label for="maNhanSu">Mã nhân sự</label>
-  <input id="maNhanSu" placeholder="Ví dụ: NV001">
-
+  <input
+  id="maNhanSu"
+  name="maNhanSu"
+  type="text"
+  inputmode="text"
+  autocomplete="off"
+  autocapitalize="characters"
+  placeholder="Ví dụ: NV001"
+  onclick="this.focus()"
+  ontouchend="this.focus()"
+/>
   <button id="btnDangKy" onclick="dangKyThietBi()" disabled>Đang kết nối hệ thống...</button>
 
   <div class="note">
