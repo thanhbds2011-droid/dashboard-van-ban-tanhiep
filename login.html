@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Đăng ký thiết bị</title>
 
   <link rel="manifest" href="/dashboard-van-ban-tanhiep/manifest.json">
@@ -12,40 +12,149 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Nhắc việc">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
 
   <style>
-    *{box-sizing:border-box}
-    body{margin:0;min-height:100vh;font-family:"Segoe UI",Roboto,Arial,sans-serif;background:linear-gradient(135deg,#174b7b,#2f80c0);display:flex;align-items:center;justify-content:center;padding:18px;color:#1f2937}
-    .card{width:100%;max-width:430px;background:#fff;border-radius:24px;padding:24px;box-shadow:0 18px 50px rgba(0,0,0,.25)}
-    .logo{width:64px;height:64px;border-radius:18px;background:linear-gradient(135deg,#1f5f99,#2f80c0);display:flex;align-items:center;justify-content:center;color:white;font-size:32px;margin-bottom:14px}
-    h1{margin:0;color:#1f5f99;font-size:24px;line-height:1.35}
-    p{color:#5b6472;line-height:1.55;font-size:15px;margin:10px 0 18px}
-    label{display:block;font-weight:800;color:#1f5f99;margin-bottom:7px}
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      font-family: "Segoe UI", Roboto, Arial, sans-serif;
+      background: linear-gradient(135deg, #174b7b, #2f80c0);
+      color: #1f2937;
+    }
+
+    body {
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 430px;
+      background: #fff;
+      border-radius: 24px;
+      padding: 24px;
+      box-shadow: 0 18px 50px rgba(0,0,0,.25);
+    }
+
+    .logo {
+      width: 64px;
+      height: 64px;
+      border-radius: 18px;
+      background: linear-gradient(135deg, #1f5f99, #2f80c0);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 32px;
+      margin-bottom: 14px;
+    }
+
+    h1 {
+      margin: 0;
+      color: #1f5f99;
+      font-size: 24px;
+      line-height: 1.35;
+    }
+
+    p {
+      color: #5b6472;
+      line-height: 1.55;
+      font-size: 15px;
+      margin: 10px 0 18px;
+    }
+
+    label {
+      display: block;
+      font-weight: 800;
+      color: #1f5f99;
+      margin-bottom: 7px;
+    }
+
     input {
-  width: 100%;
-  border: 1px solid #d7dce2;
-  border-radius: 14px;
-  padding: 14px;
-  font-size: 18px;
-  outline: none;
-  text-transform: uppercase;
-  background: #fff;
-  color: #111827;
-  -webkit-user-select: text;
-  user-select: text;
-  pointer-events: auto;
-  position: relative;
-  z-index: 10;
-  touch-action: manipulation;
-}
-    input:focus{border-color:#2f80c0;box-shadow:0 0 0 3px rgba(47,128,192,.13)}
-    button{width:100%;margin-top:16px;border:none;border-radius:15px;padding:15px;background:#1f5f99;color:white;font-weight:850;font-size:16px;cursor:pointer}
-    button:disabled{opacity:.65;cursor:not-allowed}
-    .note{background:#f3f7fb;border-left:4px solid #2f80c0;border-radius:13px;padding:12px;margin-top:14px;font-size:13.5px;line-height:1.5;color:#374151}
-    .msg{margin-top:14px;padding:13px;border-radius:13px;font-weight:750;line-height:1.45;display:none}
-    .ok{display:block;background:#e8f5ee;color:#28704f;border:1px solid #b7dfc6}
-    .err{display:block;background:#fff1ed;color:#d9534f;border:1px solid #f5c2b5}
-    .info{display:block;background:#eef6ff;color:#1f5f99;border:1px solid #cfe5fa}
+      width: 100%;
+      height: 54px;
+      border: 1px solid #d7dce2;
+      border-radius: 14px;
+      padding: 0 14px;
+      font-size: 20px;
+      outline: none;
+      background: #fff;
+      color: #111827;
+      text-transform: uppercase;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    input:focus {
+      border-color: #2f80c0;
+      box-shadow: 0 0 0 3px rgba(47,128,192,.13);
+    }
+
+    button {
+      width: 100%;
+      margin-top: 16px;
+      border: none;
+      border-radius: 15px;
+      padding: 15px;
+      background: #1f5f99;
+      color: white;
+      font-weight: 850;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: .65;
+      cursor: not-allowed;
+    }
+
+    .note {
+      background: #f3f7fb;
+      border-left: 4px solid #2f80c0;
+      border-radius: 13px;
+      padding: 12px;
+      margin-top: 14px;
+      font-size: 13.5px;
+      line-height: 1.5;
+      color: #374151;
+    }
+
+    .msg {
+      margin-top: 14px;
+      padding: 13px;
+      border-radius: 13px;
+      font-weight: 750;
+      line-height: 1.45;
+      display: none;
+    }
+
+    .ok {
+      display: block;
+      background: #e8f5ee;
+      color: #28704f;
+      border: 1px solid #b7dfc6;
+    }
+
+    .err {
+      display: block;
+      background: #fff1ed;
+      color: #d9534f;
+      border: 1px solid #f5c2b5;
+    }
+
+    .info {
+      display: block;
+      background: #eef6ff;
+      color: #1f5f99;
+      border: 1px solid #cfe5fa;
+    }
   </style>
 </head>
 
@@ -53,21 +162,24 @@
 
 <div class="card">
   <div class="logo">📑</div>
+
   <h1>Đăng ký thiết bị</h1>
   <p>Nhập mã nhân sự để hệ thống xác định đúng người dùng, phòng ban và thiết bị nhận thông báo.</p>
 
   <label for="maNhanSu">Mã nhân sự</label>
   <input
-  id="maNhanSu"
-  name="maNhanSu"
-  type="text"
-  autocomplete="off"
-  autocapitalize="characters"
-  spellcheck="false"
-  placeholder="Ví dụ: NV001"
-/>
-  <button id="btnNhapMa" onclick="nhapMaNhanSu()">Nhập mã nhân sự</button>
-<button id="btnDangKy" onclick="dangKyThietBi()" disabled>Đang kết nối hệ thống...</button>
+    id="maNhanSu"
+    name="maNhanSu"
+    type="text"
+    placeholder="Ví dụ: NV001"
+    autocomplete="off"
+    autocorrect="off"
+    autocapitalize="characters"
+    spellcheck="false"
+    enterkeyhint="done"
+  >
+
+  <button id="btnDangKy" type="button" disabled>Đang kết nối hệ thống...</button>
 
   <div class="note">
     iPhone: mở bằng Safari → Thêm vào Màn hình chính → mở từ biểu tượng ngoài màn hình → đăng ký.
@@ -90,6 +202,7 @@ let OneSignalRef = null;
 let oneSignalReady = false;
 
 const btn = document.getElementById("btnDangKy");
+const inputMa = document.getElementById("maNhanSu");
 
 function hienThongBao(text, ok, info) {
   const msg = document.getElementById("msg");
@@ -211,24 +324,13 @@ function napOneSignalSDK() {
   };
   document.head.appendChild(s);
 }
-function nhapMaNhanSu() {
-  var ma = prompt("Nhập mã nhân sự\nVí dụ: NV001", "");
 
-  if (!ma) {
-    hienThongBao("Bạn chưa nhập mã nhân sự.", false);
-    return;
-  }
-
-  ma = ma.trim().toUpperCase();
-  document.getElementById("maNhanSu").value = ma;
-
-  hienThongBao("Đã nhập mã: " + ma + ". Bấm Đăng ký thiết bị để tiếp tục.", true);
-}
 async function dangKyThietBi() {
-  const maNhanSu = document.getElementById("maNhanSu").value.trim().toUpperCase();
+  const maNhanSu = inputMa.value.trim().toUpperCase();
 
   if (!maNhanSu) {
     hienThongBao("Vui lòng nhập mã nhân sự.", false);
+    inputMa.focus();
     return;
   }
 
@@ -292,6 +394,19 @@ async function dangKyThietBi() {
     btn.textContent = "Đăng ký thiết bị";
   }
 }
+
+inputMa.addEventListener("input", function() {
+  inputMa.value = inputMa.value.toUpperCase().replace(/\s+/g, "");
+});
+
+inputMa.addEventListener("keydown", function(e) {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    dangKyThietBi();
+  }
+});
+
+btn.addEventListener("click", dangKyThietBi);
 
 napOneSignalSDK();
 </script>
