@@ -394,9 +394,17 @@ setTimeout(function() {
   window.location.href = "/dashboard-van-ban-tanhiep/index.html";
 }, 1200);
 
-  } catch (err) {
-    hienThongBao("Lỗi đăng ký: " + err.toString(), false);
-  } finally {
+  catch (err) {
+
+    console.error(err);
+
+    hienThongBao(
+        "Mã nhân sự không hợp lệ",
+        false
+    );
+
+} 
+  finally {
     btn.disabled = false;
     btn.textContent = "Đăng ký thiết bị";
   }
