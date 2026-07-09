@@ -1,1 +1,227 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chẩn đoán OneSignal</title>
 
+  <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+
+  <style>
+    body{margin:0;font-family:Arial,sans-serif;background:#f3f7fb;color:#1f2937}
+    header{background:#1f5f99;color:white;text-align:center;padding:18px}
+    .box{max-width:760px;margin:18px auto;background:white;border-radius:18px;padding:18px;box-shadow:0 4px 14px rgba(0,0,0,.08)}
+    h1{font-size:22px;margin:0}
+    h2{color:#1f5f99}
+    .row{padding:10px 0;border-bottom:1px solid #eee}
+    .label{font-weight:bold;color:#1f5f99}
+    .value{margin-top:4px;word-break:break-all}
+    button{width:100%;border:0;border-radius:14px;background:#1f5f99;color:white;padding:14px;font-size:16px;font-weight:bold;margin-top:12px}
+    .ok{color:#24804f;font-weight:bold}
+    .bad{color:#d9534f;font-weight:bold}
+    .warn{color:#d98900;font-weight:bold}
+  </style>
+</head>
+
+<body>
+<header>
+  <h1>🔔 Chẩn đoán OneSignal</h1>
+  <p>Kiểm tra thiết bị có đăng ký nhận thông báo hay chưa</p>
+</header>
+
+<div class="box">
+  <h2>Thông tin thiết bị</h2>
+
+  <div class="row">
+    <div class="label">Permission</div>
+    <div class="value" id="permission">Đang kiểm tra...</div>
+  </div>
+
+  <div class="row">
+    <div class="label">Subscription ID</div>
+    <div class="value" id="subscriptionId">Đang kiểm tra...</div>
+  </div>
+
+  <div class="row">
+    <div class="label">External ID</div>
+    <div class="value" id="externalId">Đang kiểm tra...</div>
+  </div>
+
+  <div class="row">
+    <div class="label">Opted In</div>
+    <div class="value" id="optedIn">Đang kiểm tra...</div>
+  </div>
+
+  <div class="row">
+    <div class="label">Thiết bị</div>
+    <div class="value" id="device"></div>
+  </div>
+
+  <div class="row">
+    <div class="label">Trình duyệt</div>
+    <div class="value" id="browser"></div>
+  </div>
+
+  <div class="row">
+    <div class="label">Mở từ màn hình chính/PWA</div>
+    <div class="value" id="pwa"></div>
+  </div>
+
+  <button onclick="batThongBao()">🔔 Bật / đăng ký lại thông báo</button>
+  <button onclick="guiTestThietBi()">📨 Gửi test riêng thiết bị này</button>
+
+  <div id="ketQua" style="margin-top:15px;font-weight:bold"></div>
+</div>
+
+<script>
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyMINgn39Y_zlvdG9nqMpDH9KeoBKXnR_ueWr_wpVLPu82QxZVPSH4tnkVR9oa7eTJ2KQ/exec";
+
+const ONESIGNAL_APP_ID = "1a1d8e66-d523-4a9a-84be-1d3c248bad61";
+const ONESIGNAL_SAFARI_WEB_ID = "web.onesignal.auto.12e0c5f3-6b76-47bb-8015-fa3026009bd5";
+const EXTERNAL_ID_KEY = "nhac_viec_van_ban_external_id";
+
+let OneSignalRef = null;
+
+function taoExternalId(){
+  let id = localStorage.getItem(EXTERNAL_ID_KEY);
+  if(!id){
+    id = "vanban_" + Date.now() + "_" + Math.random().toString(36).slice(2,10);
+    localStorage.setItem(EXTERNAL_ID_KEY,id);
+  }
+  return id;
+}
+
+function isPWA(){
+  return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+}
+
+function getDevice(){
+  const ua = navigator.userAgent;
+  if(/iPhone|iPad|iPod/i.test(ua)) return "iPhone/iPad";
+  if(/Android/i.test(ua)) return "Android";
+  if(/Windows/i.test(ua)) return "Windows";
+  return "Không xác định";
+}
+
+function getBrowser(){
+  const ua = navigator.userAgent;
+  if(/CriOS|Chrome/i.test(ua)) return "Chrome";
+  if(/Safari/i.test(ua) && !/Chrome/i.test(ua)) return "Safari";
+  if(/Edg/i.test(ua)) return "Edge";
+  return navigator.userAgent;
+}
+
+function hienThi(id, value, cls){
+  const el = document.getElementById(id);
+  el.textContent = value || "";
+  el.className = "value " + (cls || "");
+}
+
+async function capNhatChanDoan(){
+  hienThi("permission", Notification.permission, Notification.permission === "granted" ? "ok" : "bad");
+  hienThi("device", getDevice());
+  hienThi("browser", getBrowser());
+  hienThi("pwa", isPWA() ? "Đã mở dạng ứng dụng/PWA" : "Chưa mở từ màn hình chính", isPWA() ? "ok" : "warn");
+
+  if(!OneSignalRef){
+    hienThi("subscriptionId","OneSignal chưa sẵn sàng","bad");
+    return;
+  }
+
+  const subId = OneSignalRef.User.PushSubscription.id || "";
+  const opted = OneSignalRef.User.PushSubscription.optedIn === true;
+  let externalId = "";
+
+  try{
+    externalId = await OneSignalRef.User.getExternalId();
+  }catch(e){
+    externalId = localStorage.getItem(EXTERNAL_ID_KEY) || "";
+  }
+
+  hienThi("subscriptionId", subId || "Chưa có Subscription ID", subId ? "ok" : "bad");
+  hienThi("externalId", externalId || "Chưa có External ID", externalId ? "ok" : "warn");
+  hienThi("optedIn", opted ? "true" : "false", opted ? "ok" : "bad");
+}
+
+window.OneSignalDeferred = window.OneSignalDeferred || [];
+OneSignalDeferred.push(async function(OneSignal){
+  OneSignalRef = OneSignal;
+
+  await OneSignal.init({
+    appId: ONESIGNAL_APP_ID,
+    safari_web_id: ONESIGNAL_SAFARI_WEB_ID,
+    serviceWorkerPath: "/dashboard-van-ban-tanhiep/OneSignalSDKWorker.js",
+    serviceWorkerUpdaterPath: "/dashboard-van-ban-tanhiep/OneSignalSDKWorker.js",
+    serviceWorkerParam: { scope: "/dashboard-van-ban-tanhiep/" },
+    notifyButton: { enable: false },
+    welcomeNotification: { disable: true }
+  });
+
+  OneSignal.User.PushSubscription.addEventListener("change", capNhatChanDoan);
+  await capNhatChanDoan();
+});
+
+async function batThongBao(){
+  const kq = document.getElementById("ketQua");
+
+  try{
+    if(!OneSignalRef){
+      kq.textContent = "OneSignal chưa sẵn sàng. Hãy tải lại trang.";
+      return;
+    }
+
+    await OneSignalRef.Notifications.requestPermission(true);
+
+    if(Notification.permission !== "granted"){
+      kq.textContent = "Trình duyệt chưa cấp quyền thông báo.";
+      return;
+    }
+
+    await OneSignalRef.User.PushSubscription.optIn();
+
+    const externalId = taoExternalId();
+    await OneSignalRef.login(externalId);
+
+    kq.textContent = "✅ Đã đăng ký thông báo.";
+    await capNhatChanDoan();
+
+  }catch(e){
+    kq.textContent = "Lỗi đăng ký: " + e.toString();
+  }
+}
+
+async function guiTestThietBi(){
+  const kq = document.getElementById("ketQua");
+
+  try{
+    const subId = OneSignalRef && OneSignalRef.User.PushSubscription.id;
+
+    if(!subId){
+      kq.textContent = "Chưa có Subscription ID. Hãy bấm đăng ký lại thông báo.";
+      return;
+    }
+
+    const payload = {
+      action: "test_one_device",
+      subscriptionId: subId
+    };
+
+    const form = new FormData();
+    form.append("payload", JSON.stringify(payload));
+
+    await fetch(APPS_SCRIPT_URL, {
+      method: "POST",
+      body: form,
+      mode: "no-cors"
+    });
+
+    kq.textContent = "✅ Đã gửi yêu cầu test. Kiểm tra điện thoại trong vài giây.";
+
+  }catch(e){
+    kq.textContent = "Lỗi gửi test: " + e.toString();
+  }
+}
+</script>
+
+</body>
+</html>
