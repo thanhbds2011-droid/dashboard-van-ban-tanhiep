@@ -630,7 +630,7 @@
     }
   </style>
 
-  <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+  <!-- OneSignal sẽ được nạp động khi chạy trên GitHub Pages thật -->
 </head>
 
 <body>
@@ -737,7 +737,52 @@
 <script>
   const APP_VERSION = "20260708.3";
   const API_URL = "https://script.google.com/macros/s/AKfycbyMINgn39Y_zlvdG9nqMpDH9KeoBKXnR_ueWr_wpVLPu82QxZVPSH4tnkVR9oa7eTJ2KQ/exec";
+const HOSTNAME = String(window.location.hostname || "").toLowerCase();
 
+/*
+  Chỉ cho phép gọi mạng khi chạy trên GitHub Pages thật hoặc localhost.
+  Khi xem trong ChatGPT Preview, hostname không phải github.io nên sẽ tự tắt kết nối.
+*/
+const DUOC_PHEP_KET_NOI_MANG =
+  HOSTNAME.endsWith(".github.io") ||
+  HOSTNAME === "localhost" ||
+  HOSTNAME === "127.0.0.1";
+
+function dangXemThuTrongChatGPT() {
+  return !DUOC_PHEP_KET_NOI_MANG;
+}
+
+function hienThiCheDoXemThuChatGPT() {
+  capNhatTrangThaiDongBo(
+    "Đang xem thử giao diện trong ChatGPT. Dữ liệu thật chỉ đồng bộ khi mở bằng GitHub Pages.",
+    false
+  );
+
+  const bangDuLieu = document.getElementById("bangDuLieu");
+  const mobileList = document.getElementById("mobileList");
+
+  if (bangDuLieu) {
+    bangDuLieu.innerHTML =
+      '<tr><td colspan="8" class="loading">Đang xem thử giao diện trong ChatGPT. Đã tắt kết nối Apps Script để không hiện cảnh báo truy cập mạng.</td></tr>';
+  }
+
+  if (mobileList) {
+    mobileList.innerHTML =
+      '<div class="loading">Đang xem thử giao diện trong ChatGPT. Đã tắt kết nối Apps Script.</div>';
+  }
+}
+
+function napOneSignalNeuDuocPhep() {
+  if (!DUOC_PHEP_KET_NOI_MANG) {
+    console.log("Đang xem thử, không nạp OneSignal.");
+    return;
+  }
+
+  const script = document.createElement("script");
+  script.src = "https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js";
+  script.defer = true;
+  document.head.appendChild(script);
+}
   const ONESIGNAL_APP_ID = "1a1d8e66-d523-4a9a-84be-1d3c248bad61";
   const ONESIGNAL_SAFARI_WEB_ID = "web.onesignal.auto.12e0c5f3-6b76-47bb-8015-fa3026009bd5";
   const ONESIGNAL_EXTERNAL_ID_KEY = "nhac_viec_van_ban_external_id";
@@ -986,9 +1031,17 @@
     });
   }
 
+  if (DUOC_PHEP_KET_NOI_MANG) {
   khoiTaoOneSignal();
+  napOneSignalNeuDuocPhep();
+}
 
   async function taiDuLieu(tuDong) {
+    if (!DUOC_PHEP_KET_NOI_MANG) {
+      hienThiCheDoXemThuChatGPT();
+      return;
+    }
+
     if (dangTaiDuLieu) return;
     dangTaiDuLieu = true;
 
@@ -1527,19 +1580,17 @@
     }
   }
 
- // taiDuLieu();
 kiemTraPhienBanMoi();
 
-// Tắt gọi Apps Script khi xem trong ChatGPT Preview
-document.getElementById("bangDuLieu").innerHTML =
-  '<tr><td colspan="8" class="loading">Đang xem thử giao diện trong ChatGPT. Đã tắt kết nối Apps Script.</td></tr>';
+if (DUOC_PHEP_KET_NOI_MANG) {
+  taiDuLieu();
 
-document.getElementById("mobileList").innerHTML =
-  '<div class="loading">Đang xem thử giao diện trong ChatGPT. Đã tắt kết nối Apps Script.</div>';
-
-// setInterval(function() {
-//   taiDuLieu(true);
-// }, TU_DONG_DONG_BO_MS);
+  setInterval(function() {
+    taiDuLieu(true);
+  }, TU_DONG_DONG_BO_MS);
+} else {
+  hienThiCheDoXemThuChatGPT();
+}
 </script>
 
 </body>
