@@ -4,14 +4,27 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <title>Hệ thống nhắc việc văn bản</title>
+  <title>Nhắc việc văn bản</title>
 
-  <link rel="manifest" href="manifest.json?v=20260708.4">
+  <!-- PWA / Add to Home Screen -->
+  <link rel="manifest" href="/dashboard-van-ban-tanhiep/manifest.json?v=20260709.1">
+  <link rel="canonical" href="https://thanhbds2011-droid.github.io/dashboard-van-ban-tanhiep/">
+
+  <meta name="application-name" content="Nhắc việc">
   <meta name="theme-color" content="#1f5f99">
   <meta name="mobile-web-app-capable" content="yes">
+
+  <!-- iPhone / iPad: bắt buộc để mở như ứng dụng, không hiện thanh địa chỉ khi mở từ icon Màn hình chính -->
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Nhắc việc">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="/dashboard-van-ban-tanhiep/icon-192.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/dashboard-van-ban-tanhiep/icon-192.png">
+
+  <meta name="msapplication-TileColor" content="#1f5f99">
+  <meta name="format-detection" content="telephone=no">
+
+  <!-- Hạn chế cache HTML để iPhone/PWA nhận giao diện mới nhanh hơn -->
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
@@ -735,7 +748,7 @@
 </div>
 
 <script>
-  const APP_VERSION = "20260708.4";
+  const APP_VERSION = "20260709.1";
   const API_URL = "https://script.google.com/macros/s/AKfycbyMINgn39Y_zlvdG9nqMpDH9KeoBKXnR_ueWr_wpVLPu82QxZVPSH4tnkVR9oa7eTJ2KQ/exec";
 const HOSTNAME = String(window.location.hostname || "").toLowerCase();
 
@@ -967,7 +980,7 @@ function napOneSignalNeuDuocPhep() {
       const OneSignal = oneSignalInstance;
 
       if (!oneSignalReady || !OneSignal) {
-        baoLoiThongBao("OneSignal chưa sẵn sàng. Vui lòng tải lại trang rồi thử lại.");
+        baoLoiThongBao("Hệ thống thông báo chưa sẵn sàng. Vui lòng tải lại trang rồi thử lại.");
         return;
       }
 
