@@ -2,746 +2,1151 @@
 <html lang="vi">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <title>Ứng dụng Tân Hiệp</title>
+  <title>Hệ thống nhắc việc văn bản</title>
 
-  <link rel="manifest" href="manifest.webmanifest" />
-  <meta name="theme-color" content="#991b1b" />
+  <link rel="manifest" href="/dashboard-van-ban-tanhiep/manifest.json?v=20260709.1" />
+  <link rel="apple-touch-icon" href="/dashboard-van-ban-tanhiep/icon-192.png" />
+
+  <meta name="theme-color" content="#1f5f99" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-title" content="Tân Hiệp" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Nhắc việc" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800;900&display=swap');
-
-    * {
-      box-sizing: border-box;
-      -webkit-tap-highlight-color: transparent;
+    :root{
+      --main:#1f5f99;
+      --main2:#2f80c0;
+      --bg:#f3f7fb;
+      --card:#fff;
+      --text:#1f2937;
+      --muted:#6b7280;
+      --border:#d7dce2;
+      --red:#e76f51;
+      --orange:#f4a261;
+      --blue:#5dade2;
+      --green:#4f8a6d;
+      --gray:#7b8490;
+      --shadow:0 6px 18px rgba(15,23,42,.08);
     }
 
-    :root {
-      --red: #991b1b;
-      --red-2: #b91c1c;
-      --dark: #111827;
-      --muted: #6b7280;
-      --line: #e5e7eb;
-      --blue: #2563eb;
-      --green: #047857;
-      --orange: #ea580c;
-      --bg: #f8fafc;
-      --white: #ffffff;
-      --shadow: 0 16px 40px rgba(15, 23, 42, 0.12);
-      --radius: 24px;
+    *{box-sizing:border-box}
+
+    body{
+      margin:0;
+      min-height:100vh;
+      font-family:"Segoe UI",Roboto,Arial,sans-serif;
+      background:radial-gradient(circle at top right,rgba(47,128,192,.12),transparent 32%),var(--bg);
+      color:var(--text);
     }
 
-    html,
-    body {
-      width: 100%;
-      min-height: 100%;
-      margin: 0;
-      padding: 0;
-      font-family: 'Be Vietnam Pro', Arial, sans-serif;
-      background: var(--bg);
-      color: var(--dark);
+    header{
+      background:linear-gradient(135deg,#174b7b,var(--main2));
+      color:#fff;
+      text-align:center;
+      padding:22px 14px 19px;
+      box-shadow:0 8px 24px rgba(23,75,123,.22);
     }
 
-    body {
-      overflow-x: hidden;
+    header h1{
+      margin:0;
+      font-size:22px;
+      line-height:1.35;
+      font-weight:800;
     }
 
-    button,
-    input {
-      font-family: 'Be Vietnam Pro', Arial, sans-serif;
+    header p{
+      margin:8px auto 0;
+      max-width:720px;
+      font-size:14px;
+      line-height:1.45;
+      opacity:.95;
     }
 
-    button {
-      border: none;
+    .sync-bar{
+      text-align:center;
+      background:#eaf4ff;
+      color:var(--main);
+      font-weight:700;
+      font-size:13px;
+      padding:8px 12px;
+      border-bottom:1px solid #d7e8f8;
     }
 
-    .app-shell {
-      min-height: 100vh;
-      padding: calc(18px + env(safe-area-inset-top)) 16px calc(28px + env(safe-area-inset-bottom));
-      background:
-        radial-gradient(circle at 0% 0%, rgba(185, 28, 28, 0.18), transparent 30%),
-        radial-gradient(circle at 100% 100%, rgba(37, 99, 235, 0.16), transparent 32%),
-        linear-gradient(180deg, #fff7f7 0%, #f8fafc 48%, #eef2ff 100%);
+    .sync-bar.error{
+      background:#fff1ed;
+      color:var(--red);
+      border-bottom-color:#f5c2b5;
     }
 
-    .app-container {
-      width: 100%;
-      max-width: 1080px;
-      margin: 0 auto;
+    .container{
+      max-width:1180px;
+      margin:auto;
+      padding:14px;
     }
 
-    .mobile-header {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      margin-bottom: 18px;
+    .tabs{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:10px;
+      margin-bottom:14px;
     }
 
-    .logo-wrap {
-      width: 64px;
-      height: 64px;
-      border-radius: 22px;
-      background: #fff;
-      box-shadow: 0 12px 28px rgba(153, 27, 27, 0.18);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      overflow: hidden;
-      flex: 0 0 auto;
+    .tab-btn{
+      border:0;
+      padding:13px 10px;
+      border-radius:16px;
+      background:#fff;
+      color:var(--main);
+      font-weight:800;
+      font-size:15px;
+      cursor:pointer;
+      box-shadow:var(--shadow);
+      font-family:inherit;
     }
 
-    .logo-wrap img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
+    .tab-btn.active{
+      background:var(--main);
+      color:#fff;
     }
 
-    .header-title {
-      min-width: 0;
-      flex: 1;
+    .cards{
+      display:grid;
+      grid-template-columns:repeat(4,1fr);
+      gap:12px;
+      margin-bottom:14px;
     }
 
-    .header-title h1 {
-      margin: 0;
-      font-size: 25px;
-      line-height: 1.16;
-      letter-spacing: -0.7px;
-      color: var(--red);
-      font-weight: 900;
+    .card{
+      background:var(--card);
+      border-radius:18px;
+      padding:16px 10px;
+      text-align:center;
+      box-shadow:var(--shadow);
+      border-left:5px solid var(--main);
+      min-height:98px;
+      display:flex;
+      flex-direction:column;
+      justify-content:center;
     }
 
-    .header-title p {
-      margin: 7px 0 0;
-      color: var(--muted);
-      font-size: 13px;
-      line-height: 1.45;
-      font-weight: 500;
+    .card.full{grid-column:span 4}
+
+    .number{
+      font-size:31px;
+      font-weight:850;
+      margin-bottom:5px;
     }
 
-    .status-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 7px;
-      margin-bottom: 14px;
-      padding: 8px 12px;
-      border-radius: 999px;
-      background: rgba(255, 255, 255, 0.86);
-      border: 1px solid rgba(229, 231, 235, 0.95);
-      color: #374151;
-      font-size: 12px;
-      font-weight: 800;
-      box-shadow: 0 8px 22px rgba(15, 23, 42, 0.07);
+    .label{
+      font-size:13.5px;
+      color:#555;
+      font-weight:800;
+      line-height:1.35;
     }
 
-    .hero {
-      position: relative;
-      overflow: hidden;
-      border-radius: 28px;
-      padding: 22px;
-      background: linear-gradient(135deg, #991b1b 0%, #7f1d1d 48%, #111827 100%);
-      color: #fff;
-      box-shadow: var(--shadow);
-      margin-bottom: 16px;
+    .red{color:var(--red)}
+    .orange{color:var(--orange)}
+    .blue{color:var(--blue)}
+    .green{color:var(--green)}
+    .gray{color:var(--gray)}
+
+    .filters{
+      background:#fff;
+      padding:14px;
+      border-radius:18px;
+      margin-bottom:14px;
+      box-shadow:var(--shadow);
+      display:grid;
+      grid-template-columns:1fr 240px 220px;
+      gap:10px;
     }
 
-    .hero::before {
-      content: "";
-      position: absolute;
-      right: -70px;
-      top: -70px;
-      width: 190px;
-      height: 190px;
-      border-radius: 50%;
-      background: rgba(255,255,255,0.10);
+    input,select{
+      width:100%;
+      padding:12px;
+      min-height:46px;
+      border:1px solid var(--border);
+      border-radius:13px;
+      font-size:14px;
+      outline:0;
+      background:#fff;
+      font-family:inherit;
+      font-weight:650;
+      color:#334155;
     }
 
-    .hero::after {
-      content: "";
-      position: absolute;
-      right: 36px;
-      bottom: -96px;
-      width: 190px;
-      height: 190px;
-      border-radius: 50%;
-      background: rgba(255,255,255,0.07);
+    input:focus,select:focus{
+      border-color:var(--main2);
+      box-shadow:0 0 0 3px rgba(47,128,192,.12);
     }
 
-    .hero-inner {
-      position: relative;
-      z-index: 2;
+    .section-title{
+      font-size:18px;
+      font-weight:850;
+      margin:18px 0 10px;
+      color:var(--main);
     }
 
-    .kicker {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 12px;
-      border-radius: 999px;
-      background: rgba(255, 255, 255, 0.14);
-      border: 1px solid rgba(255, 255, 255, 0.22);
-      font-size: 12px;
-      font-weight: 800;
-      margin-bottom: 14px;
+    .table-wrap{
+      background:#fff;
+      border-radius:18px;
+      overflow-x:auto;
+      box-shadow:var(--shadow);
     }
 
-    .hero h2 {
-      margin: 0;
-      font-size: 25px;
-      line-height: 1.24;
-      letter-spacing: -0.7px;
-      font-weight: 900;
+    table{
+      width:100%;
+      border-collapse:collapse;
+      min-width:900px;
     }
 
-    .hero p {
-      margin: 12px 0 0;
-      color: rgba(255, 255, 255, 0.88);
-      font-size: 14px;
-      line-height: 1.65;
-      font-weight: 500;
+    th{
+      background:var(--main);
+      color:#fff;
+      padding:12px;
+      text-align:left;
+      font-size:14px;
+      font-weight:850;
     }
 
-    .app-grid {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 14px;
-      margin-top: 16px;
+    td{
+      padding:12px;
+      border-bottom:1px solid #eee;
+      vertical-align:top;
+      font-size:14px;
+      line-height:1.45;
+      color:#334155;
     }
 
-    .app-card {
-      width: 100%;
-      min-height: 156px;
-      border-radius: 24px;
-      background: rgba(255, 255, 255, 0.95);
-      border: 1px solid rgba(229, 231, 235, 0.95);
-      box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
-      padding: 18px;
-      text-align: left;
-      cursor: pointer;
-      display: flex;
-      gap: 15px;
-      align-items: flex-start;
-      transition: transform 0.16s ease, box-shadow 0.16s ease;
+    tr:hover{
+      background:#eef6ff;
+      cursor:pointer;
     }
 
-    .app-card:active {
-      transform: scale(0.985);
-      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.10);
+    .badge{
+      display:inline-block;
+      padding:6px 10px;
+      border-radius:999px;
+      color:#fff;
+      font-weight:850;
+      font-size:12px;
+      white-space:nowrap;
     }
 
-    .app-icon {
-      width: 54px;
-      height: 54px;
-      border-radius: 18px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 26px;
-      flex: 0 0 auto;
+    .badge-red{background:var(--red)}
+    .badge-orange{background:var(--orange)}
+    .badge-blue{background:var(--blue)}
+    .badge-green{background:var(--green)}
+    .badge-gray{background:var(--gray)}
+
+    .btn{
+      display:inline-block;
+      text-decoration:none;
+      background:var(--main2);
+      color:#fff;
+      padding:8px 12px;
+      border-radius:10px;
+      font-size:13px;
+      font-weight:800;
     }
 
-    .app-icon.doc {
-      background: #eff6ff;
-      color: var(--blue);
+    .mobile-list{display:none}
+
+    .mobile-card{
+      background:#fff;
+      border-radius:18px;
+      padding:15px;
+      margin-bottom:13px;
+      box-shadow:var(--shadow);
+      border-left:5px solid var(--main);
     }
 
-    .app-icon.car {
-      background: #fff7ed;
-      color: var(--orange);
+    .mobile-card h3{
+      margin:0 0 8px;
+      font-size:17px;
+      color:var(--main);
+      line-height:1.35;
     }
 
-    .app-content {
-      flex: 1;
-      min-width: 0;
+    .mobile-card p{
+      margin:7px 0;
+      font-size:14.5px;
+      line-height:1.45;
     }
 
-    .app-topline {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      margin-bottom: 6px;
+    .mobile-meta{
+      color:var(--muted);
+      font-size:13px;
     }
 
-    .app-card h3 {
-      margin: 0;
-      font-size: 18px;
-      line-height: 1.3;
-      font-weight: 900;
-      color: var(--dark);
-      letter-spacing: -0.4px;
+    .pagination{
+      display:flex;
+      justify-content:center;
+      flex-wrap:wrap;
+      gap:8px;
+      margin:18px 0;
     }
 
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      padding: 6px 9px;
-      border-radius: 999px;
-      font-size: 11px;
-      font-weight: 900;
-      white-space: nowrap;
+    .pagination button{
+      border:0;
+      background:#fff;
+      color:var(--main);
+      padding:9px 13px;
+      border-radius:10px;
+      font-weight:800;
+      box-shadow:0 3px 10px rgba(0,0,0,.08);
+      cursor:pointer;
     }
 
-    .badge.open {
-      background: #ecfdf5;
-      color: var(--green);
+    .pagination button.active{
+      background:var(--main);
+      color:#fff;
     }
 
-    .badge.lock {
-      background: #fef2f2;
-      color: var(--red);
+    .pagination button:disabled{
+      opacity:.45;
+      cursor:not-allowed;
     }
 
-    .app-card p {
-      margin: 0;
-      color: var(--muted);
-      font-size: 13px;
-      line-height: 1.55;
-      font-weight: 500;
+    .modal{
+      display:none;
+      position:fixed;
+      z-index:99;
+      inset:0;
+      background:rgba(0,0,0,.55);
+      padding:14px;
     }
 
-    .app-action {
-      margin-top: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      color: var(--red);
-      font-size: 13px;
-      font-weight: 900;
+    .modal-content{
+      background:#fff;
+      max-width:760px;
+      margin:30px auto;
+      border-radius:18px;
+      padding:18px;
+      max-height:86vh;
+      overflow-y:auto;
+      box-shadow:0 8px 30px rgba(0,0,0,.25);
     }
 
-    .info-list {
-      margin-top: 16px;
-      display: grid;
-      gap: 10px;
+    .modal-header{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+      border-bottom:1px solid #eee;
+      padding-bottom:10px;
+      margin-bottom:12px;
     }
 
-    .info-item {
-      display: flex;
-      gap: 12px;
-      align-items: flex-start;
-      background: rgba(255, 255, 255, 0.82);
-      border: 1px solid rgba(229, 231, 235, 0.94);
-      border-radius: 18px;
-      padding: 13px 14px;
-      color: #374151;
-      font-size: 13px;
-      line-height: 1.5;
-      font-weight: 500;
+    .modal-header h2{
+      margin:0;
+      color:var(--main);
+      font-size:19px;
     }
 
-    .info-emoji {
-      width: 26px;
-      flex: 0 0 auto;
-      font-size: 18px;
-      line-height: 1.4;
+    .close{
+      font-size:28px;
+      cursor:pointer;
+      color:#555;
+      font-weight:850;
     }
 
-    .info-item strong {
-      color: var(--dark);
-      font-weight: 900;
+    .detail-row{
+      margin:10px 0;
+      line-height:1.5;
     }
 
-    .footer {
-      margin-top: 18px;
-      text-align: center;
-      color: #6b7280;
-      font-size: 11px;
-      line-height: 1.5;
-      padding-bottom: 8px;
+    .detail-row strong{color:var(--main)}
+
+    .ai-detail{
+      white-space:pre-wrap;
+      background:#f7f9fc;
+      padding:12px;
+      border-radius:12px;
+      border-left:4px solid var(--main2);
+      line-height:1.55;
     }
 
-    .version {
-      margin-top: 4px;
-      color: #9ca3af;
-      font-size: 10px;
+    .loading{
+      text-align:center;
+      padding:26px;
+      font-weight:800;
+      color:var(--main);
     }
 
-    .lock-layer {
-      position: fixed;
-      inset: 0;
-      z-index: 100;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      padding: 18px;
-      background: rgba(17, 24, 39, 0.64);
+    .footer{
+      text-align:center;
+      color:#777;
+      padding:24px;
+      font-size:13px;
     }
 
-    .lock-box {
-      width: 100%;
-      max-width: 370px;
-      padding: 22px;
-      border-radius: 26px;
-      background: #fff;
-      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.32);
+    .setup-modal{
+      display:none;
+      position:fixed;
+      inset:0;
+      z-index:9998;
+      background:rgba(15,23,42,.45);
+      padding:16px;
+      align-items:center;
+      justify-content:center;
     }
 
-    .lock-icon {
-      width: 58px;
-      height: 58px;
-      border-radius: 19px;
-      margin: 0 auto 13px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: #fef2f2;
-      color: var(--red);
-      font-size: 28px;
+    .setup-modal.show{display:flex}
+
+    .setup-card{
+      width:100%;
+      max-width:420px;
+      background:#fff;
+      border-radius:22px;
+      padding:20px;
+      box-shadow:0 18px 50px rgba(0,0,0,.25);
     }
 
-    .lock-box h2 {
-      margin: 0 0 8px;
-      text-align: center;
-      color: var(--dark);
-      font-size: 20px;
-      line-height: 1.25;
-      font-weight: 900;
+    .setup-icon{
+      width:52px;
+      height:52px;
+      border-radius:16px;
+      background:linear-gradient(135deg,var(--main),var(--main2));
+      color:#fff;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:26px;
+      margin-bottom:12px;
     }
 
-    .lock-box p {
-      margin: 0 0 16px;
-      text-align: center;
-      color: var(--muted);
-      font-size: 13px;
-      line-height: 1.5;
-      font-weight: 500;
+    .setup-title{
+      color:var(--main);
+      font-size:19px;
+      font-weight:850;
+      margin-bottom:8px;
+      line-height:1.35;
     }
 
-    .password-input {
-      width: 100%;
-      height: 49px;
-      border: 1px solid #d1d5db;
-      border-radius: 15px;
-      padding: 0 13px;
-      outline: none;
-      font-size: 16px;
-      font-weight: 600;
+    .setup-text{
+      color:#4b5563;
+      font-size:14.5px;
+      line-height:1.55;
+      margin-bottom:14px;
     }
 
-    .password-input:focus {
-      border-color: var(--red);
-      box-shadow: 0 0 0 4px rgba(185, 28, 28, 0.12);
+    .setup-note{
+      background:#f3f7fb;
+      border-left:4px solid var(--main2);
+      border-radius:12px;
+      padding:11px 12px;
+      color:#374151;
+      font-size:13.5px;
+      line-height:1.45;
+      margin-bottom:14px;
     }
 
-    .error-text {
-      display: none;
-      margin-top: 10px;
-      text-align: center;
-      color: var(--red);
-      font-size: 13px;
-      font-weight: 800;
+    .setup-actions{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:10px;
     }
 
-    .lock-actions {
-      display: flex;
-      gap: 10px;
-      margin-top: 15px;
+    .setup-primary,.setup-secondary{
+      border:0;
+      border-radius:13px;
+      padding:12px 10px;
+      font-weight:850;
+      font-size:14px;
+      cursor:pointer;
+      font-family:inherit;
     }
 
-    .lock-actions button {
-      flex: 1;
-      height: 44px;
-      border-radius: 14px;
-      cursor: pointer;
-      font-size: 14px;
-      font-weight: 900;
+    .setup-primary{
+      background:var(--main);
+      color:#fff;
     }
 
-    .btn-cancel {
-      background: #f3f4f6;
-      color: #374151;
+    .setup-secondary{
+      background:#eef2f7;
+      color:#4b5563;
     }
 
-    .btn-open {
-      background: var(--red);
-      color: #fff;
-    }
-
-    @media (min-width: 768px) {
-      .app-shell {
-        padding: 28px 24px 36px;
-      }
-
-      .mobile-header {
-        margin-bottom: 20px;
-      }
-
-      .header-title h1 {
-        font-size: 30px;
-      }
-
-      .hero {
-        padding: 30px;
-      }
-
-      .hero h2 {
-        font-size: 34px;
-      }
-
-      .app-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 18px;
-      }
-
-      .app-card {
-        display: block;
-        min-height: 220px;
-        padding: 23px;
-      }
-
-      .app-icon {
-        margin-bottom: 18px;
-      }
-
-      .app-card h3 {
-        font-size: 22px;
-      }
-
-      .app-card p {
-        font-size: 14px;
-      }
-
-      .info-list {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 14px;
-      }
+    @media(max-width:850px){
+      header{padding:17px 14px}
+      header h1{font-size:19px}
+      header p{font-size:13.5px}
+      .container{padding:12px}
+      .cards{grid-template-columns:1fr 1fr;gap:12px}
+      .card{padding:14px 8px;min-height:96px}
+      .card.full{grid-column:span 2}
+      .number{font-size:30px}
+      .filters{grid-template-columns:1fr}
+      .table-wrap{display:none}
+      .mobile-list{display:block}
+      .modal-content{margin:20px auto;padding:16px}
     }
   </style>
 </head>
 
 <body>
-  <main class="app-shell">
-    <div class="app-container">
-      <header class="mobile-header">
-        <div class="logo-wrap">
-          <img
-            src="icon-1024.png"
-            alt="Logo Tân Hiệp"
-            onerror="this.remove(); this.parentElement.textContent='TH';"
-          />
-        </div>
 
-        <div class="header-title">
-          <h1>Ứng dụng Tân Hiệp</h1>
-          <p>Cổng truy cập nhanh các hệ thống hành chính nội bộ</p>
-        </div>
-      </header>
+<header>
+  <h1>📑 HỆ THỐNG NHẮC VIỆC VĂN BẢN</h1>
+  <p>Dashboard giám sát, nhắc việc và lưu trữ kết quả thực hiện nhiệm vụ</p>
+</header>
 
-      <div class="status-chip">
-        ● Hệ thống đang hoạt động
-      </div>
+<div id="syncBar" class="sync-bar">
+  <span id="syncText">Đang đồng bộ dữ liệu...</span>
+</div>
 
-      <section class="hero">
-        <div class="hero-inner">
-          <div class="kicker">🧩 Chuyển đổi số hành chính</div>
-
-          <h2>Trung tâm Bảo trợ xã hội Tân Hiệp</h2>
-
-          <p>
-            Tập trung các tiện ích phục vụ theo dõi văn bản, quản lý công lệnh
-            và hỗ trợ xử lý công việc trên điện thoại, máy tính bảng, laptop.
-          </p>
-        </div>
-      </section>
-
-      <section class="app-grid">
-        <button class="app-card" type="button" onclick="moVanBan()">
-          <div class="app-icon doc">📄</div>
-
-          <div class="app-content">
-            <div class="app-topline">
-              <h3>Dashboard văn bản</h3>
-              <span class="badge open">Xem nhanh</span>
-            </div>
-
-            <p>
-              Theo dõi văn bản, hạn xử lý, trạng thái thực hiện và lưu trữ kết quả thực hiện nhiệm vụ.
-            </p>
-
-            <div class="app-action">
-              <span>Mở dashboard</span>
-              <span>→</span>
-            </div>
-          </div>
-        </button>
-
-        <button class="app-card" type="button" onclick="yeuCauMatKhauCongLenh()">
-          <div class="app-icon car">🚗</div>
-
-          <div class="app-content">
-            <div class="app-topline">
-              <h3>Quản lý công lệnh</h3>
-              <span class="badge lock">Có mật khẩu</span>
-            </div>
-
-            <p>
-              Cấp số, tra cứu, in và quản lý công lệnh. Phần này yêu cầu mật khẩu trước khi truy cập.
-            </p>
-
-            <div class="app-action">
-              <span>Mở công lệnh</span>
-              <span>→</span>
-            </div>
-          </div>
-        </button>
-      </section>
-
-      <section class="info-list">
-        <div class="info-item">
-          <div class="info-emoji">📱</div>
-          <div><strong>Một biểu tượng.</strong> Cài một ứng dụng Tân Hiệp ngoài màn hình chính, không cần để nhiều link riêng lẻ.</div>
-        </div>
-
-        <div class="info-item">
-          <div class="info-emoji">🔐</div>
-          <div><strong>Tách quyền truy cập.</strong> Dashboard mở nhanh, Công lệnh có lớp khóa bằng mật khẩu riêng.</div>
-        </div>
-
-        <div class="info-item">
-          <div class="info-emoji">⚙️</div>
-          <div><strong>Không ảnh hưởng app gốc.</strong> Ứng dụng tổng hợp chỉ là cổng vào, hai hệ thống cũ vẫn giữ nguyên.</div>
-        </div>
-      </section>
-
-      <div class="footer">
-        Trung tâm Bảo trợ xã hội Tân Hiệp
-        <div class="version">Phiên bản giao diện: tan-hiep-mobile-v9-mobile</div>
-      </div>
-    </div>
-  </main>
-
-  <div id="lockLayer" class="lock-layer">
-    <div class="lock-box">
-      <div class="lock-icon">🔐</div>
-
-      <h2>Xác thực Công lệnh</h2>
-
-      <p>Vui lòng nhập mật khẩu để truy cập hệ thống Quản lý công lệnh.</p>
-
-      <input
-        id="passwordInput"
-        class="password-input"
-        type="password"
-        placeholder="Nhập mật khẩu"
-        autocomplete="off"
-      />
-
-      <div id="errorText" class="error-text">
-        Mật khẩu không đúng. Vui lòng kiểm tra lại.
-      </div>
-
-      <div class="lock-actions">
-        <button class="btn-cancel" type="button" onclick="dongHopMatKhau()">Hủy</button>
-        <button class="btn-open" type="button" onclick="kiemTraMatKhauCongLenh()">Mở</button>
-      </div>
-    </div>
+<div class="container">
+  <div class="tabs">
+    <button class="tab-btn active" id="btnTheoDoi" onclick="doiTab('theoDoi')">📌 Đang theo dõi</button>
+    <button class="tab-btn" id="btnLuuTru" onclick="doiTab('luuTru')">📁 Lưu trữ</button>
   </div>
 
-  <script>
-    const PHIEN_BAN_GIAO_DIEN = "tan-hiep-mobile-v9-mobile";
+  <div class="cards" id="khuThongKe"></div>
 
-    const LINK_VAN_BAN = "https://thanhbds2011-droid.github.io/dashboard-van-ban-tanhiep/";
-    const LINK_CONG_LENH = "https://thanhbds2011-droid.github.io/CONGLENH_TANHIEP_2026/";
+  <div class="filters">
+    <input type="text" id="tuKhoa" placeholder="🔍 Tìm số hiệu, trích yếu..." oninput="hienThiDuLieu()">
 
-    const MAT_KHAU_CONG_LENH = "123456";
+    <select id="locPhong" onchange="hienThiDuLieu()">
+      <option value="">Tất cả phòng ban</option>
+      <option value="PHÒNG TỔ CHỨC - HÀNH CHÍNH">Phòng Tổ chức - Hành chính</option>
+      <option value="PHÒNG KẾ HOẠCH TÀI CHÍNH">Phòng Kế hoạch tài chính</option>
+      <option value="PHÒNG CÔNG TÁC XÃ HỘI">Phòng Công tác xã hội</option>
+      <option value="PHÒNG Y TẾ">Phòng Y tế</option>
+      <option value="KHU I">Khu I</option>
+      <option value="KHU II">Khu II</option>
+      <option value="KHU III">Khu III</option>
+    </select>
 
-    const lockLayer = document.getElementById("lockLayer");
-    const passwordInput = document.getElementById("passwordInput");
-    const errorText = document.getElementById("errorText");
+    <select id="locTrangThai" onchange="hienThiDuLieu()">
+      <option value="">Tất cả trạng thái</option>
+      <option value="QUÁ HẠN">Quá hạn</option>
+      <option value="ĐẾN HẠN HÔM NAY">Đến hạn hôm nay</option>
+      <option value="SẮP ĐẾN HẠN">Sắp đến hạn</option>
+      <option value="CÒN HẠN">Còn hạn</option>
+    </select>
+  </div>
 
-    function moLinkTrucTiep(link) {
-      if (!link || link.trim() === "") {
-        alert("Chưa cấu hình link ứng dụng.");
-        return;
+  <div class="section-title" id="tieuDeBang">📌 Danh sách văn bản đang theo dõi</div>
+
+  <div class="table-wrap">
+    <table>
+      <thead id="theadBang"></thead>
+      <tbody id="bangDuLieu">
+        <tr><td colspan="8" class="loading">Đang tải dữ liệu...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="mobile-list" id="mobileList">
+    <div class="loading">Đang tải dữ liệu...</div>
+  </div>
+
+  <div id="phanTrang" class="pagination"></div>
+</div>
+
+<div class="footer">
+  Trung tâm Bảo trợ xã hội Tân Hiệp - Dashboard chỉ xem dành cho Ban Giám đốc
+</div>
+
+<div id="modalChiTiet" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>📄 Chi tiết văn bản</h2>
+      <span class="close" onclick="dongChiTiet()">&times;</span>
+    </div>
+    <div id="noiDungChiTiet"></div>
+  </div>
+</div>
+
+<div id="notificationSetupModal" class="setup-modal">
+  <div class="setup-card">
+    <div class="setup-icon">🔔</div>
+    <div class="setup-title">Thiết lập thông báo nhắc việc</div>
+    <div class="setup-text" id="notificationSetupText">
+      Hệ thống sẽ gửi thông báo khi có văn bản mới, văn bản khẩn, văn bản sắp đến hạn hoặc quá hạn.
+    </div>
+    <div class="setup-note" id="notificationSetupNote">
+      Sau khi bật, bạn có thể tắt trong phần Cài đặt thông báo của điện thoại hoặc trình duyệt.
+    </div>
+    <div class="setup-actions">
+      <button id="btnChoPhepThongBao" class="setup-primary" type="button">Cho phép</button>
+      <button id="btnBoQuaThongBao" class="setup-secondary" type="button">Để sau</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const APP_VERSION = "20260709.1";
+const API_URL = "https://script.google.com/macros/s/AKfycbyMINgn39Y_zlvdG9nqMpDH9KeoBKXnR_ueWr_wpVLPu82QxZVPSH4tnkVR9oa7eTJ2KQ/exec";
+const ONESIGNAL_APP_ID = "1a1d8e66-d523-4a9a-84be-1d3c248bad61";
+const ONESIGNAL_SAFARI_WEB_ID = "web.onesignal.auto.12e0c5f3-6b76-47bb-8015-fa3026009bd5";
+const ONESIGNAL_EXTERNAL_ID_KEY = "nhac_viec_van_ban_external_id";
+const NOTIFICATION_DISMISSED_KEY = "nhac_viec_thong_bao_de_sau";
+
+let duLieuTheoDoi = [];
+let duLieuLuuTru = [];
+let tabHienTai = "theoDoi";
+let trangHienTai = 1;
+let dangTaiDuLieu = false;
+let daMoTuThongBao = false;
+let oneSignalReady = false;
+let oneSignalInstance = null;
+
+const SO_DONG_MOI_TRANG = 10;
+const TU_DONG_DONG_BO_MS = 10000;
+
+const notificationSetupModal = document.getElementById("notificationSetupModal");
+const notificationSetupText = document.getElementById("notificationSetupText");
+const notificationSetupNote = document.getElementById("notificationSetupNote");
+const btnChoPhepThongBao = document.getElementById("btnChoPhepThongBao");
+const btnBoQuaThongBao = document.getElementById("btnBoQuaThongBao");
+
+function napOneSignal(){
+  const s = document.createElement("script");
+  s.src = "https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js";
+  s.defer = true;
+  document.head.appendChild(s);
+}
+
+function laIPhoneHoacIPad(){
+  const ua = navigator.userAgent || "";
+  return /iPad|iPhone|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+}
+
+function daMoTuManHinhChinh(){
+  return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+}
+
+function taoExternalId(){
+  let id = localStorage.getItem(ONESIGNAL_EXTERNAL_ID_KEY);
+  if(!id){
+    id = "vanban_" + Date.now() + "_" + Math.random().toString(36).slice(2,12);
+    localStorage.setItem(ONESIGNAL_EXTERNAL_ID_KEY,id);
+  }
+  return id;
+}
+
+function hienThiThietLapThongBao(text,note){
+  if(!notificationSetupModal) return;
+  if(text && notificationSetupText) notificationSetupText.textContent = text;
+  if(note && notificationSetupNote) notificationSetupNote.textContent = note;
+  notificationSetupModal.classList.add("show");
+}
+
+function anThietLapThongBao(){
+  if(notificationSetupModal) notificationSetupModal.classList.remove("show");
+}
+
+function capNhatNutThongBao(daBat){
+  if(daBat){
+    anThietLapThongBao();
+    localStorage.removeItem(NOTIFICATION_DISMISSED_KEY);
+    return;
+  }
+
+  if(localStorage.getItem(NOTIFICATION_DISMISSED_KEY) === "1") return;
+
+  if(laIPhoneHoacIPad() && !daMoTuManHinhChinh()){
+    hienThiThietLapThongBao(
+      "Để nhận thông báo trên iPhone/iPad, hãy thêm hệ thống vào Màn hình chính trước.",
+      "Mở bằng Safari → Chia sẻ → Thêm vào Màn hình chính → mở lại từ biểu tượng mới → chọn Cho phép."
+    );
+    return;
+  }
+
+  hienThiThietLapThongBao(
+    "Bật thông báo để nhận văn bản mới, văn bản khẩn và các nhắc việc đến hạn.",
+    "Sau khi bật, nếu muốn tắt bạn vào Cài đặt thông báo của điện thoại hoặc trình duyệt."
+  );
+}
+
+function layTrangThaiSubscription(OneSignal){
+  return {
+    id: OneSignal.User.PushSubscription.id || "",
+    token: OneSignal.User.PushSubscription.token || "",
+    optedIn: OneSignal.User.PushSubscription.optedIn === true,
+    permission: typeof Notification !== "undefined" ? Notification.permission : "unknown"
+  };
+}
+
+function choDenKhiSubscriptionSanSang(OneSignal){
+  return new Promise(function(resolve){
+    const hienTai = layTrangThaiSubscription(OneSignal);
+    if(hienTai.id && hienTai.optedIn){
+      resolve(hienTai);
+      return;
+    }
+
+    const handler = function(){
+      const moi = layTrangThaiSubscription(OneSignal);
+      if(moi.id && moi.optedIn){
+        try{ OneSignal.User.PushSubscription.removeEventListener("change",handler); }catch(e){}
+        resolve(moi);
       }
+    };
 
-      window.location.href = link;
-    }
+    OneSignal.User.PushSubscription.addEventListener("change",handler);
+  });
+}
 
-    function moVanBan() {
-      moLinkTrucTiep(LINK_VAN_BAN);
-    }
+function khoiTaoOneSignal(){
+  window.OneSignalDeferred = window.OneSignalDeferred || [];
 
-    function yeuCauMatKhauCongLenh() {
-      passwordInput.value = "";
-      errorText.style.display = "none";
-      lockLayer.style.display = "flex";
+  window.OneSignalDeferred.push(async function(OneSignal){
+    try{
+      oneSignalInstance = OneSignal;
 
-      setTimeout(function() {
-        passwordInput.focus();
-      }, 120);
-    }
-
-    function kiemTraMatKhauCongLenh() {
-      const matKhauNhap = passwordInput.value.trim();
-
-      if (matKhauNhap !== MAT_KHAU_CONG_LENH) {
-        errorText.style.display = "block";
-        passwordInput.focus();
-        return;
-      }
-
-      dongHopMatKhau();
-      moCongLenh();
-    }
-
-    function moCongLenh() {
-      moLinkTrucTiep(LINK_CONG_LENH);
-    }
-
-    function dongHopMatKhau() {
-      lockLayer.style.display = "none";
-      passwordInput.value = "";
-      errorText.style.display = "none";
-    }
-
-    passwordInput.addEventListener("keydown", function(event) {
-      if (event.key === "Enter") {
-        kiemTraMatKhauCongLenh();
-      }
-
-      if (event.key === "Escape") {
-        dongHopMatKhau();
-      }
-    });
-
-    lockLayer.addEventListener("click", function(event) {
-      if (event.target === lockLayer) {
-        dongHopMatKhau();
-      }
-    });
-
-    async function lamMoiBoNhoTam() {
-      try {
-        const banDangLuu = localStorage.getItem("phienBanTanHiepMobile");
-
-        if (banDangLuu !== PHIEN_BAN_GIAO_DIEN) {
-          if ("caches" in window) {
-            const keys = await caches.keys();
-            await Promise.all(keys.map(function(key) {
-              return caches.delete(key);
-            }));
-          }
-
-          localStorage.setItem("phienBanTanHiepMobile", PHIEN_BAN_GIAO_DIEN);
-        }
-      } catch (error) {
-        console.log("Không thể xóa cache cũ:", error);
-      }
-    }
-
-    lamMoiBoNhoTam();
-
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("sw.js?v=" + PHIEN_BAN_GIAO_DIEN).catch(function(error) {
-        console.log("Không đăng ký được service worker:", error);
+      await OneSignal.init({
+        appId: ONESIGNAL_APP_ID,
+        safari_web_id: ONESIGNAL_SAFARI_WEB_ID,
+        serviceWorkerPath: "/dashboard-van-ban-tanhiep/OneSignalSDKWorker.js",
+        serviceWorkerUpdaterPath: "/dashboard-van-ban-tanhiep/OneSignalSDKWorker.js",
+        serviceWorkerParam:{scope:"/dashboard-van-ban-tanhiep/"},
+        notifyButton:{enable:false},
+        welcomeNotification:{disable:true}
       });
+
+      oneSignalReady = true;
+
+      const trangThai = layTrangThaiSubscription(OneSignal);
+      capNhatNutThongBao(trangThai.id && trangThai.optedIn);
+
+      OneSignal.User.PushSubscription.addEventListener("change",function(){
+        const tt = layTrangThaiSubscription(OneSignal);
+        capNhatNutThongBao(tt.id && tt.optedIn);
+      });
+
+    }catch(error){
+      console.error("Lỗi OneSignal:",error);
+      capNhatNutThongBao(false);
     }
-  </script>
+  });
+}
+
+async function batThongBaoOneSignal(){
+  try{
+    const OneSignal = oneSignalInstance;
+
+    if(!oneSignalReady || !OneSignal){
+      alert("Hệ thống thông báo chưa sẵn sàng. Vui lòng tải lại trang.");
+      return;
+    }
+
+    if(!OneSignal.Notifications.isPushSupported()){
+      alert("Thiết bị hoặc trình duyệt này chưa hỗ trợ nhận thông báo.");
+      return;
+    }
+
+    if(laIPhoneHoacIPad() && !daMoTuManHinhChinh()){
+      alert("Trên iPhone/iPad: mở bằng Safari → Chia sẻ → Thêm vào Màn hình chính → mở lại từ biểu tượng ngoài màn hình.");
+      return;
+    }
+
+    btnChoPhepThongBao.disabled = true;
+    btnChoPhepThongBao.textContent = "Đang thiết lập...";
+
+    await OneSignal.Notifications.requestPermission(true);
+
+    if(typeof Notification !== "undefined" && Notification.permission !== "granted"){
+      alert("Trình duyệt chưa cho phép nhận thông báo.");
+      btnChoPhepThongBao.disabled = false;
+      btnChoPhepThongBao.textContent = "Cho phép";
+      return;
+    }
+
+    await OneSignal.User.PushSubscription.optIn();
+
+    const sub = await choDenKhiSubscriptionSanSang(OneSignal);
+    const externalId = taoExternalId();
+    await OneSignal.login(externalId);
+
+    console.log("External ID:", externalId);
+    console.log("Subscription ID:", sub.id);
+
+    capNhatNutThongBao(true);
+    alert("✅ Đã bật thông báo thành công.");
+
+  }catch(error){
+    console.error(error);
+    alert("Chưa bật được thông báo. Hãy kiểm tra quyền thông báo của thiết bị.");
+  }finally{
+    btnChoPhepThongBao.disabled = false;
+    btnChoPhepThongBao.textContent = "Cho phép";
+  }
+}
+
+btnChoPhepThongBao.addEventListener("click",batThongBaoOneSignal);
+btnBoQuaThongBao.addEventListener("click",function(){
+  localStorage.setItem(NOTIFICATION_DISMISSED_KEY,"1");
+  anThietLapThongBao();
+});
+
+async function taiDuLieu(tuDong){
+  if(dangTaiDuLieu) return;
+  dangTaiDuLieu = true;
+
+  try{
+    if(!tuDong) capNhatTrangThaiDongBo("Đang đồng bộ dữ liệu...",false);
+
+    const response = await fetch(API_URL + "?t=" + Date.now(),{cache:"no-store"});
+    const data = await response.json();
+
+    duLieuTheoDoi = data.dangTheoDoi || [];
+    duLieuLuuTru = data.luuTru || [];
+
+    hienThiDuLieu();
+    moVanBanTuThongBaoNeuCo();
+    capNhatTrangThaiDongBo(null,false);
+
+  }catch(error){
+    capNhatTrangThaiDongBo("Không đồng bộ được dữ liệu. Kiểm tra kết nối hoặc API.",true);
+    document.getElementById("bangDuLieu").innerHTML = '<tr><td colspan="8" class="loading red">Không tải được dữ liệu.</td></tr>';
+    document.getElementById("mobileList").innerHTML = '<div class="loading red">Không tải được dữ liệu.</div>';
+    console.error(error);
+  }finally{
+    dangTaiDuLieu = false;
+  }
+}
+
+function capNhatTrangThaiDongBo(message,isError){
+  const syncBar = document.getElementById("syncBar");
+  const syncText = document.getElementById("syncText");
+  syncBar.classList.toggle("error",!!isError);
+
+  if(message){
+    syncText.textContent = message;
+    return;
+  }
+
+  const now = new Date();
+  syncText.textContent = "✅ Đã đồng bộ dữ liệu lúc " + now.toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit",second:"2-digit"}) + " • Tự cập nhật mỗi 10 giây";
+}
+
+function doiTab(tab){
+  tabHienTai = tab;
+  trangHienTai = 1;
+  document.getElementById("btnTheoDoi").classList.toggle("active",tab==="theoDoi");
+  document.getElementById("btnLuuTru").classList.toggle("active",tab==="luuTru");
+  document.getElementById("tieuDeBang").textContent = tab==="theoDoi" ? "📌 Danh sách văn bản đang theo dõi" : "📁 Danh sách văn bản đã lưu trữ";
+  document.getElementById("locTrangThai").style.display = tab==="theoDoi" ? "block" : "none";
+  hienThiDuLieu();
+}
+
+function layDuLieuHienTai(){
+  return tabHienTai === "theoDoi" ? duLieuTheoDoi : duLieuLuuTru;
+}
+
+function hienThiDuLieu(){
+  const dataHienTai = layDuLieuHienTai();
+  const tuKhoa = document.getElementById("tuKhoa").value.toLowerCase().trim();
+  const locPhong = document.getElementById("locPhong").value;
+  const locTrangThai = document.getElementById("locTrangThai").value;
+
+  const duLieuLoc = dataHienTai.filter(function(item){
+    const trangThai = tabHienTai==="theoDoi" ? tinhTrangThai(item.hanXuLy) : tinhTrangThaiLuuTru(item.hanXuLy,item.ngayHoanThanh);
+    const textSearch = [item.soHieu,item.trichYeu,item.phongBan,item.goiYAI].join(" ").toLowerCase();
+
+    return (!tuKhoa || textSearch.includes(tuKhoa)) &&
+           (!locPhong || phongBanCoChua(item.phongBan,locPhong)) &&
+           (tabHienTai==="luuTru" || !locTrangThai || trangThai===locTrangThai);
+  });
+
+  capNhatThongKe();
+  veDuLieuTheoTrang(duLieuLoc);
+}
+
+function capNhatThongKe(){
+  const data = layDuLieuHienTai();
+
+  if(tabHienTai==="luuTru"){
+    document.getElementById("khuThongKe").innerHTML = `
+      <div class="card full">
+        <div class="number green">${data.length}</div>
+        <div class="label">Tổng văn bản lưu trữ</div>
+      </div>`;
+    return;
+  }
+
+  let tong=0,quaHan=0,denHan=0,sapHan=0,conHan=0;
+
+  data.forEach(function(item){
+    const tt = tinhTrangThai(item.hanXuLy);
+    tong++;
+    if(tt==="QUÁ HẠN") quaHan++;
+    else if(tt==="ĐẾN HẠN HÔM NAY") denHan++;
+    else if(tt==="SẮP ĐẾN HẠN") sapHan++;
+    else if(tt==="CÒN HẠN") conHan++;
+  });
+
+  document.getElementById("khuThongKe").innerHTML = `
+    <div class="card"><div class="number gray">${tong}</div><div class="label">Tổng văn bản</div></div>
+    <div class="card"><div class="number orange">${denHan}</div><div class="label">Đến hạn hôm nay</div></div>
+    <div class="card"><div class="number blue">${sapHan}</div><div class="label">Sắp đến hạn ≤ 5 ngày</div></div>
+    <div class="card"><div class="number green">${conHan}</div><div class="label">Còn hạn</div></div>
+    <div class="card full"><div class="number red">${quaHan}</div><div class="label">Quá hạn cần xử lý ngay</div></div>`;
+}
+
+function veDuLieuTheoTrang(data){
+  const tongTrang = Math.ceil(data.length / SO_DONG_MOI_TRANG);
+  if(trangHienTai > tongTrang) trangHienTai = tongTrang || 1;
+
+  const batDau = (trangHienTai - 1) * SO_DONG_MOI_TRANG;
+  const dataTrang = data.slice(batDau,batDau + SO_DONG_MOI_TRANG);
+
+  veBang(dataTrang,batDau);
+  veMobile(dataTrang);
+  vePhanTrang(data);
+}
+
+function veBang(data,batDau){
+  const thead = document.getElementById("theadBang");
+  const tbody = document.getElementById("bangDuLieu");
+
+  thead.innerHTML = tabHienTai==="theoDoi" ? `
+    <tr><th>STT</th><th>Số hiệu</th><th>Trích yếu</th><th>Phòng ban</th><th>Hạn xử lý</th><th>Trạng thái</th><th>File</th></tr>` :
+    `<tr><th>STT</th><th>Dấu thời gian</th><th>Số hiệu</th><th>Trích yếu</th><th>Phòng ban</th><th>Hạn xử lý</th><th>Ngày hoàn thành</th><th>Kết quả</th></tr>`;
+
+  if(data.length===0){
+    tbody.innerHTML = '<tr><td colspan="8" class="loading">Không có dữ liệu phù hợp.</td></tr>';
+    return;
+  }
+
+  let html = "";
+
+  data.forEach(function(item,index){
+    if(tabHienTai==="theoDoi"){
+      const trangThai = tinhTrangThai(item.hanXuLy);
+      html += `
+        <tr onclick="moChiTiet(${duLieuTheoDoi.indexOf(item)})">
+          <td>${batDau+index+1}</td>
+          <td><strong>${safe(item.soHieu)}</strong></td>
+          <td>${safe(item.trichYeu)}</td>
+          <td>${safe(item.phongBan)}</td>
+          <td>${dinhDangNgay(item.hanXuLy)}</td>
+          <td><span class="badge ${layMauTrangThai(trangThai)}">${trangThai}</span></td>
+          <td onclick="event.stopPropagation()">${taoNutFile(item.file)}</td>
+        </tr>`;
+    }else{
+      const ketQua = tinhTrangThaiLuuTru(item.hanXuLy,item.ngayHoanThanh);
+      html += `
+        <tr>
+          <td>${batDau+index+1}</td>
+          <td>${dinhDangNgayGio(item.dauThoiGian)}</td>
+          <td><strong>${safe(item.soHieu)}</strong></td>
+          <td>${safe(item.trichYeu)}</td>
+          <td>${safe(item.phongBan)}</td>
+          <td>${dinhDangNgay(item.hanXuLy)}</td>
+          <td>${dinhDangNgayGio(item.ngayHoanThanh)}</td>
+          <td><span class="badge ${layMauTrangThai(ketQua)}">${ketQua}</span></td>
+        </tr>`;
+    }
+  });
+
+  tbody.innerHTML = html;
+}
+
+function veMobile(data){
+  const box = document.getElementById("mobileList");
+
+  if(data.length===0){
+    box.innerHTML = '<div class="loading">Không có dữ liệu phù hợp.</div>';
+    return;
+  }
+
+  let html = "";
+
+  data.forEach(function(item){
+    if(tabHienTai==="theoDoi"){
+      const trangThai = tinhTrangThai(item.hanXuLy);
+      html += `
+        <div class="mobile-card" onclick="moChiTiet(${duLieuTheoDoi.indexOf(item)})">
+          <h3>${safe(item.soHieu)}</h3>
+          <p class="mobile-meta">${safe(item.phongBan)}</p>
+          <p><strong>📅 Hạn xử lý:</strong> ${dinhDangNgay(item.hanXuLy)}</p>
+          <p><span class="badge ${layMauTrangThai(trangThai)}">${trangThai}</span></p>
+          <p><strong>Trích yếu:</strong> ${safe(item.trichYeu)}</p>
+          <p onclick="event.stopPropagation()">${taoNutFile(item.file)}</p>
+        </div>`;
+    }else{
+      const ketQua = tinhTrangThaiLuuTru(item.hanXuLy,item.ngayHoanThanh);
+      html += `
+        <div class="mobile-card">
+          <h3>${safe(item.soHieu)}</h3>
+          <p class="mobile-meta">${safe(item.phongBan)}</p>
+          <p><strong>Trích yếu:</strong> ${safe(item.trichYeu)}</p>
+          <p><strong>📅 Hạn xử lý:</strong> ${dinhDangNgay(item.hanXuLy)}</p>
+          <p><strong>✅ Ngày hoàn thành:</strong> ${dinhDangNgayGio(item.ngayHoanThanh)}</p>
+          <p><span class="badge ${layMauTrangThai(ketQua)}">${ketQua}</span></p>
+        </div>`;
+    }
+  });
+
+  box.innerHTML = html;
+}
+
+function vePhanTrang(data){
+  const tongTrang = Math.ceil(data.length / SO_DONG_MOI_TRANG);
+  const box = document.getElementById("phanTrang");
+
+  if(tongTrang<=1){
+    box.innerHTML = "";
+    return;
+  }
+
+  let html = `<button onclick="doiTrang(${trangHienTai-1})" ${trangHienTai===1 ? "disabled" : ""}>‹ Trước</button>`;
+
+  for(let i=1;i<=tongTrang;i++){
+    html += `<button onclick="doiTrang(${i})" class="${i===trangHienTai ? "active" : ""}">${i}</button>`;
+  }
+
+  html += `<button onclick="doiTrang(${trangHienTai+1})" ${trangHienTai===tongTrang ? "disabled" : ""}>Sau ›</button>`;
+  box.innerHTML = html;
+}
+
+function doiTrang(trang){
+  trangHienTai = trang;
+  hienThiDuLieu();
+}
+
+function moChiTiet(index){
+  const item = duLieuTheoDoi[index];
+  if(!item) return;
+
+  const trangThai = tinhTrangThai(item.hanXuLy);
+
+  document.getElementById("noiDungChiTiet").innerHTML = `
+    <div class="detail-row"><strong>Số hiệu:</strong> ${safe(item.soHieu)}</div>
+    <div class="detail-row"><strong>Trích yếu:</strong> ${safe(item.trichYeu)}</div>
+    <div class="detail-row"><strong>Phòng ban:</strong> ${safe(item.phongBan)}</div>
+    <div class="detail-row"><strong>Hạn xử lý:</strong> ${dinhDangNgay(item.hanXuLy)}</div>
+    <div class="detail-row"><strong>Trạng thái:</strong> <span class="badge ${layMauTrangThai(trangThai)}">${trangThai}</span></div>
+    <div class="detail-row"><strong>File đính kèm:</strong> ${taoNutFile(item.file)}</div>
+    <div class="detail-row"><strong>Tóm tắt và gợi ý xử lý:</strong></div>
+    <div class="ai-detail">${safe(item.goiYAI || "Chưa có nội dung tổng hợp.")}</div>`;
+
+  document.getElementById("modalChiTiet").style.display = "block";
+}
+
+function dongChiTiet(){
+  document.getElementById("modalChiTiet").style.display = "none";
+}
+
+window.onclick = function(event){
+  const modal = document.getElementById("modalChiTiet");
+  if(event.target === modal) dongChiTiet();
+};
+
+function moVanBanTuThongBaoNeuCo(){
+  if(daMoTuThongBao) return;
+
+  const params = new URLSearchParams(window.location.search);
+  const soHieuCanMo = params.get("soHieu");
+  if(!soHieuCanMo) return;
+
+  const index = duLieuTheoDoi.findIndex(function(item){
+    return chuanHoaSoHieuClient_(item.soHieu) === chuanHoaSoHieuClient_(soHieuCanMo);
+  });
+
+  if(index>=0){
+    daMoTuThongBao = true;
+    doiTab("theoDoi");
+    moChiTiet(index);
+  }
+}
+
+function chuanHoaSoHieuClient_(text){
+  return String(text || "").toUpperCase().replace(/\s+/g,"").trim();
+}
+
+function phongBanCoChua(giaTri,phongCanTim){
+  if(!giaTri || !phongCanTim) return false;
+  return chuanHoa(giaTri).includes(chuanHoa(phongCanTim));
+}
+
+function chuanHoa(text){
+  return String(text || "").toUpperCase().replace(/\s+/g," ").trim();
+}
+
+function tinhTrangThai(hanXuLy){
+  if(!hanXuLy) return "CHƯA CÓ HẠN";
+
+  const today = new Date();
+  today.setHours(0,0,0,0);
+
+  const han = new Date(hanXuLy);
+  if(isNaN(han)) return "CHƯA CÓ HẠN";
+  han.setHours(0,0,0,0);
+
+  const diff = Math.round((han - today) / (1000*60*60*24));
+
+  if(diff < 0) return "QUÁ HẠN";
+  if(diff === 0) return "ĐẾN HẠN HÔM NAY";
+  if(diff > 0 && diff <= 5) return "SẮP ĐẾN HẠN";
+  return "CÒN HẠN";
+}
+
+function tinhTrangThaiLuuTru(hanXuLy,ngayHoanThanh){
+  const han = new Date(hanXuLy);
+  const ht = new Date(ngayHoanThanh);
+
+  if(isNaN(han) || isNaN(ht)) return "ĐÃ LƯU TRỮ";
+
+  han.setHours(0,0,0,0);
+  ht.setHours(0,0,0,0);
+
+  return ht.getTime() <= han.getTime() ? "HOÀN THÀNH ĐÚNG HẠN" : "HOÀN THÀNH TRỄ HẠN";
+}
+
+function layMauTrangThai(trangThai){
+  if(trangThai==="QUÁ HẠN" || trangThai==="HOÀN THÀNH TRỄ HẠN") return "badge-red";
+  if(trangThai==="ĐẾN HẠN HÔM NAY") return "badge-orange";
+  if(trangThai==="SẮP ĐẾN HẠN") return "badge-blue";
+  if(trangThai==="CÒN HẠN" || trangThai==="HOÀN THÀNH ĐÚNG HẠN") return "badge-green";
+  return "badge-gray";
+}
+
+function dinhDangNgay(value){
+  if(!value) return "";
+  const d = new Date(value);
+  if(isNaN(d)) return value;
+  return d.toLocaleDateString("vi-VN");
+}
+
+function dinhDangNgayGio(value){
+  if(!value) return "";
+  const d = new Date(value);
+  if(isNaN(d)) return value;
+  return d.toLocaleString("vi-VN");
+}
+
+function taoNutFile(link){
+  if(!link) return "";
+  const url = String(link).replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  return `<a class="btn" href="${url}" target="_blank" rel="noopener noreferrer">📎 Mở file</a>`;
+}
+
+function safe(value){
+  if(!value) return "";
+  return String(value)
+    .replace(/&/g,"&amp;")
+    .replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;")
+    .replace(/'/g,"&#039;");
+}
+
+napOneSignal();
+khoiTaoOneSignal();
+taiDuLieu();
+
+setInterval(function(){
+  taiDuLieu(true);
+},TU_DONG_DONG_BO_MS);
+</script>
+
 </body>
 </html>
