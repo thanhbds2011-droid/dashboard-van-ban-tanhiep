@@ -2,38 +2,22 @@
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0, viewport-fit=cover"
-  >
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 
   <title>Đăng ký thiết bị</title>
 
-  <meta
-    http-equiv="Cache-Control"
-    content="no-cache, no-store, must-revalidate"
-  >
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
 
-  <link
-    rel="manifest"
-    href="/dashboard-van-ban-tanhiep/manifest.json?v=20260710.1"
-  >
-
-  <link
-    rel="apple-touch-icon"
-    href="/dashboard-van-ban-tanhiep/icon-192.png"
-  >
+  <link rel="manifest" href="/dashboard-van-ban-tanhiep/manifest.json?v=20260710.2">
+  <link rel="apple-touch-icon" href="/dashboard-van-ban-tanhiep/icon-192.png">
 
   <meta name="theme-color" content="#1f5f99">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Nhắc việc">
-  <meta
-    name="apple-mobile-web-app-status-bar-style"
-    content="default"
-  >
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
 
   <style>
     :root {
@@ -64,11 +48,7 @@
       min-height: 100%;
       font-family: "Segoe UI", Roboto, Arial, sans-serif;
       background:
-        radial-gradient(
-          circle at top right,
-          rgba(255, 255, 255, 0.12),
-          transparent 32%
-        ),
+        radial-gradient(circle at top right, rgba(255, 255, 255, 0.12), transparent 32%),
         linear-gradient(135deg, var(--main-dark), var(--main-light));
       color: var(--text);
     }
@@ -87,7 +67,7 @@
 
     .card {
       width: 100%;
-      max-width: 430px;
+      max-width: 440px;
       background: #ffffff;
       border-radius: 24px;
       padding: 24px;
@@ -98,11 +78,7 @@
       width: 64px;
       height: 64px;
       border-radius: 18px;
-      background: linear-gradient(
-        135deg,
-        var(--main),
-        var(--main-light)
-      );
+      background: linear-gradient(135deg, var(--main), var(--main-light));
       display: flex;
       align-items: center;
       justify-content: center;
@@ -126,6 +102,10 @@
       margin: 10px 0 18px;
     }
 
+    .field {
+      margin-top: 14px;
+    }
+
     label {
       display: block;
       font-weight: 800;
@@ -133,46 +113,44 @@
       margin-bottom: 8px;
     }
 
-    textarea {
+    input {
       display: block;
       width: 100%;
-      height: 56px;
       min-height: 56px;
-      max-height: 56px;
       border: 1px solid var(--border);
       border-radius: 14px;
-      padding: 14px;
+      padding: 13px 14px;
       font-family: inherit;
-      font-size: 20px;
-      line-height: 26px;
+      font-size: 18px;
+      line-height: 1.35;
       outline: none;
       background: #ffffff;
       color: #111827;
-      text-transform: uppercase;
-      resize: none;
-      overflow: hidden;
       -webkit-appearance: none;
       appearance: none;
     }
 
-    textarea:focus {
+    input:focus {
       border-color: var(--main-light);
       box-shadow: 0 0 0 3px rgba(47, 128, 192, 0.13);
     }
 
-    textarea::placeholder {
+    input::placeholder {
       color: #9ca3af;
+    }
+
+    .actions {
+      display: grid;
+      gap: 10px;
+      margin-top: 16px;
     }
 
     button {
       width: 100%;
       min-height: 52px;
-      margin-top: 16px;
       border: none;
       border-radius: 15px;
       padding: 14px 16px;
-      background: var(--main);
-      color: #ffffff;
       font-family: inherit;
       font-weight: 800;
       font-size: 16px;
@@ -192,10 +170,25 @@
       cursor: not-allowed;
     }
 
+    .btn-primary {
+      background: var(--main);
+      color: #ffffff;
+    }
+
+    .btn-secondary {
+      background: #eaf3fb;
+      color: var(--main);
+      border: 1px solid #c9dff2;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
     .user-preview {
       display: none;
       margin-top: 14px;
-      padding: 13px 14px;
+      padding: 14px;
       border-radius: 14px;
       background: #f7faff;
       border: 1px solid #d9e8f7;
@@ -210,7 +203,7 @@
       color: var(--main);
       font-size: 16px;
       font-weight: 800;
-      margin-bottom: 4px;
+      margin-bottom: 5px;
     }
 
     .user-meta {
@@ -262,7 +255,6 @@
 
     @media (max-width: 480px) {
       body {
-        align-items: center;
         padding-left: 16px;
         padding-right: 16px;
       }
@@ -280,48 +272,70 @@
 </head>
 
 <body>
-
   <main class="card">
     <div class="logo" aria-hidden="true">📑</div>
 
     <h1>Đăng ký thiết bị</h1>
 
     <p class="description">
-      Nhập mã nhân sự để hệ thống xác định đúng người dùng,
-      phòng ban và thiết bị nhận thông báo.
+      Nhập đúng họ và tên, năm sinh để hệ thống xác định phòng ban,
+      chức vụ và thiết bị nhận thông báo.
     </p>
 
-    <label for="maNhanSu">Mã nhân sự</label>
+    <div class="field">
+      <label for="hoTen">Họ và tên</label>
+      <input
+        id="hoTen"
+        name="hoTen"
+        type="text"
+        maxlength="100"
+        placeholder="Ví dụ: Nguyễn Chí Thạnh"
+        autocomplete="name"
+        autocorrect="off"
+        autocapitalize="words"
+        spellcheck="false"
+      >
+    </div>
 
-    <textarea
-      id="maNhanSu"
-      name="maNhanSu"
-      rows="1"
-      maxlength="30"
-      placeholder="Ví dụ: NV001"
-      autocomplete="off"
-      autocorrect="off"
-      autocapitalize="characters"
-      spellcheck="false"
-      enterkeyhint="done"
-    ></textarea>
+    <div class="field">
+      <label for="namSinh">Năm sinh</label>
+      <input
+        id="namSinh"
+        name="namSinh"
+        type="text"
+        inputmode="numeric"
+        pattern="[0-9]*"
+        maxlength="4"
+        placeholder="Ví dụ: 1992"
+        autocomplete="off"
+        autocorrect="off"
+        spellcheck="false"
+        enterkeyhint="done"
+      >
+    </div>
 
     <div id="userPreview" class="user-preview">
       <div id="userName" class="user-name"></div>
       <div id="userMeta" class="user-meta"></div>
     </div>
 
-    <button id="btnDangKy" type="button" disabled>
-      Đang kết nối hệ thống...
-    </button>
+    <div class="actions">
+      <button id="btnKiemTra" class="btn-secondary" type="button">
+        Kiểm tra thông tin
+      </button>
+
+      <button id="btnDangKy" class="btn-primary hidden" type="button" disabled>
+        Đang kết nối hệ thống...
+      </button>
+    </div>
 
     <div class="note">
-      Trên iPhone: mở bằng Safari → Chia sẻ →
-      Thêm vào Màn hình chính → mở từ biểu tượng ứng dụng → đăng ký.
+      Trên iPhone: mở bằng Safari → Chia sẻ → Thêm vào Màn hình chính →
+      mở từ biểu tượng ứng dụng → kiểm tra thông tin → bật thông báo và đăng ký.
     </div>
 
     <div id="msg" class="msg info show">
-      Đang tải hệ thống thông báo...
+      Nhập họ và tên, năm sinh rồi bấm “Kiểm tra thông tin”.
     </div>
   </main>
 
@@ -343,34 +357,42 @@
       daDangKy: "nhac_viec_da_dang_ky_nhan_su",
       maNhanSu: "nhac_viec_ma_nhan_su",
       hoTen: "nhac_viec_ho_ten",
+      namSinh: "nhac_viec_nam_sinh",
       phong: "nhac_viec_phong",
-      vaiTro: "nhac_viec_vai_tro",
+      chucVu: "nhac_viec_chuc_vu",
+      vaiTroCu: "nhac_viec_vai_tro",
       subscriptionId: "nhac_viec_subscription_id",
       ngayDangKy: "nhac_viec_ngay_dang_ky"
     };
 
     const SDK_TIMEOUT_MS = 15000;
     const JSONP_TIMEOUT_MS = 15000;
-    const SUBSCRIPTION_TIMEOUT_MS = 20000;
+    const SUBSCRIPTION_TIMEOUT_MS = 25000;
 
     let OneSignalRef = null;
     let oneSignalReady = false;
     let dangXuLy = false;
     let nhanSuDaXacThuc = null;
 
-    const btn = document.getElementById("btnDangKy");
-    const inputMa = document.getElementById("maNhanSu");
+    const inputHoTen = document.getElementById("hoTen");
+    const inputNamSinh = document.getElementById("namSinh");
+    const btnKiemTra = document.getElementById("btnKiemTra");
+    const btnDangKy = document.getElementById("btnDangKy");
     const msg = document.getElementById("msg");
     const userPreview = document.getElementById("userPreview");
     const userName = document.getElementById("userName");
     const userMeta = document.getElementById("userMeta");
 
-    function chuanHoaMaNhanSu(value) {
+    function chuanHoaHoTen(value) {
       return String(value || "")
-        .toUpperCase()
-        .replace(/\s+/g, "")
-        .replace(/[^A-Z0-9_-]/g, "")
+        .replace(/\s+/g, " ")
         .trim();
+    }
+
+    function chuanHoaNamSinh(value) {
+      return String(value || "")
+        .replace(/\D/g, "")
+        .slice(0, 4);
     }
 
     function hienThongBao(text, type) {
@@ -378,9 +400,9 @@
       msg.className = "msg show " + (type || "info");
     }
 
-    function capNhatNut(text, disabled) {
-      btn.textContent = text;
-      btn.disabled = Boolean(disabled);
+    function capNhatNut(button, text, disabled) {
+      button.textContent = text;
+      button.disabled = Boolean(disabled);
     }
 
     function hienNhanSu(nhanSu) {
@@ -392,10 +414,11 @@
       }
 
       userName.textContent =
-        (nhanSu.ma || "") + " — " + (nhanSu.hoTen || "");
+        (nhanSu.hoTen || "") +
+        (nhanSu.namSinh ? " — " + nhanSu.namSinh : "");
 
       userMeta.textContent =
-        [nhanSu.phong, nhanSu.vaiTro]
+        [nhanSu.phong, nhanSu.chucVu]
           .filter(Boolean)
           .join(" • ");
 
@@ -446,7 +469,6 @@
           Math.random().toString(36).slice(2, 9);
 
         const script = document.createElement("script");
-
         let daKetThuc = false;
 
         function donDep() {
@@ -466,12 +488,7 @@
 
           daKetThuc = true;
           donDep();
-
-          reject(
-            new Error(
-              "Hệ thống xác thực phản hồi quá lâu."
-            )
-          );
+          reject(new Error("Hệ thống phản hồi quá lâu."));
         }, JSONP_TIMEOUT_MS);
 
         window[callbackName] = function(data) {
@@ -488,10 +505,7 @@
         Object.keys(params || {}).forEach(function(key) {
           const value = params[key];
 
-          if (
-            value !== undefined &&
-            value !== null
-          ) {
+          if (value !== undefined && value !== null) {
             search.set(key, String(value));
           }
         });
@@ -499,9 +513,7 @@
         search.set("callback", callbackName);
         search.set("_t", String(Date.now()));
 
-        script.src =
-          API_URL + "?" + search.toString();
-
+        script.src = API_URL + "?" + search.toString();
         script.async = true;
 
         script.onerror = function() {
@@ -510,54 +522,119 @@
           daKetThuc = true;
           window.clearTimeout(timeoutId);
           donDep();
-
-          reject(
-            new Error(
-              "Không kết nối được hệ thống xác thực."
-            )
-          );
+          reject(new Error("Không kết nối được hệ thống xác thực."));
         };
 
         document.head.appendChild(script);
       });
     }
 
-    async function kiemTraNhanSu(maNhanSu) {
-      const result = await goiJsonp({
-        action: "kiem_tra_nhan_su",
-        ma: maNhanSu
-      });
+    async function kiemTraNhanSu() {
+      if (dangXuLy) return;
 
-      if (!result || result.ok !== true) {
-        throw new Error(
-          result && result.message
-            ? result.message
-            : "Mã nhân sự không tồn tại."
-        );
+      const hoTen = chuanHoaHoTen(inputHoTen.value);
+      const namSinh = chuanHoaNamSinh(inputNamSinh.value);
+
+      inputHoTen.value = hoTen;
+      inputNamSinh.value = namSinh;
+
+      if (!hoTen) {
+        hienNhanSu(null);
+        hienThongBao("Vui lòng nhập họ và tên.", "err");
+        inputHoTen.focus();
+        return;
       }
 
-      return result.nhanSu;
+      if (!/^\d{4}$/.test(namSinh)) {
+        hienNhanSu(null);
+        hienThongBao("Vui lòng nhập năm sinh gồm 4 chữ số.", "err");
+        inputNamSinh.focus();
+        return;
+      }
+
+      dangXuLy = true;
+      nhanSuDaXacThuc = null;
+      hienNhanSu(null);
+      btnDangKy.classList.add("hidden");
+
+      capNhatNut(btnKiemTra, "Đang kiểm tra...", true);
+      hienThongBao("Đang đối chiếu thông tin nhân sự...", "info");
+
+      try {
+        const result = await goiJsonp({
+          action: "kiem_tra_nhan_su",
+          hoTen: hoTen,
+          namSinh: namSinh
+        });
+
+        if (!result || result.ok !== true) {
+          throw new Error(
+            result && result.message
+              ? result.message
+              : "Không tìm thấy thông tin nhân sự."
+          );
+        }
+
+        nhanSuDaXacThuc = result.nhanSu;
+        hienNhanSu(nhanSuDaXacThuc);
+
+        btnDangKy.classList.remove("hidden");
+
+        if (oneSignalReady) {
+          capNhatNut(
+            btnDangKy,
+            "Bật thông báo và đăng ký thiết bị",
+            false
+          );
+
+          hienThongBao(
+            "Đã xác thực đúng thông tin. Bấm nút bên dưới để bật thông báo và hoàn tất đăng ký.",
+            "ok"
+          );
+        } else {
+          capNhatNut(
+            btnDangKy,
+            "Đang kết nối hệ thống thông báo...",
+            true
+          );
+
+          hienThongBao(
+            "Đã xác thực đúng thông tin. Hệ thống thông báo đang khởi tạo, vui lòng chờ ít giây.",
+            "info"
+          );
+        }
+
+      } catch (error) {
+        console.error("Lỗi kiểm tra nhân sự:", error);
+        nhanSuDaXacThuc = null;
+        hienNhanSu(null);
+        btnDangKy.classList.add("hidden");
+
+        hienThongBao(
+          error && error.message
+            ? error.message
+            : "Không kiểm tra được thông tin nhân sự.",
+          "err"
+        );
+
+      } finally {
+        dangXuLy = false;
+        capNhatNut(btnKiemTra, "Kiểm tra thông tin", false);
+      }
     }
 
     function layTrangThaiSubscription(OneSignal) {
       return {
-        id:
-          OneSignal.User.PushSubscription.id ||
-          "",
-        token:
-          OneSignal.User.PushSubscription.token ||
-          "",
-        optedIn:
-          OneSignal.User.PushSubscription.optedIn === true
+        id: OneSignal.User.PushSubscription.id || "",
+        token: OneSignal.User.PushSubscription.token || "",
+        optedIn: OneSignal.User.PushSubscription.optedIn === true
       };
     }
 
     function choDenKhiSubscriptionSanSang(OneSignal) {
       return new Promise(function(resolve, reject) {
         let daKetThuc = false;
-
-        const hienTai =
-          layTrangThaiSubscription(OneSignal);
+        const hienTai = layTrangThaiSubscription(OneSignal);
 
         if (hienTai.id && hienTai.optedIn) {
           resolve(hienTai);
@@ -566,19 +643,17 @@
 
         function donDep() {
           try {
-            OneSignal.User.PushSubscription
-              .removeEventListener(
-                "change",
-                handler
-              );
+            OneSignal.User.PushSubscription.removeEventListener(
+              "change",
+              handler
+            );
           } catch (e) {}
         }
 
         function handler() {
           if (daKetThuc) return;
 
-          const moi =
-            layTrangThaiSubscription(OneSignal);
+          const moi = layTrangThaiSubscription(OneSignal);
 
           if (moi.id && moi.optedIn) {
             daKetThuc = true;
@@ -588,116 +663,38 @@
           }
         }
 
-        OneSignal.User.PushSubscription
-          .addEventListener(
-            "change",
-            handler
-          );
+        OneSignal.User.PushSubscription.addEventListener(
+          "change",
+          handler
+        );
 
-        const timeoutId =
-          window.setTimeout(function() {
-            if (daKetThuc) return;
+        const timeoutId = window.setTimeout(function() {
+          if (daKetThuc) return;
 
-            const lanCuoi =
-              layTrangThaiSubscription(OneSignal);
+          const lanCuoi = layTrangThaiSubscription(OneSignal);
 
-            if (lanCuoi.id && lanCuoi.optedIn) {
-              daKetThuc = true;
-              donDep();
-              resolve(lanCuoi);
-              return;
-            }
-
+          if (lanCuoi.id && lanCuoi.optedIn) {
             daKetThuc = true;
             donDep();
+            resolve(lanCuoi);
+            return;
+          }
 
-            reject(
-              new Error(
-                "Chưa tạo được mã nhận thông báo."
-              )
-            );
-          }, SUBSCRIPTION_TIMEOUT_MS);
+          daKetThuc = true;
+          donDep();
+          reject(new Error("Chưa tạo được mã nhận thông báo."));
+        }, SUBSCRIPTION_TIMEOUT_MS);
       });
-    }
-
-    async function dangKyThietBiTrenMayChu(
-      maNhanSu,
-      externalId,
-      subscriptionId
-    ) {
-      const result = await goiJsonp({
-        action: "dang_ky_thiet_bi_jsonp",
-        ma: maNhanSu,
-        externalId: externalId,
-        subscriptionId: subscriptionId
-      });
-
-      if (!result || result.ok !== true) {
-        throw new Error(
-          result && result.message
-            ? result.message
-            : "Không đăng ký được thiết bị."
-        );
-      }
-
-      return result;
-    }
-
-    function luuDangKy(result, subscriptionId) {
-      const nhanSu = result.nhanSu || nhanSuDaXacThuc || {};
-
-      localStorage.setItem(
-        STORAGE.daDangKy,
-        "1"
-      );
-
-      localStorage.setItem(
-        STORAGE.maNhanSu,
-        nhanSu.ma || chuanHoaMaNhanSu(inputMa.value)
-      );
-
-      localStorage.setItem(
-        STORAGE.hoTen,
-        nhanSu.hoTen || ""
-      );
-
-      localStorage.setItem(
-        STORAGE.phong,
-        nhanSu.phong || ""
-      );
-
-      localStorage.setItem(
-        STORAGE.vaiTro,
-        nhanSu.vaiTro || ""
-      );
-
-      localStorage.setItem(
-        STORAGE.subscriptionId,
-        subscriptionId || ""
-      );
-
-      localStorage.setItem(
-        STORAGE.ngayDangKy,
-        new Date().toISOString()
-      );
     }
 
     async function dangKyThietBi() {
       if (dangXuLy) return;
 
-      const maNhanSu =
-        chuanHoaMaNhanSu(inputMa.value);
-
-      inputMa.value = maNhanSu;
-
-      if (!maNhanSu) {
-        hienNhanSu(null);
+      if (!nhanSuDaXacThuc) {
         hienThongBao(
-          "Vui lòng nhập mã nhân sự.",
+          "Vui lòng kiểm tra thông tin nhân sự trước khi đăng ký thiết bị.",
           "err"
         );
-
-        inputMa.focus();
         return;
       }
 
@@ -709,10 +706,7 @@
         return;
       }
 
-      if (
-        laIPhoneHoacIPad() &&
-        !daMoTuManHinhChinh()
-      ) {
+      if (laIPhoneHoacIPad() && !daMoTuManHinhChinh()) {
         hienThongBao(
           "Trên iPhone/iPad, hãy thêm ứng dụng vào Màn hình chính rồi mở lại từ biểu tượng ứng dụng.",
           "err"
@@ -721,104 +715,75 @@
       }
 
       dangXuLy = true;
-      capNhatNut("Đang kiểm tra mã...", true);
-      hienThongBao(
-        "Đang xác thực mã nhân sự...",
-        "info"
-      );
+      capNhatNut(btnKiemTra, "Đang xử lý...", true);
+      capNhatNut(btnDangKy, "Đang thiết lập thông báo...", true);
+
+      hienThongBao("Đang yêu cầu quyền nhận thông báo...", "info");
 
       try {
-        nhanSuDaXacThuc =
-          await kiemTraNhanSu(maNhanSu);
-
-        hienNhanSu(nhanSuDaXacThuc);
-
-        hienThongBao(
-          "Đã xác thực " +
-            (nhanSuDaXacThuc.hoTen || maNhanSu) +
-            ". Đang thiết lập thông báo...",
-          "info"
-        );
-
-        capNhatNut(
-          "Đang thiết lập thông báo...",
-          true
-        );
-
-        await OneSignalRef.Notifications
-          .requestPermission(true);
+        await OneSignalRef.Notifications.requestPermission(true);
 
         const permission =
           typeof Notification !== "undefined"
             ? Notification.permission
             : "unknown";
 
-        if (
-          permission === "denied"
-        ) {
+        if (permission === "denied") {
           throw new Error(
             "Quyền thông báo đang bị từ chối. Hãy bật lại trong Cài đặt của thiết bị."
           );
         }
 
-        await OneSignalRef.User.PushSubscription
-          .optIn();
+        await OneSignalRef.User.PushSubscription.optIn();
 
         const subscription =
-          await choDenKhiSubscriptionSanSang(
-            OneSignalRef
-          );
+          await choDenKhiSubscriptionSanSang(OneSignalRef);
 
         const externalId = taoExternalId();
-
         await OneSignalRef.login(externalId);
 
-        capNhatNut(
-          "Đang lưu đăng ký...",
-          true
-        );
+        capNhatNut(btnDangKy, "Đang lưu đăng ký...", true);
+        hienThongBao("Đang lưu thông tin thiết bị...", "info");
 
-        const result =
-          await dangKyThietBiTrenMayChu(
-            maNhanSu,
-            externalId,
-            subscription.id
+        const result = await goiJsonp({
+          action: "dang_ky_thiet_bi_jsonp",
+          hoTen: nhanSuDaXacThuc.hoTen,
+          namSinh: nhanSuDaXacThuc.namSinh,
+          externalId: externalId,
+          subscriptionId: subscription.id,
+          thietBi: navigator.platform || "",
+          trinhDuyet: navigator.userAgent || ""
+        });
+
+        if (!result || result.ok !== true) {
+          throw new Error(
+            result && result.message
+              ? result.message
+              : "Không lưu được đăng ký thiết bị."
           );
+        }
 
-        luuDangKy(
-          result,
-          subscription.id
-        );
+        luuDangKy(result, subscription.id);
 
         hienThongBao(
           "✅ Đăng ký thành công cho " +
-            (
-              result.nhanSu &&
-              result.nhanSu.hoTen
-                ? result.nhanSu.hoTen
-                : maNhanSu
-            ) +
+            (result.nhanSu && result.nhanSu.hoTen
+              ? result.nhanSu.hoTen
+              : nhanSuDaXacThuc.hoTen) +
             ". Đang mở Dashboard...",
           "ok"
         );
 
-        capNhatNut(
-          "Đăng ký thành công",
-          true
-        );
+        capNhatNut(btnDangKy, "Đăng ký thành công", true);
 
         window.setTimeout(function() {
           window.location.replace(
-            DASHBOARD_URL +
-              "?v=20260710.1"
+            DASHBOARD_URL + "?v=20260710.2"
           );
         }, 1000);
 
       } catch (error) {
-        console.error(
-          "Lỗi đăng ký:",
-          error
-        );
+        console.error("Lỗi đăng ký thiết bị:", error);
 
         hienThongBao(
           error && error.message
@@ -828,13 +793,29 @@
         );
 
         capNhatNut(
-          "Đăng ký thiết bị",
+          btnDangKy,
+          "Bật thông báo và đăng ký thiết bị",
           false
         );
 
       } finally {
         dangXuLy = false;
+        capNhatNut(btnKiemTra, "Kiểm tra thông tin", false);
       }
+    }
+
+    function luuDangKy(result, subscriptionId) {
+      const nhanSu = result.nhanSu || nhanSuDaXacThuc || {};
+
+      localStorage.setItem(STORAGE.daDangKy, "1");
+      localStorage.setItem(STORAGE.maNhanSu, nhanSu.ma || "");
+      localStorage.setItem(STORAGE.hoTen, nhanSu.hoTen || "");
+      localStorage.setItem(STORAGE.namSinh, nhanSu.namSinh || "");
+      localStorage.setItem(STORAGE.phong, nhanSu.phong || "");
+      localStorage.setItem(STORAGE.chucVu, nhanSu.chucVu || "");
+      localStorage.setItem(STORAGE.vaiTroCu, nhanSu.chucVu || "");
+      localStorage.setItem(STORAGE.subscriptionId, subscriptionId || "");
+      localStorage.setItem(STORAGE.ngayDangKy, new Date().toISOString());
     }
 
     function napOneSignalSDK() {
@@ -843,20 +824,21 @@
 
       let daKhoiTao = false;
 
-      const sdkTimeout =
-        window.setTimeout(function() {
-          if (daKhoiTao) return;
+      const sdkTimeout = window.setTimeout(function() {
+        if (daKhoiTao) return;
 
-          capNhatNut(
-            "Không thể kết nối",
-            true
-          );
+        oneSignalReady = false;
 
-          hienThongBao(
-            "Chưa kết nối được hệ thống thông báo. Hãy kiểm tra mạng hoặc tải lại ứng dụng.",
-            "err"
-          );
-        }, SDK_TIMEOUT_MS);
+        if (nhanSuDaXacThuc) {
+          btnDangKy.classList.remove("hidden");
+          capNhatNut(btnDangKy, "Không thể kết nối thông báo", true);
+        }
+
+        hienThongBao(
+          "Chưa kết nối được hệ thống thông báo. Hãy kiểm tra mạng hoặc tải lại ứng dụng.",
+          "err"
+        );
+      }, SDK_TIMEOUT_MS);
 
       window.OneSignalDeferred.push(
         async function(OneSignal) {
@@ -865,8 +847,7 @@
 
             await OneSignal.init({
               appId: ONESIGNAL_APP_ID,
-              safari_web_id:
-                ONESIGNAL_SAFARI_WEB_ID,
+              safari_web_id: ONESIGNAL_SAFARI_WEB_ID,
 
               serviceWorkerPath:
                 "/dashboard-van-ban-tanhiep/OneSignalSDKWorker.js",
@@ -875,8 +856,7 @@
                 "/dashboard-van-ban-tanhiep/OneSignalSDKWorker.js",
 
               serviceWorkerParam: {
-                scope:
-                  "/dashboard-van-ban-tanhiep/"
+                scope: "/dashboard-van-ban-tanhiep/"
               },
 
               notifyButton: {
@@ -890,37 +870,33 @@
 
             daKhoiTao = true;
             oneSignalReady = true;
+            window.clearTimeout(sdkTimeout);
 
-            window.clearTimeout(
-              sdkTimeout
-            );
+            if (nhanSuDaXacThuc) {
+              btnDangKy.classList.remove("hidden");
 
-            capNhatNut(
-              "Đăng ký thiết bị",
-              false
-            );
+              capNhatNut(
+                btnDangKy,
+                "Bật thông báo và đăng ký thiết bị",
+                false
+              );
 
-            hienThongBao(
-              "Hệ thống đã sẵn sàng. Nhập mã nhân sự để đăng ký.",
-              "ok"
-            );
+              hienThongBao(
+                "Đã xác thực đúng thông tin. Bấm nút bên dưới để bật thông báo và hoàn tất đăng ký.",
+                "ok"
+              );
+            }
 
           } catch (error) {
-            console.error(
-              "Lỗi OneSignal:",
-              error
-            );
+            console.error("Lỗi OneSignal:", error);
 
             oneSignalReady = false;
+            window.clearTimeout(sdkTimeout);
 
-            window.clearTimeout(
-              sdkTimeout
-            );
-
-            capNhatNut(
-              "Không thể kết nối",
-              true
-            );
+            if (nhanSuDaXacThuc) {
+              btnDangKy.classList.remove("hidden");
+              capNhatNut(btnDangKy, "Không thể kết nối thông báo", true);
+            }
 
             hienThongBao(
               "Không khởi tạo được hệ thống thông báo. Vui lòng tải lại ứng dụng.",
@@ -930,8 +906,7 @@
         }
       );
 
-      const script =
-        document.createElement("script");
+      const script = document.createElement("script");
 
       script.src =
         "https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js";
@@ -940,16 +915,13 @@
       script.async = true;
 
       script.onerror = function() {
-        window.clearTimeout(
-          sdkTimeout
-        );
-
+        window.clearTimeout(sdkTimeout);
         oneSignalReady = false;
 
-        capNhatNut(
-          "Không thể kết nối",
-          true
-        );
+        if (nhanSuDaXacThuc) {
+          btnDangKy.classList.remove("hidden");
+          capNhatNut(btnDangKy, "Không thể kết nối thông báo", true);
+        }
 
         hienThongBao(
           "Không tải được hệ thống thông báo. Hãy kiểm tra kết nối mạng hoặc chế độ chặn nội dung.",
@@ -957,46 +929,37 @@
         );
       };
 
-      document.head.appendChild(
-        script
-      );
+      document.head.appendChild(script);
     }
 
-    inputMa.addEventListener(
-      "input",
-      function() {
-        const value =
-          chuanHoaMaNhanSu(
-            inputMa.value
-          );
+    function huyXacThucCu() {
+      nhanSuDaXacThuc = null;
+      hienNhanSu(null);
+      btnDangKy.classList.add("hidden");
+    }
 
-        if (inputMa.value !== value) {
-          inputMa.value = value;
-        }
+    inputHoTen.addEventListener("input", function() {
+      inputHoTen.value = inputHoTen.value.replace(/\s{2,}/g, " ");
+      huyXacThucCu();
+    });
 
-        nhanSuDaXacThuc = null;
-        hienNhanSu(null);
+    inputNamSinh.addEventListener("input", function() {
+      inputNamSinh.value = chuanHoaNamSinh(inputNamSinh.value);
+      huyXacThucCu();
+    });
+
+    inputNamSinh.addEventListener("keydown", function(event) {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        inputNamSinh.blur();
+        kiemTraNhanSu();
       }
-    );
+    });
 
-    inputMa.addEventListener(
-      "keydown",
-      function(event) {
-        if (event.key === "Enter") {
-          event.preventDefault();
-          inputMa.blur();
-          dangKyThietBi();
-        }
-      }
-    );
-
-    btn.addEventListener(
-      "click",
-      dangKyThietBi
-    );
+    btnKiemTra.addEventListener("click", kiemTraNhanSu);
+    btnDangKy.addEventListener("click", dangKyThietBi);
 
     napOneSignalSDK();
   </script>
-
 </body>
 </html>
