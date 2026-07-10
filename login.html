@@ -2,31 +2,75 @@
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+  >
+
   <title>Đăng ký thiết bị</title>
 
-  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta
+    http-equiv="Cache-Control"
+    content="no-cache, no-store, must-revalidate"
+  >
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
 
-  <link rel="manifest" href="/dashboard-van-ban-tanhiep/manifest.json">
-  <link rel="apple-touch-icon" href="/dashboard-van-ban-tanhiep/icon-192.png">
+  <link
+    rel="manifest"
+    href="/dashboard-van-ban-tanhiep/manifest.json?v=20260710.1"
+  >
+
+  <link
+    rel="apple-touch-icon"
+    href="/dashboard-van-ban-tanhiep/icon-192.png"
+  >
 
   <meta name="theme-color" content="#1f5f99">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Nhắc việc">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta
+    name="apple-mobile-web-app-status-bar-style"
+    content="default"
+  >
 
   <style>
-    * { box-sizing: border-box; }
+    :root {
+      --main: #1f5f99;
+      --main-dark: #174b7b;
+      --main-light: #2f80c0;
+      --text: #1f2937;
+      --muted: #5b6472;
+      --border: #d7dce2;
+      --success: #28704f;
+      --success-bg: #e8f5ee;
+      --success-border: #b7dfc6;
+      --danger: #d9534f;
+      --danger-bg: #fff1ed;
+      --danger-border: #f5c2b5;
+      --info-bg: #eef6ff;
+      --info-border: #cfe5fa;
+      --shadow: 0 18px 50px rgba(0, 0, 0, 0.25);
+    }
 
-    html, body {
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
       margin: 0;
       min-height: 100%;
       font-family: "Segoe UI", Roboto, Arial, sans-serif;
-      background: linear-gradient(135deg, #174b7b, #2f80c0);
-      color: #1f2937;
+      background:
+        radial-gradient(
+          circle at top right,
+          rgba(255, 255, 255, 0.12),
+          transparent 32%
+        ),
+        linear-gradient(135deg, var(--main-dark), var(--main-light));
+      color: var(--text);
     }
 
     body {
@@ -35,40 +79,48 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 18px;
+      padding:
+        max(18px, env(safe-area-inset-top))
+        18px
+        max(18px, env(safe-area-inset-bottom));
     }
 
     .card {
       width: 100%;
       max-width: 430px;
-      background: #fff;
+      background: #ffffff;
       border-radius: 24px;
       padding: 24px;
-      box-shadow: 0 18px 50px rgba(0,0,0,.25);
+      box-shadow: var(--shadow);
     }
 
     .logo {
       width: 64px;
       height: 64px;
       border-radius: 18px;
-      background: linear-gradient(135deg, #1f5f99, #2f80c0);
+      background: linear-gradient(
+        135deg,
+        var(--main),
+        var(--main-light)
+      );
       display: flex;
       align-items: center;
       justify-content: center;
-      color: white;
+      color: #ffffff;
       font-size: 32px;
       margin-bottom: 14px;
     }
 
     h1 {
       margin: 0;
-      color: #1f5f99;
-      font-size: 24px;
+      color: var(--main);
+      font-size: 25px;
       line-height: 1.35;
+      font-weight: 800;
     }
 
-    p {
-      color: #5b6472;
+    .description {
+      color: var(--muted);
       line-height: 1.55;
       font-size: 15px;
       margin: 10px 0 18px;
@@ -77,19 +129,24 @@
     label {
       display: block;
       font-weight: 800;
-      color: #1f5f99;
-      margin-bottom: 7px;
+      color: var(--main);
+      margin-bottom: 8px;
     }
 
     textarea {
+      display: block;
       width: 100%;
-      height: 54px;
-      border: 1px solid #d7dce2;
+      height: 56px;
+      min-height: 56px;
+      max-height: 56px;
+      border: 1px solid var(--border);
       border-radius: 14px;
       padding: 14px;
+      font-family: inherit;
       font-size: 20px;
+      line-height: 26px;
       outline: none;
-      background: #fff;
+      background: #ffffff;
       color: #111827;
       text-transform: uppercase;
       resize: none;
@@ -99,31 +156,71 @@
     }
 
     textarea:focus {
-      border-color: #2f80c0;
-      box-shadow: 0 0 0 3px rgba(47,128,192,.13);
+      border-color: var(--main-light);
+      box-shadow: 0 0 0 3px rgba(47, 128, 192, 0.13);
+    }
+
+    textarea::placeholder {
+      color: #9ca3af;
     }
 
     button {
       width: 100%;
+      min-height: 52px;
       margin-top: 16px;
       border: none;
       border-radius: 15px;
-      padding: 15px;
-      background: #1f5f99;
-      color: white;
-      font-weight: 850;
+      padding: 14px 16px;
+      background: var(--main);
+      color: #ffffff;
+      font-family: inherit;
+      font-weight: 800;
       font-size: 16px;
       cursor: pointer;
+      transition:
+        opacity 0.2s ease,
+        transform 0.2s ease,
+        background 0.2s ease;
+    }
+
+    button:active:not(:disabled) {
+      transform: scale(0.99);
     }
 
     button:disabled {
-      opacity: .65;
+      opacity: 0.62;
       cursor: not-allowed;
+    }
+
+    .user-preview {
+      display: none;
+      margin-top: 14px;
+      padding: 13px 14px;
+      border-radius: 14px;
+      background: #f7faff;
+      border: 1px solid #d9e8f7;
+      line-height: 1.5;
+    }
+
+    .user-preview.show {
+      display: block;
+    }
+
+    .user-name {
+      color: var(--main);
+      font-size: 16px;
+      font-weight: 800;
+      margin-bottom: 4px;
+    }
+
+    .user-meta {
+      color: #4b5563;
+      font-size: 14px;
     }
 
     .note {
       background: #f3f7fb;
-      border-left: 4px solid #2f80c0;
+      border-left: 4px solid var(--main-light);
       border-radius: 13px;
       padding: 12px;
       margin-top: 14px;
@@ -141,299 +238,765 @@
       display: none;
     }
 
-    .ok {
+    .msg.show {
       display: block;
-      background: #e8f5ee;
-      color: #28704f;
-      border: 1px solid #b7dfc6;
     }
 
-    .err {
-      display: block;
-      background: #fff1ed;
-      color: #d9534f;
-      border: 1px solid #f5c2b5;
+    .msg.ok {
+      background: var(--success-bg);
+      color: var(--success);
+      border: 1px solid var(--success-border);
     }
 
-    .info {
-      display: block;
-      background: #eef6ff;
-      color: #1f5f99;
-      border: 1px solid #cfe5fa;
+    .msg.err {
+      background: var(--danger-bg);
+      color: var(--danger);
+      border: 1px solid var(--danger-border);
+    }
+
+    .msg.info {
+      background: var(--info-bg);
+      color: var(--main);
+      border: 1px solid var(--info-border);
+    }
+
+    @media (max-width: 480px) {
+      body {
+        align-items: center;
+        padding-left: 16px;
+        padding-right: 16px;
+      }
+
+      .card {
+        padding: 22px;
+        border-radius: 22px;
+      }
+
+      h1 {
+        font-size: 24px;
+      }
     }
   </style>
 </head>
 
 <body>
 
-<div class="card">
-  <div class="logo">📑</div>
+  <main class="card">
+    <div class="logo" aria-hidden="true">📑</div>
 
-  <h1>Đăng ký thiết bị</h1>
-  <p>Nhập mã nhân sự để hệ thống xác định đúng người dùng, phòng ban và thiết bị nhận thông báo.</p>
+    <h1>Đăng ký thiết bị</h1>
 
-  <label for="maNhanSu">Mã nhân sự</label>
+    <p class="description">
+      Nhập mã nhân sự để hệ thống xác định đúng người dùng,
+      phòng ban và thiết bị nhận thông báo.
+    </p>
 
-  <textarea
-    id="maNhanSu"
-    name="maNhanSu"
-    rows="1"
-    placeholder="Ví dụ: NV001"
-    autocomplete="off"
-    autocorrect="off"
-    autocapitalize="characters"
-    spellcheck="false"
-    enterkeyhint="done"
-  ></textarea>
+    <label for="maNhanSu">Mã nhân sự</label>
 
-  <button id="btnDangKy" type="button" disabled>Đang kết nối hệ thống...</button>
+    <textarea
+      id="maNhanSu"
+      name="maNhanSu"
+      rows="1"
+      maxlength="30"
+      placeholder="Ví dụ: NV001"
+      autocomplete="off"
+      autocorrect="off"
+      autocapitalize="characters"
+      spellcheck="false"
+      enterkeyhint="done"
+    ></textarea>
 
-  <div class="note">
-    iPhone: mở bằng Safari → Thêm vào Màn hình chính → mở từ biểu tượng ngoài màn hình → đăng ký.
-  </div>
+    <div id="userPreview" class="user-preview">
+      <div id="userName" class="user-name"></div>
+      <div id="userMeta" class="user-meta"></div>
+    </div>
 
-  <div id="msg" class="msg info">Đang tải hệ thống thông báo...</div>
-</div>
+    <button id="btnDangKy" type="button" disabled>
+      Đang kết nối hệ thống...
+    </button>
 
-<script>
-const API_URL = "https://script.google.com/macros/s/AKfycbyMINgn39Y_zlvdG9nqMpDH9KeoBKXnR_ueWr_wpVLPu82QxZVPSH4tnkVR9oa7eTJ2KQ/exec";
+    <div class="note">
+      Trên iPhone: mở bằng Safari → Chia sẻ →
+      Thêm vào Màn hình chính → mở từ biểu tượng ứng dụng → đăng ký.
+    </div>
 
-const ONESIGNAL_APP_ID = "1a1d8e66-d523-4a9a-84be-1d3c248bad61";
-const ONESIGNAL_SAFARI_WEB_ID = "web.onesignal.auto.12e0c5f3-6b76-47bb-8015-fa3026009bd5";
+    <div id="msg" class="msg info show">
+      Đang tải hệ thống thông báo...
+    </div>
+  </main>
 
-const KEY_EXTERNAL_ID = "nhac_viec_van_ban_external_id";
-const KEY_DA_DANG_KY = "nhac_viec_da_dang_ky_nhan_su";
-const KEY_MA_NHAN_SU = "nhac_viec_ma_nhan_su";
+  <script>
+    const API_URL =
+      "https://script.google.com/macros/s/AKfycbyMINgn39Y_zlvdG9nqMpDH9KeoBKXnR_ueWr_wpVLPu82QxZVPSH4tnkVR9oa7eTJ2KQ/exec";
 
-let OneSignalRef = null;
-let oneSignalReady = false;
+    const DASHBOARD_URL =
+      "/dashboard-van-ban-tanhiep/index.html";
 
-const btn = document.getElementById("btnDangKy");
-const inputMa = document.getElementById("maNhanSu");
+    const ONESIGNAL_APP_ID =
+      "1a1d8e66-d523-4a9a-84be-1d3c248bad61";
 
-function hienThongBao(text, ok, info) {
-  const msg = document.getElementById("msg");
-  msg.textContent = text;
-  msg.className = info ? "msg info" : (ok ? "msg ok" : "msg err");
-}
+    const ONESIGNAL_SAFARI_WEB_ID =
+      "web.onesignal.auto.12e0c5f3-6b76-47bb-8015-fa3026009bd5";
 
-function taoExternalId() {
-  let id = localStorage.getItem(KEY_EXTERNAL_ID);
-  if (!id) {
-    id = "vanban_" + Date.now() + "_" + Math.random().toString(36).slice(2, 12);
-    localStorage.setItem(KEY_EXTERNAL_ID, id);
-  }
-  return id;
-}
-
-function laIPhoneHoacIPad() {
-  const ua = navigator.userAgent || "";
-  return /iPad|iPhone|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-}
-
-function daMoTuManHinhChinh() {
-  return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
-}
-
-function choDenKhiSubscriptionSanSang(OneSignal) {
-  return new Promise(function(resolve, reject) {
-    const hienTai = {
-      id: OneSignal.User.PushSubscription.id || "",
-      optedIn: OneSignal.User.PushSubscription.optedIn === true
+    const STORAGE = {
+      externalId: "nhac_viec_van_ban_external_id",
+      daDangKy: "nhac_viec_da_dang_ky_nhan_su",
+      maNhanSu: "nhac_viec_ma_nhan_su",
+      hoTen: "nhac_viec_ho_ten",
+      phong: "nhac_viec_phong",
+      vaiTro: "nhac_viec_vai_tro",
+      subscriptionId: "nhac_viec_subscription_id",
+      ngayDangKy: "nhac_viec_ngay_dang_ky"
     };
 
-    if (hienTai.id && hienTai.optedIn) {
-      resolve(hienTai);
-      return;
+    const SDK_TIMEOUT_MS = 15000;
+    const JSONP_TIMEOUT_MS = 15000;
+    const SUBSCRIPTION_TIMEOUT_MS = 20000;
+
+    let OneSignalRef = null;
+    let oneSignalReady = false;
+    let dangXuLy = false;
+    let nhanSuDaXacThuc = null;
+
+    const btn = document.getElementById("btnDangKy");
+    const inputMa = document.getElementById("maNhanSu");
+    const msg = document.getElementById("msg");
+    const userPreview = document.getElementById("userPreview");
+    const userName = document.getElementById("userName");
+    const userMeta = document.getElementById("userMeta");
+
+    function chuanHoaMaNhanSu(value) {
+      return String(value || "")
+        .toUpperCase()
+        .replace(/\s+/g, "")
+        .replace(/[^A-Z0-9_-]/g, "")
+        .trim();
     }
 
-    let done = false;
+    function hienThongBao(text, type) {
+      msg.textContent = text;
+      msg.className = "msg show " + (type || "info");
+    }
 
-    const handler = function() {
-      const moi = {
-        id: OneSignal.User.PushSubscription.id || "",
-        optedIn: OneSignal.User.PushSubscription.optedIn === true
-      };
+    function capNhatNut(text, disabled) {
+      btn.textContent = text;
+      btn.disabled = Boolean(disabled);
+    }
 
-      if (moi.id && moi.optedIn && !done) {
-        done = true;
-        try {
-          OneSignal.User.PushSubscription.removeEventListener("change", handler);
-        } catch (e) {}
-        resolve(moi);
+    function hienNhanSu(nhanSu) {
+      if (!nhanSu) {
+        userPreview.classList.remove("show");
+        userName.textContent = "";
+        userMeta.textContent = "";
+        return;
       }
-    };
 
-    OneSignal.User.PushSubscription.addEventListener("change", handler);
+      userName.textContent =
+        (nhanSu.ma || "") + " — " + (nhanSu.hoTen || "");
 
-    setTimeout(function() {
-      if (!done) {
-        const lai = {
-          id: OneSignal.User.PushSubscription.id || "",
-          optedIn: OneSignal.User.PushSubscription.optedIn === true
+      userMeta.textContent =
+        [nhanSu.phong, nhanSu.vaiTro]
+          .filter(Boolean)
+          .join(" • ");
+
+      userPreview.classList.add("show");
+    }
+
+    function taoExternalId() {
+      let id = localStorage.getItem(STORAGE.externalId);
+
+      if (!id) {
+        id =
+          "vanban_" +
+          Date.now() +
+          "_" +
+          Math.random().toString(36).slice(2, 12);
+
+        localStorage.setItem(STORAGE.externalId, id);
+      }
+
+      return id;
+    }
+
+    function laIPhoneHoacIPad() {
+      const ua = navigator.userAgent || "";
+
+      return (
+        /iPad|iPhone|iPod/.test(ua) ||
+        (
+          navigator.platform === "MacIntel" &&
+          navigator.maxTouchPoints > 1
+        )
+      );
+    }
+
+    function daMoTuManHinhChinh() {
+      return (
+        window.matchMedia("(display-mode: standalone)").matches ||
+        window.navigator.standalone === true
+      );
+    }
+
+    function goiJsonp(params) {
+      return new Promise(function(resolve, reject) {
+        const callbackName =
+          "__jsonp_" +
+          Date.now() +
+          "_" +
+          Math.random().toString(36).slice(2, 9);
+
+        const script = document.createElement("script");
+
+        let daKetThuc = false;
+
+        function donDep() {
+          if (script.parentNode) {
+            script.parentNode.removeChild(script);
+          }
+
+          try {
+            delete window[callbackName];
+          } catch (e) {
+            window[callbackName] = undefined;
+          }
+        }
+
+        const timeoutId = window.setTimeout(function() {
+          if (daKetThuc) return;
+
+          daKetThuc = true;
+          donDep();
+
+          reject(
+            new Error(
+              "Hệ thống xác thực phản hồi quá lâu."
+            )
+          );
+        }, JSONP_TIMEOUT_MS);
+
+        window[callbackName] = function(data) {
+          if (daKetThuc) return;
+
+          daKetThuc = true;
+          window.clearTimeout(timeoutId);
+          donDep();
+          resolve(data);
         };
 
-        if (lai.id && lai.optedIn) {
-          done = true;
-          resolve(lai);
-        } else {
-          reject(new Error("Chưa tạo được mã đăng ký thông báo."));
-        }
-      }
-    }, 12000);
-  });
-}
+        const search = new URLSearchParams();
 
-function napOneSignalSDK() {
-  window.OneSignalDeferred = window.OneSignalDeferred || [];
+        Object.keys(params || {}).forEach(function(key) {
+          const value = params[key];
 
-  window.OneSignalDeferred.push(async function(OneSignal) {
-    try {
-      OneSignalRef = OneSignal;
+          if (
+            value !== undefined &&
+            value !== null
+          ) {
+            search.set(key, String(value));
+          }
+        });
 
-      await OneSignal.init({
-        appId: ONESIGNAL_APP_ID,
-        safari_web_id: ONESIGNAL_SAFARI_WEB_ID,
-        serviceWorkerPath: "/dashboard-van-ban-tanhiep/OneSignalSDKWorker.js",
-        serviceWorkerUpdaterPath: "/dashboard-van-ban-tanhiep/OneSignalSDKWorker.js",
-        serviceWorkerParam: {
-          scope: "/dashboard-van-ban-tanhiep/"
-        },
-        notifyButton: {
-          enable: false
-        },
-        welcomeNotification: {
-          disable: true
-        }
+        search.set("callback", callbackName);
+        search.set("_t", String(Date.now()));
+
+        script.src =
+          API_URL + "?" + search.toString();
+
+        script.async = true;
+
+        script.onerror = function() {
+          if (daKetThuc) return;
+
+          daKetThuc = true;
+          window.clearTimeout(timeoutId);
+          donDep();
+
+          reject(
+            new Error(
+              "Không kết nối được hệ thống xác thực."
+            )
+          );
+        };
+
+        document.head.appendChild(script);
+      });
+    }
+
+    async function kiemTraNhanSu(maNhanSu) {
+      const result = await goiJsonp({
+        action: "kiem_tra_nhan_su",
+        ma: maNhanSu
       });
 
-      oneSignalReady = true;
-      btn.disabled = false;
-      btn.textContent = "Đăng ký thiết bị";
-      hienThongBao("✅ Hệ thống thông báo đã sẵn sàng. Nhập mã nhân sự để đăng ký.", true);
+      if (!result || result.ok !== true) {
+        throw new Error(
+          result && result.message
+            ? result.message
+            : "Mã nhân sự không tồn tại."
+        );
+      }
 
-    } catch (err) {
-      console.error(err);
-      oneSignalReady = false;
-      btn.disabled = true;
-      btn.textContent = "Không thể kết nối";
-      hienThongBao("Không khởi tạo được hệ thống thông báo. Vui lòng tải lại ứng dụng.", false);
-    }
-  });
-
-  const s = document.createElement("script");
-  s.src = "https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js";
-  s.defer = true;
-  s.onerror = function() {
-    oneSignalReady = false;
-    btn.disabled = true;
-    btn.textContent = "Không thể kết nối";
-    hienThongBao("Không tải được hệ thống thông báo. Vui lòng kiểm tra mạng hoặc tải lại ứng dụng.", false);
-  };
-  document.head.appendChild(s);
-
-  setTimeout(function() {
-    if (!oneSignalReady) {
-      btn.disabled = true;
-      btn.textContent = "Không thể kết nối";
-      hienThongBao("Chưa kết nối được hệ thống thông báo. Vui lòng tải lại ứng dụng hoặc kiểm tra kết nối mạng.", false);
-    }
-  }, 10000);
-}
-
-async function dangKyThietBi() {
-  const maNhanSu = inputMa.value.trim().toUpperCase().replace(/\s+/g, "");
-
-  if (!maNhanSu) {
-    hienThongBao("Vui lòng nhập mã nhân sự.", false);
-    inputMa.focus();
-    return;
-  }
-
-  if (!oneSignalReady || !OneSignalRef) {
-    hienThongBao("Hệ thống thông báo chưa sẵn sàng. Vui lòng tải lại ứng dụng.", false);
-    return;
-  }
-
-  if (laIPhoneHoacIPad() && !daMoTuManHinhChinh()) {
-    hienThongBao("Trên iPhone/iPad: hãy thêm trang vào Màn hình chính, sau đó mở từ biểu tượng ngoài màn hình rồi đăng ký lại.", false);
-    return;
-  }
-
-  try {
-    btn.disabled = true;
-    btn.textContent = "Đang đăng ký...";
-
-    await OneSignalRef.Notifications.requestPermission(true);
-
-    if (typeof Notification !== "undefined" && Notification.permission !== "granted") {
-      hienThongBao("Thiết bị chưa cấp quyền thông báo.", false);
-      return;
+      return result.nhanSu;
     }
 
-    await OneSignalRef.User.PushSubscription.optIn();
-
-    const sub = await choDenKhiSubscriptionSanSang(OneSignalRef);
-    const externalId = taoExternalId();
-
-    await OneSignalRef.login(externalId);
-
-    const payload = {
-      action: "dang_ky_thiet_bi",
-      maNhanSu: maNhanSu,
-      externalId: externalId,
-      subscriptionId: sub.id
-    };
-
-    const form = new FormData();
-    form.append("payload", JSON.stringify(payload));
-
-    const response = await fetch(API_URL, {
-      method: "POST",
-      body: form
-    });
-
-    const text = await response.text();
-
-    if (!text.includes('"ok":true')) {
-      hienThongBao("Mã nhân sự không hợp lệ.", false);
-      return;
+    function layTrangThaiSubscription(OneSignal) {
+      return {
+        id:
+          OneSignal.User.PushSubscription.id ||
+          "",
+        token:
+          OneSignal.User.PushSubscription.token ||
+          "",
+        optedIn:
+          OneSignal.User.PushSubscription.optedIn === true
+      };
     }
 
-    localStorage.setItem(KEY_DA_DANG_KY, "1");
-    localStorage.setItem(KEY_MA_NHAN_SU, maNhanSu);
+    function choDenKhiSubscriptionSanSang(OneSignal) {
+      return new Promise(function(resolve, reject) {
+        let daKetThuc = false;
 
-    hienThongBao("✅ Đã đăng ký thiết bị. Đang chuyển về Dashboard...", true);
+        const hienTai =
+          layTrangThaiSubscription(OneSignal);
 
-    setTimeout(function() {
-      window.location.href = "/dashboard-van-ban-tanhiep/index.html";
-    }, 1200);
+        if (hienTai.id && hienTai.optedIn) {
+          resolve(hienTai);
+          return;
+        }
 
-  } catch (err) {
-    console.error(err);
-    hienThongBao("Mã nhân sự không hợp lệ.", false);
+        function donDep() {
+          try {
+            OneSignal.User.PushSubscription
+              .removeEventListener(
+                "change",
+                handler
+              );
+          } catch (e) {}
+        }
 
-  } finally {
-    btn.disabled = false;
-    btn.textContent = "Đăng ký thiết bị";
-  }
-}
+        function handler() {
+          if (daKetThuc) return;
 
-inputMa.addEventListener("input", function() {
-  inputMa.value = inputMa.value.toUpperCase().replace(/\s+/g, "");
-});
+          const moi =
+            layTrangThaiSubscription(OneSignal);
 
-inputMa.addEventListener("keydown", function(e) {
-  if (e.key === "Enter") {
-    e.preventDefault();
-    dangKyThietBi();
-  }
-});
+          if (moi.id && moi.optedIn) {
+            daKetThuc = true;
+            window.clearTimeout(timeoutId);
+            donDep();
+            resolve(moi);
+          }
+        }
 
-btn.addEventListener("click", dangKyThietBi);
+        OneSignal.User.PushSubscription
+          .addEventListener(
+            "change",
+            handler
+          );
 
-napOneSignalSDK();
-</script>
+        const timeoutId =
+          window.setTimeout(function() {
+            if (daKetThuc) return;
+
+            const lanCuoi =
+              layTrangThaiSubscription(OneSignal);
+
+            if (lanCuoi.id && lanCuoi.optedIn) {
+              daKetThuc = true;
+              donDep();
+              resolve(lanCuoi);
+              return;
+            }
+
+            daKetThuc = true;
+            donDep();
+
+            reject(
+              new Error(
+                "Chưa tạo được mã nhận thông báo."
+              )
+            );
+          }, SUBSCRIPTION_TIMEOUT_MS);
+      });
+    }
+
+    async function dangKyThietBiTrenMayChu(
+      maNhanSu,
+      externalId,
+      subscriptionId
+    ) {
+      const result = await goiJsonp({
+        action: "dang_ky_thiet_bi_jsonp",
+        ma: maNhanSu,
+        externalId: externalId,
+        subscriptionId: subscriptionId
+      });
+
+      if (!result || result.ok !== true) {
+        throw new Error(
+          result && result.message
+            ? result.message
+            : "Không đăng ký được thiết bị."
+        );
+      }
+
+      return result;
+    }
+
+    function luuDangKy(result, subscriptionId) {
+      const nhanSu = result.nhanSu || nhanSuDaXacThuc || {};
+
+      localStorage.setItem(
+        STORAGE.daDangKy,
+        "1"
+      );
+
+      localStorage.setItem(
+        STORAGE.maNhanSu,
+        nhanSu.ma || chuanHoaMaNhanSu(inputMa.value)
+      );
+
+      localStorage.setItem(
+        STORAGE.hoTen,
+        nhanSu.hoTen || ""
+      );
+
+      localStorage.setItem(
+        STORAGE.phong,
+        nhanSu.phong || ""
+      );
+
+      localStorage.setItem(
+        STORAGE.vaiTro,
+        nhanSu.vaiTro || ""
+      );
+
+      localStorage.setItem(
+        STORAGE.subscriptionId,
+        subscriptionId || ""
+      );
+
+      localStorage.setItem(
+        STORAGE.ngayDangKy,
+        new Date().toISOString()
+      );
+    }
+
+    async function dangKyThietBi() {
+      if (dangXuLy) return;
+
+      const maNhanSu =
+        chuanHoaMaNhanSu(inputMa.value);
+
+      inputMa.value = maNhanSu;
+
+      if (!maNhanSu) {
+        hienNhanSu(null);
+        hienThongBao(
+          "Vui lòng nhập mã nhân sự.",
+          "err"
+        );
+
+        inputMa.focus();
+        return;
+      }
+
+      if (!oneSignalReady || !OneSignalRef) {
+        hienThongBao(
+          "Hệ thống thông báo chưa sẵn sàng. Vui lòng tải lại ứng dụng.",
+          "err"
+        );
+        return;
+      }
+
+      if (
+        laIPhoneHoacIPad() &&
+        !daMoTuManHinhChinh()
+      ) {
+        hienThongBao(
+          "Trên iPhone/iPad, hãy thêm ứng dụng vào Màn hình chính rồi mở lại từ biểu tượng ứng dụng.",
+          "err"
+        );
+        return;
+      }
+
+      dangXuLy = true;
+      capNhatNut("Đang kiểm tra mã...", true);
+      hienThongBao(
+        "Đang xác thực mã nhân sự...",
+        "info"
+      );
+
+      try {
+        nhanSuDaXacThuc =
+          await kiemTraNhanSu(maNhanSu);
+
+        hienNhanSu(nhanSuDaXacThuc);
+
+        hienThongBao(
+          "Đã xác thực " +
+            (nhanSuDaXacThuc.hoTen || maNhanSu) +
+            ". Đang thiết lập thông báo...",
+          "info"
+        );
+
+        capNhatNut(
+          "Đang thiết lập thông báo...",
+          true
+        );
+
+        await OneSignalRef.Notifications
+          .requestPermission(true);
+
+        const permission =
+          typeof Notification !== "undefined"
+            ? Notification.permission
+            : "unknown";
+
+        if (
+          permission === "denied"
+        ) {
+          throw new Error(
+            "Quyền thông báo đang bị từ chối. Hãy bật lại trong Cài đặt của thiết bị."
+          );
+        }
+
+        await OneSignalRef.User.PushSubscription
+          .optIn();
+
+        const subscription =
+          await choDenKhiSubscriptionSanSang(
+            OneSignalRef
+          );
+
+        const externalId = taoExternalId();
+
+        await OneSignalRef.login(externalId);
+
+        capNhatNut(
+          "Đang lưu đăng ký...",
+          true
+        );
+
+        const result =
+          await dangKyThietBiTrenMayChu(
+            maNhanSu,
+            externalId,
+            subscription.id
+          );
+
+        luuDangKy(
+          result,
+          subscription.id
+        );
+
+        hienThongBao(
+          "✅ Đăng ký thành công cho " +
+            (
+              result.nhanSu &&
+              result.nhanSu.hoTen
+                ? result.nhanSu.hoTen
+                : maNhanSu
+            ) +
+            ". Đang mở Dashboard...",
+          "ok"
+        );
+
+        capNhatNut(
+          "Đăng ký thành công",
+          true
+        );
+
+        window.setTimeout(function() {
+          window.location.replace(
+            DASHBOARD_URL +
+              "?v=20260710.1"
+          );
+        }, 1000);
+
+      } catch (error) {
+        console.error(
+          "Lỗi đăng ký:",
+          error
+        );
+
+        hienThongBao(
+          error && error.message
+            ? error.message
+            : "Không đăng ký được thiết bị. Vui lòng thử lại.",
+          "err"
+        );
+
+        capNhatNut(
+          "Đăng ký thiết bị",
+          false
+        );
+
+      } finally {
+        dangXuLy = false;
+      }
+    }
+
+    function napOneSignalSDK() {
+      window.OneSignalDeferred =
+        window.OneSignalDeferred || [];
+
+      let daKhoiTao = false;
+
+      const sdkTimeout =
+        window.setTimeout(function() {
+          if (daKhoiTao) return;
+
+          capNhatNut(
+            "Không thể kết nối",
+            true
+          );
+
+          hienThongBao(
+            "Chưa kết nối được hệ thống thông báo. Hãy kiểm tra mạng hoặc tải lại ứng dụng.",
+            "err"
+          );
+        }, SDK_TIMEOUT_MS);
+
+      window.OneSignalDeferred.push(
+        async function(OneSignal) {
+          try {
+            OneSignalRef = OneSignal;
+
+            await OneSignal.init({
+              appId: ONESIGNAL_APP_ID,
+              safari_web_id:
+                ONESIGNAL_SAFARI_WEB_ID,
+
+              serviceWorkerPath:
+                "/dashboard-van-ban-tanhiep/OneSignalSDKWorker.js",
+
+              serviceWorkerUpdaterPath:
+                "/dashboard-van-ban-tanhiep/OneSignalSDKWorker.js",
+
+              serviceWorkerParam: {
+                scope:
+                  "/dashboard-van-ban-tanhiep/"
+              },
+
+              notifyButton: {
+                enable: false
+              },
+
+              welcomeNotification: {
+                disable: true
+              }
+            });
+
+            daKhoiTao = true;
+            oneSignalReady = true;
+
+            window.clearTimeout(
+              sdkTimeout
+            );
+
+            capNhatNut(
+              "Đăng ký thiết bị",
+              false
+            );
+
+            hienThongBao(
+              "Hệ thống đã sẵn sàng. Nhập mã nhân sự để đăng ký.",
+              "ok"
+            );
+
+          } catch (error) {
+            console.error(
+              "Lỗi OneSignal:",
+              error
+            );
+
+            oneSignalReady = false;
+
+            window.clearTimeout(
+              sdkTimeout
+            );
+
+            capNhatNut(
+              "Không thể kết nối",
+              true
+            );
+
+            hienThongBao(
+              "Không khởi tạo được hệ thống thông báo. Vui lòng tải lại ứng dụng.",
+              "err"
+            );
+          }
+        }
+      );
+
+      const script =
+        document.createElement("script");
+
+      script.src =
+        "https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js";
+
+      script.defer = true;
+      script.async = true;
+
+      script.onerror = function() {
+        window.clearTimeout(
+          sdkTimeout
+        );
+
+        oneSignalReady = false;
+
+        capNhatNut(
+          "Không thể kết nối",
+          true
+        );
+
+        hienThongBao(
+          "Không tải được hệ thống thông báo. Hãy kiểm tra kết nối mạng hoặc chế độ chặn nội dung.",
+          "err"
+        );
+      };
+
+      document.head.appendChild(
+        script
+      );
+    }
+
+    inputMa.addEventListener(
+      "input",
+      function() {
+        const value =
+          chuanHoaMaNhanSu(
+            inputMa.value
+          );
+
+        if (inputMa.value !== value) {
+          inputMa.value = value;
+        }
+
+        nhanSuDaXacThuc = null;
+        hienNhanSu(null);
+      }
+    );
+
+    inputMa.addEventListener(
+      "keydown",
+      function(event) {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          inputMa.blur();
+          dangKyThietBi();
+        }
+      }
+    );
+
+    btn.addEventListener(
+      "click",
+      dangKyThietBi
+    );
+
+    napOneSignalSDK();
+  </script>
 
 </body>
 </html>
