@@ -1,1 +1,25 @@
-
+{
+  "id": "/dashboard-van-ban-tanhiep/nhiem-vu/",
+  "name": "Quản lý nhiệm vụ Tân Hiệp",
+  "short_name": "Nhiệm vụ",
+  "start_url": "/dashboard-van-ban-tanhiep/nhiem-vu/",
+  "scope": "/dashboard-van-ban-tanhiep/nhiem-vu/",
+  "display": "standalone",
+  "background_color": "#edf4fa",
+  "theme_color": "#17639a",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "./icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
