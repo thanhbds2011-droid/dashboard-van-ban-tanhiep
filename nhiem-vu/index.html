@@ -9,10 +9,22 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <meta name="theme-color" content="#17639a">
+  <meta name="application-name" content="Quản lý nhiệm vụ Tân Hiệp">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Nhiệm vụ">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
 
-  <link rel="stylesheet" href="./styles.css?v=20260714.82">
+  <link rel="manifest" href="./manifest.webmanifest?v=20260714.83">
+  <link rel="icon" type="image/png" sizes="64x64" href="./icons/favicon-64.png?v=20260714.83">
+  <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png?v=20260714.83">
+  <link rel="stylesheet" href="./styles.css?v=20260714.83">
 </head>
 <body>
+  <div id="offlineBanner" class="pwa-system-banner offline-banner hidden" role="status">
+    <span>📡 Thiết bị đang ngoại tuyến. Dữ liệu Firebase sẽ được tải lại khi có Internet.</span>
+  </div>
+
   <!-- MÀN HÌNH KHỞI TẠO -->
   <section id="loadingView" class="view loading-view">
     <div class="loading-card">
@@ -42,6 +54,10 @@
       <button id="googleLoginButton" class="google-login-button" type="button">
         <span class="google-mark" aria-hidden="true">G</span>
         <span>Đăng nhập bằng Google</span>
+      </button>
+
+      <button id="loginInstallButton" class="secondary-button full-width pwa-login-install hidden" type="button">
+        📲 Cài ứng dụng trên thiết bị
       </button>
 
       <div class="login-divider" aria-hidden="true">
@@ -99,6 +115,11 @@
         </div>
 
         <div class="top-actions">
+          <button id="installAppButton" class="top-button hidden" type="button" title="Cài ứng dụng">
+            <span aria-hidden="true">📲</span>
+            <span class="top-button-text">Cài ứng dụng</span>
+          </button>
+
           <button id="portalButton" class="top-button" type="button" title="Trở về Cổng điều hành">
             <span aria-hidden="true">🏠</span>
             <span class="top-button-text">Cổng điều hành</span>
@@ -378,6 +399,36 @@
     </section>
   </div>
 
+
+  <!-- HƯỚNG DẪN CÀI ỨNG DỤNG -->
+  <div id="installHelpModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="installHelpTitle">
+    <section class="install-help-modal">
+      <header class="modal-header">
+        <div>
+          <h2 id="installHelpTitle">Cài ứng dụng</h2>
+          <p>Mở hệ thống từ màn hình chính mà không hiển thị thanh địa chỉ.</p>
+        </div>
+        <button id="closeInstallHelpButton" class="modal-close" type="button" aria-label="Đóng">×</button>
+      </header>
+
+      <div id="installHelpContent" class="install-help-content"></div>
+    </section>
+  </div>
+
+  <!-- THÔNG BÁO CÓ PHIÊN BẢN MỚI -->
+  <div id="updateBanner" class="pwa-update-banner hidden" role="status">
+    <div>
+      <strong>Có phiên bản mới của ứng dụng</strong>
+      <span>Cập nhật để sử dụng giao diện và chức năng mới nhất.</span>
+    </div>
+
+    <div class="pwa-update-actions">
+      <button id="dismissUpdateButton" class="secondary-button" type="button">Để sau</button>
+      <button id="updateNowButton" class="primary-button" type="button">Cập nhật</button>
+    </div>
+  </div>
+
+  <script src="./pwa.js?v=20260714.83" defer></script>
   <script type="module" src="./app.js?v=20260714.82"></script>
 </body>
 </html>
