@@ -4,217 +4,371 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Quản lý nhiệm vụ</title>
-  <meta name="theme-color" content="#175a8f">
+
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <style>
-    :root {
-      --primary: #175a8f;
-      --primary-2: #2f86c4;
-      --bg: #edf4fa;
-      --card: #fff;
-      --text: #1f2937;
-      --muted: #667085;
-      --border: #d8e2eb;
-      --success: #247a55;
-      --danger: #c9413b;
-      --warning: #c96f08;
-      --shadow: 0 12px 35px rgba(25, 75, 115, .13);
-    }
-    * { box-sizing: border-box; }
-    html, body { margin: 0; min-height: 100%; font-family: "Segoe UI", Arial, sans-serif; color: var(--text); background: var(--bg); }
-    button, input, select, textarea { font: inherit; }
-    button { cursor: pointer; }
-    button:disabled { cursor: not-allowed; opacity: .65; }
-    .hidden { display: none !important; }
+  <meta name="theme-color" content="#17639a">
 
-    .screen-center { min-height: 100vh; min-height: 100dvh; display: grid; place-items: center; padding: 20px; background: linear-gradient(135deg, #174f7d, #3289c7); }
-    .login-card, .loading-card { width: min(440px, 100%); background: #fff; border-radius: 24px; padding: 28px; box-shadow: 0 22px 60px rgba(8, 39, 65, .28); }
-    .brand { display: flex; align-items: center; gap: 14px; }
-    .brand-icon { width: 62px; height: 62px; display: grid; place-items: center; border-radius: 18px; color: #fff; background: linear-gradient(135deg, var(--primary), var(--primary-2)); font-size: 30px; }
-    .brand h1 { margin: 0; color: var(--primary); font-size: 24px; }
-    .brand p { margin: 5px 0 0; color: var(--muted); font-size: 14px; }
-    .lead { color: var(--muted); line-height: 1.55; margin: 20px 0; }
-    .field { margin-top: 15px; }
-    .field label { display: block; margin-bottom: 7px; color: var(--primary); font-weight: 750; }
-    .control { width: 100%; min-height: 48px; padding: 11px 13px; border: 1px solid var(--border); border-radius: 12px; background: #fff; outline: none; }
-    textarea.control { min-height: 105px; resize: vertical; }
-    .control:focus { border-color: var(--primary-2); box-shadow: 0 0 0 3px rgba(47, 134, 196, .12); }
-    .primary-btn, .secondary-btn, .ghost-btn { min-height: 44px; border-radius: 12px; padding: 10px 15px; font-weight: 800; }
-    .primary-btn { border: none; color: #fff; background: var(--primary); }
-    .secondary-btn { border: 1px solid var(--border); color: var(--primary); background: #fff; }
-    .ghost-btn { border: 1px solid rgba(255,255,255,.35); color: #fff; background: rgba(255,255,255,.12); }
-    .full { width: 100%; margin-top: 20px; }
-    .message { display: none; margin-top: 14px; padding: 12px 13px; border-radius: 11px; font-weight: 700; line-height: 1.45; }
-    .message.show { display: block; }
-    .message.info { color: var(--primary); background: #edf6fd; border: 1px solid #cce3f5; }
-    .message.success { color: var(--success); background: #e9f7ef; border: 1px solid #bce2cb; }
-    .message.error { color: var(--danger); background: #fff0ee; border: 1px solid #f2c0bb; }
-
-    .topbar { background: linear-gradient(135deg, #174f7d, #3289c7); color: #fff; padding: 14px 18px; box-shadow: 0 5px 18px rgba(23, 75, 123, .23); }
-    .topbar-inner { width: min(1180px, 100%); margin: auto; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-    .app-title { display: flex; align-items: center; gap: 12px; }
-    .app-title .icon { width: 48px; height: 48px; display: grid; place-items: center; border-radius: 14px; background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.22); font-size: 24px; }
-    .app-title h1 { margin: 0; font-size: 21px; }
-    .app-title p { margin: 3px 0 0; opacity: .88; font-size: 13px; }
-    .top-actions { display: flex; gap: 8px; }
-    .container { width: min(1180px, 100%); margin: auto; padding: 22px 18px 42px; }
-    .welcome { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 19px; background: #fff; border-radius: 18px; box-shadow: var(--shadow); }
-    .welcome h2 { margin: 0; color: var(--primary); font-size: 20px; }
-    .welcome p { margin: 5px 0 0; color: var(--muted); }
-    .role-badge { padding: 10px 13px; border-radius: 12px; color: var(--primary); background: #eaf4fb; font-weight: 800; text-align: right; }
-    .role-badge span { display: block; margin-top: 3px; color: var(--muted); font-size: 12px; font-weight: 650; }
-    .metrics { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 14px; margin-top: 17px; }
-    .metric { padding: 18px; border-radius: 17px; background: #fff; box-shadow: var(--shadow); border-left: 5px solid var(--primary); }
-    .metric strong { display: block; margin-top: 7px; color: var(--primary); font-size: 30px; }
-    .metric span { color: var(--muted); font-weight: 750; }
-    .toolbar { margin-top: 17px; padding: 16px; border-radius: 17px; background: #fff; box-shadow: var(--shadow); }
-    .toolbar-row { display: grid; grid-template-columns: minmax(230px,1.8fr) minmax(160px,.8fr) minmax(160px,.8fr) auto auto; gap: 10px; }
-    .toolbar-note { margin-top: 9px; color: var(--muted); font-size: 12px; }
-    .section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 21px 0 11px; }
-    .section-head h2 { margin: 0; color: var(--primary); font-size: 20px; }
-    .task-list { display: grid; gap: 12px; }
-    .task-card { padding: 17px; border-radius: 16px; background: #fff; box-shadow: var(--shadow); border-left: 5px solid var(--primary); }
-    .task-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
-    .task-code { color: var(--primary); font-size: 12px; font-weight: 850; }
-    .task-title { margin: 5px 0 0; font-size: 17px; }
-    .task-desc { margin: 8px 0 0; color: var(--muted); line-height: 1.5; }
-    .badges { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
-    .badge { padding: 5px 9px; border-radius: 999px; background: #eef3f7; font-size: 12px; font-weight: 800; white-space: nowrap; }
-    .badge.red { color: var(--danger); background: #fff0ee; }
-    .badge.green { color: var(--success); background: #eaf7ef; }
-    .badge.orange { color: var(--warning); background: #fff3df; }
-    .badge.blue { color: var(--primary); background: #eaf4fb; }
-    .task-meta { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; margin-top: 13px; padding-top: 12px; border-top: 1px solid #e7edf2; }
-    .meta-label { color: var(--muted); font-size: 11px; font-weight: 750; }
-    .meta-value { margin-top: 3px; font-size: 13px; font-weight: 750; }
-    .empty { padding: 34px 20px; border-radius: 17px; background: #fff; box-shadow: var(--shadow); text-align: center; color: var(--muted); }
-
-    .modal { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px; background: rgba(8, 27, 43, .58); }
-    .modal-card { width: min(930px, 100%); max-height: calc(100vh - 32px); overflow: auto; border-radius: 20px; background: #fff; box-shadow: 0 25px 70px rgba(0,0,0,.32); }
-    .modal-head { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 17px 19px; color: #fff; background: linear-gradient(135deg, #174f7d, #3289c7); }
-    .modal-head h2 { margin: 0; font-size: 20px; }
-    .close-btn { width: 40px; height: 40px; border: 1px solid rgba(255,255,255,.35); border-radius: 10px; color: #fff; background: rgba(255,255,255,.12); font-size: 22px; }
-    .modal-body { padding: 19px; }
-    .form-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 15px; }
-    .span-2 { grid-column: span 2; }
-    .help { margin-top: 6px; color: var(--muted); font-size: 12px; line-height: 1.4; }
-    .checks { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 9px; padding: 11px; border: 1px solid var(--border); border-radius: 13px; background: #fbfdff; }
-    .check-item { display: flex; align-items: center; gap: 8px; padding: 10px; border-radius: 10px; background: #eef4f9; font-weight: 700; }
-    .modal-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 18px; }
-
-    @media (max-width: 900px) {
-      .metrics { grid-template-columns: repeat(2,minmax(0,1fr)); }
-      .toolbar-row { grid-template-columns: repeat(2,minmax(0,1fr)); }
-      .task-meta { grid-template-columns: repeat(2,minmax(0,1fr)); }
-    }
-    @media (max-width: 640px) {
-      .topbar-inner, .welcome, .task-head { align-items: flex-start; }
-      .top-actions .txt { display: none; }
-      .welcome { flex-direction: column; }
-      .role-badge { width: 100%; text-align: left; }
-      .toolbar-row, .form-grid, .checks { grid-template-columns: 1fr; }
-      .span-2 { grid-column: auto; }
-      .badges { justify-content: flex-start; }
-      .task-meta { grid-template-columns: 1fr 1fr; }
-    }
-  </style>
+  <link rel="stylesheet" href="./styles.css?v=20260713.8">
 </head>
 <body>
-  <section id="loadingView" class="screen-center">
+  <!-- MÀN HÌNH KHỞI TẠO -->
+  <section id="loadingView" class="view loading-view">
     <div class="loading-card">
-      <div class="brand">
-        <div class="brand-icon">📋</div>
-        <div><h1>Quản lý nhiệm vụ</h1><p>Đang kiểm tra tài khoản và dữ liệu...</p></div>
+      <div class="loading-logo" aria-hidden="true">📋</div>
+      <div>
+        <h1>Quản lý nhiệm vụ</h1>
+        <p>Đang kiểm tra tài khoản và tải dữ liệu...</p>
       </div>
     </div>
   </section>
 
-  <section id="loginView" class="screen-center hidden">
-    <main class="login-card">
-      <div class="brand">
-        <div class="brand-icon">📋</div>
-        <div><h1>Quản lý nhiệm vụ</h1><p>Trung tâm Bảo trợ xã hội Tân Hiệp</p></div>
+  <!-- ĐĂNG NHẬP -->
+  <section id="loginView" class="view login-view hidden">
+    <div class="login-card">
+      <div class="login-brand">
+        <div class="login-logo" aria-hidden="true">📋</div>
+        <div>
+          <h1>Quản lý nhiệm vụ</h1>
+          <p>Trung tâm Bảo trợ xã hội Tân Hiệp</p>
+        </div>
       </div>
-      <p class="lead">Đăng nhập bằng tài khoản được cấp. Hệ thống tự mở đúng chức năng theo vai trò của người dùng.</p>
-      <form id="loginForm">
-        <div class="field"><label for="loginEmail">Email</label><input id="loginEmail" class="control" type="email" autocomplete="username" required></div>
-        <div class="field"><label for="loginPassword">Mật khẩu</label><input id="loginPassword" class="control" type="password" autocomplete="current-password" required></div>
-        <button id="loginButton" class="primary-btn full" type="submit">Đăng nhập</button>
+
+      <p class="login-description">
+        Đăng nhập bằng tài khoản được cấp. Hệ thống tự mở đúng chức năng theo vai trò của người dùng.
+      </p>
+
+      <form id="loginForm" novalidate>
+        <div class="field-block">
+          <label for="loginEmail">Email</label>
+          <input
+            id="loginEmail"
+            type="email"
+            inputmode="email"
+            autocomplete="username"
+            placeholder="Nhập email đăng nhập"
+            required
+          >
+        </div>
+
+        <div class="field-block">
+          <label for="loginPassword">Mật khẩu</label>
+          <div class="password-field">
+            <input
+              id="loginPassword"
+              type="password"
+              autocomplete="current-password"
+              placeholder="Nhập mật khẩu"
+              required
+            >
+            <button id="togglePasswordButton" class="icon-button" type="button" aria-label="Hiện mật khẩu">👁</button>
+          </div>
+        </div>
+
+        <button id="loginButton" class="primary-button full-width" type="submit">Đăng nhập</button>
       </form>
-      <div id="loginMessage" class="message" role="status"></div>
-    </main>
+
+      <div id="loginMessage" class="message" role="status" aria-live="polite"></div>
+
+      <div class="security-note">
+        Tài khoản chỉ dành cho người được phân quyền. Không chia sẻ mật khẩu cho người khác.
+      </div>
+    </div>
   </section>
 
-  <div id="appView" class="hidden">
+  <!-- ỨNG DỤNG -->
+  <div id="appView" class="app-shell hidden">
     <header class="topbar">
       <div class="topbar-inner">
-        <div class="app-title"><div class="icon">📋</div><div><h1>Quản lý nhiệm vụ</h1><p>Trung tâm Bảo trợ xã hội Tân Hiệp</p></div></div>
+        <div class="brand">
+          <div class="brand-logo" aria-hidden="true">📋</div>
+          <div class="brand-copy">
+            <h1>Quản lý nhiệm vụ</h1>
+            <p>Trung tâm Bảo trợ xã hội Tân Hiệp</p>
+          </div>
+        </div>
+
         <div class="top-actions">
-          <button id="portalButton" class="ghost-btn" type="button">🏠 <span class="txt">Cổng điều hành</span></button>
-          <button id="logoutButton" class="ghost-btn" type="button">🚪 <span class="txt">Đăng xuất</span></button>
+          <button id="portalButton" class="top-button" type="button" title="Trở về Cổng điều hành">
+            <span aria-hidden="true">🏠</span>
+            <span class="top-button-text">Cổng điều hành</span>
+          </button>
+          <button id="logoutButton" class="top-button" type="button">
+            <span aria-hidden="true">🚪</span>
+            <span class="top-button-text">Đăng xuất</span>
+          </button>
         </div>
       </div>
     </header>
 
-    <main class="container">
-      <section class="welcome">
-        <div><h2 id="welcomeName">Xin chào</h2><p id="welcomeDepartment">—</p></div>
+    <main class="page-container">
+      <section class="welcome-card">
+        <div>
+          <h2 id="welcomeName">Xin chào</h2>
+          <p id="welcomeDepartment">Đang tải thông tin đơn vị...</p>
+        </div>
         <div id="roleBadge" class="role-badge">—<span>—</span></div>
       </section>
 
-      <section class="metrics">
-        <article class="metric">📌<strong id="metricTotal">0</strong><span>Tổng nhiệm vụ</span></article>
-        <article class="metric">✅<strong id="metricCompleted">0</strong><span>Đã hoàn thành</span></article>
-        <article class="metric">🔄<strong id="metricProcessing">0</strong><span>Đang thực hiện</span></article>
-        <article class="metric">⚠️<strong id="metricOverdue">0</strong><span>Quá hạn</span></article>
+      <section class="metrics-grid" aria-label="Thống kê nhiệm vụ">
+        <article class="metric-card metric-total">
+          <span class="metric-icon" aria-hidden="true">📌</span>
+          <strong id="metricTotal">0</strong>
+          <span>Tổng nhiệm vụ</span>
+        </article>
+        <article class="metric-card metric-completed">
+          <span class="metric-icon" aria-hidden="true">✅</span>
+          <strong id="metricCompleted">0</strong>
+          <span>Đã hoàn thành</span>
+        </article>
+        <article class="metric-card metric-processing">
+          <span class="metric-icon" aria-hidden="true">🔄</span>
+          <strong id="metricProcessing">0</strong>
+          <span>Đang thực hiện</span>
+        </article>
+        <article class="metric-card metric-overdue">
+          <span class="metric-icon" aria-hidden="true">⚠️</span>
+          <strong id="metricOverdue">0</strong>
+          <span>Quá hạn</span>
+        </article>
       </section>
 
-      <section class="toolbar">
-        <div class="toolbar-row">
-          <input id="searchInput" class="control" type="search" placeholder="Tìm mã, tiêu đề, nội dung, người phụ trách...">
-          <select id="statusFilter" class="control"><option value="ALL">Tất cả trạng thái</option><option value="MOI_TIEP_NHAN">Mới tiếp nhận</option><option value="DANG_THUC_HIEN">Đang thực hiện</option><option value="CHO_PHOI_HOP">Chờ phối hợp</option><option value="HOAN_THANH">Hoàn thành</option><option value="TAM_DUNG">Tạm dừng</option><option value="HUY">Hủy</option></select>
-          <select id="deadlineFilter" class="control"><option value="ALL">Tất cả thời hạn</option><option value="OVERDUE">Quá hạn</option><option value="DUE_TODAY">Đến hạn hôm nay</option><option value="UPCOMING">Sắp đến hạn ≤ 5 ngày</option><option value="COMPLETED">Đã hoàn thành</option></select>
-          <button id="refreshButton" class="secondary-btn" type="button">🔄 Làm mới</button>
-          <button id="addTaskButton" class="primary-btn hidden" type="button">➕ Thêm nhiệm vụ</button>
+      <section class="filter-card">
+        <div class="filter-card-head">
+          <div>
+            <h2>Bộ lọc nhiệm vụ</h2>
+            <p id="lastUpdated">Chưa tải dữ liệu</p>
+          </div>
+          <button id="filterToggleButton" class="secondary-button mobile-only" type="button" aria-expanded="false">
+            🔎 Bộ lọc
+          </button>
         </div>
-        <div id="lastUpdated" class="toolbar-note">Chưa tải dữ liệu</div>
+
+        <div id="filterFields" class="filter-grid">
+          <div class="filter-search">
+            <label class="sr-only" for="searchInput">Tìm kiếm</label>
+            <input
+              id="searchInput"
+              type="search"
+              autocomplete="off"
+              placeholder="Tìm mã, tiêu đề, nội dung, người phụ trách..."
+            >
+          </div>
+
+          <div>
+            <label class="sr-only" for="statusFilter">Trạng thái</label>
+            <select id="statusFilter">
+              <option value="ALL">Tất cả trạng thái</option>
+              <option value="MOI_TIEP_NHAN">Mới tiếp nhận</option>
+              <option value="DANG_THUC_HIEN">Đang thực hiện</option>
+              <option value="CHO_PHOI_HOP">Chờ phối hợp</option>
+              <option value="HOAN_THANH">Hoàn thành</option>
+              <option value="TAM_DUNG">Tạm dừng</option>
+              <option value="HUY">Hủy</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="sr-only" for="deadlineFilter">Thời hạn</label>
+            <select id="deadlineFilter">
+              <option value="ALL">Tất cả thời hạn</option>
+              <option value="OVERDUE">Quá hạn</option>
+              <option value="DUE_TODAY">Đến hạn hôm nay</option>
+              <option value="UPCOMING">Sắp đến hạn ≤ 5 ngày</option>
+              <option value="COMPLETED">Đã hoàn thành</option>
+            </select>
+          </div>
+
+          <div id="departmentFilterWrap" class="hidden">
+            <label class="sr-only" for="departmentFilter">Phòng/Khu xử lý chính</label>
+            <select id="departmentFilter">
+              <option value="ALL">Tất cả Phòng/Khu</option>
+            </select>
+          </div>
+
+          <div class="filter-actions">
+            <button id="refreshButton" class="secondary-button" type="button">🔄 Làm mới</button>
+            <button id="addTaskButton" class="primary-button hidden" type="button">➕ Thêm nhiệm vụ</button>
+          </div>
+        </div>
       </section>
 
-      <div class="section-head"><h2>Danh sách nhiệm vụ</h2><strong id="taskCount">0 nhiệm vụ</strong></div>
-      <div id="dashboardMessage" class="message"></div>
-      <section id="taskList" class="task-list"></section>
-      <section id="emptyState" class="empty">📭<h3>Chưa có nhiệm vụ</h3><p>Trưởng/Phó phòng bấm “Thêm nhiệm vụ” để nhập nhiệm vụ đầu tiên.</p></section>
+      <section class="tasks-section">
+        <div class="section-heading">
+          <div>
+            <h2>Danh sách nhiệm vụ</h2>
+            <p>Nhấn vào một nhiệm vụ để xem đầy đủ nội dung.</p>
+          </div>
+          <strong id="taskCount">0 nhiệm vụ</strong>
+        </div>
+
+        <div id="dashboardMessage" class="message" role="status" aria-live="polite"></div>
+
+        <!-- BẢNG DESKTOP -->
+        <div id="taskTableWrap" class="task-table-wrap">
+          <table class="task-table">
+            <thead>
+              <tr>
+                <th>Mã</th>
+                <th>Nội dung nhiệm vụ</th>
+                <th>Phòng/Khu chính</th>
+                <th>Người phụ trách</th>
+                <th>Hạn hoàn thành</th>
+                <th>Trạng thái</th>
+              </tr>
+            </thead>
+            <tbody id="taskTableBody"></tbody>
+          </table>
+        </div>
+
+        <!-- THẺ MOBILE -->
+        <div id="taskCardList" class="task-card-list"></div>
+
+        <div id="emptyState" class="empty-state hidden">
+          <div aria-hidden="true">📭</div>
+          <h3>Chưa có nhiệm vụ</h3>
+          <p>Trưởng/Phó phòng bấm “Thêm nhiệm vụ” để nhập nhiệm vụ đầu tiên.</p>
+        </div>
+      </section>
     </main>
   </div>
 
-  <section id="taskModal" class="modal hidden" aria-modal="true" role="dialog">
-    <div class="modal-card">
-      <header class="modal-head"><h2>➕ Thêm nhiệm vụ</h2><button id="closeModalButton" class="close-btn" type="button">×</button></header>
-      <form id="taskForm" class="modal-body">
-        <div id="taskMessage" class="message"></div>
-        <div class="form-grid">
-          <div class="field span-2"><label for="taskTitle">Tiêu đề nhiệm vụ *</label><input id="taskTitle" class="control" maxlength="250" required></div>
-          <div class="field span-2"><label for="taskDescription">Nội dung chi tiết *</label><textarea id="taskDescription" class="control" maxlength="4000" required></textarea></div>
-          <div class="field"><label for="sourceType">Nguồn nhiệm vụ *</label><select id="sourceType" class="control" required><option value="">Chọn nguồn</option><option value="VAN_BAN_CHI_DAO">Văn bản chỉ đạo</option><option value="HOP_GIAO_BAN">Họp giao ban</option><option value="CHI_DAO_TRUC_TIEP">Chỉ đạo trực tiếp</option><option value="DOT_XUAT">Nhiệm vụ đột xuất</option><option value="THUONG_XUYEN">Nhiệm vụ thường xuyên</option><option value="KE_HOACH_CONG_TAC">Kế hoạch công tác</option><option value="DINH_KY">Nhiệm vụ định kỳ</option><option value="KHAC">Khác</option></select></div>
-          <div class="field"><label for="sourceDetail">Chi tiết nguồn *</label><input id="sourceDetail" class="control" maxlength="500" required></div>
-          <div class="field"><label for="assignedByUserId">Người giao/chỉ đạo *</label><select id="assignedByUserId" class="control" required></select></div>
-          <div class="field"><label for="priority">Mức độ *</label><select id="priority" class="control" required><option value="THUONG">Thường</option><option value="QUAN_TRONG">Quan trọng</option><option value="KHAN">Khẩn</option></select></div>
-          <div class="field"><label for="primaryDepartmentId">Phòng xử lý chính *</label><select id="primaryDepartmentId" class="control" required></select><div id="primaryHelp" class="help"></div></div>
-          <div class="field"><label for="ownerUserId">Lãnh đạo chịu trách nhiệm *</label><select id="ownerUserId" class="control" required></select><div id="ownerHelp" class="help"></div></div>
-          <div class="field span-2"><label>Phòng phối hợp</label><div id="supportDepartments" class="checks"></div></div>
-          <div class="field"><label for="assignedAt">Ngày giao *</label><input id="assignedAt" class="control" type="datetime-local" required></div>
-          <div class="field"><label for="deadline">Hạn hoàn thành *</label><input id="deadline" class="control" type="date" required></div>
+  <!-- MODAL THÊM NHIỆM VỤ -->
+  <div id="taskModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="taskModalTitle">
+    <section class="task-modal">
+      <header class="modal-header">
+        <div>
+          <h2 id="taskModalTitle">➕ Thêm nhiệm vụ</h2>
+          <p>Nhập đầy đủ thông tin để theo dõi tiến độ và đánh giá trách nhiệm.</p>
         </div>
-        <div class="modal-actions"><button id="cancelTaskButton" class="secondary-btn" type="button">Hủy</button><button id="saveTaskButton" class="primary-btn" type="submit">Lưu nhiệm vụ</button></div>
-      </form>
-    </div>
-  </section>
+        <button id="closeModalButton" class="modal-close" type="button" aria-label="Đóng">×</button>
+      </header>
 
-  <script
-  type="module"
-  src="./app.js?v=20260713.7"
-></script>
+      <form id="taskForm" class="task-form" novalidate>
+        <div class="modal-body">
+          <div class="form-grid">
+            <div class="field-block form-span-2">
+              <label for="taskTitle">Tiêu đề nhiệm vụ <span>*</span></label>
+              <input id="taskTitle" type="text" maxlength="250" placeholder="Nhập tiêu đề ngắn gọn, rõ nội dung" required>
+            </div>
+
+            <div class="field-block form-span-2">
+              <label for="taskDescription">Nội dung chi tiết <span>*</span></label>
+              <textarea id="taskDescription" rows="4" maxlength="3000" placeholder="Mô tả yêu cầu, sản phẩm đầu ra và phạm vi thực hiện" required></textarea>
+            </div>
+
+            <div class="field-block">
+              <label for="sourceType">Nguồn nhiệm vụ <span>*</span></label>
+              <select id="sourceType" required>
+                <option value="">Chọn nguồn</option>
+                <option value="VAN_BAN_CHI_DAO">Văn bản chỉ đạo</option>
+                <option value="HOP_GIAO_BAN">Họp giao ban</option>
+                <option value="CHI_DAO_TRUC_TIEP">Chỉ đạo trực tiếp</option>
+                <option value="DOT_XUAT">Nhiệm vụ đột xuất</option>
+                <option value="THUONG_XUYEN">Nhiệm vụ thường xuyên</option>
+                <option value="KE_HOACH_CONG_TAC">Kế hoạch công tác</option>
+                <option value="DINH_KY">Nhiệm vụ định kỳ</option>
+                <option value="KHAC">Khác</option>
+              </select>
+            </div>
+
+            <div class="field-block">
+              <label for="sourceDetail">Chi tiết nguồn <span>*</span></label>
+              <input id="sourceDetail" type="text" maxlength="500" placeholder="Ví dụ: Họp giao ban ngày 13/7/2026" required>
+            </div>
+
+            <div class="field-block">
+              <label for="assignedByUserId">Người giao/chỉ đạo <span>*</span></label>
+              <select id="assignedByUserId" required>
+                <option value="">Chọn người giao/chỉ đạo</option>
+              </select>
+            </div>
+
+            <div class="field-block">
+              <label for="priority">Mức độ <span>*</span></label>
+              <select id="priority" required>
+                <option value="THUONG">Thường</option>
+                <option value="QUAN_TRONG">Quan trọng</option>
+                <option value="KHAN">Khẩn</option>
+              </select>
+            </div>
+
+            <div class="field-block">
+              <label for="primaryDepartmentId">Phòng xử lý chính <span>*</span></label>
+              <select id="primaryDepartmentId" required></select>
+              <small id="primaryHelp" class="field-help"></small>
+            </div>
+
+            <div class="field-block">
+              <label for="ownerUserId">Lãnh đạo chịu trách nhiệm <span>*</span></label>
+              <select id="ownerUserId" required></select>
+              <small id="ownerHelp" class="field-help"></small>
+            </div>
+
+            <div class="field-block form-span-2">
+              <label>Phòng/Khu phối hợp</label>
+
+              <div id="supportDropdown" class="multi-select">
+                <button
+                  id="supportDropdownButton"
+                  class="multi-select-button"
+                  type="button"
+                  aria-haspopup="listbox"
+                  aria-expanded="false"
+                >
+                  <span id="supportSummary">Chọn phòng, khu phối hợp</span>
+                  <span aria-hidden="true">▾</span>
+                </button>
+
+                <div id="supportDropdownPanel" class="multi-select-panel hidden">
+                  <div class="multi-select-search">
+                    <input id="supportSearchInput" type="search" placeholder="Tìm phòng, khu..." autocomplete="off">
+                  </div>
+                  <div id="supportOptions" class="multi-select-options" role="listbox" aria-multiselectable="true"></div>
+                </div>
+              </div>
+
+              <div id="supportSelectedChips" class="selected-chips"></div>
+              <small class="field-help">Có thể chọn nhiều phòng/khu; không bắt buộc.</small>
+            </div>
+
+            <div class="field-block">
+              <label for="assignedAt">Ngày giao <span>*</span></label>
+              <input id="assignedAt" type="datetime-local" required>
+            </div>
+
+            <div class="field-block">
+              <label for="deadline">Hạn hoàn thành <span>*</span></label>
+              <input id="deadline" type="date" required>
+            </div>
+          </div>
+
+          <div id="taskMessage" class="message" role="status" aria-live="polite"></div>
+        </div>
+
+        <footer class="modal-footer">
+          <button id="cancelTaskButton" class="secondary-button" type="button">Hủy</button>
+          <button id="saveTaskButton" class="primary-button" type="submit">Lưu nhiệm vụ</button>
+        </footer>
+      </form>
+    </section>
+  </div>
+
+  <!-- MODAL XEM CHI TIẾT -->
+  <div id="detailModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="detailModalTitle">
+    <section class="detail-modal">
+      <header class="modal-header">
+        <div>
+          <h2 id="detailModalTitle">Chi tiết nhiệm vụ</h2>
+          <p id="detailTaskCode">—</p>
+        </div>
+        <button id="closeDetailButton" class="modal-close" type="button" aria-label="Đóng">×</button>
+      </header>
+      <div id="detailContent" class="detail-content"></div>
+    </section>
+  </div>
+
+  <script type="module" src="./app.js?v=20260713.8"></script>
 </body>
 </html>
