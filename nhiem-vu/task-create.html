@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+  <title>Thêm nhiệm vụ</title>
+
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <meta name="theme-color" content="#1f5f99">
+
+  <style>
+    :root {
+      --primary: #1f5f99;
+      --primary-dark: #174b7b;
+      --primary-light: #2f80c0;
+      --background: #edf4fa;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #667085;
+      --border: #d7e0e9;
+      --success: #247353;
+      --success-bg: #eaf7f0;
+      --success-border: #b8e1ca;
+      --danger: #c83f3f;
+      --danger-bg: #fff1ef;
+      --danger-border: #f3c1bb;
+      --warning: #a16207;
+      --warning-bg: #fff8e6;
+      --warning-border: #f2d68a;
+      --info-bg: #eef6ff;
+      --info-border: #cfe4f8;
+      --shadow: 0 14px 40px rgba(28, 75, 115, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      min-height: 100%;
+      font-family: "Segoe UI", Roboto, Arial, sans-serif;
+      color: var(--text);
+      background: var(--background);
+    }
+
+    button,
+    input,
+    select,
+    textarea {
+      font-family: inherit;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: 0.65;
+      cursor: not-allowed;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .loading-screen {
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      background:
+        radial-gradient(circle at top right, rgba(255,255,255,0.16), transparent 32%),
+        linear-gradient(135deg, var(--primary-dark), var(--primary-light));
+    }
+
+    .loading-card,
+    .access-card {
+      width: 100%;
+      max-width: 440px;
+      padding: 28px;
+      border-radius: 24px;
+      background: #ffffff;
+      text-align: center;
+      box-shadow: 0 20px 55px rgba(14, 54, 90, 0.25);
+    }
+
+    .loading-icon,
+    .access-icon {
+      font-size: 42px;
+      margin-bottom: 12px;
+    }
+
+    .loading-title,
+    .access-title {
+      color: var(--primary);
+      font-size: 21px;
+      font-weight: 800;
+    }
+
+    .loading-text,
+    .access-text {
+      margin-top: 8px;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    .topbar {
+      padding:
+        max(16px, env(safe-area-inset-top))
+        18px
+        16px;
+      color: #ffffff;
+      background: linear-gradient(135deg, var(--primary-dark), var(--primary-light));
+      box-shadow: 0 5px 18px rgba(23, 75, 123, 0.22);
+    }
+
+    .topbar-inner {
+      width: 100%;
+      max-width: 1080px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 13px;
+      min-width: 0;
+    }
+
+    .brand-icon {
+      width: 50px;
+      height: 50px;
+      flex: 0 0 50px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 15px;
+      border: 1px solid rgba(255,255,255,0.25);
+      background: rgba(255,255,255,0.15);
+      font-size: 25px;
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: 21px;
+    }
+
+    .brand p {
+      margin: 4px 0 0;
+      opacity: 0.88;
+      font-size: 13.5px;
+    }
+
+    .top-actions {
+      display: flex;
+      gap: 9px;
+    }
+
+    .top-button {
+      min-height: 42px;
+      padding: 9px 13px;
+      border: 1px solid rgba(255,255,255,0.35);
+      border-radius: 12px;
+      background: rgba(255,255,255,0.12);
+      color: #ffffff;
+      font-size: 14px;
+      font-weight: 750;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 22px 18px 42px;
+    }
+
+    .user-strip {
+      padding: 15px 17px;
+      border-radius: 16px;
+      background: #ffffff;
+      box-shadow: var(--shadow);
+      color: var(--primary);
+      font-weight: 750;
+      line-height: 1.45;
+    }
+
+    .form-card {
+      margin-top: 16px;
+      padding: 22px;
+      border-radius: 20px;
+      background: var(--card);
+      box-shadow: var(--shadow);
+    }
+
+    .form-title {
+      margin: 0;
+      color: var(--primary);
+      font-size: 21px;
+    }
+
+    .form-description {
+      margin: 7px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 20px;
+    }
+
+    .field.full {
+      grid-column: 1 / -1;
+    }
+
+    label.field-label {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--primary);
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    .required {
+      color: var(--danger);
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 13px;
+      outline: none;
+      background: #ffffff;
+      color: var(--text);
+      font-size: 15px;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    input,
+    select {
+      min-height: 49px;
+      padding: 11px 13px;
+    }
+
+    textarea {
+      min-height: 118px;
+      padding: 12px 13px;
+      resize: vertical;
+      line-height: 1.5;
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      border-color: var(--primary-light);
+      box-shadow: 0 0 0 3px rgba(47,128,192,0.12);
+    }
+
+    select:disabled,
+    input:disabled {
+      background: #f3f6f8;
+      color: #5f6b78;
+    }
+
+    .help-text {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 12.5px;
+      line-height: 1.45;
+    }
+
+    .support-box {
+      min-height: 54px;
+      padding: 11px;
+      border: 1px solid var(--border);
+      border-radius: 13px;
+      background: #fbfdff;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 9px;
+    }
+
+    .check-option {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 38px;
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: #f1f6fa;
+      color: #334155;
+      font-size: 14px;
+      font-weight: 650;
+    }
+
+    .check-option input {
+      width: 18px;
+      min-height: 18px;
+      margin: 0;
+      padding: 0;
+      box-shadow: none;
+    }
+
+    .empty-options {
+      grid-column: 1 / -1;
+      color: var(--muted);
+      font-size: 13.5px;
+      line-height: 1.45;
+    }
+
+    .message {
+      display: none;
+      margin-top: 16px;
+      padding: 13px 14px;
+      border-radius: 13px;
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1.5;
+    }
+
+    .message.show {
+      display: block;
+    }
+
+    .message.info {
+      color: var(--primary);
+      background: var(--info-bg);
+      border: 1px solid var(--info-border);
+    }
+
+    .message.success {
+      color: var(--success);
+      background: var(--success-bg);
+      border: 1px solid var(--success-border);
+    }
+
+    .message.error {
+      color: var(--danger);
+      background: var(--danger-bg);
+      border: 1px solid var(--danger-border);
+    }
+
+    .message.warning {
+      color: var(--warning);
+      background: var(--warning-bg);
+      border: 1px solid var(--warning-border);
+    }
+
+    .form-actions {
+      margin-top: 20px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    .secondary-button,
+    .primary-button {
+      min-height: 49px;
+      padding: 11px 18px;
+      border-radius: 13px;
+      font-size: 15px;
+      font-weight: 800;
+    }
+
+    .secondary-button {
+      border: 1px solid var(--border);
+      background: #ffffff;
+      color: var(--primary);
+    }
+
+    .primary-button {
+      border: none;
+      background: var(--primary);
+      color: #ffffff;
+    }
+
+    @media (max-width: 760px) {
+      .form-grid,
+      .support-box {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 620px) {
+      .brand h1 {
+        font-size: 18px;
+      }
+
+      .brand p,
+      .top-button .button-text {
+        display: none;
+      }
+
+      .container {
+        padding-left: 13px;
+        padding-right: 13px;
+      }
+
+      .form-card {
+        padding: 18px;
+      }
+
+      .form-actions {
+        flex-direction: column-reverse;
+      }
+
+      .secondary-button,
+      .primary-button {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <section id="loadingScreen" class="loading-screen">
+    <div class="loading-card">
+      <div class="loading-icon">📋</div>
+      <div class="loading-title">Thêm nhiệm vụ</div>
+      <div class="loading-text">Đang kiểm tra tài khoản và quyền tạo nhiệm vụ...</div>
+    </div>
+  </section>
+
+  <section id="accessDenied" class="loading-screen hidden">
+    <div class="access-card">
+      <div class="access-icon">🔒</div>
+      <div class="access-title">Không có quyền tạo nhiệm vụ</div>
+      <div class="access-text">
+        Chức năng này chỉ dành cho Trưởng/Phó phòng và tài khoản quản trị hỗ trợ kỹ thuật.
+      </div>
+      <button class="primary-button" type="button" onclick="window.location.href='./dashboard.html?v=20260713.3'">
+        Trở về Dashboard
+      </button>
+    </div>
+  </section>
+
+  <div id="appShell" class="hidden">
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="brand">
+          <div class="brand-icon" aria-hidden="true">➕</div>
+          <div>
+            <h1>Thêm nhiệm vụ</h1>
+            <p>Hệ thống quản lý, theo dõi và đánh giá nhiệm vụ</p>
+          </div>
+        </div>
+
+        <div class="top-actions">
+          <button id="backButton" class="top-button" type="button">
+            ← <span class="button-text">Dashboard</span>
+          </button>
+          <button id="logoutButton" class="top-button" type="button">
+            🚪 <span class="button-text">Đăng xuất</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="container">
+      <section id="currentUserInfo" class="user-strip">Đang tải thông tin tài khoản...</section>
+
+      <section class="form-card">
+        <h2 class="form-title">Thông tin nhiệm vụ</h2>
+        <p class="form-description">
+          Mỗi nhiệm vụ phải có một phòng xử lý chính và một lãnh đạo chịu trách nhiệm chính.
+          Phòng phối hợp là không bắt buộc.
+        </p>
+
+        <form id="taskForm" novalidate>
+          <div class="form-grid">
+            <div class="field full">
+              <label class="field-label" for="title">
+                Tiêu đề nhiệm vụ <span class="required">*</span>
+              </label>
+              <input id="title" type="text" maxlength="250" placeholder="Nhập ngắn gọn nội dung cần thực hiện" required>
+            </div>
+
+            <div class="field full">
+              <label class="field-label" for="description">
+                Nội dung chi tiết <span class="required">*</span>
+              </label>
+              <textarea id="description" maxlength="4000" placeholder="Mô tả rõ yêu cầu, sản phẩm cần hoàn thành và phạm vi thực hiện" required></textarea>
+            </div>
+
+            <div class="field">
+              <label class="field-label" for="sourceType">
+                Nguồn nhiệm vụ <span class="required">*</span>
+              </label>
+              <select id="sourceType" required>
+                <option value="">Chọn nguồn nhiệm vụ</option>
+                <option value="VAN_BAN_CHI_DAO">Văn bản chỉ đạo</option>
+                <option value="HOP_GIAO_BAN">Họp giao ban</option>
+                <option value="CHI_DAO_TRUC_TIEP">Chỉ đạo trực tiếp</option>
+                <option value="NHIEM_VU_DOT_XUAT">Nhiệm vụ đột xuất</option>
+                <option value="NHIEM_VU_THUONG_XUYEN">Nhiệm vụ thường xuyên</option>
+                <option value="KE_HOACH_CONG_TAC">Kế hoạch công tác</option>
+                <option value="NHIEM_VU_DINH_KY">Nhiệm vụ định kỳ</option>
+                <option value="KHAC">Khác</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label class="field-label" for="sourceDetail">
+                Chi tiết nguồn <span class="required">*</span>
+              </label>
+              <input id="sourceDetail" type="text" maxlength="500" placeholder="Ví dụ: Giao ban ngày 13/7/2026">
+            </div>
+
+            <div class="field">
+              <label class="field-label" for="assignedByUserId">
+                Người giao/chỉ đạo <span class="required">*</span>
+              </label>
+              <select id="assignedByUserId" required></select>
+            </div>
+
+            <div class="field">
+              <label class="field-label" for="priority">
+                Mức độ <span class="required">*</span>
+              </label>
+              <select id="priority" required>
+                <option value="THUONG">Thường</option>
+                <option value="QUAN_TRONG">Quan trọng</option>
+                <option value="KHAN">Khẩn</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label class="field-label" for="primaryDepartmentId">
+                Phòng xử lý chính <span class="required">*</span>
+              </label>
+              <select id="primaryDepartmentId" required></select>
+              <div id="primaryDepartmentHelp" class="help-text"></div>
+            </div>
+
+            <div class="field">
+              <label class="field-label" for="ownerUserId">
+                Lãnh đạo chịu trách nhiệm <span class="required">*</span>
+              </label>
+              <select id="ownerUserId" required></select>
+              <div id="ownerHelp" class="help-text"></div>
+            </div>
+
+            <div class="field full">
+              <label class="field-label">Phòng phối hợp</label>
+              <div id="supportDepartments" class="support-box"></div>
+            </div>
+
+            <div class="field">
+              <label class="field-label" for="assignedAt">
+                Ngày giao <span class="required">*</span>
+              </label>
+              <input id="assignedAt" type="datetime-local" required>
+            </div>
+
+            <div class="field">
+              <label class="field-label" for="deadline">
+                Hạn hoàn thành <span class="required">*</span>
+              </label>
+              <input id="deadline" type="date" required>
+            </div>
+          </div>
+
+          <div id="messageBox" class="message" role="status" aria-live="polite"></div>
+
+          <div class="form-actions">
+            <button id="cancelButton" class="secondary-button" type="button" onclick="window.location.href='./dashboard.html?v=20260713.3'">
+              Hủy và quay lại
+            </button>
+            <button id="saveButton" class="primary-button" type="submit">
+              Lưu nhiệm vụ
+            </button>
+          </div>
+        </form>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="./task-create.js?v=20260713.3"></script>
+</body>
+</html>
