@@ -1364,3 +1364,149 @@ textarea:focus {
     grid-template-columns: 1fr;
   }
 }
+
+
+/* =========================================================
+   PWA — CÀI ĐẶT, NGOẠI TUYẾN VÀ CẬP NHẬT
+   ========================================================= */
+
+.pwa-login-install {
+  margin-top: 12px;
+}
+
+.pwa-system-banner {
+  position: sticky;
+  z-index: 220;
+  top: 0;
+  width: 100%;
+  padding: 10px 16px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.45;
+}
+
+.offline-banner {
+  color: #7a4300;
+  background: #fff1ce;
+  border-bottom: 1px solid #f2cc75;
+}
+
+.install-help-modal {
+  width: min(100%, 520px);
+  max-height: min(88vh, 650px);
+  overflow: auto;
+  border-radius: 20px;
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+}
+
+.install-help-content {
+  padding: 20px 24px 26px;
+}
+
+.install-steps {
+  margin: 0;
+  padding-left: 23px;
+  color: var(--text);
+  line-height: 1.65;
+}
+
+.install-steps li + li {
+  margin-top: 8px;
+}
+
+.install-note {
+  margin: 18px 0 0;
+  padding: 13px 14px;
+  border-left: 4px solid var(--primary);
+  border-radius: 10px;
+  color: var(--muted);
+  background: var(--primary-soft);
+  line-height: 1.55;
+}
+
+.pwa-update-banner {
+  position: fixed;
+  z-index: 260;
+  right: 18px;
+  bottom: max(18px, env(safe-area-inset-bottom));
+  width: min(calc(100% - 36px), 470px);
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid #c9deec;
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: 0 18px 55px rgba(12, 48, 74, .22);
+}
+
+.pwa-update-banner strong,
+.pwa-update-banner span {
+  display: block;
+}
+
+.pwa-update-banner strong {
+  color: var(--primary);
+}
+
+.pwa-update-banner span {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.pwa-update-actions {
+  display: flex;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.pwa-update-actions button {
+  min-height: 40px;
+  padding: 8px 12px;
+}
+
+@media (display-mode: standalone) {
+  #installAppButton,
+  #loginInstallButton {
+    display: none !important;
+  }
+
+  .topbar {
+    padding-top: env(safe-area-inset-top);
+  }
+}
+
+@media (max-width: 760px) {
+  .install-help-modal {
+    width: 100%;
+    height: auto;
+    max-height: 86vh;
+    margin-top: auto;
+    border-radius: 22px 22px 0 0;
+  }
+
+  .install-help-content {
+    padding: 18px 18px max(22px, env(safe-area-inset-bottom));
+  }
+
+  .pwa-update-banner {
+    right: 10px;
+    bottom: max(10px, env(safe-area-inset-bottom));
+    width: calc(100% - 20px);
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .pwa-update-actions {
+    width: 100%;
+  }
+
+  .pwa-update-actions button {
+    flex: 1;
+  }
+}
