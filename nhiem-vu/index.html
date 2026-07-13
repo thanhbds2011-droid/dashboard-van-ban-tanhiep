@@ -10,7 +10,7 @@
   <meta http-equiv="Expires" content="0">
   <meta name="theme-color" content="#17639a">
 
-  <link rel="stylesheet" href="./styles.css?v=20260713.8">
+  <link rel="stylesheet" href="./styles.css?v=20260714.82">
 </head>
 <body>
   <!-- MÀN HÌNH KHỞI TẠO -->
@@ -36,8 +36,17 @@
       </div>
 
       <p class="login-description">
-        Đăng nhập bằng tài khoản được cấp. Hệ thống tự mở đúng chức năng theo vai trò của người dùng.
+        Đăng nhập bằng tài khoản Google đã được quản trị cấp quyền. Email và mật khẩu được giữ lại làm phương án dự phòng.
       </p>
+
+      <button id="googleLoginButton" class="google-login-button" type="button">
+        <span class="google-mark" aria-hidden="true">G</span>
+        <span>Đăng nhập bằng Google</span>
+      </button>
+
+      <div class="login-divider" aria-hidden="true">
+        <span>hoặc đăng nhập dự phòng</span>
+      </div>
 
       <form id="loginForm" novalidate>
         <div class="field-block">
@@ -72,7 +81,7 @@
       <div id="loginMessage" class="message" role="status" aria-live="polite"></div>
 
       <div class="security-note">
-        Tài khoản chỉ dành cho người được phân quyền. Không chia sẻ mật khẩu cho người khác.
+        Chỉ tài khoản có trong danh sách được cấp quyền mới sử dụng được hệ thống. Không dùng chung một tài khoản cho nhiều người.
       </div>
     </div>
   </section>
@@ -369,6 +378,6 @@
     </section>
   </div>
 
-  <script type="module" src="./app.js?v=20260713.8"></script>
+  <script type="module" src="./app.js?v=20260714.82"></script>
 </body>
 </html>
