@@ -265,6 +265,64 @@ textarea:focus {
   line-height: 1.6;
 }
 
+.google-login-button {
+  width: 100%;
+  min-height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 11px;
+  padding: 11px 16px;
+  color: #253041;
+  background: #fff;
+  border: 1px solid #cbd7e1;
+  border-radius: 13px;
+  font-size: 15px;
+  font-weight: 800;
+  box-shadow: 0 7px 18px rgba(31, 55, 78, 0.08);
+}
+
+.google-login-button:hover:not(:disabled) {
+  background: #f7fafc;
+  border-color: #aebfcd;
+}
+
+.google-mark {
+  width: 27px;
+  height: 27px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  background: #4285f4;
+  font-family: Arial, sans-serif;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.login-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0;
+  color: #788594;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.login-divider::before,
+.login-divider::after {
+  content: "";
+  height: 1px;
+  flex: 1;
+  background: #dce4eb;
+}
+
+.login-divider span {
+  flex: 0 0 auto;
+}
+
 .password-field {
   position: relative;
 }
