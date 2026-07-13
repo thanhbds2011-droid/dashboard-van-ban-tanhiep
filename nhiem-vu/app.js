@@ -619,7 +619,8 @@ async function loadProfile(user) {
 async function loadReferenceData() {
   const [
     departmentSnapshot,
-    userSnapshot
+    userSnapshot,
+    khtcSnapshot
   ] = await Promise.all([
     getDocsFromServer(
       collection(
@@ -633,26 +634,79 @@ async function loadReferenceData() {
         db,
         "users"
       )
+    ),
+
+    /*
+     * Đọc trực tiếp KHTC để bảo đảm
+     * Phòng Kế hoạch - Tài chính luôn
+     * được kiểm tra từ Firestore.
+     */
+    getDoc(
+      doc(
+        db,
+        "departments",
+        "KHTC"
+      )
     )
   ]);
 
-  state.departments = [];
+
+  /*
+   * Dùng Map để không bị trùng document.
+   */
+  const departmentMap =
+    new Map();
+
 
   departmentSnapshot.forEach(
     (item) => {
       const data =
         item.data();
 
-      if (
-        data.active === true
-      ) {
-        state.departments.push({
-          id: item.id,
-          ...data
-        });
+      /*
+       * Chỉ loại phòng có active = false.
+       *
+       * Cách này vẫn nhận document nếu:
+       * - active = true;
+       * - hoặc chưa có trường active.
+       */
+      if (data.active !== false) {
+        departmentMap.set(
+          item.id,
+          {
+            id: item.id,
+            ...data
+          }
+        );
       }
     }
   );
+
+
+  /*
+   * Chủ động bổ sung KHTC nếu document tồn tại.
+   */
+  if (khtcSnapshot.exists()) {
+    const khtcData =
+      khtcSnapshot.data();
+
+    if (khtcData.active !== false) {
+      departmentMap.set(
+        "KHTC",
+        {
+          id: "KHTC",
+          ...khtcData
+        }
+      );
+    }
+  }
+
+
+  state.departments =
+    Array.from(
+      departmentMap.values()
+    );
+
 
   state.departments.sort(
     (a, b) =>
@@ -660,7 +714,9 @@ async function loadReferenceData() {
       Number(b.order || 0)
   );
 
+
   state.users = [];
+
 
   userSnapshot.forEach(
     (item) => {
@@ -669,6 +725,25 @@ async function loadReferenceData() {
         ...item.data()
       });
     }
+  );
+
+
+  /*
+   * Ghi ra Console để kiểm tra chính xác
+   * Firestore đã trả về phòng nào.
+   */
+  console.log(
+    "Danh mục phòng ban đã tải:",
+    state.departments.map(
+      (item) => ({
+        id: item.id,
+        name:
+          item.name ||
+          item.code ||
+          item.id,
+        active: item.active
+      })
+    )
   );
 }
 
@@ -721,7 +796,6 @@ function renderAccount() {
  * ĐỌC DANH SÁCH NHIỆM VỤ
  * =========================================================
  */
-
 async function loadTasks() {
   if (
     state.loading ||
@@ -730,58 +804,35 @@ async function loadTasks() {
     return;
   }
 
+
   state.loading = true;
+
   refreshButton.disabled = true;
 
   hideMessage(
     dashboardMessage
   );
 
+
   try {
-    let snapshot;
-
-    if (
-      [
-        "ADMIN",
-        "DIRECTOR"
-      ].includes(
-        state.profile.role
-      )
-    ) {
-      snapshot =
-        await getDocsFromServer(
-          collection(
-            db,
-            "tasks"
-          )
-        );
-
-    } else if (
-      state.profile.role ===
-      "DEPARTMENT_LEADER"
-    ) {
-      snapshot =
-        await getDocsFromServer(
-          query(
-            collection(
-              db,
-              "tasks"
-            ),
-            where(
-              "visibleDepartmentIds",
-              "array-contains",
-              state.profile.departmentId
-            )
-          )
-        );
-
-    } else {
-      throw new Error(
-        "Vai trò tài khoản chưa được cấp quyền xem nhiệm vụ."
+    /*
+     * Tải collection nhiệm vụ một lần.
+     *
+     * Giai đoạn thử nghiệm có ít dữ liệu,
+     * cách này ổn định hơn và không còn
+     * xung đột giữa truy vấn với Rules.
+     */
+    const snapshot =
+      await getDocsFromServer(
+        collection(
+          db,
+          "tasks"
+        )
       );
-    }
 
-    state.tasks = [];
+
+    const allTasks = [];
+
 
     snapshot.forEach(
       (item) => {
@@ -790,55 +841,154 @@ async function loadTasks() {
           ...item.data()
         };
 
-        if (
-          task.active !== false
-        ) {
-          state.tasks.push(task);
+        if (task.active !== false) {
+          allTasks.push(task);
         }
       }
     );
 
+
+    /*
+     * ADMIN và Ban Giám đốc xem toàn bộ.
+     */
+    if (
+      [
+        "ADMIN",
+        "DIRECTOR"
+      ].includes(
+        state.profile.role
+      )
+    ) {
+      state.tasks =
+        allTasks;
+
+    /*
+     * Trưởng/Phó phòng chỉ hiển thị:
+     * - nhiệm vụ phòng mình xử lý chính;
+     * - hoặc phòng mình được phối hợp;
+     * - hoặc có phòng mình trong visibleDepartmentIds.
+     */
+    } else if (
+      state.profile.role ===
+      "DEPARTMENT_LEADER"
+    ) {
+      const departmentId =
+        state.profile.departmentId;
+
+
+      state.tasks =
+        allTasks.filter(
+          (task) => {
+            const isPrimary =
+              task.primaryDepartmentId
+                === departmentId;
+
+
+            const isSupport =
+              Array.isArray(
+                task.supportDepartmentIds
+              )
+              && task.supportDepartmentIds
+                .includes(
+                  departmentId
+                );
+
+
+            const isVisible =
+              Array.isArray(
+                task.visibleDepartmentIds
+              )
+              && task.visibleDepartmentIds
+                .includes(
+                  departmentId
+                );
+
+
+            return (
+              isPrimary ||
+              isSupport ||
+              isVisible
+            );
+          }
+        );
+
+    } else {
+      throw new Error(
+        "Vai trò tài khoản chưa được cấp quyền xem nhiệm vụ."
+      );
+    }
+
+
     state.tasks.sort(
       (a, b) => {
         const aDate =
-          toDate(a.updatedAt) ||
-          toDate(a.createdAt) ||
-          new Date(0);
+          toDate(a.updatedAt)
+          || toDate(a.createdAt)
+          || new Date(0);
+
 
         const bDate =
-          toDate(b.updatedAt) ||
-          toDate(b.createdAt) ||
-          new Date(0);
+          toDate(b.updatedAt)
+          || toDate(b.createdAt)
+          || new Date(0);
 
-        return bDate - aDate;
+
+        return (
+          bDate.getTime()
+          - aDate.getTime()
+        );
       }
     );
+
 
     lastUpdated.textContent =
       `Cập nhật lúc ${formatDateTime()}`;
 
+
     renderMetrics();
+
     applyFilters();
 
+
+    console.log(
+      "Tổng nhiệm vụ tải từ Firestore:",
+      allTasks.length
+    );
+
+
+    console.log(
+      "Nhiệm vụ hiển thị cho tài khoản:",
+      state.tasks.length
+    );
+
+
   } catch (error) {
-    console.error(error);
+    console.error(
+      "Lỗi tải nhiệm vụ:",
+      error
+    );
+
 
     state.tasks = [];
 
+
     renderMetrics();
+
     applyFilters();
+
 
     const text =
       error?.code ===
       "permission-denied"
         ? (
-          "Tài khoản chưa được cấp quyền đọc dữ liệu nhiệm vụ. " +
-          "Hãy kiểm tra lại Firestore Rules mới."
+          "Firestore vẫn từ chối quyền đọc. " +
+          "Hãy kiểm tra Rules đã bấm Publish thành công."
         )
         : (
           error?.message ||
           "Không tải được dữ liệu nhiệm vụ."
         );
+
 
     showMessage(
       dashboardMessage,
@@ -846,13 +996,13 @@ async function loadTasks() {
       "error"
     );
 
+
   } finally {
     state.loading = false;
+
     refreshButton.disabled = false;
   }
 }
-
-
 /*
  * =========================================================
  * THỐNG KÊ
