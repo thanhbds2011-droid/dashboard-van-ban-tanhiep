@@ -25,7 +25,7 @@ import {
 
 
 const DASHBOARD_URL =
-  "./dashboard.html?v=20260713.1";
+  "./dashboard.html?v=20260713.2";
 
 
 const loginForm =
