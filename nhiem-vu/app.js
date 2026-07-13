@@ -1,11 +1,13 @@
 import {
   auth,
   db
-} from "./firebase-config.js?v=20260713.8";
+} from "./firebase-config.js?v=20260714.82";
 
 import {
+  GoogleAuthProvider,
   onAuthStateChanged,
   signInWithEmailAndPassword,
+  signInWithPopup,
   signOut
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
 
@@ -16,6 +18,7 @@ import {
   getDoc,
   getDocsFromServer,
   serverTimestamp,
+  setDoc,
   Timestamp
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 
@@ -33,6 +36,11 @@ const state = {
   selectedSupportIds: new Set()
 };
 
+const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({
+  prompt: "select_account"
+});
+
 const $ = (id) => document.getElementById(id);
 
 const loadingView = $("loadingView");
@@ -43,6 +51,7 @@ const loginForm = $("loginForm");
 const loginEmail = $("loginEmail");
 const loginPassword = $("loginPassword");
 const loginButton = $("loginButton");
+const googleLoginButton = $("googleLoginButton");
 const loginMessage = $("loginMessage");
 const togglePasswordButton = $("togglePasswordButton");
 
@@ -471,24 +480,90 @@ function deadlineState(task) {
  * ========================================================= */
 
 async function loadProfile(user) {
-  const snapshot = await getDoc(doc(db, "users", user.uid));
+  const userReference = doc(db, "users", user.uid);
+  const userSnapshot = await getDoc(userReference);
 
-  if (!snapshot.exists()) {
-    throw new Error("Tài khoản chưa có hồ sơ phân quyền trong hệ thống.");
+  if (userSnapshot.exists()) {
+    const profile = userSnapshot.data();
+
+    if (profile.active !== true) {
+      throw new Error("Tài khoản đã bị khóa hoặc ngừng hoạt động.");
+    }
+
+    if (!profile.fullName || !profile.departmentId || !profile.role) {
+      throw new Error("Hồ sơ người dùng chưa đầy đủ thông tin phân quyền.");
+    }
+
+    return {
+      id: userSnapshot.id,
+      ...profile
+    };
   }
 
-  const profile = snapshot.data();
+  const normalizedEmail = cleanText(user.email).toLowerCase();
 
-  if (profile.active !== true) {
-    throw new Error("Tài khoản đã bị khóa hoặc ngừng hoạt động.");
+  if (!normalizedEmail) {
+    throw new Error("Tài khoản đăng nhập không cung cấp địa chỉ email.");
   }
 
-  if (!profile.fullName || !profile.departmentId || !profile.role) {
-    throw new Error("Hồ sơ người dùng chưa đầy đủ thông tin phân quyền.");
+  const accessReference = doc(
+    db,
+    "accessAccounts",
+    normalizedEmail
+  );
+
+  const accessSnapshot = await getDoc(accessReference);
+
+  if (!accessSnapshot.exists()) {
+    const error = new Error(
+      "Email này chưa được quản trị cấp quyền sử dụng hệ thống."
+    );
+    error.code = "app/not-authorized";
+    throw error;
   }
+
+  const accessData = accessSnapshot.data();
+
+  if (accessData.active !== true) {
+    const error = new Error(
+      "Tài khoản đã bị khóa hoặc ngừng hoạt động."
+    );
+    error.code = "app/account-inactive";
+    throw error;
+  }
+
+  if (
+    !accessData.fullName ||
+    !accessData.departmentId ||
+    !accessData.role
+  ) {
+    throw new Error(
+      "Thông tin cấp quyền của tài khoản chưa đầy đủ."
+    );
+  }
+
+  const providerIds = user.providerData
+    .map((provider) => provider.providerId)
+    .filter(Boolean)
+    .join(",");
+
+  const profile = {
+    employeeCode: accessData.employeeCode || "",
+    fullName: accessData.fullName,
+    email: normalizedEmail,
+    departmentId: accessData.departmentId,
+    position: accessData.position || "",
+    role: accessData.role,
+    active: true,
+    authProvider: providerIds || "unknown",
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  };
+
+  await setDoc(userReference, profile);
 
   return {
-    id: snapshot.id,
+    id: user.uid,
     ...profile
   };
 }
@@ -1290,6 +1365,36 @@ async function initializeUser(user) {
 /* =========================================================
  * SỰ KIỆN
  * ========================================================= */
+
+googleLoginButton.addEventListener("click", async () => {
+  hideMessage(loginMessage);
+
+  googleLoginButton.disabled = true;
+  googleLoginButton.innerHTML = "<span class=\"google-mark\">G</span><span>Đang mở Google...</span>";
+
+  try {
+    await signInWithPopup(auth, googleProvider);
+  } catch (error) {
+    console.error("Không đăng nhập được bằng Google:", error);
+
+    let message = "Không đăng nhập được bằng Google. Vui lòng thử lại.";
+
+    if (error?.code === "auth/popup-closed-by-user") {
+      message = "Bạn đã đóng cửa sổ đăng nhập Google trước khi hoàn tất.";
+    } else if (error?.code === "auth/popup-blocked") {
+      message = "Trình duyệt đang chặn cửa sổ đăng nhập Google. Hãy cho phép cửa sổ bật lên rồi thử lại.";
+    } else if (error?.code === "auth/account-exists-with-different-credential") {
+      message = "Email này đang dùng phương thức Email/Mật khẩu. Hãy đăng nhập bằng mật khẩu hiện tại; không tạo thêm tài khoản trùng email.";
+    } else if (error?.code === "auth/unauthorized-domain") {
+      message = "Tên miền GitHub Pages chưa được thêm vào Authorized domains của Firebase Authentication.";
+    }
+
+    showMessage(loginMessage, message, "error");
+  } finally {
+    googleLoginButton.disabled = false;
+    googleLoginButton.innerHTML = "<span class=\"google-mark\">G</span><span>Đăng nhập bằng Google</span>";
+  }
+});
 
 loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
