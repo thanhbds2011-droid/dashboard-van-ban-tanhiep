@@ -5,7 +5,7 @@ import {
 
 import {
   NOTIFICATION_WEB_APP_URL
-} from "./notification-config.js?v=20260714.847";
+} from "./notification-config.js?v=20260714.850";
 
 import {
   GoogleAuthProvider,
