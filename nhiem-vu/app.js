@@ -1,7 +1,7 @@
 import {
   auth,
   db
-} from "./firebase-config.js?v=20260714.842";
+} from "./firebase-config.js?v=20260714.844";
 
 import {
   GoogleAuthProvider,
