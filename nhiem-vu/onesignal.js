@@ -390,27 +390,114 @@
       const OneSignal =
         await initOneSignal();
 
-      await OneSignal.login(uid);
+      /*
+ * Nhận diện người dùng bằng Firebase UID.
+ */
+await OneSignal.login(uid);
 
-      OneSignal.User.addTags({
-        module:
-          "TASKS",
 
-        departmentId:
-          String(
-            profile.departmentId || ""
-          ),
+/*
+ * Chờ OneSignal hoàn tất chuyển sang
+ * đúng hồ sơ người dùng đã đăng nhập.
+ */
+for (
+  let attempt = 1;
+  attempt <= 20;
+  attempt += 1
+) {
+  if (
+    OneSignal.User.externalId === uid
+  ) {
+    break;
+  }
 
-        role:
-          String(
-            profile.role || ""
-          ),
+  await new Promise(
+    (resolve) =>
+      window.setTimeout(
+        resolve,
+        250
+      )
+  );
+}
 
-        active:
-          profile.active === true
-            ? "true"
-            : "false"
-      });
+
+/*
+ * Các nhãn phục vụ phân nhóm và gửi thông báo.
+ */
+const userTags = {
+  module:
+    "TASKS",
+
+  departmentId:
+    String(
+      profile.departmentId || ""
+    ),
+
+  role:
+    String(
+      profile.role || ""
+    ),
+
+  active:
+    profile.active === true
+      ? "true"
+      : "false"
+};
+
+
+/*
+ * Web SDK có thể chưa gửi Tags ngay nếu
+ * hồ sơ OneSignal vừa được tạo.
+ *
+ * Thực hiện tối đa ba lần và kiểm tra lại
+ * bản Tags hiện có trên trình duyệt.
+ */
+for (
+  let attempt = 1;
+  attempt <= 3;
+  attempt += 1
+) {
+  OneSignal.User.addTags(
+    userTags
+  );
+
+  await new Promise(
+    (resolve) =>
+      window.setTimeout(
+        resolve,
+        1200
+      )
+  );
+
+  const currentTags =
+    OneSignal.User.getTags() || {};
+
+  const tagsComplete =
+    Object.entries(
+      userTags
+    ).every(
+      ([key, value]) =>
+        String(
+          currentTags[key] ?? ""
+        ) === String(value)
+    );
+
+  if (tagsComplete) {
+    console.log(
+      "Đã lưu OneSignal Data Tags:",
+      currentTags
+    );
+
+    break;
+  }
+
+  if (attempt === 3) {
+    console.warn(
+      "OneSignal chưa xác nhận đủ Data Tags:",
+      currentTags
+    );
+  }
+}
 
       state.currentUid = uid;
 
