@@ -1,9 +1,7 @@
 /*
- * Bước hiện tại chưa triển khai Web App gửi tự động.
- * Giữ giá trị này để app.js nạp bình thường.
- * Sau khi triển khai Apps Script Web App,
- * thay bằng URL kết thúc /exec.
+ * Google Apps Script Web App
+ * gửi thông báo tự động khi tạo nhiệm vụ.
  */
 
 export const NOTIFICATION_WEB_APP_URL =
-  "DAN_LINK_WEB_APP_APPS_SCRIPT_VAO_DAY";
+  "https://script.google.com/macros/s/AKfycbyWbpcGjy7S4MGIKmOt3-79mjw5efBo6XQP78AZZhXqyMGvFK6Rm-cC--WrtCN30pKO/exec";
