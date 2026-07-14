@@ -1,7 +1,11 @@
 import {
   auth,
   db
-} from "./firebase-config.js?v=20260714.844";
+} from "./firebase-config.js?v=20260714.846";
+
+import {
+  NOTIFICATION_WEB_APP_URL
+} from "./notification-config.js?v=20260714.846";
 
 import {
   GoogleAuthProvider,
@@ -1165,6 +1169,268 @@ function closeTaskModal() {
   setBodyModalState();
 }
 
+
+
+/* =========================================================
+ * LƯU THIẾT BỊ NHẬN THÔNG BÁO VÀO FIRESTORE
+ * =========================================================
+ */
+
+function detectDeviceName() {
+  const userAgent =
+    navigator.userAgent || "";
+
+  if (/iPhone/i.test(userAgent)) {
+    return "iPhone";
+  }
+
+  if (/iPad/i.test(userAgent)) {
+    return "iPad";
+  }
+
+  if (/Android/i.test(userAgent)) {
+    return "Điện thoại Android";
+  }
+
+  if (/Windows/i.test(userAgent)) {
+    return "Máy tính Windows";
+  }
+
+  if (/Macintosh|Mac OS X/i.test(userAgent)) {
+    return "Máy tính Mac";
+  }
+
+  return "Trình duyệt Web";
+}
+
+
+async function saveTaskPushSubscription(
+  snapshot,
+  activeOverride = null
+) {
+  if (
+    !state.user
+    || !state.profile
+    || !snapshot?.subscriptionId
+  ) {
+    return false;
+  }
+
+  const subscriptionId =
+    cleanText(
+      snapshot.subscriptionId
+    );
+
+  if (!subscriptionId) {
+    return false;
+  }
+
+  const subscriptionReference =
+    doc(
+      db,
+      "taskPushSubscriptions",
+      subscriptionId
+    );
+
+  const existingSnapshot =
+    await getDoc(
+      subscriptionReference
+    );
+
+  const active =
+    typeof activeOverride === "boolean"
+      ? activeOverride
+      : (
+        snapshot.optedIn === true
+        && snapshot.permission === "granted"
+      );
+
+  const payload = {
+    subscriptionId,
+    uid:
+      state.user.uid,
+    module:
+      "TASKS",
+    departmentId:
+      state.profile.departmentId,
+    role:
+      state.profile.role,
+    active,
+    platform:
+      "WEB_PUSH",
+    deviceName:
+      detectDeviceName(),
+    notificationPermission:
+      snapshot.permission || "default",
+    externalId:
+      snapshot.externalId
+      || state.user.uid,
+    oneSignalId:
+      snapshot.oneSignalId || "",
+    userAgent:
+      String(
+        navigator.userAgent || ""
+      ).slice(0, 500),
+    updatedAt:
+      serverTimestamp()
+  };
+
+  if (!existingSnapshot.exists()) {
+    payload.createdAt =
+      serverTimestamp();
+  }
+
+  await setDoc(
+    subscriptionReference,
+    payload,
+    {
+      merge: true
+    }
+  );
+
+  console.info(
+    "Đã đồng bộ taskPushSubscriptions:",
+    {
+      subscriptionId,
+      uid:
+        state.user.uid,
+      active
+    }
+  );
+
+  return true;
+}
+
+
+async function syncCurrentPushSubscription(
+  activeOverride = null
+) {
+  try {
+    const snapshot =
+      await window.TaskPush
+        ?.getSubscriptionSnapshot?.();
+
+    if (!snapshot?.subscriptionId) {
+      console.info(
+        "OneSignal chưa có Subscription ID để đồng bộ."
+      );
+
+      return false;
+    }
+
+    return await saveTaskPushSubscription(
+      snapshot,
+      activeOverride
+    );
+
+  } catch (error) {
+    console.warn(
+      "Chưa đồng bộ được thiết bị thông báo:",
+      error
+    );
+
+    return false;
+  }
+}
+
+
+window.addEventListener(
+  "taskpush:subscription-change",
+  (event) => {
+    if (
+      !state.user
+      || !state.profile
+    ) {
+      return;
+    }
+
+    saveTaskPushSubscription(
+      event.detail
+    ).catch(
+      (error) => {
+        console.warn(
+          "Không lưu được thay đổi Subscription:",
+          error
+        );
+      }
+    );
+  }
+);
+
+
+/* =========================================================
+ * GỌI GOOGLE APPS SCRIPT GỬI THÔNG BÁO
+ * =========================================================
+ */
+
+async function sendNotificationEvent(
+  action,
+  taskId
+) {
+  if (
+    !NOTIFICATION_WEB_APP_URL
+    || NOTIFICATION_WEB_APP_URL.includes(
+      "DAN_LINK_WEB_APP"
+    )
+  ) {
+    console.warn(
+      "Chưa cấu hình URL Google Apps Script gửi thông báo."
+    );
+
+    return false;
+  }
+
+  if (
+    !state.user
+    || !taskId
+  ) {
+    return false;
+  }
+
+  try {
+    const idToken =
+      await state.user.getIdToken();
+
+    /*
+     * Dùng text/plain và no-cors để gửi từ GitHub Pages
+     * tới Google Apps Script mà không phát sinh lỗi CORS.
+     *
+     * Phía Apps Script vẫn xác minh Firebase ID Token
+     * trước khi gửi thông báo OneSignal.
+     */
+    await fetch(
+      NOTIFICATION_WEB_APP_URL,
+      {
+        method: "POST",
+        mode: "no-cors",
+        cache: "no-store",
+        keepalive: true,
+        headers: {
+          "Content-Type":
+            "text/plain;charset=UTF-8"
+        },
+        body: JSON.stringify({
+          action,
+          taskId,
+          idToken,
+          sentAt:
+            new Date().toISOString()
+        })
+      }
+    );
+
+    return true;
+
+  } catch (error) {
+    console.warn(
+      "Chưa gửi được yêu cầu thông báo:",
+      error
+    );
+
+    return false;
+  }
+}
+
 async function createTaskLog(taskReference, taskCode, title) {
   try {
     await addDoc(collection(db, "taskLogs"), {
@@ -1295,6 +1561,17 @@ async function saveTask(event) {
     const taskReference = await addDoc(collection(db, "tasks"), taskPayload);
     const logCreated = await createTaskLog(taskReference, taskCode, title);
 
+    /*
+     * Gửi sự kiện sang Apps Script.
+     * Việc gửi thông báo không làm hỏng thao tác lưu nhiệm vụ
+     * nếu OneSignal hoặc Apps Script tạm thời chưa phản hồi.
+     */
+    const notificationRequested =
+      await sendNotificationEvent(
+        "TASK_CREATED",
+        taskReference.id
+      );
+
     showMessage(
       taskMessage,
       logCreated
@@ -1347,6 +1624,8 @@ async function initializeUser(user) {
         user.uid,
         state.profile
       );
+
+      await syncCurrentPushSubscription();
     } catch (pushError) {
       console.warn(
         "OneSignal chưa sẵn sàng:",
@@ -1469,6 +1748,10 @@ logoutButton.addEventListener("click", async () => {
 
   try {
     try {
+      await syncCurrentPushSubscription(
+        false
+      );
+
       await window.TaskPush?.logout();
     } catch (pushError) {
       console.warn(
