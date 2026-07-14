@@ -1,6 +1,7 @@
 /*
  * =========================================================
- * ONESIGNAL WEB PUSH — BẢN SỬA 8.4.2A
+ * ONESIGNAL WEB PUSH
+ * Phân hệ Quản lý nhiệm vụ
  * =========================================================
  */
 
@@ -17,39 +18,28 @@
     "/dashboard-van-ban-tanhiep/push/onesignal/";
 
   const state = {
-    OneSignal: null,
-    initPromise: null,
     initialized: false,
-    currentUid: null
+    initializing: null,
+    identifiedUid: null,
+    profile: null,
+    OneSignal: null
   };
 
-  function byId(id) {
-    return document.getElementById(id);
-  }
+  const getElement = (id) =>
+    document.getElementById(id);
 
   function getUi() {
     return {
-      button:
-        byId("notificationButton"),
-
-      buttonText:
-        byId("notificationButtonText"),
-
-      statusBox:
-        byId("pushStatusBox"),
-
-      statusTitle:
-        byId("pushStatusTitle"),
-
-      statusText:
-        byId("pushStatusText"),
-
-      statusAction:
-        byId("pushStatusAction")
+      button: getElement("notificationButton"),
+      buttonText: getElement("notificationButtonText"),
+      statusBox: getElement("pushStatusBox"),
+      statusTitle: getElement("pushStatusTitle"),
+      statusText: getElement("pushStatusText"),
+      statusAction: getElement("pushStatusAction")
     };
   }
 
-  function setUi({
+  function setStatus({
     mode = "neutral",
     buttonText = "Bật thông báo",
     title = "Thông báo nhiệm vụ",
@@ -60,8 +50,7 @@
     const ui = getUi();
 
     if (ui.buttonText) {
-      ui.buttonText.textContent =
-        buttonText;
+      ui.buttonText.textContent = buttonText;
     }
 
     if (ui.button) {
@@ -99,13 +88,11 @@
     }
 
     if (ui.statusTitle) {
-      ui.statusTitle.textContent =
-        title;
+      ui.statusTitle.textContent = title;
     }
 
     if (ui.statusText) {
-      ui.statusText.textContent =
-        text;
+      ui.statusText.textContent = text;
     }
 
     if (ui.statusAction) {
@@ -116,28 +103,25 @@
     }
   }
 
-  function browserPermission() {
+  function getBrowserPermission() {
     if (!("Notification" in window)) {
       return "unsupported";
     }
 
-    return Notification.permission;
+    return window.Notification.permission;
   }
 
-  async function initOneSignal() {
-    if (
-      state.initialized &&
-      state.OneSignal
-    ) {
+  async function ensureInitialized() {
+    if (state.initialized && state.OneSignal) {
       return state.OneSignal;
     }
 
-    if (state.initPromise) {
-      return state.initPromise;
+    if (state.initializing) {
+      return state.initializing;
     }
 
-    state.initPromise =
-      new Promise((resolve, reject) => {
+    state.initializing = new Promise(
+      (resolve, reject) => {
         window.OneSignalDeferred =
           window.OneSignalDeferred || [];
 
@@ -145,73 +129,200 @@
           async function(OneSignal) {
             try {
               await OneSignal.init({
-                appId:
-                  ONESIGNAL_APP_ID,
-
+                appId: ONESIGNAL_APP_ID,
                 serviceWorkerPath:
                   SERVICE_WORKER_PATH,
-
                 serviceWorkerParam: {
-                  scope:
-                    SERVICE_WORKER_SCOPE
+                  scope: SERVICE_WORKER_SCOPE
                 },
-
                 notifyButton: {
                   enable: false
                 }
               });
 
-              OneSignal.Debug
-                .setLogLevel("warn");
-
-              state.OneSignal =
-                OneSignal;
-
-              state.initialized =
-                true;
+              state.OneSignal = OneSignal;
+              state.initialized = true;
 
               OneSignal.Notifications
                 .addEventListener(
                   "permissionChange",
-                  refreshStatus
+                  async () => {
+                    await refreshStatus();
+                    emitSubscriptionChange();
+                  }
                 );
 
-              OneSignal.User
-                .PushSubscription
+              OneSignal.User.PushSubscription
                 .addEventListener(
                   "change",
-                  refreshStatus
+                  async () => {
+                    await refreshStatus();
+                    emitSubscriptionChange();
+                  }
                 );
 
               resolve(OneSignal);
 
             } catch (error) {
-              state.initPromise = null;
+              state.initializing = null;
               reject(error);
             }
           }
         );
+      }
+    );
+
+    return state.initializing;
+  }
+
+
+  function buildSubscriptionSnapshot() {
+    const OneSignal =
+      state.OneSignal;
+
+    return {
+      subscriptionId:
+        OneSignal?.User
+          ?.PushSubscription
+          ?.id || null,
+
+      optedIn:
+        OneSignal?.User
+          ?.PushSubscription
+          ?.optedIn === true,
+
+      permission:
+        getBrowserPermission(),
+
+      externalId:
+        OneSignal?.User
+          ?.externalId
+        || state.identifiedUid
+        || null,
+
+      oneSignalId:
+        OneSignal?.User
+          ?.onesignalId
+        || null
+    };
+  }
+
+  function emitSubscriptionChange() {
+    window.dispatchEvent(
+      new CustomEvent(
+        "taskpush:subscription-change",
+        {
+          detail:
+            buildSubscriptionSnapshot()
+        }
+      )
+    );
+  }
+
+  async function getSubscriptionSnapshot() {
+    await ensureInitialized();
+
+    return buildSubscriptionSnapshot();
+  }
+
+  async function identify(uid, profile) {
+    if (!uid || !profile) {
+      return;
+    }
+
+    try {
+      const OneSignal =
+        await ensureInitialized();
+
+      await OneSignal.login(uid);
+
+      OneSignal.User.addTags({
+        module: "TASKS",
+        departmentId:
+          String(profile.departmentId || ""),
+        role:
+          String(profile.role || ""),
+        active:
+          profile.active === true
+            ? "true"
+            : "false"
       });
 
-    return state.initPromise;
+      state.identifiedUid = uid;
+      state.profile = profile;
+
+      await refreshStatus();
+      emitSubscriptionChange();
+
+      console.info(
+        "OneSignal đã nhận diện tài khoản:",
+        {
+          externalId: uid,
+          departmentId:
+            profile.departmentId,
+          role:
+            profile.role
+        }
+      );
+
+    } catch (error) {
+      console.error(
+        "Không liên kết được OneSignal:",
+        error
+      );
+
+      setStatus({
+        mode: "warning",
+        buttonText: "Kiểm tra thông báo",
+        title: "Chưa kết nối được OneSignal",
+        text:
+          "Ứng dụng vẫn sử dụng được, nhưng chưa thể nhận thông báo đẩy trên thiết bị này.",
+        showBox: true,
+        showAction: true
+      });
+    }
+  }
+
+  async function logout() {
+    try {
+      const OneSignal =
+        await ensureInitialized();
+
+      await OneSignal.logout();
+
+    } catch (error) {
+      console.warn(
+        "Không thể đăng xuất OneSignal:",
+        error
+      );
+
+    } finally {
+      state.identifiedUid = null;
+      state.profile = null;
+
+      setStatus({
+        buttonText: "Bật thông báo",
+        showBox: false
+      });
+    }
   }
 
   async function refreshStatus() {
     try {
       const OneSignal =
-        await initOneSignal();
+        await ensureInitialized();
 
-      if (
-        !OneSignal.Notifications
-          .isPushSupported()
-      ) {
-        setUi({
+      const supported =
+        OneSignal.Notifications
+          .isPushSupported();
+
+      if (!supported) {
+        setStatus({
           mode: "error",
           buttonText: "Không hỗ trợ",
-          title:
-            "Thiết bị không hỗ trợ thông báo web",
+          title: "Thiết bị không hỗ trợ Web Push",
           text:
-            "Hãy sử dụng Chrome, Edge, Firefox hoặc Safari phiên bản mới.",
+            "Hãy sử dụng Chrome, Edge, Firefox hoặc Safari hỗ trợ thông báo web.",
           showBox: true,
           showAction: false
         });
@@ -219,32 +330,30 @@
         return;
       }
 
-      const permission =
-        browserPermission();
-
-      const subscriptionId =
-        OneSignal.User
-          .PushSubscription
-          .id;
+      const browserPermission =
+        getBrowserPermission();
 
       const optedIn =
         OneSignal.User
           .PushSubscription
           .optedIn === true;
 
+      const subscriptionId =
+        OneSignal.User
+          .PushSubscription
+          .id;
+
       if (
-        permission === "granted" &&
-        subscriptionId &&
-        optedIn
+        browserPermission === "granted"
+        && optedIn
+        && subscriptionId
       ) {
-        setUi({
+        setStatus({
           mode: "success",
-          buttonText:
-            "Thông báo đã bật",
-          title:
-            "Đã bật thông báo nhiệm vụ",
+          buttonText: "Thông báo đã bật",
+          title: "Đã bật thông báo nhiệm vụ",
           text:
-            "Thiết bị này đã đăng ký nhận thông báo.",
+            "Thiết bị này đã được liên kết với tài khoản đang đăng nhập.",
           showBox: false,
           showAction: false
         });
@@ -252,14 +361,13 @@
         return;
       }
 
-      if (permission === "denied") {
-        setUi({
+      if (browserPermission === "denied") {
+        setStatus({
           mode: "error",
           buttonText: "Đã chặn",
-          title:
-            "Trình duyệt đang chặn thông báo",
+          title: "Trình duyệt đang chặn thông báo",
           text:
-            "Bấm biểu tượng bên trái thanh địa chỉ, mở Quyền của trang và chuyển Thông báo thành Cho phép.",
+            "Mở cài đặt quyền của trang, đổi Thông báo thành Cho phép rồi tải lại ứng dụng.",
           showBox: true,
           showAction: false
         });
@@ -267,30 +375,28 @@
         return;
       }
 
-      setUi({
+      setStatus({
         mode: "warning",
         buttonText: "Bật thông báo",
-        title:
-          "Thiết bị chưa bật thông báo",
+        title: "Thiết bị chưa bật thông báo",
         text:
-          "Bấm Bật thông báo để nhận nhiệm vụ mới, sắp hạn và quá hạn.",
+          "Bật thông báo để nhận nhiệm vụ mới, sắp đến hạn và quá hạn.",
         showBox: true,
         showAction: true
       });
 
     } catch (error) {
       console.error(
-        "OneSignal refreshStatus:",
+        "Không kiểm tra được trạng thái OneSignal:",
         error
       );
 
-      setUi({
-        mode: "error",
-        buttonText: "Thử lại",
-        title:
-          "Chưa khởi tạo được OneSignal",
+      setStatus({
+        mode: "warning",
+        buttonText: "Kiểm tra thông báo",
+        title: "Chưa kiểm tra được thông báo",
         text:
-          "Kiểm tra file OneSignalSDKWorker.js, cấu hình Web Push và tải lại trang.",
+          "Hãy kiểm tra kết nối mạng và cấu hình OneSignal.",
         showBox: true,
         showAction: true
       });
@@ -310,7 +416,7 @@
 
     try {
       const OneSignal =
-        await initOneSignal();
+        await ensureInitialized();
 
       if (
         !OneSignal.Notifications
@@ -321,48 +427,54 @@
       }
 
       if (
-        browserPermission() ===
-        "denied"
+        getBrowserPermission() === "denied"
       ) {
         await refreshStatus();
         return;
       }
 
       if (
-        !OneSignal.Notifications
-          .permission
+        OneSignal.Notifications.permission
+        && !OneSignal.User
+          .PushSubscription
+          .optedIn
       ) {
-        await OneSignal.Notifications
-          .requestPermission();
-      }
+        await OneSignal.User
+          .PushSubscription
+          .optIn();
 
-      if (
-        OneSignal.Notifications
-          .permission
+      } else if (
+        !OneSignal.Notifications.permission
       ) {
+        await OneSignal.Slidedown
+          .promptPush();
+
+      } else {
         await OneSignal.User
           .PushSubscription
           .optIn();
       }
 
       window.setTimeout(
-        refreshStatus,
-        1200
+        async () => {
+          await refreshStatus();
+          emitSubscriptionChange();
+        },
+        900
       );
 
     } catch (error) {
       console.error(
-        "OneSignal requestPermission:",
+        "Không bật được thông báo:",
         error
       );
 
-      setUi({
+      setStatus({
         mode: "error",
         buttonText: "Thử lại",
-        title:
-          "Không bật được thông báo",
+        title: "Không bật được thông báo",
         text:
-          "Mở Console để xem lỗi hoặc kiểm tra quyền Thông báo của trang.",
+          "Trình duyệt chưa cấp quyền hoặc cấu hình OneSignal chưa hoàn chỉnh.",
         showBox: true,
         showAction: true
       });
@@ -378,238 +490,53 @@
     }
   }
 
-  async function identify(
-    uid,
-    profile
-  ) {
-    if (!uid || !profile) {
-      return;
-    }
-
-    try {
-      const OneSignal =
-        await initOneSignal();
-
-      /*
- * Nhận diện người dùng bằng Firebase UID.
- */
-await OneSignal.login(uid);
-
-
-/*
- * Chờ OneSignal hoàn tất chuyển sang
- * đúng hồ sơ người dùng đã đăng nhập.
- */
-for (
-  let attempt = 1;
-  attempt <= 20;
-  attempt += 1
-) {
-  if (
-    OneSignal.User.externalId === uid
-  ) {
-    break;
-  }
-
-  await new Promise(
-    (resolve) =>
-      window.setTimeout(
-        resolve,
-        250
-      )
-  );
-}
-
-
-/*
- * Các nhãn phục vụ phân nhóm và gửi thông báo.
- */
-const userTags = {
-  module:
-    "TASKS",
-
-  departmentId:
-    String(
-      profile.departmentId || ""
-    ),
-
-  role:
-    String(
-      profile.role || ""
-    ),
-
-  active:
-    profile.active === true
-      ? "true"
-      : "false"
-};
-
-
-/*
- * Web SDK có thể chưa gửi Tags ngay nếu
- * hồ sơ OneSignal vừa được tạo.
- *
- * Thực hiện tối đa ba lần và kiểm tra lại
- * bản Tags hiện có trên trình duyệt.
- */
-for (
-  let attempt = 1;
-  attempt <= 3;
-  attempt += 1
-) {
-  OneSignal.User.addTags(
-    userTags
-  );
-
-  await new Promise(
-    (resolve) =>
-      window.setTimeout(
-        resolve,
-        1200
-      )
-  );
-
-  const currentTags =
-    OneSignal.User.getTags() || {};
-
-  const tagsComplete =
-    Object.entries(
-      userTags
-    ).every(
-      ([key, value]) =>
-        String(
-          currentTags[key] ?? ""
-        ) === String(value)
-    );
-
-  if (tagsComplete) {
-    console.log(
-      "Đã lưu OneSignal Data Tags:",
-      currentTags
-    );
-
-    break;
-  }
-
-  if (attempt === 3) {
-    console.warn(
-      "OneSignal chưa xác nhận đủ Data Tags:",
-      currentTags
-    );
-  }
-}
-
-      state.currentUid = uid;
-
-      await refreshStatus();
-
-    } catch (error) {
-      console.error(
-        "OneSignal identify:",
-        error
-      );
-
-      setUi({
-        mode: "error",
-        buttonText: "Thử lại",
-        title:
-          "Chưa liên kết được tài khoản",
-        text:
-          "Ứng dụng vẫn hoạt động nhưng thiết bị chưa đăng ký nhận thông báo.",
-        showBox: true,
-        showAction: true
-      });
-    }
-  }
-
-  async function logout() {
-    try {
-      const OneSignal =
-        await initOneSignal();
-
-      await OneSignal.logout();
-
-    } catch (error) {
-      console.warn(
-        "OneSignal logout:",
-        error
-      );
-
-    } finally {
-      state.currentUid = null;
-
-      setUi({
-        buttonText:
-          "Bật thông báo",
-        showBox: false
-      });
-    }
-  }
-
-  function bindUi() {
+  function bindButtons() {
     const ui = getUi();
-
-    if (!ui.button) {
-      console.error(
-        "Không tìm thấy notificationButton trong index.html."
-      );
-    }
 
     ui.button?.addEventListener(
       "click",
       requestPermission
     );
 
-    ui.statusAction
-      ?.addEventListener(
-        "click",
-        requestPermission
-      );
+    ui.statusAction?.addEventListener(
+      "click",
+      requestPermission
+    );
   }
 
   window.TaskPush = {
     identify,
     logout,
     refreshStatus,
-    requestPermission
+    requestPermission,
+    getSubscriptionSnapshot
   };
 
-  function start() {
-    bindUi();
+  document.addEventListener(
+    "DOMContentLoaded",
+    () => {
+      bindButtons();
 
-    initOneSignal()
-      .then(refreshStatus)
-      .catch((error) => {
-        console.error(
-          "OneSignal init:",
-          error
-        );
+      ensureInitialized()
+        .then(refreshStatus)
+        .catch((error) => {
+          console.error(
+            "OneSignal khởi tạo thất bại:",
+            error
+          );
 
-        setUi({
-          mode: "error",
-          buttonText: "Thử lại",
-          title:
-            "OneSignal chưa khởi tạo",
-          text:
-            "Kiểm tra cấu hình Service Worker hoặc mã SDK trong index.html.",
-          showBox: true,
-          showAction: true
+          setStatus({
+            mode: "warning",
+            buttonText:
+              "Kiểm tra thông báo",
+            title:
+              "Chưa khởi tạo được thông báo",
+            text:
+              "Ứng dụng vẫn hoạt động, nhưng tính năng thông báo chưa sẵn sàng.",
+            showBox: true,
+            showAction: true
+          });
         });
-      });
-  }
-
-  if (
-    document.readyState ===
-    "loading"
-  ) {
-    document.addEventListener(
-      "DOMContentLoaded",
-      start,
-      {
-        once: true
-      }
-    );
-  } else {
-    start();
-  }
+    }
+  );
 })();
