@@ -1,7 +1,7 @@
 import {
   auth,
   db
-} from "./firebase-config.js?v=20260714.82";
+} from "./firebase-config.js?v=20260714.842";
 
 import {
   GoogleAuthProvider,
@@ -1341,6 +1341,19 @@ async function initializeUser(user) {
     await loadReferenceData();
     renderAccount();
     showView("app");
+
+    try {
+      await window.TaskPush?.identify(
+        user.uid,
+        state.profile
+      );
+    } catch (pushError) {
+      console.warn(
+        "OneSignal chưa sẵn sàng:",
+        pushError
+      );
+    }
+
     await loadTasks();
   } catch (error) {
     console.error("Không khởi tạo được người dùng:", error);
@@ -1455,6 +1468,15 @@ logoutButton.addEventListener("click", async () => {
   logoutButton.disabled = true;
 
   try {
+    try {
+      await window.TaskPush?.logout();
+    } catch (pushError) {
+      console.warn(
+        "Không thể đăng xuất OneSignal:",
+        pushError
+      );
+    }
+
     await signOut(auth);
     state.initializedUid = null;
   } catch (error) {
