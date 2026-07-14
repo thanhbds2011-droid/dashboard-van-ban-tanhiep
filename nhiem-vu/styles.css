@@ -1510,3 +1510,77 @@ textarea:focus {
     flex: 1;
   }
 }
+
+
+/* =========================================================
+   ONESIGNAL — TRẠNG THÁI THÔNG BÁO
+   ========================================================= */
+
+.notification-button.is-enabled {
+  border-color: rgba(183, 244, 211, .72);
+  background: rgba(22, 163, 74, .22);
+}
+
+.notification-button.is-blocked {
+  border-color: rgba(255, 196, 196, .65);
+  background: rgba(185, 28, 28, .20);
+}
+
+.push-status-box {
+  margin-top: 14px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border: 1px solid #c9deec;
+  border-radius: 15px;
+  background: #f7fbfe;
+  box-shadow: var(--shadow-sm);
+}
+
+.push-status-box > div {
+  min-width: 0;
+}
+
+.push-status-box strong,
+.push-status-box span {
+  display: block;
+}
+
+.push-status-box strong {
+  color: var(--primary);
+}
+
+.push-status-box span {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.push-status-box.is-success {
+  border-color: #b8e2c8;
+  background: #eefaf2;
+}
+
+.push-status-box.is-warning {
+  border-color: #f0d08b;
+  background: #fff8e7;
+}
+
+.push-status-box.is-error {
+  border-color: #efb5b5;
+  background: #fff2f2;
+}
+
+@media (max-width: 760px) {
+  .push-status-box {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .push-status-box button {
+    width: 100%;
+  }
+}
