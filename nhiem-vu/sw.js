@@ -1,4 +1,4 @@
-const CACHE_NAME = "nhiem-vu-shell-v20260714.83";
+const CACHE_NAME = "nhiem-vu-shell-v20260714.844";
 
 const APP_SHELL = [
   "./",
@@ -6,6 +6,7 @@ const APP_SHELL = [
   "./styles.css",
   "./app.js",
   "./firebase-config.js",
+  "./onesignal.js",
   "./manifest.webmanifest",
   "./offline.html",
   "./icons/icon-192.png",
