@@ -1,12 +1,17 @@
-const CACHE_NAME = "nhiem-vu-shell-v20260714.851";
+const APP_VERSION = "20260715.911";
+const CACHE_NAME = `nhiem-vu-shell-v${APP_VERSION}`;
+const APP_BASE_URL = new URL("./", self.location.href);
 
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css",
-  "./app.js",
-  "./firebase-config.js",
-  "./manifest.webmanifest",
+  `./styles.css?v=${APP_VERSION}`,
+  `./app.js?v=${APP_VERSION}`,
+  `./pwa.js?v=${APP_VERSION}`,
+  `./firebase-config.js?v=${APP_VERSION}`,
+  `./notification-config.js?v=${APP_VERSION}`,
+  `./onesignal.js?v=${APP_VERSION}`,
+  `./manifest.webmanifest?v=${APP_VERSION}`,
   "./offline.html",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
@@ -14,23 +19,41 @@ const APP_SHELL = [
   "./icons/favicon-64.png"
 ];
 
-self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(APP_SHELL))
+function appUrl(relativePath) {
+  return new URL(relativePath, APP_BASE_URL).href;
+}
+
+async function cacheAppShell() {
+  const cache = await caches.open(CACHE_NAME);
+
+  await Promise.all(
+    APP_SHELL.map(async (relativePath) => {
+      const absoluteUrl = appUrl(relativePath);
+      const response = await fetch(
+        new Request(absoluteUrl, { cache: "reload" })
+      );
+
+      if (!response.ok) {
+        throw new Error(`Không tải được tài nguyên PWA: ${relativePath}`);
+      }
+
+      await cache.put(absoluteUrl, response);
+    })
   );
+}
+
+self.addEventListener("install", (event) => {
+  event.waitUntil(cacheAppShell());
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) =>
-        Promise.all(
-          keys
-            .filter((key) => key !== CACHE_NAME)
-            .map((key) => caches.delete(key))
-        )
-      )
+      .then((keys) => Promise.all(
+        keys
+          .filter((key) => key.startsWith("nhiem-vu-shell-v") && key !== CACHE_NAME)
+          .map((key) => caches.delete(key))
+      ))
       .then(() => self.clients.claim())
   );
 });
@@ -50,46 +73,37 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(request.url);
 
-  // Không can thiệp các yêu cầu Firebase, Google hoặc CDN ngoài GitHub Pages.
   if (url.origin !== self.location.origin) {
     return;
   }
 
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request)
-        .then((response) => {
-          const copy = response.clone();
-
-          caches.open(CACHE_NAME)
-            .then((cache) => cache.put("./index.html", copy))
-            .catch(() => {});
-
+      fetch(request, { cache: "no-store" })
+        .then(async (response) => {
+          if (response.ok) {
+            const cache = await caches.open(CACHE_NAME);
+            await cache.put(appUrl("./index.html"), response.clone());
+          }
           return response;
         })
-        .catch(() =>
-          caches.match("./offline.html")
-        )
+        .catch(async () => (
+          (await caches.match(appUrl("./index.html"))) ||
+          (await caches.match(appUrl("./offline.html")))
+        ))
     );
-
     return;
   }
 
   event.respondWith(
     fetch(request)
-      .then((response) => {
+      .then(async (response) => {
         if (response.ok) {
-          const copy = response.clone();
-
-          caches.open(CACHE_NAME)
-            .then((cache) => cache.put(request, copy))
-            .catch(() => {});
+          const cache = await caches.open(CACHE_NAME);
+          await cache.put(request, response.clone());
         }
-
         return response;
       })
-      .catch(() =>
-        caches.match(request)
-      )
+      .catch(() => caches.match(request))
   );
 });
