@@ -1706,3 +1706,292 @@ textarea:focus {
     grid-column: auto;
   }
 }
+
+/* =========================================================
+ * BƯỚC 9.3 - GIAO NHIỆM VỤ GỌN, CẬP NHẬT/KẾT THÚC RÕ RÀNG
+ * ========================================================= */
+
+.task-form-note {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  border: 1px solid #cfe2f3;
+  border-radius: 14px;
+  background: #f4f9fd;
+  color: #184d72;
+}
+
+.task-form-note > span {
+  flex: 0 0 auto;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.task-form-note strong,
+.task-form-note small {
+  display: block;
+}
+
+.task-form-note strong {
+  margin-bottom: 4px;
+  font-size: 14px;
+}
+
+.task-form-note small {
+  color: #60798d;
+  line-height: 1.45;
+}
+
+.entry-mode-direct {
+  border-color: #f4c98c;
+  background: linear-gradient(135deg, #fff8ec, #fffdf9);
+  box-shadow: inset 4px 0 0 #e89224;
+}
+
+.entry-mode-direct strong {
+  color: #9b5600;
+}
+
+.task-modal:has(.entry-mode-direct) .modal-header {
+  background: linear-gradient(135deg, #135f91, #2385bd);
+}
+
+.detail-footer {
+  justify-content: flex-end;
+}
+
+.progress-modal {
+  width: min(920px, calc(100vw - 28px));
+  max-height: min(92vh, 980px);
+  overflow: hidden;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 24px 70px rgba(5, 42, 70, 0.28);
+}
+
+.progress-modal form {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(92vh - 82px);
+}
+
+.progress-modal .modal-body {
+  overflow-y: auto;
+}
+
+.progress-modal-header {
+  background: linear-gradient(135deg, #155f8f, #267fae);
+}
+
+.progress-task-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  margin-bottom: 18px;
+  padding: 16px 18px;
+  border: 1px solid #d8e7f1;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #f7fbfe, #eef6fb);
+}
+
+.progress-task-summary h3 {
+  margin: 0 0 6px;
+  color: #0f466c;
+  font-size: 18px;
+}
+
+.progress-task-summary p {
+  margin: 0;
+  color: #5f7382;
+  line-height: 1.45;
+}
+
+.progress-task-summary .summary-deadline {
+  min-width: 150px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #fff;
+  text-align: center;
+  box-shadow: 0 4px 14px rgba(22, 78, 112, 0.08);
+}
+
+.progress-task-summary .summary-deadline span,
+.progress-task-summary .summary-deadline strong {
+  display: block;
+}
+
+.progress-task-summary .summary-deadline span {
+  margin-bottom: 3px;
+  color: #768b9a;
+  font-size: 12px;
+}
+
+.progress-task-summary .summary-deadline strong {
+  color: #133f5d;
+  font-size: 15px;
+}
+
+.progress-form-grid {
+  align-items: start;
+}
+
+.completion-section {
+  padding: 16px;
+  border: 1px solid #b9dfc9;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #f5fcf8, #ffffff);
+}
+
+.completion-section .form-section-title {
+  margin: 0 0 16px;
+  background: #eaf8f0;
+  border-left-color: #2f9a60;
+}
+
+.completion-section .form-section-title > span {
+  background: #2f9a60;
+}
+
+.completion-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.completion-preview {
+  min-height: 20px;
+  margin-top: 6px;
+  font-weight: 700;
+}
+
+.completion-preview.is-early,
+.completion-preview.is-on-time {
+  color: #137642;
+}
+
+.completion-preview.is-late {
+  color: #b3261e;
+}
+
+.upload-progress {
+  height: 8px;
+  margin-top: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #dce9f1;
+}
+
+.upload-progress span {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #1878ad, #35a56f);
+  transition: width 180ms ease;
+}
+
+.result-card {
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px solid #b9dfc9;
+  border-radius: 16px;
+  background: #f5fcf8;
+}
+
+.result-card h4 {
+  margin: 0 0 12px;
+  color: #17633e;
+  font-size: 16px;
+}
+
+.result-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.result-card-item {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.result-card-item.result-span-2 {
+  grid-column: 1 / -1;
+}
+
+.result-card-item span,
+.result-card-item strong {
+  display: block;
+}
+
+.result-card-item span {
+  margin-bottom: 5px;
+  color: #6c7f8d;
+  font-size: 12px;
+}
+
+.result-card-item strong {
+  color: #183d55;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+.result-card-item a {
+  color: #0b6ba8;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.result-card-item a:hover {
+  text-decoration: underline;
+}
+
+.badge.completion-early,
+.badge.completion-on-time {
+  border-color: #b8dfc8;
+  background: #eaf8f0;
+  color: #176b41;
+}
+
+.badge.completion-late {
+  border-color: #f0beb9;
+  background: #fff0ee;
+  color: #a62920;
+}
+
+.logout-pending {
+  pointer-events: none;
+  opacity: 0.78;
+}
+
+@media (max-width: 720px) {
+  .progress-modal {
+    width: 100%;
+    max-height: 100dvh;
+    min-height: 100dvh;
+    border-radius: 0;
+  }
+
+  .progress-modal form {
+    max-height: calc(100dvh - 74px);
+  }
+
+  .progress-task-summary,
+  .completion-grid,
+  .result-card-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .result-card-item.result-span-2 {
+    grid-column: auto;
+  }
+
+  .progress-task-summary .summary-deadline {
+    min-width: 0;
+    text-align: left;
+  }
+}
