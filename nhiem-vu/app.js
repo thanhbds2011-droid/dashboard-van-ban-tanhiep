@@ -1,11 +1,11 @@
 import {
   auth,
   db
-} from "./firebase-config.js?v=20260715.911";
+} from "./firebase-config.js?v=20260715.912";
 
 import {
   NOTIFICATION_WEB_APP_URL
-} from "./notification-config.js?v=20260715.911";
+} from "./notification-config.js?v=20260715.912";
 
 import {
   GoogleAuthProvider,
@@ -36,6 +36,7 @@ const state = {
   departments: [],
   users: [],
   tasks: [],
+  filteredTasks: [],
   loadingTasks: false,
   savingTask: false,
   savingProgress: false,
@@ -83,6 +84,7 @@ const departmentFilter = $("departmentFilter");
 const filterToggleButton = $("filterToggleButton");
 const filterFields = $("filterFields");
 const refreshButton = $("refreshButton");
+const exportReportButton = $("exportReportButton");
 const addTaskButton = $("addTaskButton");
 const lastUpdated = $("lastUpdated");
 
@@ -238,15 +240,18 @@ function resetSessionState() {
   state.user = null;
   state.profile = null;
   state.tasks = [];
+  state.filteredTasks = [];
   state.departments = [];
   state.users = [];
   state.initializedUid = null;
   state.selectedTaskId = null;
   state.selectedSupportIds = new Set();
 
-  closeTaskModal();
-  closeTaskDetail();
-  closeProgressModal();
+  /* Đóng giao diện theo cách an toàn khi phiên đã kết thúc. */
+  taskModal?.classList.add("hidden");
+  detailModal?.classList.add("hidden");
+  progressModal?.classList.add("hidden");
+  document.body.classList.remove("modal-open");
 
   loginForm.reset();
   hideMessage(loginMessage);
@@ -804,6 +809,28 @@ async function loadReferenceData() {
   });
 }
 
+/* =========================================================
+ * PHẠM VI THEO DÕI VÀ TỔNG HỢP
+ * ========================================================= */
+
+function isTchcCoordinationAccount() {
+  return (
+    state.profile?.departmentId === "TCHC"
+    && ["ADMIN", "DEPARTMENT_LEADER"].includes(state.profile?.role)
+  );
+}
+
+function canViewAllTasks() {
+  return (
+    ["ADMIN", "DIRECTOR"].includes(state.profile?.role)
+    || isTchcCoordinationAccount()
+  );
+}
+
+function canExportTaskReport() {
+  return canViewAllTasks();
+}
+
 async function loadTasks() {
   if (state.loadingTasks || !state.profile) {
     return;
@@ -829,7 +856,8 @@ async function loadTasks() {
       }
     });
 
-    if (["ADMIN", "DIRECTOR"].includes(state.profile.role)) {
+    if (canViewAllTasks()) {
+      /* Ban Giám đốc, ADMIN và đầu mối TCHC xem toàn bộ nhiệm vụ. */
       state.tasks = allTasks;
     } else if (state.profile.role === "DEPARTMENT_LEADER") {
       const departmentId = state.profile.departmentId;
@@ -938,8 +966,17 @@ function renderAccount() {
     addTaskButton.textContent = "⚡ Tạo nhiệm vụ trực tiếp";
   }
 
-  const canFilterDepartment = ["ADMIN", "DIRECTOR"].includes(state.profile.role);
-  departmentFilterWrap.classList.toggle("hidden", !canFilterDepartment);
+  const hasOverviewAccess = canViewAllTasks();
+  departmentFilterWrap.classList.toggle("hidden", !hasOverviewAccess);
+  exportReportButton?.classList.toggle("hidden", !canExportTaskReport());
+
+  if (isTchcCoordinationAccount()) {
+    welcomeDepartment.textContent = [
+      departmentName(state.profile.departmentId),
+      state.profile.position,
+      "Đầu mối theo dõi, tổng hợp nhiệm vụ toàn Trung tâm"
+    ].filter(Boolean).join(" • ");
+  }
 
   fillDepartmentFilter();
 }
@@ -1022,7 +1059,108 @@ function applyFilters() {
     return matchesKeyword && matchesStatus && matchesDeadline && matchesDepartment;
   });
 
+  state.filteredTasks = filteredTasks;
   renderTasks(filteredTasks);
+}
+
+/* =========================================================
+ * XUẤT BÁO CÁO NHIỆM VỤ
+ * ========================================================= */
+
+function csvValue(value) {
+  const normalized = String(value ?? "")
+    .replace(/\r?\n/g, " ")
+    .replace(/"/g, '""');
+
+  return `"${normalized}"`;
+}
+
+function exportTaskReport() {
+  if (!canExportTaskReport()) {
+    showMessage(dashboardMessage, "Tài khoản không có quyền xuất báo cáo tổng hợp.", "error");
+    return;
+  }
+
+  const tasksToExport = Array.isArray(state.filteredTasks)
+    ? state.filteredTasks
+    : [];
+
+  if (tasksToExport.length === 0) {
+    showMessage(dashboardMessage, "Không có nhiệm vụ trong bộ lọc hiện tại để xuất báo cáo.", "warning");
+    return;
+  }
+
+  const headers = [
+    "STT", "Mã nhiệm vụ", "Hình thức ghi nhận", "Nguồn nhiệm vụ",
+    "Ngày được chỉ đạo", "Người giao/chỉ đạo", "Tên nhiệm vụ",
+    "Nội dung thực hiện", "Phòng/Khu", "Người chịu trách nhiệm",
+    "Người có liên quan", "Mức độ", "Hạn hoàn thành", "Trạng thái",
+    "Tiến độ (%)", "Tình trạng thời hạn", "Ngày hoàn thành thực tế",
+    "Kết quả thực hiện", "Loại minh chứng", "Đường dẫn minh chứng",
+    "Nội dung minh chứng", "Cập nhật gần nhất"
+  ];
+
+  const rows = tasksToExport.map((task, index) => {
+    const due = deadlineState(task);
+    const timingText = task.status === "HOAN_THANH"
+      ? completionTimingInfo(task).text
+      : due.text;
+
+    return [
+      index + 1,
+      task.taskCode || "",
+      entryModeName(task.entryMode),
+      sourceName(task.sourceType),
+      formatDate(task.assignedAt || task.sourceDate),
+      task.assignedByName || "",
+      task.title || "",
+      task.description || "",
+      departmentName(task.primaryDepartmentId),
+      task.ownerName || "",
+      Array.isArray(task.relatedUserNames) ? task.relatedUserNames.join(", ") : "",
+      priorityName(task.priority),
+      formatDate(task.deadline),
+      statusName(task.status),
+      Number(task.progress) || 0,
+      timingText,
+      task.completedAt ? formatDate(task.completedAt) : "",
+      task.resultSummary || task.result || "",
+      evidenceTypeName(task.evidenceType),
+      task.evidenceUrl || task.evidenceLink || "",
+      task.evidenceText || "",
+      formatDateTime(task.updatedAt || task.createdAt)
+    ];
+  });
+
+  const csvContent = [headers, ...rows]
+    .map((row) => row.map(csvValue).join(";"))
+    .join("\r\n");
+
+  const blob = new Blob(["\uFEFF", csvContent], {
+    type: "text/csv;charset=utf-8;"
+  });
+
+  const now = new Date();
+  const fileName = [
+    "bao-cao-nhiem-vu",
+    dateKey(now),
+    `${pad2(now.getHours())}${pad2(now.getMinutes())}`
+  ].join("_") + ".csv";
+
+  const downloadUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = downloadUrl;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(downloadUrl);
+
+  showMessage(
+    dashboardMessage,
+    `✅ Đã xuất ${tasksToExport.length} nhiệm vụ theo bộ lọc hiện tại. File CSV mở trực tiếp bằng Excel.`,
+    "success"
+  );
 }
 
 /* =========================================================
@@ -2223,7 +2361,6 @@ function openProgressModal(taskId = state.selectedTaskId) {
   state.selectedTaskId = task.id;
   hideMessage(progressMessage);
   progressForm.reset();
-  setUploadProgress(0, false);
 
   progressModalTitle.textContent = task.status === "HOAN_THANH"
     ? "✏️ Chỉnh sửa kết quả hoàn thành"
@@ -2278,7 +2415,6 @@ function closeProgressModal() {
   }
 
   progressModal.classList.add("hidden");
-  setUploadProgress(0, false);
   setBodyModalState();
 }
 
@@ -2618,42 +2754,46 @@ logoutButton.addEventListener("click", async () => {
   logoutButton.disabled = true;
   logoutButton.classList.add("logout-pending");
   logoutButton.innerHTML = '<span aria-hidden="true">⏳</span><span class="top-button-text">Đang đăng xuất...</span>';
-  showView("loading");
+
+  /* Hiển thị ngay màn hình đăng nhập, không giữ người dùng ở màn hình tải. */
+  showView("login");
+  loginForm.reset();
+  showMessage(loginMessage, "Đang kết thúc phiên đăng nhập...", "info");
+  googleLoginButton.disabled = true;
+  loginButton.disabled = true;
 
   try {
-    /*
-     * Không để OneSignal hoặc mạng chậm giữ người dùng ở màn hình cũ.
-     * Mỗi thao tác dọn đăng ký thông báo chỉ chờ tối đa 1,5 giây.
-     */
     await withTimeout(
       syncCurrentPushSubscription(false).catch(() => null),
-      1500,
+      1200,
       null
     );
 
     await withTimeout(
       Promise.resolve(window.TaskPush?.logout?.()).catch(() => null),
-      1500,
+      1200,
       null
     );
 
-    const signedOut = await withTimeout(
-      signOut(auth).then(() => true),
-      5000,
-      false
-    );
-
-    if (!signedOut && auth.currentUser) {
-      throw new Error("Firebase chưa hoàn tất đăng xuất.");
-    }
-
+    await signOut(auth);
     resetSessionState();
+    showMessage(
+      loginMessage,
+      "✅ Đã đăng xuất. Bạn có thể đăng nhập bằng tài khoản khác.",
+      "success"
+    );
     window.history.replaceState(null, "", "./");
   } catch (error) {
     console.error("Không đăng xuất được:", error);
-    showView("app");
-    alert("Không đăng xuất được. Vui lòng kiểm tra kết nối mạng rồi thử lại.");
+    resetSessionState();
+    showMessage(
+      loginMessage,
+      "Phiên trên giao diện đã được đóng. Hãy kiểm tra mạng rồi đăng nhập tài khoản cần sử dụng.",
+      "warning"
+    );
   } finally {
+    googleLoginButton.disabled = false;
+    loginButton.disabled = false;
     logoutButton.disabled = false;
     logoutButton.classList.remove("logout-pending");
     logoutButton.innerHTML = originalContent;
@@ -2665,6 +2805,7 @@ portalButton.addEventListener("click", () => {
 });
 
 refreshButton.addEventListener("click", loadTasks);
+exportReportButton?.addEventListener("click", exportTaskReport);
 addTaskButton.addEventListener("click", openTaskModal);
 closeModalButton.addEventListener("click", closeTaskModal);
 cancelTaskButton.addEventListener("click", closeTaskModal);
