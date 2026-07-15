@@ -1,11 +1,11 @@
 import {
   auth,
   db
-} from "./firebase-config.js?v=20260714.851";
+} from "./firebase-config.js?v=20260715.911";
 
 import {
   NOTIFICATION_WEB_APP_URL
-} from "./notification-config.js?v=20260714.851";
+} from "./notification-config.js?v=20260715.911";
 
 import {
   GoogleAuthProvider,
@@ -23,8 +23,10 @@ import {
   getDocsFromServer,
   serverTimestamp,
   setDoc,
-  Timestamp
+  Timestamp,
+  updateDoc
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
+
 
 const PORTAL_URL = "../index.html";
 
@@ -36,8 +38,10 @@ const state = {
   tasks: [],
   loadingTasks: false,
   savingTask: false,
+  savingProgress: false,
   initializedUid: null,
-  selectedSupportIds: new Set()
+  selectedSupportIds: new Set(),
+  selectedTaskId: null
 };
 
 const googleProvider = new GoogleAuthProvider();
@@ -113,8 +117,6 @@ const primaryHelp = $("primaryHelp");
 const ownerHelp = $("ownerHelp");
 const assignedAt = $("assignedAt");
 const deadline = $("deadline");
-const outputType = $("outputType");
-const outputDescription = $("outputDescription");
 
 const supportDropdown = $("supportDropdown");
 const supportDropdownButton = $("supportDropdownButton");
@@ -128,6 +130,30 @@ const detailModal = $("detailModal");
 const closeDetailButton = $("closeDetailButton");
 const detailTaskCode = $("detailTaskCode");
 const detailContent = $("detailContent");
+const detailFooter = $("detailFooter");
+const updateTaskButton = $("updateTaskButton");
+
+const progressModal = $("progressModal");
+const progressForm = $("progressForm");
+const progressModalTitle = $("progressModalTitle");
+const progressTaskCode = $("progressTaskCode");
+const progressTaskSummary = $("progressTaskSummary");
+const closeProgressButton = $("closeProgressButton");
+const cancelProgressButton = $("cancelProgressButton");
+const saveProgressButton = $("saveProgressButton");
+const progressMessage = $("progressMessage");
+const progressStatus = $("progressStatus");
+const progressPercent = $("progressPercent");
+const progressNote = $("progressNote");
+const completionSection = $("completionSection");
+const completedDate = $("completedDate");
+const completionTimingPreview = $("completionTimingPreview");
+const completionProductType = $("completionProductType");
+const resultSummary = $("resultSummary");
+const evidenceLinkWrap = $("evidenceLinkWrap");
+const evidenceLinkInput = $("evidenceLinkInput");
+const evidenceTextWrap = $("evidenceTextWrap");
+const evidenceTextInput = $("evidenceTextInput");
 
 /* =========================================================
  * GIAO DIỆN CHUNG
@@ -152,7 +178,8 @@ function hideMessage(element) {
 function setBodyModalState() {
   const hasOpenModal =
     !taskModal.classList.contains("hidden") ||
-    !detailModal.classList.contains("hidden");
+    !detailModal.classList.contains("hidden") ||
+    !progressModal.classList.contains("hidden");
 
   document.body.classList.toggle("modal-open", hasOpenModal);
 }
@@ -187,6 +214,43 @@ function truncate(value, maxLength) {
   return text.length > maxLength
     ? `${text.slice(0, maxLength).trim()}...`
     : text;
+}
+
+function withTimeout(promise, timeoutMs, fallbackValue = null) {
+  return Promise.race([
+    Promise.resolve(promise),
+    new Promise((resolve) => {
+      window.setTimeout(() => resolve(fallbackValue), timeoutMs);
+    })
+  ]);
+}
+
+function isValidHttpUrl(value) {
+  try {
+    const url = new URL(String(value || ""));
+    return ["http:", "https:"].includes(url.protocol);
+  } catch {
+    return false;
+  }
+}
+
+function resetSessionState() {
+  state.user = null;
+  state.profile = null;
+  state.tasks = [];
+  state.departments = [];
+  state.users = [];
+  state.initializedUid = null;
+  state.selectedTaskId = null;
+  state.selectedSupportIds = new Set();
+
+  closeTaskModal();
+  closeTaskDetail();
+  closeProgressModal();
+
+  loginForm.reset();
+  hideMessage(loginMessage);
+  showView("login");
 }
 
 /* =========================================================
@@ -290,6 +354,53 @@ function parseDateInput(value, endOfDay = false) {
   );
 
   return Number.isNaN(dateValue.getTime()) ? null : dateValue;
+}
+
+function calendarDayDifference(laterDate, earlierDate) {
+  const later = startOfDay(laterDate).getTime();
+  const earlier = startOfDay(earlierDate).getTime();
+  return Math.round((later - earlier) / 86400000);
+}
+
+function completionTimingInfo(task, completedValue = task?.completedAt) {
+  const completed = toDate(completedValue);
+  const due = toDate(task?.deadline);
+
+  if (!completed || !due) {
+    return {
+      code: "UNKNOWN",
+      days: null,
+      text: "Chưa xác định thời điểm hoàn thành",
+      className: ""
+    };
+  }
+
+  const difference = calendarDayDifference(completed, due);
+
+  if (difference < 0) {
+    return {
+      code: "EARLY",
+      days: difference,
+      text: `Hoàn thành trước hạn ${Math.abs(difference)} ngày`,
+      className: "completion-early"
+    };
+  }
+
+  if (difference === 0) {
+    return {
+      code: "ON_TIME",
+      days: 0,
+      text: "Hoàn thành đúng hạn",
+      className: "completion-on-time"
+    };
+  }
+
+  return {
+    code: "LATE",
+    days: difference,
+    text: `Hoàn thành trễ ${difference} ngày`,
+    className: "completion-late"
+  };
 }
 
 function dateKey(dateValue) {
@@ -420,6 +531,18 @@ function outputTypeName(value) {
   return map[value] || value || "Chưa xác định";
 }
 
+function evidenceTypeName(value) {
+  const map = {
+    LINK: "Đường dẫn liên kết",
+    PDF: "Tệp PDF",
+    IMAGE: "Hình ảnh",
+    TEXT: "Nội dung nhập tay",
+    OTHER: "Sản phẩm khác"
+  };
+
+  return map[value] || value || "Chưa ghi nhận";
+}
+
 function userDisplayName(uid) {
   const user = userById(uid);
 
@@ -482,10 +605,12 @@ function priorityBadgeClass(value) {
 
 function deadlineState(task) {
   if (task.status === "HOAN_THANH") {
+    const completion = completionTimingInfo(task);
+
     return {
-      code: "COMPLETED",
-      text: "Đã hoàn thành",
-      className: "green"
+      code: completion.code === "LATE" ? "COMPLETED_LATE" : "COMPLETED",
+      text: completion.text,
+      className: completion.className || "green"
     };
   }
 
@@ -872,6 +997,8 @@ function applyFilters() {
       task.ownerName,
       task.assignedByName,
       task.result,
+      task.resultSummary,
+      task.evidenceText,
       task.outputDescription,
       task.sourceDetail,
       ...(Array.isArray(task.relatedUserNames) ? task.relatedUserNames : []),
@@ -992,12 +1119,84 @@ function findTaskById(taskId) {
   return state.tasks.find((task) => task.id === taskId) || null;
 }
 
+function canUpdateTask(task) {
+  if (!task || !state.user || !state.profile) {
+    return false;
+  }
+
+  if (state.profile.role === "ADMIN") {
+    return true;
+  }
+
+  if (
+    state.profile.role === "DEPARTMENT_LEADER" &&
+    task.ownerUserId === state.user.uid
+  ) {
+    return true;
+  }
+
+  return (
+    state.profile.role === "DIRECTOR" &&
+    task.entryMode === "DIRECT_ASSIGNED" &&
+    task.assignedByUserId === state.user.uid
+  );
+}
+
+function resultEvidenceHtml(task) {
+  const evidenceType = task.evidenceType || task.outputType || "";
+  const evidenceUrl = task.evidenceUrl || task.evidenceLink || "";
+  const evidenceText = task.evidenceText || task.outputDescription || "";
+  const fileName = task.evidenceFileName || "Mở tệp minh chứng";
+
+  let evidenceContent = "Chưa ghi nhận";
+
+  if (evidenceUrl && isValidHttpUrl(evidenceUrl)) {
+    evidenceContent = `
+      <a href="${escapeHtml(evidenceUrl)}" target="_blank" rel="noopener noreferrer">
+        ${escapeHtml(fileName || "Mở minh chứng")}
+      </a>
+    `;
+  } else if (evidenceText) {
+    evidenceContent = escapeHtml(evidenceText);
+  }
+
+  return `
+    <div class="result-card">
+      <h4>✅ Kết quả và sản phẩm minh chứng</h4>
+      <div class="result-card-grid">
+        <div class="result-card-item">
+          <span>Ngày hoàn thành thực tế</span>
+          <strong>${escapeHtml(formatDate(task.completedAt))}</strong>
+        </div>
+        <div class="result-card-item">
+          <span>Đánh giá thời hạn</span>
+          <strong>${escapeHtml(completionTimingInfo(task).text)}</strong>
+        </div>
+        <div class="result-card-item">
+          <span>Loại sản phẩm/minh chứng</span>
+          <strong>${escapeHtml(evidenceTypeName(evidenceType))}</strong>
+        </div>
+        <div class="result-card-item result-span-2">
+          <span>Mô tả kết quả/sản phẩm</span>
+          <strong>${escapeHtml(task.resultSummary || task.result || "Chưa ghi nhận")}</strong>
+        </div>
+        <div class="result-card-item result-span-2">
+          <span>Minh chứng</span>
+          <strong>${evidenceContent}</strong>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function openTaskDetail(taskId) {
   const task = findTaskById(taskId);
 
   if (!task) {
     return;
   }
+
+  state.selectedTaskId = taskId;
 
   const due = deadlineState(task);
 
@@ -1020,6 +1219,35 @@ function openTaskDetail(taskId) {
         ? legacySupportNames.join(", ")
         : "Không có"
     );
+
+  const progressText = Number.isFinite(Number(task.progress))
+    ? `${Number(task.progress)}%`
+    : "Chưa cập nhật";
+
+  const progressNoteHtml = task.progressNote
+    ? `
+      <div class="detail-item detail-span-2">
+        <span>Nội dung cập nhật gần nhất</span>
+        <strong>${escapeHtml(task.progressNote)}</strong>
+      </div>
+    `
+    : "";
+
+  const legacyOutputHtml = (
+    task.status !== "HOAN_THANH" &&
+    (task.outputType || task.outputDescription)
+  )
+    ? `
+      <div class="detail-item">
+        <span>Sản phẩm dự kiến (dữ liệu cũ)</span>
+        <strong>${escapeHtml(outputTypeName(task.outputType))}</strong>
+      </div>
+      <div class="detail-item detail-span-2">
+        <span>Mô tả sản phẩm dự kiến</span>
+        <strong>${escapeHtml(task.outputDescription || "Chưa ghi nhận")}</strong>
+      </div>
+    `
+    : "";
 
   detailTaskCode.textContent = task.taskCode || "Chưa có mã";
 
@@ -1070,19 +1298,25 @@ function openTaskDetail(taskId) {
         <strong>${escapeHtml(formatDate(task.deadline))}</strong>
       </div>
       <div class="detail-item">
-        <span>Loại sản phẩm đầu ra</span>
-        <strong>${escapeHtml(outputTypeName(task.outputType))}</strong>
-      </div>
-      <div class="detail-item detail-span-2">
-        <span>Mô tả sản phẩm đầu ra</span>
-        <strong>${escapeHtml(task.outputDescription || "Chưa ghi nhận")}</strong>
+        <span>Tiến độ hiện tại</span>
+        <strong>${escapeHtml(progressText)}</strong>
       </div>
       <div class="detail-item">
         <span>Người nhập nhiệm vụ</span>
         <strong>${escapeHtml(task.createdByName || "Chưa xác định")}</strong>
       </div>
+      ${progressNoteHtml}
+      ${legacyOutputHtml}
     </div>
+
+    ${task.status === "HOAN_THANH" ? resultEvidenceHtml(task) : ""}
   `;
+
+  const allowUpdate = canUpdateTask(task);
+  detailFooter.classList.toggle("hidden", !allowUpdate);
+  updateTaskButton.textContent = task.status === "HOAN_THANH"
+    ? "✏️ Chỉnh sửa kết quả hoàn thành"
+    : "✏️ Cập nhật / Kết thúc nhiệm vụ";
 
   detailModal.classList.remove("hidden");
   setBodyModalState();
@@ -1091,6 +1325,7 @@ function openTaskDetail(taskId) {
 function closeTaskDetail() {
   detailModal.classList.add("hidden");
   detailContent.innerHTML = "";
+  detailFooter.classList.add("hidden");
   setBodyModalState();
 }
 
@@ -1700,8 +1935,6 @@ async function saveTask(event) {
     const owner = userById(ownerUserId.value);
     const assignedDate = parseDateInput(assignedAt.value, false);
     const deadlineDate = parseDateInput(deadline.value, true);
-    const selectedOutputType = outputType.value;
-    const selectedOutputDescription = cleanText(outputDescription.value);
 
     const relatedUserIds = Array.from(state.selectedSupportIds)
       .filter((uid) => uid !== owner?.id);
@@ -1769,14 +2002,6 @@ async function saveTask(event) {
 
     if (deadlineDate.getTime() < assignedDate.getTime()) {
       throw new Error("Hạn hoàn thành không được trước ngày được chỉ đạo.");
-    }
-
-    if (!selectedOutputType) {
-      throw new Error("Vui lòng chọn loại sản phẩm đầu ra.");
-    }
-
-    if (!selectedOutputDescription) {
-      throw new Error("Vui lòng mô tả sản phẩm đầu ra.");
     }
 
     state.savingTask = true;
@@ -1856,8 +2081,13 @@ async function saveTask(event) {
 
       priority: priority.value,
 
-      outputType: selectedOutputType,
-      outputDescription: selectedOutputDescription,
+      outputType: "",
+      outputDescription: "",
+      evidenceType: "",
+      evidenceUrl: "",
+      evidenceText: "",
+      evidenceFileName: "",
+      evidenceStoragePath: "",
 
       status: "MOI_TIEP_NHAN",
       progress: 0,
@@ -1915,7 +2145,7 @@ async function saveTask(event) {
     console.error("Không lưu được nhiệm vụ:", error);
 
     const message = error?.code === "permission-denied"
-      ? "Tài khoản chưa được cấp quyền lưu nhiệm vụ theo phương thức này. Hãy cập nhật Firestore Rules của Bước 9.2A."
+      ? "Tài khoản chưa được cấp quyền lưu nhiệm vụ theo phương thức này. Hãy cập nhật Firestore Rules của Bước 9.3."
       : (error?.message || "Không lưu được nhiệm vụ.");
 
     showMessage(taskMessage, message, "error");
@@ -1928,6 +2158,313 @@ async function saveTask(event) {
   }
 }
 
+
+
+/* =========================================================
+ * CẬP NHẬT TIẾN ĐỘ VÀ KẾT THÚC NHIỆM VỤ
+ * ========================================================= */
+
+function syncCompletionEvidenceUI() {
+  const isCompleted = progressStatus.value === "HOAN_THANH";
+  completionSection.classList.toggle("hidden", !isCompleted);
+
+  if (isCompleted) {
+    progressPercent.value = "100";
+    progressPercent.disabled = true;
+  } else {
+    progressPercent.disabled = false;
+    if (Number(progressPercent.value) >= 100) {
+      progressPercent.value = "95";
+    }
+  }
+
+  const type = completionProductType.value;
+  evidenceLinkWrap.classList.toggle("hidden", !isCompleted || type !== "LINK");
+  evidenceTextWrap.classList.toggle(
+    "hidden",
+    !isCompleted || !["TEXT", "OTHER"].includes(type)
+  );
+
+  updateCompletionTimingPreview();
+}
+
+function updateCompletionTimingPreview() {
+  completionTimingPreview.className = "field-help completion-preview";
+
+  if (progressStatus.value !== "HOAN_THANH") {
+    completionTimingPreview.textContent = "";
+    return;
+  }
+
+  const task = findTaskById(state.selectedTaskId);
+  const completed = parseDateInput(completedDate.value, false);
+
+  if (!task || !completed) {
+    completionTimingPreview.textContent = "Chọn ngày hoàn thành để hệ thống xác định đúng hạn hoặc trễ hạn.";
+    return;
+  }
+
+  const info = completionTimingInfo(task, completed);
+  completionTimingPreview.textContent = info.text;
+  completionTimingPreview.classList.add(
+    info.code === "LATE"
+      ? "is-late"
+      : (info.code === "EARLY" ? "is-early" : "is-on-time")
+  );
+}
+
+function openProgressModal(taskId = state.selectedTaskId) {
+  const task = findTaskById(taskId);
+
+  if (!task || !canUpdateTask(task)) {
+    return;
+  }
+
+  state.selectedTaskId = task.id;
+  hideMessage(progressMessage);
+  progressForm.reset();
+  setUploadProgress(0, false);
+
+  progressModalTitle.textContent = task.status === "HOAN_THANH"
+    ? "✏️ Chỉnh sửa kết quả hoàn thành"
+    : "✏️ Cập nhật / Kết thúc nhiệm vụ";
+  progressTaskCode.textContent = task.taskCode || "—";
+
+  progressTaskSummary.innerHTML = `
+    <div>
+      <h3>${escapeHtml(task.title || "Nhiệm vụ")}</h3>
+      <p>${escapeHtml(truncate(task.description || "", 220))}</p>
+    </div>
+    <div class="summary-deadline">
+      <span>Hạn hoàn thành</span>
+      <strong>${escapeHtml(formatDate(task.deadline))}</strong>
+    </div>
+  `;
+
+  const allowedStatuses = [
+    "DANG_THUC_HIEN",
+    "CHO_PHOI_HOP",
+    "HOAN_THANH",
+    "TAM_DUNG"
+  ];
+
+  progressStatus.value = allowedStatuses.includes(task.status)
+    ? task.status
+    : "DANG_THUC_HIEN";
+  progressPercent.value = String(Number(task.progress) || 0);
+  progressNote.value = task.progressNote || "";
+
+  const completedValue = toDate(task.completedAt) || new Date();
+  completedDate.value = toDateInput(completedValue);
+  const assignedDate = toDate(task.assignedAt || task.sourceDate);
+  completedDate.min = assignedDate ? toDateInput(assignedDate) : "";
+  completedDate.max = toDateInput(new Date());
+
+  completionProductType.value = task.evidenceType || "";
+  resultSummary.value = task.resultSummary || task.result || "";
+  evidenceLinkInput.value = task.evidenceUrl || task.evidenceLink || "";
+  evidenceTextInput.value = task.evidenceText || "";
+
+  syncCompletionEvidenceUI();
+
+  detailModal.classList.add("hidden");
+  progressModal.classList.remove("hidden");
+  setBodyModalState();
+}
+
+function closeProgressModal() {
+  if (state.savingProgress) {
+    return;
+  }
+
+  progressModal.classList.add("hidden");
+  setUploadProgress(0, false);
+  setBodyModalState();
+}
+
+async function createProgressLog(task, oldStatus, newStatus, oldProgress, newProgress) {
+  try {
+    await addDoc(collection(db, "taskLogs"), {
+      taskId: task.id,
+      taskCode: task.taskCode || "",
+      action: newStatus === "HOAN_THANH" ? "COMPLETE_TASK" : "UPDATE_PROGRESS",
+      description: newStatus === "HOAN_THANH"
+        ? `Kết thúc nhiệm vụ: ${task.title || ""}`
+        : `Cập nhật tiến độ nhiệm vụ: ${task.title || ""}`,
+      oldStatus: oldStatus || "",
+      newStatus,
+      oldProgress: Number(oldProgress) || 0,
+      newProgress: Number(newProgress) || 0,
+      performedByUserId: state.user.uid,
+      performedByName: state.profile.fullName || "",
+      performedAt: serverTimestamp()
+    });
+  } catch (error) {
+    console.warn("Không ghi được nhật ký cập nhật nhiệm vụ:", error);
+  }
+}
+
+async function saveProgress(event) {
+  event.preventDefault();
+
+  if (state.savingProgress) {
+    return;
+  }
+
+  const task = findTaskById(state.selectedTaskId);
+
+  if (!task || !canUpdateTask(task)) {
+    showMessage(progressMessage, "Tài khoản không có quyền cập nhật nhiệm vụ này.", "error");
+    return;
+  }
+
+  hideMessage(progressMessage);
+
+  try {
+    const newStatus = progressStatus.value;
+    let newProgress = Math.max(0, Math.min(100, Number(progressPercent.value) || 0));
+    const note = cleanText(progressNote.value);
+
+    if (!note) {
+      throw new Error("Vui lòng nhập nội dung đã thực hiện hoặc ghi chú tiến độ.");
+    }
+
+    if (newStatus === "HOAN_THANH") {
+      newProgress = 100;
+    } else if (newProgress >= 100) {
+      newProgress = 95;
+    }
+
+    state.savingProgress = true;
+    saveProgressButton.disabled = true;
+    saveProgressButton.textContent = newStatus === "HOAN_THANH"
+      ? "Đang kết thúc..."
+      : "Đang lưu...";
+
+    const updatePayload = {
+      status: newStatus,
+      progress: newProgress,
+      progressNote: note,
+      updatedAt: serverTimestamp(),
+      updatedByUserId: state.user.uid,
+      updatedByName: state.profile.fullName || ""
+    };
+
+    if (newStatus === "HOAN_THANH") {
+      const completed = parseDateInput(completedDate.value, false);
+      const productType = completionProductType.value;
+      const summary = cleanText(resultSummary.value);
+
+      if (!completed) {
+        throw new Error("Vui lòng chọn ngày hoàn thành thực tế.");
+      }
+
+      completed.setHours(12, 0, 0, 0);
+
+      if (!productType) {
+        throw new Error("Vui lòng chọn loại sản phẩm hoặc minh chứng.");
+      }
+
+      if (!summary) {
+        throw new Error("Vui lòng mô tả kết quả hoặc sản phẩm đã hoàn thành.");
+      }
+
+      let evidenceUrl = task.evidenceUrl || task.evidenceLink || "";
+      let evidenceText = task.evidenceText || "";
+      let evidenceFileName = task.evidenceFileName || "";
+      let evidenceStoragePath = task.evidenceStoragePath || "";
+
+      if (productType === "LINK") {
+        evidenceUrl = cleanText(evidenceLinkInput.value);
+        evidenceText = "";
+        evidenceFileName = "Mở đường dẫn minh chứng";
+        evidenceStoragePath = "";
+
+        if (!isValidHttpUrl(evidenceUrl)) {
+          throw new Error("Đường dẫn minh chứng phải bắt đầu bằng http:// hoặc https://.");
+        }
+      } else {
+        evidenceText = cleanText(evidenceTextInput.value);
+        evidenceUrl = "";
+        evidenceFileName = "";
+        evidenceStoragePath = "";
+
+        if (!evidenceText) {
+          throw new Error("Vui lòng nhập nội dung minh chứng.");
+        }
+      }
+
+      const timing = completionTimingInfo(task, completed);
+
+      Object.assign(updatePayload, {
+        completedAt: Timestamp.fromDate(completed),
+        completionDateKey: dateKey(completed),
+        completionTiming: timing.code,
+        completionDaysDifference: timing.days,
+        result: summary,
+        resultSummary: summary,
+        evidenceType: productType,
+        evidenceUrl,
+        evidenceLink: evidenceUrl,
+        evidenceText,
+        evidenceFileName,
+        evidenceStoragePath
+      });
+    } else {
+      Object.assign(updatePayload, {
+        completedAt: null,
+        completionDateKey: "",
+        completionTiming: "",
+        completionDaysDifference: null
+      });
+    }
+
+    await updateDoc(doc(db, "tasks", task.id), updatePayload);
+    await createProgressLog(
+      task,
+      task.status,
+      newStatus,
+      task.progress,
+      newProgress
+    );
+
+    if (newStatus === "HOAN_THANH" && task.status !== "HOAN_THANH") {
+      await sendNotificationEvent("TASK_COMPLETED", task.id);
+    }
+
+    showMessage(
+      progressMessage,
+      newStatus === "HOAN_THANH"
+        ? `✅ Đã kết thúc nhiệm vụ. ${completionTimingInfo(task, updatePayload.completedAt).text}.`
+        : "✅ Đã cập nhật tiến độ nhiệm vụ.",
+      "success"
+    );
+
+    await loadTasks();
+
+    window.setTimeout(() => {
+      state.savingProgress = false;
+      closeProgressModal();
+      const refreshedTask = findTaskById(task.id);
+      if (refreshedTask) {
+        openTaskDetail(task.id);
+      }
+    }, 700);
+  } catch (error) {
+    console.error("Không cập nhật được nhiệm vụ:", error);
+    showMessage(
+      progressMessage,
+      error?.message || "Không cập nhật được nhiệm vụ.",
+      "error"
+    );
+  } finally {
+    if (state.savingProgress) {
+      state.savingProgress = false;
+    }
+    saveProgressButton.disabled = false;
+    saveProgressButton.textContent = "Lưu cập nhật";
+  }
+}
 
 /* =========================================================
  * KHỞI TẠO VÀ ĐĂNG NHẬP
@@ -2073,29 +2610,53 @@ togglePasswordButton.addEventListener("click", () => {
 });
 
 logoutButton.addEventListener("click", async () => {
+  if (logoutButton.disabled) {
+    return;
+  }
+
+  const originalContent = logoutButton.innerHTML;
   logoutButton.disabled = true;
+  logoutButton.classList.add("logout-pending");
+  logoutButton.innerHTML = '<span aria-hidden="true">⏳</span><span class="top-button-text">Đang đăng xuất...</span>';
+  showView("loading");
 
   try {
-    try {
-      await syncCurrentPushSubscription(
-        false
-      );
+    /*
+     * Không để OneSignal hoặc mạng chậm giữ người dùng ở màn hình cũ.
+     * Mỗi thao tác dọn đăng ký thông báo chỉ chờ tối đa 1,5 giây.
+     */
+    await withTimeout(
+      syncCurrentPushSubscription(false).catch(() => null),
+      1500,
+      null
+    );
 
-      await window.TaskPush?.logout();
-    } catch (pushError) {
-      console.warn(
-        "Không thể đăng xuất OneSignal:",
-        pushError
-      );
+    await withTimeout(
+      Promise.resolve(window.TaskPush?.logout?.()).catch(() => null),
+      1500,
+      null
+    );
+
+    const signedOut = await withTimeout(
+      signOut(auth).then(() => true),
+      5000,
+      false
+    );
+
+    if (!signedOut && auth.currentUser) {
+      throw new Error("Firebase chưa hoàn tất đăng xuất.");
     }
 
-    await signOut(auth);
-    state.initializedUid = null;
+    resetSessionState();
+    window.history.replaceState(null, "", "./");
   } catch (error) {
     console.error("Không đăng xuất được:", error);
-    alert("Không đăng xuất được. Vui lòng thử lại.");
+    showView("app");
+    alert("Không đăng xuất được. Vui lòng kiểm tra kết nối mạng rồi thử lại.");
   } finally {
     logoutButton.disabled = false;
+    logoutButton.classList.remove("logout-pending");
+    logoutButton.innerHTML = originalContent;
   }
 });
 
@@ -2108,6 +2669,13 @@ addTaskButton.addEventListener("click", openTaskModal);
 closeModalButton.addEventListener("click", closeTaskModal);
 cancelTaskButton.addEventListener("click", closeTaskModal);
 closeDetailButton.addEventListener("click", closeTaskDetail);
+updateTaskButton.addEventListener("click", () => openProgressModal());
+closeProgressButton.addEventListener("click", closeProgressModal);
+cancelProgressButton.addEventListener("click", closeProgressModal);
+progressForm.addEventListener("submit", saveProgress);
+progressStatus.addEventListener("change", syncCompletionEvidenceUI);
+completionProductType.addEventListener("change", syncCompletionEvidenceUI);
+completedDate.addEventListener("input", updateCompletionTimingPreview);
 
 filterToggleButton.addEventListener("click", () => {
   const isOpen = filterFields.classList.toggle("open");
@@ -2210,6 +2778,12 @@ detailModal.addEventListener("click", (event) => {
   }
 });
 
+progressModal.addEventListener("click", (event) => {
+  if (event.target === progressModal) {
+    closeProgressModal();
+  }
+});
+
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") {
     return;
@@ -2217,6 +2791,11 @@ document.addEventListener("keydown", (event) => {
 
   if (!supportDropdownPanel.classList.contains("hidden")) {
     toggleSupportDropdown(false);
+    return;
+  }
+
+  if (!progressModal.classList.contains("hidden")) {
+    closeProgressModal();
     return;
   }
 
@@ -2232,11 +2811,7 @@ document.addEventListener("keydown", (event) => {
 
 onAuthStateChanged(auth, (user) => {
   if (!user) {
-    state.user = null;
-    state.profile = null;
-    state.initializedUid = null;
-    state.tasks = [];
-    showView("login");
+    resetSessionState();
     return;
   }
 
