@@ -146,7 +146,6 @@ const saveProgressButton = $("saveProgressButton");
 const progressMessage = $("progressMessage");
 const progressStatus = $("progressStatus");
 const progressPercent = $("progressPercent");
-const progressNote = $("progressNote");
 const completionSection = $("completionSection");
 const completedDate = $("completedDate");
 const completionTimingPreview = $("completionTimingPreview");
@@ -538,6 +537,7 @@ function outputTypeName(value) {
 
 function evidenceTypeName(value) {
   const map = {
+    NONE: "Không có minh chứng",
     LINK: "Đường dẫn liên kết",
     PDF: "Tệp PDF",
     IMAGE: "Hình ảnh",
@@ -1362,15 +1362,6 @@ function openTaskDetail(taskId) {
     ? `${Number(task.progress)}%`
     : "Chưa cập nhật";
 
-  const progressNoteHtml = task.progressNote
-    ? `
-      <div class="detail-item detail-span-2">
-        <span>Nội dung cập nhật gần nhất</span>
-        <strong>${escapeHtml(task.progressNote)}</strong>
-      </div>
-    `
-    : "";
-
   const legacyOutputHtml = (
     task.status !== "HOAN_THANH" &&
     (task.outputType || task.outputDescription)
@@ -1443,7 +1434,6 @@ function openTaskDetail(taskId) {
         <span>Người nhập nhiệm vụ</span>
         <strong>${escapeHtml(task.createdByName || "Chưa xác định")}</strong>
       </div>
-      ${progressNoteHtml}
       ${legacyOutputHtml}
     </div>
 
@@ -2229,7 +2219,6 @@ async function saveTask(event) {
 
       status: "MOI_TIEP_NHAN",
       progress: 0,
-      progressNote: "",
       result: "",
       resultSummary: "",
       evidenceLink: "",
@@ -2316,6 +2305,10 @@ function syncCompletionEvidenceUI() {
     }
   }
 
+  saveProgressButton.textContent = isCompleted
+    ? "✓ Hoàn thành nhiệm vụ"
+    : "Lưu cập nhật";
+
   const type = completionProductType.value;
   evidenceLinkWrap.classList.toggle("hidden", !isCompleted || type !== "LINK");
   evidenceTextWrap.classList.toggle(
@@ -2389,7 +2382,6 @@ function openProgressModal(taskId = state.selectedTaskId) {
     ? task.status
     : "DANG_THUC_HIEN";
   progressPercent.value = String(Number(task.progress) || 0);
-  progressNote.value = task.progressNote || "";
 
   const completedValue = toDate(task.completedAt) || new Date();
   completedDate.value = toDateInput(completedValue);
@@ -2459,12 +2451,6 @@ async function saveProgress(event) {
   try {
     const newStatus = progressStatus.value;
     let newProgress = Math.max(0, Math.min(100, Number(progressPercent.value) || 0));
-    const note = cleanText(progressNote.value);
-
-    if (!note) {
-      throw new Error("Vui lòng nhập nội dung đã thực hiện hoặc ghi chú tiến độ.");
-    }
-
     if (newStatus === "HOAN_THANH") {
       newProgress = 100;
     } else if (newProgress >= 100) {
@@ -2480,7 +2466,6 @@ async function saveProgress(event) {
     const updatePayload = {
       status: newStatus,
       progress: newProgress,
-      progressNote: note,
       updatedAt: serverTimestamp(),
       updatedByUserId: state.user.uid,
       updatedByName: state.profile.fullName || ""
@@ -2498,11 +2483,11 @@ async function saveProgress(event) {
       completed.setHours(12, 0, 0, 0);
 
       if (!productType) {
-        throw new Error("Vui lòng chọn loại sản phẩm hoặc minh chứng.");
+        throw new Error("Vui lòng chọn loại minh chứng.");
       }
 
       if (!summary) {
-        throw new Error("Vui lòng mô tả kết quả hoặc sản phẩm đã hoàn thành.");
+        throw new Error("Vui lòng nhập kết quả thực hiện.");
       }
 
       let evidenceUrl = task.evidenceUrl || task.evidenceLink || "";
@@ -2519,7 +2504,7 @@ async function saveProgress(event) {
         if (!isValidHttpUrl(evidenceUrl)) {
           throw new Error("Đường dẫn minh chứng phải bắt đầu bằng http:// hoặc https://.");
         }
-      } else {
+      } else if (["TEXT", "OTHER"].includes(productType)) {
         evidenceText = cleanText(evidenceTextInput.value);
         evidenceUrl = "";
         evidenceFileName = "";
@@ -2528,6 +2513,11 @@ async function saveProgress(event) {
         if (!evidenceText) {
           throw new Error("Vui lòng nhập nội dung minh chứng.");
         }
+      } else {
+        evidenceUrl = "";
+        evidenceText = "";
+        evidenceFileName = "";
+        evidenceStoragePath = "";
       }
 
       const timing = completionTimingInfo(task, completed);
@@ -2598,7 +2588,9 @@ async function saveProgress(event) {
       state.savingProgress = false;
     }
     saveProgressButton.disabled = false;
-    saveProgressButton.textContent = "Lưu cập nhật";
+    saveProgressButton.textContent = progressStatus.value === "HOAN_THANH"
+      ? "✓ Hoàn thành nhiệm vụ"
+      : "Lưu cập nhật";
   }
 }
 
