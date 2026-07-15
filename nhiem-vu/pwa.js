@@ -4,7 +4,7 @@
  * =========================================================
  */
 
-const PWA_VERSION = "20260714.847";
+const PWA_VERSION = "20260714.851";
 
 let deferredInstallPrompt = null;
 let serviceWorkerRegistration = null;
