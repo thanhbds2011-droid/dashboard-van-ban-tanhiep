@@ -1584,3 +1584,125 @@ textarea:focus {
     width: 100%;
   }
 }
+
+
+/* =========================================================
+ * BƯỚC 9.2A - GHI NHẬN NHIỆM VỤ THEO 6 RÕ
+ * ========================================================= */
+
+.entry-mode-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 18px;
+  padding: 13px 15px;
+  border: 1px solid #d7e3ed;
+  border-radius: 14px;
+  background: #f7fafc;
+}
+
+.entry-mode-banner strong {
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  letter-spacing: 0.03em;
+}
+
+.entry-mode-banner span {
+  line-height: 1.55;
+  color: #40566a;
+}
+
+.entry-mode-self {
+  border-color: #b9d8ef;
+  background: #f1f8fd;
+}
+
+.entry-mode-self strong {
+  color: #0f5d91;
+  background: #dceefb;
+}
+
+.entry-mode-direct {
+  border-color: #f3cf9c;
+  background: #fff8ed;
+}
+
+.entry-mode-direct strong {
+  color: #9a4f00;
+  background: #ffe5bc;
+}
+
+.form-section-title {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-top: 4px;
+  padding: 11px 12px;
+  border-radius: 12px;
+  background: #f5f8fb;
+  border-left: 4px solid #17639a;
+}
+
+.form-section-title > span {
+  display: grid;
+  place-items: center;
+  width: 29px;
+  height: 29px;
+  border-radius: 50%;
+  color: #fff;
+  background: #17639a;
+  font-weight: 800;
+}
+
+.form-section-title div {
+  display: grid;
+  gap: 2px;
+}
+
+.form-section-title strong {
+  color: #183247;
+  font-size: 0.95rem;
+}
+
+.form-section-title small {
+  color: #667b8d;
+  line-height: 1.35;
+}
+
+.multi-select-option span {
+  display: grid;
+  gap: 2px;
+}
+
+.multi-select-option strong {
+  color: #20384b;
+  font-size: 0.92rem;
+}
+
+.multi-select-option small {
+  color: #718394;
+  font-size: 0.78rem;
+}
+
+.task-entry-line {
+  display: flex !important;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.detail-span-2 {
+  grid-column: span 2;
+}
+
+@media (max-width: 720px) {
+  .entry-mode-banner {
+    display: grid;
+  }
+
+  .detail-span-2 {
+    grid-column: auto;
+  }
+}
