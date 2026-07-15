@@ -149,6 +149,17 @@ textarea:focus {
   background: var(--primary-soft);
 }
 
+.export-button {
+  color: #146c43;
+  border-color: #9fd5bd;
+  background: #f2fbf6;
+}
+
+.export-button:hover:not(:disabled) {
+  color: #0f5736;
+  background: #e3f6ec;
+}
+
 .full-width {
   width: 100%;
 }
