@@ -451,33 +451,21 @@
           .id;
 
       if (
-        browserPermission ===
-          "granted" &&
-        optedIn &&
-        subscriptionId
-      ) {
-        setStatus({
-          mode:
-            "success",
+  browserPermission === "granted" &&
+  optedIn &&
+  subscriptionId
+) {
+  setStatus({
+    mode: "success",
+    buttonText: "Đã bật thông báo",
+    title: "Thông báo đã được bật",
+    text: "Thiết bị này đang nhận thông báo nhiệm vụ mới, sắp đến hạn và quá hạn.",
+    showBox: true,
+    showAction: false
+  });
 
-          buttonText:
-            "Thông báo đã bật",
-
-          title:
-            "Đã bật thông báo nhiệm vụ",
-
-          text:
-            "Thiết bị này đã được liên kết với tài khoản đang đăng nhập.",
-
-          showBox:
-            false,
-
-          showAction:
-            false
-        });
-
-        return;
-      }
+  return;
+}
 
       if (
         browserPermission ===
