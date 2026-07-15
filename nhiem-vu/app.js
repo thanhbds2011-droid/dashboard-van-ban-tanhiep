@@ -1,11 +1,11 @@
 import {
   auth,
   db
-} from "./firebase-config.js?v=20260715.912";
+} from "./firebase-config.js?v=20260715.1500";
 
 import {
   NOTIFICATION_WEB_APP_URL
-} from "./notification-config.js?v=20260715.912";
+} from "./notification-config.js?v=20260715.1500";
 
 import {
   GoogleAuthProvider,
@@ -20,11 +20,14 @@ import {
   collection,
   doc,
   getDoc,
+  getDocs,
   getDocsFromServer,
+  query,
   serverTimestamp,
   setDoc,
   Timestamp,
-  updateDoc
+  updateDoc,
+  where
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 
 
@@ -842,69 +845,45 @@ async function loadTasks() {
   hideMessage(dashboardMessage);
 
   try {
-    const snapshot = await getDocsFromServer(collection(db, "tasks"));
-    const allTasks = [];
+    const taskMap = new Map();
 
-    snapshot.forEach((item) => {
-      const task = {
-        id: item.id,
-        ...item.data()
-      };
+    const addSnapshotToMap = (snapshot) => {
+      snapshot.forEach((item) => {
+        const task = {
+          id: item.id,
+          ...item.data()
+        };
 
-      if (task.active !== false) {
-        allTasks.push(task);
-      }
-    });
+        if (task.active !== false) {
+          taskMap.set(item.id, task);
+        }
+      });
+    };
 
     if (canViewAllTasks()) {
       /* Ban Giám đốc, ADMIN và đầu mối TCHC xem toàn bộ nhiệm vụ. */
-      state.tasks = allTasks;
+      const snapshot = await getDocsFromServer(collection(db, "tasks"));
+      addSnapshotToMap(snapshot);
     } else if (state.profile.role === "DEPARTMENT_LEADER") {
+      /*
+       * Trưởng/Phó cùng một Phòng/Khu dùng chung departmentId nên
+       * cùng thấy toàn bộ nhiệm vụ của đơn vị, không phụ thuộc người tạo.
+       */
       const departmentId = state.profile.departmentId;
-      const currentUid = state.user.uid;
+      const tasksRef = collection(db, "tasks");
 
-      state.tasks = allTasks.filter((task) => {
-        const relatedUserIds = Array.isArray(task.relatedUserIds)
-          ? task.relatedUserIds
-          : [];
+      const results = await Promise.all([
+        getDocs(query(tasksRef, where("primaryDepartmentId", "==", departmentId))),
+        getDocs(query(tasksRef, where("supportDepartmentIds", "array-contains", departmentId))),
+        getDocs(query(tasksRef, where("visibleDepartmentIds", "array-contains", departmentId)))
+      ]);
 
-        /*
-         * Dữ liệu mới được hiển thị theo đúng cá nhân:
-         * - người chịu trách nhiệm;
-         * - người có liên quan;
-         * - người đã tự ghi nhận.
-         */
-        if (
-          task.entryMode ||
-          Array.isArray(task.relatedUserIds)
-        ) {
-          return (
-            task.ownerUserId === currentUid ||
-            task.createdByUserId === currentUid ||
-            relatedUserIds.includes(currentUid)
-          );
-        }
-
-        /*
-         * Tương thích nhiệm vụ cũ chưa có entryMode/relatedUserIds.
-         */
-        const supportIds = Array.isArray(task.supportDepartmentIds)
-          ? task.supportDepartmentIds
-          : [];
-
-        const visibleIds = Array.isArray(task.visibleDepartmentIds)
-          ? task.visibleDepartmentIds
-          : [];
-
-        return (
-          task.primaryDepartmentId === departmentId ||
-          supportIds.includes(departmentId) ||
-          visibleIds.includes(departmentId)
-        );
-      });
+      results.forEach(addSnapshotToMap);
     } else {
       throw new Error("Vai trò tài khoản chưa được cấp quyền xem nhiệm vụ.");
     }
+
+    state.tasks = Array.from(taskMap.values());
 
     state.tasks.sort((a, b) => {
       const dateA = toDate(a.updatedAt) || toDate(a.createdAt) || new Date(0);
