@@ -21,48 +21,16 @@ import {
 
 const firebaseConfig = {
   apiKey: "AIzaSyCwrGqShsBWchSjTB0iHrrzstRERAjuCW4",
-
-  authDomain:
-    "quan-ly-nhiem-vu-tanhiep.firebaseapp.com",
-
-  projectId:
-    "quan-ly-nhiem-vu-tanhiep",
-
-  storageBucket:
-    "quan-ly-nhiem-vu-tanhiep.firebasestorage.app",
-
-  messagingSenderId:
-    "293564832220",
-
-  appId:
-    "1:293564832220:web:2c5174f047ac8246a9d719"
+  authDomain: "quan-ly-nhiem-vu-tanhiep.firebaseapp.com",
+  projectId: "quan-ly-nhiem-vu-tanhiep",
+  messagingSenderId: "293564832220",
+  appId: "1:293564832220:web:2c5174f047ac8246a9d719"
 };
 
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
 
-/*
- * Khởi tạo ứng dụng Firebase.
- */
-const app =
-  initializeApp(firebaseConfig);
-
-
-/*
- * Khởi tạo Firebase Authentication.
- */
-const auth =
-  getAuth(app);
-
-
-/*
- * Khởi tạo Cloud Firestore.
- */
-const db =
-  getFirestore(app);
-
-
-/*
- * Cho phép app.js sử dụng Firebase.
- */
 export {
   app,
   auth,
