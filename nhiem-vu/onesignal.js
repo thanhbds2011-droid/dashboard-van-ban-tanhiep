@@ -12,10 +12,10 @@
     "673200ba-0b27-489c-a596-84515dfc7d33";
 
   const SERVICE_WORKER_PATH =
-    "dashboard-van-ban-tanhiep/OneSignalSDKWorker.js";
+  "/dashboard-van-ban-tanhiep/nhiem-vu/OneSignalSDKWorker.js";
 
-  const SERVICE_WORKER_SCOPE =
-    "/dashboard-van-ban-tanhiep/push/onesignal/";
+const SERVICE_WORKER_SCOPE =
+  "/dashboard-van-ban-tanhiep/nhiem-vu/push/onesignal/";
 
   const state = {
     initialized: false,
@@ -528,116 +528,109 @@
   }
 
   async function requestPermission() {
-    const ui =
-      getUi();
+  const ui = getUi();
 
-    if (ui.statusAction) {
-      ui.statusAction.disabled =
-        true;
+  if (ui.statusAction) {
+    ui.statusAction.disabled = true;
+    ui.statusAction.textContent = "Đang đăng ký...";
+  }
+
+  try {
+    const OneSignal = await ensureInitialized();
+
+    if (!OneSignal.Notifications.isPushSupported()) {
+      await refreshStatus();
+      return;
     }
 
-    try {
-      const OneSignal =
-        await ensureInitialized();
+    const currentPermission = getBrowserPermission();
 
-      if (
-        !OneSignal.Notifications
-          .isPushSupported()
-      ) {
-        await refreshStatus();
-
-        return;
-      }
-
-      if (
-        getBrowserPermission() ===
-        "denied"
-      ) {
-        await refreshStatus();
-
-        return;
-      }
-
-      /*
-       * Trình duyệt mới thường đang ở trạng thái "default".
-       * Gọi trực tiếp hộp thoại quyền gốc của trình duyệt.
-       *
-       * fallbackToSettings giúp mở phần cài đặt quyền
-       * nếu người dùng đã từng chặn thông báo.
-       */
-      if (
-        !OneSignal.Notifications
-          .permission
-      ) {
-        await OneSignal.Notifications
-          .requestPermission({
-            fallbackToSettings:
-              true
-          });
-      }
-
-      /*
-       * Sau khi quyền đã được cấp, đăng ký lại Push
-       * nếu thiết bị chưa ở trạng thái optedIn.
-       */
-      if (
-        OneSignal.Notifications
-          .permission &&
-        !OneSignal.User
-          .PushSubscription
-          .optedIn
-      ) {
-        await OneSignal.User
-          .PushSubscription
-          .optIn();
-      }
-
-      /*
-       * Chờ OneSignal tạo/cập nhật Subscription ID,
-       * sau đó đồng bộ lại trạng thái sang Firestore.
-       */
-      window.setTimeout(
-        async () => {
-          await refreshStatus();
-
-          emitSubscriptionChange();
-        },
-        1500
-      );
-
-    } catch (error) {
-      console.error(
-        "Không bật được thông báo:",
-        error
-      );
-
+    if (currentPermission === "denied") {
       setStatus({
-        mode:
-          "error",
-
-        buttonText:
-          "Thử lại",
-
-        title:
-          "Không bật được thông báo",
-
+        mode: "error",
+        title: "Trình duyệt đang chặn thông báo",
         text:
-          "Trình duyệt chưa cấp quyền hoặc cấu hình OneSignal chưa hoàn chỉnh.",
-
-        showBox:
-          true,
-
-        showAction:
-          true
+          "Bấm biểu tượng cài đặt cạnh địa chỉ website, chuyển quyền Thông báo thành Cho phép rồi tải lại trang.",
+        showBox: true,
+        showAction: false
       });
 
-    } finally {
-      if (ui.statusAction) {
-        ui.statusAction.disabled =
-          false;
+      return;
+    }
+
+    if (currentPermission !== "granted") {
+      await OneSignal.Notifications.requestPermission();
+    }
+
+    if (getBrowserPermission() !== "granted") {
+      setStatus({
+        mode: "warning",
+        title: "Chưa cấp quyền thông báo",
+        text:
+          "Bạn chưa chọn Cho phép. Hãy bấm lại nút đăng ký và chọn Cho phép khi trình duyệt hỏi.",
+        showBox: true,
+        showAction: true
+      });
+
+      return;
+    }
+
+    if (
+      !OneSignal.User.PushSubscription.optedIn
+    ) {
+      await OneSignal.User.PushSubscription.optIn();
+    }
+
+    let subscriptionId = null;
+
+    for (let attempt = 0; attempt < 15; attempt += 1) {
+      subscriptionId =
+        OneSignal.User.PushSubscription.id || null;
+
+      if (
+        subscriptionId &&
+        OneSignal.User.PushSubscription.optedIn
+      ) {
+        break;
       }
+
+      await new Promise((resolve) => {
+        window.setTimeout(resolve, 500);
+      });
+    }
+
+    if (!subscriptionId) {
+      throw new Error(
+        "OneSignal chưa tạo được Subscription ID. Hãy tải lại trang và thử lại."
+      );
+    }
+
+    await refreshStatus();
+    emitSubscriptionChange();
+
+  } catch (error) {
+    console.error(
+      "Không bật được thông báo:",
+      error
+    );
+
+    setStatus({
+      mode: "error",
+      title: "Không bật được thông báo",
+      text:
+        error?.message ||
+        "Không đăng ký được thiết bị với OneSignal. Hãy tải lại trang và thử lại.",
+      showBox: true,
+      showAction: true
+    });
+
+  } finally {
+    if (ui.statusAction) {
+      ui.statusAction.disabled = false;
+      ui.statusAction.textContent = "Bật thông báo";
     }
   }
+}
 
   function bindButtons() {
     const ui =
