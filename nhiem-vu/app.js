@@ -1043,101 +1043,1167 @@ function applyFilters() {
 }
 
 /* =========================================================
- * XUẤT BÁO CÁO NHIỆM VỤ
+ * XUẤT BÁO CÁO NHIỆM VỤ — A4 NGANG
  * ========================================================= */
 
-function csvValue(value) {
-  const normalized = String(value ?? "")
-    .replace(/\r?\n/g, " ")
-    .replace(/"/g, '""');
+/*
+ * Tên trạng thái dùng riêng trong báo cáo.
+ * Không làm thay đổi dữ liệu lưu trong Firestore.
+ */
+function reportTaskStatusName(task) {
+  const due =
+    deadlineState(task);
 
-  return `"${normalized}"`;
+  if (task.status === "HOAN_THANH") {
+    return completionTimingInfo(task).text;
+  }
+
+  if (task.status === "HUY") {
+    return "Đã hủy";
+  }
+
+  if (task.status === "TAM_DUNG") {
+    return due.code === "OVERDUE"
+      ? `Tạm dừng — ${due.text}`
+      : "Tạm dừng";
+  }
+
+  const statusMap = {
+    MOI_TIEP_NHAN:
+      "Chưa thực hiện",
+
+    DANG_THUC_HIEN:
+      "Đang thực hiện",
+
+    CHO_PHOI_HOP:
+      "Chờ phối hợp"
+  };
+
+  const statusText =
+    statusMap[task.status] ||
+    statusName(task.status);
+
+  if (
+    !due.text ||
+    due.code === "NO_DEADLINE"
+  ) {
+    return statusText;
+  }
+
+  return `${statusText} — ${due.text}`;
 }
 
+
+/*
+ * Màu trạng thái trong báo cáo.
+ */
+function reportTaskStatusClass(task) {
+  const due =
+    deadlineState(task);
+
+  if (task.status === "HOAN_THANH") {
+    const timing =
+      completionTimingInfo(task);
+
+    return timing.code === "LATE"
+      ? "status-completed-late"
+      : "status-completed";
+  }
+
+  if (task.status === "HUY") {
+    return "status-cancelled";
+  }
+
+  if (task.status === "TAM_DUNG") {
+    return "status-paused";
+  }
+
+  if (due.code === "OVERDUE") {
+    return "status-overdue";
+  }
+
+  if (
+    due.code === "DUE_TODAY" ||
+    due.code === "UPCOMING"
+  ) {
+    return "status-warning";
+  }
+
+  return "status-processing";
+}
+
+
+/*
+ * Xác định phạm vi đang xuất theo bộ lọc.
+ */
+function reportScopeText() {
+  const selectedDepartment =
+    departmentFilter?.value || "ALL";
+
+  if (selectedDepartment === "ALL") {
+    return "Toàn Trung tâm";
+  }
+
+  return departmentName(
+    selectedDepartment
+  );
+}
+
+
+/*
+ * Mô tả bộ lọc đã áp dụng.
+ */
+function reportFilterText() {
+  const parts = [];
+
+  const keyword =
+    cleanText(
+      searchInput?.value
+    );
+
+  const statusText =
+    statusFilter
+      ?.selectedOptions?.[0]
+      ?.textContent
+      ?.trim() || "";
+
+  const deadlineText =
+    deadlineFilter
+      ?.selectedOptions?.[0]
+      ?.textContent
+      ?.trim() || "";
+
+  const departmentText =
+    departmentFilter
+      ?.selectedOptions?.[0]
+      ?.textContent
+      ?.trim() || "";
+
+  if (keyword) {
+    parts.push(
+      `Từ khóa: ${keyword}`
+    );
+  }
+
+  if (
+    statusFilter?.value &&
+    statusFilter.value !== "ALL"
+  ) {
+    parts.push(statusText);
+  }
+
+  if (
+    deadlineFilter?.value &&
+    deadlineFilter.value !== "ALL"
+  ) {
+    parts.push(deadlineText);
+  }
+
+  if (
+    departmentFilter?.value &&
+    departmentFilter.value !== "ALL"
+  ) {
+    parts.push(departmentText);
+  }
+
+  return parts.length > 0
+    ? parts.join(" • ")
+    : "Không áp dụng bộ lọc chi tiết";
+}
+
+
+/*
+ * Xuất báo cáo dạng trang in A4 ngang.
+ * Người dùng có thể chọn In hoặc Lưu thành PDF.
+ */
 function exportTaskReport() {
   if (!canExportTaskReport()) {
-    showMessage(dashboardMessage, "Tài khoản không có quyền xuất báo cáo tổng hợp.", "error");
+    showMessage(
+      dashboardMessage,
+      "Tài khoản không có quyền xuất báo cáo tổng hợp.",
+      "error"
+    );
+
     return;
   }
 
-  const tasksToExport = Array.isArray(state.filteredTasks)
-    ? state.filteredTasks
-    : [];
+  const tasksToExport =
+    Array.isArray(
+      state.filteredTasks
+    )
+      ? state.filteredTasks
+      : [];
 
   if (tasksToExport.length === 0) {
-    showMessage(dashboardMessage, "Không có nhiệm vụ trong bộ lọc hiện tại để xuất báo cáo.", "warning");
+    showMessage(
+      dashboardMessage,
+      "Không có nhiệm vụ trong bộ lọc hiện tại để xuất báo cáo.",
+      "warning"
+    );
+
     return;
   }
 
-  const headers = [
-    "STT", "Mã nhiệm vụ", "Hình thức ghi nhận", "Nguồn nhiệm vụ",
-    "Ngày được chỉ đạo", "Người giao/chỉ đạo", "Tên nhiệm vụ",
-    "Nội dung thực hiện", "Phòng/Khu", "Người chịu trách nhiệm",
-    "Người có liên quan", "Mức độ", "Hạn hoàn thành", "Trạng thái",
-    "Tiến độ (%)", "Tình trạng thời hạn", "Ngày hoàn thành thực tế",
-    "Kết quả thực hiện", "Loại minh chứng", "Đường dẫn minh chứng",
-    "Nội dung minh chứng", "Cập nhật gần nhất"
-  ];
+  /*
+   * Mở cửa sổ ngay khi người dùng bấm nút
+   * để tránh trình duyệt chặn popup.
+   */
+  const reportWindow =
+    window.open(
+      "",
+      "_blank",
+      "width=1400,height=900"
+    );
 
-  const rows = tasksToExport.map((task, index) => {
-    const due = deadlineState(task);
-    const timingText = task.status === "HOAN_THANH"
-      ? completionTimingInfo(task).text
-      : due.text;
+  if (!reportWindow) {
+    showMessage(
+      dashboardMessage,
+      "Trình duyệt đang chặn cửa sổ báo cáo. Hãy cho phép cửa sổ bật lên rồi thử lại.",
+      "error"
+    );
 
-    return [
-      index + 1,
-      task.taskCode || "",
-      entryModeName(task.entryMode),
-      sourceName(task.sourceType),
-      formatDate(task.assignedAt || task.sourceDate),
-      task.assignedByName || "",
-      task.title || "",
-      task.description || "",
-      departmentName(task.primaryDepartmentId),
-      task.ownerName || "",
-      Array.isArray(task.relatedUserNames) ? task.relatedUserNames.join(", ") : "",
-      priorityName(task.priority),
-      formatDate(task.deadline),
-      statusName(task.status),
-      Number(task.progress) || 0,
-      timingText,
-      task.completedAt ? formatDate(task.completedAt) : "",
-      task.resultSummary || task.result || "",
-      evidenceTypeName(task.evidenceType),
-      task.evidenceUrl || task.evidenceLink || "",
-      task.evidenceText || "",
-      formatDateTime(task.updatedAt || task.createdAt)
-    ];
-  });
+    return;
+  }
 
-  const csvContent = [headers, ...rows]
-    .map((row) => row.map(csvValue).join(";"))
-    .join("\r\n");
+  const now =
+    new Date();
 
-  const blob = new Blob(["\uFEFF", csvContent], {
-    type: "text/csv;charset=utf-8;"
-  });
+  const totalCount =
+    tasksToExport.length;
 
-  const now = new Date();
-  const fileName = [
-    "bao-cao-nhiem-vu",
-    dateKey(now),
-    `${pad2(now.getHours())}${pad2(now.getMinutes())}`
-  ].join("_") + ".csv";
+  const completedCount =
+    tasksToExport.filter(
+      (task) =>
+        task.status ===
+        "HOAN_THANH"
+    ).length;
 
-  const downloadUrl = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = downloadUrl;
-  link.download = fileName;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(downloadUrl);
+  const overdueCount =
+    tasksToExport.filter(
+      (task) =>
+        task.status !==
+          "HOAN_THANH" &&
+        task.status !==
+          "HUY" &&
+        deadlineState(task).code ===
+          "OVERDUE"
+    ).length;
+
+  const processingCount =
+    tasksToExport.filter(
+      (task) =>
+        [
+          "MOI_TIEP_NHAN",
+          "DANG_THUC_HIEN",
+          "CHO_PHOI_HOP",
+          "TAM_DUNG"
+        ].includes(task.status)
+    ).length;
+
+  const scopeText =
+    reportScopeText();
+
+  const filterText =
+    reportFilterText();
+
+  const reportRows =
+    tasksToExport
+      .map(
+        (task, index) => {
+          const progressValue =
+            Math.max(
+              0,
+              Math.min(
+                100,
+                Number(
+                  task.progress
+                ) || 0
+              )
+            );
+
+          const descriptionHtml =
+            task.description
+              ? `
+                <div class="task-description">
+                  ${escapeHtml(
+                    task.description
+                  )}
+                </div>
+              `
+              : "";
+
+          const resultText =
+            task.status ===
+              "HOAN_THANH"
+              ? (
+                task.resultSummary ||
+                task.result ||
+                "Chưa cập nhật kết quả"
+              )
+              : "—";
+
+          return `
+            <tr>
+              <td class="column-stt">
+                ${index + 1}
+              </td>
+
+              <td class="column-task">
+                <strong class="task-title">
+                  ${escapeHtml(
+                    task.title ||
+                    "Nhiệm vụ chưa có tiêu đề"
+                  )}
+                </strong>
+
+                ${descriptionHtml}
+              </td>
+
+              <td class="column-department">
+                ${escapeHtml(
+                  departmentName(
+                    task.primaryDepartmentId
+                  )
+                )}
+              </td>
+
+              <td class="column-owner">
+                ${escapeHtml(
+                  task.ownerName ||
+                  "Chưa xác định"
+                )}
+              </td>
+
+              <td class="column-deadline">
+                ${escapeHtml(
+                  formatDate(
+                    task.deadline
+                  )
+                )}
+              </td>
+
+              <td class="column-progress">
+                <strong>
+                  ${progressValue}%
+                </strong>
+              </td>
+
+              <td class="column-status">
+                <span class="report-status ${reportTaskStatusClass(task)}">
+                  ${escapeHtml(
+                    reportTaskStatusName(
+                      task
+                    )
+                  )}
+                </span>
+              </td>
+
+              <td class="column-result">
+                ${escapeHtml(
+                  resultText
+                )}
+              </td>
+            </tr>
+          `;
+        }
+      )
+      .join("");
+
+  const reportTitle =
+    `Bao-cao-theo-doi-nhiem-vu_${dateKey(now)}`;
+
+  const reportHtml = `
+    <!DOCTYPE html>
+    <html lang="vi">
+    <head>
+      <meta charset="UTF-8">
+
+      <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+      >
+
+      <title>
+        ${escapeHtml(reportTitle)}
+      </title>
+
+      <style>
+        @page {
+          size: A4 landscape;
+          margin:
+            9mm
+            9mm
+            10mm
+            9mm;
+        }
+
+        * {
+          box-sizing:
+            border-box;
+        }
+
+        html,
+        body {
+          margin:
+            0;
+
+          padding:
+            0;
+
+          background:
+            #ffffff;
+
+          color:
+            #172033;
+
+          font-family:
+            Arial,
+            Helvetica,
+            sans-serif;
+        }
+
+        body {
+          font-size:
+            9pt;
+
+          line-height:
+            1.35;
+        }
+
+        .report-page {
+          width:
+            100%;
+
+          margin:
+            0 auto;
+        }
+
+        .print-toolbar {
+          position:
+            sticky;
+
+          top:
+            0;
+
+          z-index:
+            10;
+
+          display:
+            flex;
+
+          justify-content:
+            center;
+
+          gap:
+            10px;
+
+          padding:
+            12px;
+
+          margin-bottom:
+            16px;
+
+          background:
+            #eaf3fa;
+
+          border-bottom:
+            1px solid #c7d9e8;
+        }
+
+        .print-toolbar button {
+          min-height:
+            42px;
+
+          padding:
+            0 22px;
+
+          border:
+            1px solid #1c6798;
+
+          border-radius:
+            8px;
+
+          background:
+            #1c6798;
+
+          color:
+            #ffffff;
+
+          font-size:
+            14px;
+
+          font-weight:
+            700;
+
+          cursor:
+            pointer;
+        }
+
+        .print-toolbar button.secondary {
+          background:
+            #ffffff;
+
+          color:
+            #1c6798;
+        }
+
+        .agency-name {
+          margin:
+            0;
+
+          text-align:
+            center;
+
+          font-family:
+            "Times New Roman",
+            Times,
+            serif;
+
+          font-size:
+            12pt;
+
+          font-weight:
+            700;
+
+          text-transform:
+            uppercase;
+        }
+
+        .agency-line {
+          width:
+            110px;
+
+          height:
+            1px;
+
+          margin:
+            5px auto 10px;
+
+          background:
+            #172033;
+        }
+
+        .report-heading {
+          margin:
+            0;
+
+          text-align:
+            center;
+
+          font-family:
+            "Times New Roman",
+            Times,
+            serif;
+
+          font-size:
+            17pt;
+
+          font-weight:
+            700;
+
+          text-transform:
+            uppercase;
+        }
+
+        .report-subheading {
+          margin:
+            4px 0 14px;
+
+          text-align:
+            center;
+
+          font-family:
+            "Times New Roman",
+            Times,
+            serif;
+
+          font-size:
+            10.5pt;
+
+          font-style:
+            italic;
+        }
+
+        .report-information {
+          display:
+            grid;
+
+          grid-template-columns:
+            1fr 1fr;
+
+          gap:
+            5px 20px;
+
+          margin:
+            0 0 12px;
+
+          padding:
+            9px 11px;
+
+          border:
+            1px solid #a8becf;
+
+          border-radius:
+            6px;
+
+          background:
+            #f7fafc;
+        }
+
+        .report-information div {
+          min-width:
+            0;
+        }
+
+        .report-information strong {
+          color:
+            #174f76;
+        }
+
+        .information-full {
+          grid-column:
+            1 / -1;
+        }
+
+        .summary-grid {
+          display:
+            grid;
+
+          grid-template-columns:
+            repeat(4, 1fr);
+
+          gap:
+            8px;
+
+          margin-bottom:
+            12px;
+        }
+
+        .summary-card {
+          padding:
+            8px 10px;
+
+          border:
+            1px solid #a8becf;
+
+          border-radius:
+            6px;
+
+          text-align:
+            center;
+
+          background:
+            #ffffff;
+        }
+
+        .summary-card span {
+          display:
+            block;
+
+          margin-bottom:
+            2px;
+
+          color:
+            #536579;
+
+          font-size:
+            8.5pt;
+        }
+
+        .summary-card strong {
+          display:
+            block;
+
+          color:
+            #174f76;
+
+          font-size:
+            15pt;
+        }
+
+        .summary-card.completed strong {
+          color:
+            #17834f;
+        }
+
+        .summary-card.overdue strong {
+          color:
+            #c93434;
+        }
+
+        table {
+          width:
+            100%;
+
+          border-collapse:
+            collapse;
+
+          table-layout:
+            fixed;
+
+          font-size:
+            8.5pt;
+        }
+
+        thead {
+          display:
+            table-header-group;
+        }
+
+        tr {
+          break-inside:
+            avoid;
+
+          page-break-inside:
+            avoid;
+        }
+
+        th,
+        td {
+          border:
+            1px solid #7c8b99;
+
+          padding:
+            5px 5px;
+
+          vertical-align:
+            top;
+
+          overflow-wrap:
+            anywhere;
+
+          word-break:
+            normal;
+        }
+
+        th {
+          background:
+            #1c6798;
+
+          color:
+            #ffffff;
+
+          text-align:
+            center;
+
+          font-weight:
+            700;
+
+          text-transform:
+            uppercase;
+        }
+
+        tbody tr:nth-child(even) {
+          background:
+            #f5f8fa;
+        }
+
+        .column-stt {
+          width:
+            4%;
+
+          text-align:
+            center;
+        }
+
+        .column-task {
+          width:
+            27%;
+        }
+
+        .column-department {
+          width:
+            11%;
+        }
+
+        .column-owner {
+          width:
+            13%;
+        }
+
+        .column-deadline {
+          width:
+            9%;
+
+          text-align:
+            center;
+        }
+
+        .column-progress {
+          width:
+            7%;
+
+          text-align:
+            center;
+        }
+
+        .column-status {
+          width:
+            13%;
+        }
+
+        .column-result {
+          width:
+            16%;
+        }
+
+        .task-title {
+          display:
+            block;
+
+          margin-bottom:
+            3px;
+
+          color:
+            #112f46;
+        }
+
+        .task-description {
+          color:
+            #495b6b;
+
+          font-size:
+            8pt;
+
+          line-height:
+            1.3;
+        }
+
+        .report-status {
+          display:
+            inline-block;
+
+          font-weight:
+            700;
+        }
+
+        .status-completed {
+          color:
+            #147c48;
+        }
+
+        .status-completed-late {
+          color:
+            #a86400;
+        }
+
+        .status-overdue {
+          color:
+            #c62828;
+        }
+
+        .status-warning {
+          color:
+            #a45e00;
+        }
+
+        .status-processing {
+          color:
+            #155f91;
+        }
+
+        .status-paused,
+        .status-cancelled {
+          color:
+            #5f6973;
+        }
+
+        .report-footer {
+          display:
+            flex;
+
+          justify-content:
+            space-between;
+
+          gap:
+            30px;
+
+          margin-top:
+            15px;
+
+          padding-top:
+            9px;
+
+          border-top:
+            1px solid #9caab6;
+        }
+
+        .footer-note {
+          flex:
+            1;
+
+          color:
+            #5c6670;
+
+          font-size:
+            8pt;
+
+          font-style:
+            italic;
+        }
+
+        .signature-block {
+          width:
+            270px;
+
+          text-align:
+            center;
+
+          font-family:
+            "Times New Roman",
+            Times,
+            serif;
+
+          font-size:
+            10pt;
+        }
+
+        .signature-block strong {
+          display:
+            block;
+
+          text-transform:
+            uppercase;
+        }
+
+        .signature-space {
+          height:
+            45px;
+        }
+
+        @media print {
+          .no-print {
+            display:
+              none !important;
+          }
+
+          html,
+          body {
+            width:
+              100%;
+
+            background:
+              #ffffff;
+          }
+
+          .report-page {
+            width:
+              100%;
+          }
+
+          .report-information,
+          .summary-card {
+            print-color-adjust:
+              exact;
+
+            -webkit-print-color-adjust:
+              exact;
+          }
+
+          th {
+            print-color-adjust:
+              exact;
+
+            -webkit-print-color-adjust:
+              exact;
+          }
+
+          tbody tr:nth-child(even) {
+            print-color-adjust:
+              exact;
+
+            -webkit-print-color-adjust:
+              exact;
+          }
+        }
+      </style>
+    </head>
+
+    <body>
+      <div class="print-toolbar no-print">
+        <button
+          type="button"
+          onclick="window.print()"
+        >
+          In / Lưu thành PDF
+        </button>
+
+        <button
+          type="button"
+          class="secondary"
+          onclick="window.close()"
+        >
+          Đóng báo cáo
+        </button>
+      </div>
+
+      <main class="report-page">
+        <p class="agency-name">
+          Trung tâm Bảo trợ xã hội Tân Hiệp
+        </p>
+
+        <div class="agency-line"></div>
+
+        <h1 class="report-heading">
+          Báo cáo theo dõi thực hiện nhiệm vụ
+        </h1>
+
+        <p class="report-subheading">
+          Dữ liệu được tổng hợp theo bộ lọc tại thời điểm xuất báo cáo
+        </p>
+
+        <section class="report-information">
+          <div>
+            <strong>Đơn vị xuất báo cáo:</strong>
+            PHÒNG TỔ CHỨC - HÀNH CHÍNH
+          </div>
+
+          <div>
+            <strong>Thời điểm xuất:</strong>
+            ${escapeHtml(
+              formatDateTime(now)
+            )}
+          </div>
+
+          <div>
+            <strong>Phạm vi báo cáo:</strong>
+            ${escapeHtml(
+              scopeText
+            )}
+          </div>
+
+          <div>
+            <strong>Số nhiệm vụ:</strong>
+            ${totalCount} nhiệm vụ
+          </div>
+
+          <div class="information-full">
+            <strong>Bộ lọc áp dụng:</strong>
+            ${escapeHtml(
+              filterText
+            )}
+          </div>
+        </section>
+
+        <section class="summary-grid">
+          <div class="summary-card">
+            <span>Tổng nhiệm vụ</span>
+            <strong>
+              ${totalCount}
+            </strong>
+          </div>
+
+          <div class="summary-card completed">
+            <span>Đã hoàn thành</span>
+            <strong>
+              ${completedCount}
+            </strong>
+          </div>
+
+          <div class="summary-card">
+            <span>Đang theo dõi</span>
+            <strong>
+              ${processingCount}
+            </strong>
+          </div>
+
+          <div class="summary-card overdue">
+            <span>Quá hạn</span>
+            <strong>
+              ${overdueCount}
+            </strong>
+          </div>
+        </section>
+
+        <table>
+          <thead>
+            <tr>
+              <th class="column-stt">
+                STT
+              </th>
+
+              <th class="column-task">
+                Nội dung nhiệm vụ
+              </th>
+
+              <th class="column-department">
+                Phòng/Khu
+              </th>
+
+              <th class="column-owner">
+                Người phụ trách
+              </th>
+
+              <th class="column-deadline">
+                Hạn hoàn thành
+              </th>
+
+              <th class="column-progress">
+                Tiến độ
+              </th>
+
+              <th class="column-status">
+                Tình trạng
+              </th>
+
+              <th class="column-result">
+                Kết quả thực hiện
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            ${reportRows}
+          </tbody>
+        </table>
+
+        <footer class="report-footer">
+          <div class="footer-note">
+            Báo cáo được tạo tự động từ Hệ thống Quản lý nhiệm vụ
+            của Trung tâm Bảo trợ xã hội Tân Hiệp.
+          </div>
+
+          <div class="signature-block">
+            <strong>
+              Phòng Tổ chức - Hành chính
+            </strong>
+
+            <div class="signature-space"></div>
+          </div>
+        </footer>
+      </main>
+    </body>
+    </html>
+  `;
+
+  reportWindow.document.open();
+  reportWindow.document.write(
+    reportHtml
+  );
+  reportWindow.document.close();
+  reportWindow.focus();
+
+  /*
+   * Tự mở hộp thoại In/Lưu PDF.
+   * Người dùng không cần chỉnh lại khổ giấy.
+   */
+  window.setTimeout(
+    () => {
+      try {
+        reportWindow.print();
+      } catch (error) {
+        console.warn(
+          "Không tự mở được hộp thoại in:",
+          error
+        );
+      }
+    },
+    700
+  );
 
   showMessage(
     dashboardMessage,
-    `✅ Đã xuất ${tasksToExport.length} nhiệm vụ theo bộ lọc hiện tại. File CSV mở trực tiếp bằng Excel.`,
+    `✅ Đã tạo báo cáo A4 ngang gồm ${totalCount} nhiệm vụ. Chọn “Lưu thành PDF” trong cửa sổ in.`,
     "success"
   );
 }
