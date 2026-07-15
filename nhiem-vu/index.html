@@ -18,7 +18,7 @@
   <link rel="manifest" href="./manifest.webmanifest?v=20260714.847">
   <link rel="icon" type="image/png" sizes="64x64" href="./icons/favicon-64.png?v=20260714.847">
   <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png?v=20260714.847">
-  <link rel="stylesheet" href="./styles.css?v=20260714.847">
+  <link rel="stylesheet" href="./styles.css?v=20260714.851">
   <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
   <script src="./onesignal.js?v=20260714.849" defer></script>
 </head>
@@ -212,7 +212,7 @@
             <label class="sr-only" for="statusFilter">Trạng thái</label>
             <select id="statusFilter">
               <option value="ALL">Tất cả trạng thái</option>
-              <option value="MOI_TIEP_NHAN">Mới tiếp nhận</option>
+              <option value="MOI_TIEP_NHAN">Mới ghi nhận</option>
               <option value="DANG_THUC_HIEN">Đang thực hiện</option>
               <option value="CHO_PHOI_HOP">Chờ phối hợp</option>
               <option value="HOAN_THANH">Hoàn thành</option>
@@ -241,7 +241,7 @@
 
           <div class="filter-actions">
             <button id="refreshButton" class="secondary-button" type="button">🔄 Làm mới</button>
-            <button id="addTaskButton" class="primary-button hidden" type="button">➕ Thêm nhiệm vụ</button>
+            <button id="addTaskButton" class="primary-button hidden" type="button">➕ Ghi nhận nhiệm vụ</button>
           </div>
         </div>
       </section>
@@ -280,54 +280,59 @@
         <div id="emptyState" class="empty-state hidden">
           <div aria-hidden="true">📭</div>
           <h3>Chưa có nhiệm vụ</h3>
-          <p>Trưởng/Phó phòng bấm “Thêm nhiệm vụ” để nhập nhiệm vụ đầu tiên.</p>
+          <p>Trưởng/Phó phòng bấm “Ghi nhận nhiệm vụ” để nhập nhiệm vụ đã được chỉ đạo.</p>
         </div>
       </section>
     </main>
   </div>
 
-  <!-- MODAL THÊM NHIỆM VỤ -->
+  <!-- MODAL GHI NHẬN / GIAO TRỰC TIẾP NHIỆM VỤ -->
   <div id="taskModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="taskModalTitle">
     <section class="task-modal">
       <header class="modal-header">
         <div>
-          <h2 id="taskModalTitle">➕ Thêm nhiệm vụ</h2>
-          <p>Nhập đầy đủ thông tin để theo dõi tiến độ và đánh giá trách nhiệm.</p>
+          <h2 id="taskModalTitle">➕ Ghi nhận nhiệm vụ</h2>
+          <p id="taskModalSubtitle">Ghi nhận nhiệm vụ đã được Ban Giám đốc chỉ đạo tại cuộc họp, văn bản hoặc trực tiếp.</p>
         </div>
         <button id="closeModalButton" class="modal-close" type="button" aria-label="Đóng">×</button>
       </header>
 
       <form id="taskForm" class="task-form" novalidate>
-        <div class="modal-body">
-          <div class="form-grid">
-            <div class="field-block form-span-2">
-              <label for="taskTitle">Tiêu đề nhiệm vụ <span>*</span></label>
-              <input id="taskTitle" type="text" maxlength="250" placeholder="Nhập tiêu đề ngắn gọn, rõ nội dung" required>
-            </div>
+        <input id="entryMode" type="hidden" value="SELF_RECORDED">
 
-            <div class="field-block form-span-2">
-              <label for="taskDescription">Nội dung chi tiết <span>*</span></label>
-              <textarea id="taskDescription" rows="4" maxlength="3000" placeholder="Mô tả yêu cầu, sản phẩm đầu ra và phạm vi thực hiện" required></textarea>
+        <div class="modal-body">
+          <div id="entryModeBanner" class="entry-mode-banner entry-mode-self">
+            <strong>TỰ GHI NHẬN</strong>
+            <span>Người đang đăng nhập tự báo cáo nhiệm vụ mình đã được chỉ đạo.</span>
+          </div>
+
+          <div class="form-grid">
+            <div class="form-section-title form-span-2">
+              <span>1</span>
+              <div>
+                <strong>Thông tin chỉ đạo</strong>
+                <small>Rõ nguồn chỉ đạo, người chỉ đạo và ngày được giao.</small>
+              </div>
             </div>
 
             <div class="field-block">
               <label for="sourceType">Nguồn nhiệm vụ <span>*</span></label>
               <select id="sourceType" required>
                 <option value="">Chọn nguồn</option>
+                <option value="HOP_GIAO_BAN">Cuộc họp giao ban</option>
+                <option value="HOP_CHUYEN_DE">Cuộc họp chuyên đề</option>
                 <option value="VAN_BAN_CHI_DAO">Văn bản chỉ đạo</option>
-                <option value="HOP_GIAO_BAN">Họp giao ban</option>
                 <option value="CHI_DAO_TRUC_TIEP">Chỉ đạo trực tiếp</option>
                 <option value="DOT_XUAT">Nhiệm vụ đột xuất</option>
-                <option value="THUONG_XUYEN">Nhiệm vụ thường xuyên</option>
                 <option value="KE_HOACH_CONG_TAC">Kế hoạch công tác</option>
                 <option value="DINH_KY">Nhiệm vụ định kỳ</option>
-                <option value="KHAC">Khác</option>
+                <option value="KHAC">Nguồn khác</option>
               </select>
             </div>
 
             <div class="field-block">
-              <label for="sourceDetail">Chi tiết nguồn <span>*</span></label>
-              <input id="sourceDetail" type="text" maxlength="500" placeholder="Ví dụ: Họp giao ban ngày 13/7/2026" required>
+              <label for="assignedAt">Ngày được chỉ đạo <span>*</span></label>
+              <input id="assignedAt" type="date" required>
             </div>
 
             <div class="field-block">
@@ -338,28 +343,54 @@
             </div>
 
             <div class="field-block">
-              <label for="priority">Mức độ <span>*</span></label>
-              <select id="priority" required>
-                <option value="THUONG">Thường</option>
-                <option value="QUAN_TRONG">Quan trọng</option>
-                <option value="KHAN">Khẩn</option>
-              </select>
+              <label for="sourceDetail">Căn cứ hoặc nội dung liên quan <span>*</span></label>
+              <input
+                id="sourceDetail"
+                type="text"
+                maxlength="700"
+                placeholder="Ví dụ: Kết luận cuộc họp giao ban ngày 14/7/2026 hoặc số, ký hiệu văn bản"
+                required
+              >
+            </div>
+
+            <div class="form-section-title form-span-2">
+              <span>2</span>
+              <div>
+                <strong>Nội dung và trách nhiệm</strong>
+                <small>Rõ người chịu trách nhiệm, nhiệm vụ và người có liên quan.</small>
+              </div>
+            </div>
+
+            <div class="field-block form-span-2">
+              <label for="taskTitle">Tên nhiệm vụ <span>*</span></label>
+              <input id="taskTitle" type="text" maxlength="250" placeholder="Nhập tên nhiệm vụ ngắn gọn, rõ việc" required>
+            </div>
+
+            <div class="field-block form-span-2">
+              <label for="taskDescription">Nội dung thực hiện <span>*</span></label>
+              <textarea
+                id="taskDescription"
+                rows="4"
+                maxlength="3000"
+                placeholder="Mô tả phạm vi, yêu cầu và nội dung cần thực hiện"
+                required
+              ></textarea>
             </div>
 
             <div class="field-block">
-              <label for="primaryDepartmentId">Phòng xử lý chính <span>*</span></label>
+              <label for="primaryDepartmentId">Phòng/Khu của người chịu trách nhiệm <span>*</span></label>
               <select id="primaryDepartmentId" required></select>
               <small id="primaryHelp" class="field-help"></small>
             </div>
 
             <div class="field-block">
-              <label for="ownerUserId">Lãnh đạo chịu trách nhiệm <span>*</span></label>
+              <label for="ownerUserId">Người chịu trách nhiệm chính <span>*</span></label>
               <select id="ownerUserId" required></select>
               <small id="ownerHelp" class="field-help"></small>
             </div>
 
             <div class="field-block form-span-2">
-              <label>Phòng/Khu phối hợp</label>
+              <label>Trưởng/Phó có liên quan</label>
 
               <div id="supportDropdown" class="multi-select">
                 <button
@@ -369,30 +400,79 @@
                   aria-haspopup="listbox"
                   aria-expanded="false"
                 >
-                  <span id="supportSummary">Chọn phòng, khu phối hợp</span>
+                  <span id="supportSummary">Chọn người có liên quan</span>
                   <span aria-hidden="true">▾</span>
                 </button>
 
                 <div id="supportDropdownPanel" class="multi-select-panel hidden">
                   <div class="multi-select-search">
-                    <input id="supportSearchInput" type="search" placeholder="Tìm phòng, khu..." autocomplete="off">
+                    <input id="supportSearchInput" type="search" placeholder="Tìm họ tên, chức vụ hoặc phòng/khu..." autocomplete="off">
                   </div>
                   <div id="supportOptions" class="multi-select-options" role="listbox" aria-multiselectable="true"></div>
                 </div>
               </div>
 
               <div id="supportSelectedChips" class="selected-chips"></div>
-              <small class="field-help">Có thể chọn nhiều phòng/khu; không bắt buộc.</small>
+              <small class="field-help">
+                Chỉ chọn người thực sự cần biết hoặc có liên quan. Người được chọn sẽ nhìn thấy nhiệm vụ và nhận thông báo.
+              </small>
             </div>
 
             <div class="field-block">
-              <label for="assignedAt">Ngày giao <span>*</span></label>
-              <input id="assignedAt" type="datetime-local" required>
+              <label for="priority">Mức độ ưu tiên <span>*</span></label>
+              <select id="priority" required>
+                <option value="THUONG">Thường</option>
+                <option value="QUAN_TRONG">Quan trọng</option>
+                <option value="KHAN">Khẩn</option>
+              </select>
             </div>
 
             <div class="field-block">
               <label for="deadline">Hạn hoàn thành <span>*</span></label>
               <input id="deadline" type="date" required>
+            </div>
+
+            <div class="form-section-title form-span-2">
+              <span>3</span>
+              <div>
+                <strong>Sản phẩm đầu ra</strong>
+                <small>Rõ kết quả cụ thể phải hoàn thành để phục vụ báo cáo.</small>
+              </div>
+            </div>
+
+            <div class="field-block">
+              <label for="outputType">Loại sản phẩm <span>*</span></label>
+              <select id="outputType" required>
+                <option value="">Chọn loại sản phẩm</option>
+                <option value="BAO_CAO">Báo cáo</option>
+                <option value="KE_HOACH">Kế hoạch</option>
+                <option value="CONG_VAN">Công văn</option>
+                <option value="QUYET_DINH">Quyết định</option>
+                <option value="THONG_BAO">Thông báo</option>
+                <option value="TO_TRINH">Tờ trình</option>
+                <option value="QUY_CHE">Quy chế</option>
+                <option value="BIEN_BAN">Biên bản</option>
+                <option value="DANH_SACH">Danh sách</option>
+                <option value="BANG_TONG_HOP">Bảng tổng hợp</option>
+                <option value="PHUONG_AN">Phương án</option>
+                <option value="QUY_TRINH">Quy trình</option>
+                <option value="HO_SO">Hồ sơ</option>
+                <option value="DU_LIEU_CAP_NHAT">Dữ liệu đã cập nhật</option>
+                <option value="KET_QUA_KIEM_TRA">Kết quả kiểm tra</option>
+                <option value="KET_QUA_THUC_TE">Kết quả thực tế</option>
+                <option value="KHAC">Sản phẩm khác</option>
+              </select>
+            </div>
+
+            <div class="field-block form-span-2">
+              <label for="outputDescription">Mô tả sản phẩm đầu ra <span>*</span></label>
+              <textarea
+                id="outputDescription"
+                rows="3"
+                maxlength="2000"
+                placeholder="Ví dụ: Hoàn thành vệ sinh toàn bộ khu nhà ở; có kết quả kiểm tra và hình ảnh sau thực hiện"
+                required
+              ></textarea>
             </div>
           </div>
 
@@ -401,7 +481,7 @@
 
         <footer class="modal-footer">
           <button id="cancelTaskButton" class="secondary-button" type="button">Hủy</button>
-          <button id="saveTaskButton" class="primary-button" type="submit">Lưu nhiệm vụ</button>
+          <button id="saveTaskButton" class="primary-button" type="submit">Lưu ghi nhận</button>
         </footer>
       </form>
     </section>
@@ -450,10 +530,10 @@
     </div>
   </div>
 
-  <script src="./pwa.js?v=20260714.847" defer></script>
+  <script src="./pwa.js?v=20260714.851" defer></script>
   <script
   type="module"
-  src="./app.js?v=20260714.850"
+  src="./app.js?v=20260714.851"
 ></script>
 </body>
 </html>
