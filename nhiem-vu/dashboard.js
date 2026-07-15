@@ -496,7 +496,8 @@ async function napNhiemVu() {
 
     if (
       state.profile.role === "ADMIN" ||
-      state.profile.role === "DIRECTOR"
+      state.profile.role === "DIRECTOR" ||
+      (state.profile.role === "DEPARTMENT_LEADER" && state.profile.departmentId === "TCHC")
     ) {
       const snapshot =
         await getDocs(
