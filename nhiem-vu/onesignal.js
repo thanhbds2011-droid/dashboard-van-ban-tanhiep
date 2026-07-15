@@ -12,7 +12,7 @@
     "673200ba-0b27-489c-a596-84515dfc7d33";
 
   const SERVICE_WORKER_PATH =
-  "/dashboard-van-ban-tanhiep/nhiem-vu/OneSignalSDKWorker.js";
+  "dashboard-van-ban-tanhiep/nhiem-vu/OneSignalSDKWorker.js";
 
 const SERVICE_WORKER_SCOPE =
   "/dashboard-van-ban-tanhiep/nhiem-vu/push/onesignal/";
