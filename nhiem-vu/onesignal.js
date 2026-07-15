@@ -30,16 +30,6 @@
 
   function getUi() {
     return {
-      button:
-        getElement(
-          "notificationButton"
-        ),
-
-      buttonText:
-        getElement(
-          "notificationButtonText"
-        ),
-
       statusBox:
         getElement(
           "pushStatusBox"
@@ -71,23 +61,6 @@
     showAction = false
   } = {}) {
     const ui = getUi();
-
-    if (ui.buttonText) {
-      ui.buttonText.textContent =
-        buttonText;
-    }
-
-    if (ui.button) {
-      ui.button.classList.toggle(
-        "is-enabled",
-        mode === "success"
-      );
-
-      ui.button.classList.toggle(
-        "is-blocked",
-        mode === "error"
-      );
-    }
 
     if (ui.statusBox) {
       ui.statusBox.classList.toggle(
@@ -451,21 +424,33 @@
           .id;
 
       if (
-  browserPermission === "granted" &&
-  optedIn &&
-  subscriptionId
-) {
-  setStatus({
-    mode: "success",
-    buttonText: "Đã bật thông báo",
-    title: "Thông báo đã được bật",
-    text: "Thiết bị này đang nhận thông báo nhiệm vụ mới, sắp đến hạn và quá hạn.",
-    showBox: true,
-    showAction: false
-  });
+        browserPermission ===
+          "granted" &&
+        optedIn &&
+        subscriptionId
+      ) {
+        setStatus({
+          mode:
+            "success",
 
-  return;
-}
+          buttonText:
+            "Thông báo đã bật",
+
+          title:
+            "Đã bật thông báo nhiệm vụ",
+
+          text:
+            "Thiết bị này đã được liên kết với tài khoản đang đăng nhập.",
+
+          showBox:
+            false,
+
+          showAction:
+            false
+        });
+
+        return;
+      }
 
       if (
         browserPermission ===
@@ -545,11 +530,6 @@
   async function requestPermission() {
     const ui =
       getUi();
-
-    if (ui.button) {
-      ui.button.disabled =
-        true;
-    }
 
     if (ui.statusAction) {
       ui.statusAction.disabled =
@@ -652,11 +632,6 @@
       });
 
     } finally {
-      if (ui.button) {
-        ui.button.disabled =
-          false;
-      }
-
       if (ui.statusAction) {
         ui.statusAction.disabled =
           false;
@@ -667,12 +642,6 @@
   function bindButtons() {
     const ui =
       getUi();
-
-    ui.button
-      ?.addEventListener(
-        "click",
-        requestPermission
-      );
 
     ui.statusAction
       ?.addEventListener(
