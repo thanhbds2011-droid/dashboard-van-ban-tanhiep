@@ -4,23 +4,15 @@
  * Phân hệ: QUẢN LÝ NHIỆM VỤ
  * =========================================================
  *
- * Yêu cầu:
- * 1. Trang phải tải SDK:
+ * Nguyên tắc:
+ * - Dùng chung OneSignal App ID với hệ thống Nhắc việc văn bản.
+ * - Không gọi OneSignal.login(), addTags() hoặc logout().
+ * - Firebase chịu trách nhiệm liên kết:
+ *   Subscription ID ↔ UID ↔ Phòng/Khu ↔ Vai trò.
+ * - app.js lưu thiết bị vào collection taskPushSubscriptions.
  *
- * <script
- *   src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js"
- *   defer>
- * </script>
- *
- * 2. Worker phải tồn tại tại:
- *
+ * Worker nhiệm vụ:
  * /dashboard-van-ban-tanhiep/push/onesignal/OneSignalSDKWorker.js
- *
- * Nội dung Worker:
- *
- * importScripts(
- *   "https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js"
- * );
  */
 
 (() => {
@@ -34,17 +26,13 @@
     "673200ba-0b27-489c-a596-84515dfc7d33";
 
   /*
-   * serviceWorkerPath:
-   * - Không có dấu "/" ở đầu.
-   * - Tính từ gốc origin.
+   * Không đặt dấu "/" ở đầu serviceWorkerPath.
    */
   const SERVICE_WORKER_PATH =
     "dashboard-van-ban-tanhiep/push/onesignal/OneSignalSDKWorker.js";
 
   /*
-   * Scope riêng cho OneSignal.
-   * Không trùng với PWA worker:
-   * /dashboard-van-ban-tanhiep/nhiem-vu/
+   * Scope riêng, không trùng với PWA worker của /nhiem-vu/.
    */
   const SERVICE_WORKER_SCOPE =
     "/dashboard-van-ban-tanhiep/push/onesignal/";
@@ -52,7 +40,7 @@
   const MODULE_NAME = "TASKS";
 
   const SUBSCRIPTION_WAIT_TIMEOUT_MS = 30000;
-  const IDENTITY_WAIT_TIMEOUT_MS = 20000;
+  const BACKGROUND_SYNC_TIMEOUT_MS = 120000;
   const POLLING_INTERVAL_MS = 500;
 
   /* =======================================================
@@ -65,20 +53,18 @@
     initialized: false,
     initializingPromise: null,
 
-    requestedUid: null,
-    requestedProfile: null,
-
-    identifiedUid: null,
-
-    identitySyncPromise: null,
-    subscriptionWaitPromise: null,
+    currentUid: null,
+    currentProfile: null,
 
     listenersBound: false,
-    buttonsBound: false
+    buttonsBound: false,
+
+    subscriptionWaitPromise: null,
+    backgroundSyncPromise: null
   };
 
   /* =======================================================
-   * HÀM TIỆN ÍCH
+   * HÀM HỖ TRỢ
    * ======================================================= */
 
   function sleep(milliseconds) {
@@ -89,6 +75,10 @@
 
   function getElement(id) {
     return document.getElementById(id);
+  }
+
+  function cleanText(value) {
+    return String(value ?? "").trim();
   }
 
   function getUi() {
@@ -115,11 +105,9 @@
     return window.Notification.permission;
   }
 
-  function normalizeText(value) {
-    return String(value ?? "").trim();
-  }
-
-  function getSubscriptionId(OneSignal = state.OneSignal) {
+  function getSubscriptionId(
+    OneSignal = state.OneSignal
+  ) {
     return (
       OneSignal
         ?.User
@@ -129,7 +117,9 @@
     );
   }
 
-  function getSubscriptionToken(OneSignal = state.OneSignal) {
+  function getSubscriptionToken(
+    OneSignal = state.OneSignal
+  ) {
     return (
       OneSignal
         ?.User
@@ -139,7 +129,9 @@
     );
   }
 
-  function isOptedIn(OneSignal = state.OneSignal) {
+  function isOptedIn(
+    OneSignal = state.OneSignal
+  ) {
     return (
       OneSignal
         ?.User
@@ -148,16 +140,9 @@
     );
   }
 
-  function getExternalId(OneSignal = state.OneSignal) {
-    return (
-      OneSignal
-        ?.User
-        ?.externalId ||
-      null
-    );
-  }
-
-  function getOneSignalId(OneSignal = state.OneSignal) {
+  function getOneSignalId(
+    OneSignal = state.OneSignal
+  ) {
     return (
       OneSignal
         ?.User
@@ -166,7 +151,9 @@
     );
   }
 
-  function isPushReady(OneSignal = state.OneSignal) {
+  function isPushReady(
+    OneSignal = state.OneSignal
+  ) {
     return (
       getBrowserPermission() === "granted" &&
       isOptedIn(OneSignal) &&
@@ -175,7 +162,7 @@
   }
 
   /* =======================================================
-   * GIAO DIỆN TRẠNG THÁI
+   * HIỂN THỊ TRẠNG THÁI
    * ======================================================= */
 
   function setStatus({
@@ -217,11 +204,13 @@
     }
 
     if (ui.statusTitle) {
-      ui.statusTitle.textContent = title;
+      ui.statusTitle.textContent =
+        title;
     }
 
     if (ui.statusText) {
-      ui.statusText.textContent = text;
+      ui.statusText.textContent =
+        text;
     }
 
     if (ui.statusAction) {
@@ -238,12 +227,19 @@
     }
   }
 
+  function hideStatusBox() {
+    setStatus({
+      showBox: false,
+      showAction: false
+    });
+  }
+
   function showRegisteringStatus() {
     setStatus({
       mode: "loading",
       title: "Đang đăng ký thông báo",
       text:
-        "Hệ thống đang liên kết thiết bị với OneSignal. Vui lòng chờ trong giây lát.",
+        "Hệ thống đang đăng ký thiết bị. Vui lòng chờ trong giây lát.",
       showBox: true,
       showAction: true,
       actionText: "Đang đăng ký...",
@@ -262,19 +258,13 @@
     });
   }
 
-  function hideStatusBox() {
-    setStatus({
-      showBox: false,
-      showAction: false
-    });
-  }
-
   /* =======================================================
-   * SNAPSHOT VÀ SỰ KIỆN GỬI CHO APP.JS
+   * SNAPSHOT GỬI SANG APP.JS
    * ======================================================= */
 
   function buildSubscriptionSnapshot() {
-    const OneSignal = state.OneSignal;
+    const OneSignal =
+      state.OneSignal;
 
     return {
       subscriptionId:
@@ -289,11 +279,12 @@
       permission:
         getBrowserPermission(),
 
+      /*
+       * Đây là Firebase UID lưu cục bộ.
+       * Không phải OneSignal External ID.
+       */
       externalId:
-        getExternalId(OneSignal) ||
-        state.identifiedUid ||
-        state.requestedUid ||
-        null,
+        state.currentUid || null,
 
       oneSignalId:
         getOneSignalId(OneSignal),
@@ -396,11 +387,11 @@
               resolve(OneSignal);
 
             } catch (error) {
-              state.initialized =
-                false;
-
               state.OneSignal =
                 null;
+
+              state.initialized =
+                false;
 
               state.initializingPromise =
                 null;
@@ -420,10 +411,12 @@
   }
 
   /* =======================================================
-   * LISTENER ONESIGNAL
+   * SỰ KIỆN ONESIGNAL
    * ======================================================= */
 
-  function bindOneSignalListeners(OneSignal) {
+  function bindOneSignalListeners(
+    OneSignal
+  ) {
     if (state.listenersBound) {
       return;
     }
@@ -449,24 +442,7 @@
         "change",
         async (event) => {
           console.info(
-            "Push Subscription thay đổi:",
-            event
-          );
-
-          await handlePushStateChange();
-        }
-      );
-
-    /*
-     * Một số bản SDK cung cấp sự kiện change trên User.
-     * Dùng optional chaining để không làm lỗi nếu API chưa có.
-     */
-    OneSignal.User
-      ?.addEventListener?.(
-        "change",
-        async (event) => {
-          console.info(
-            "OneSignal User thay đổi:",
+            "OneSignal Push Subscription thay đổi:",
             event
           );
 
@@ -479,18 +455,10 @@
     await refreshStatus();
 
     emitSubscriptionChange();
-
-    if (
-      getSubscriptionId() &&
-      state.requestedUid &&
-      state.requestedProfile
-    ) {
-      await syncIdentityIfReady();
-    }
   }
 
   /* =======================================================
-   * CHỜ SUBSCRIPTION ID
+   * CHỜ ONESIGNAL TẠO SUBSCRIPTION ID
    * ======================================================= */
 
   async function waitForSubscriptionId({
@@ -509,7 +477,7 @@
     }
 
     state.subscriptionWaitPromise =
-      new Promise(async (resolve) => {
+      (async () => {
         const startedAt =
           Date.now();
 
@@ -521,8 +489,7 @@
             getSubscriptionId();
 
           if (subscriptionId) {
-            resolve(subscriptionId);
-            return;
+            return subscriptionId;
           }
 
           await sleep(
@@ -530,8 +497,8 @@
           );
         }
 
-        resolve(null);
-      }).finally(() => {
+        return null;
+      })().finally(() => {
         state.subscriptionWaitPromise =
           null;
       });
@@ -539,239 +506,136 @@
     return state.subscriptionWaitPromise;
   }
 
+  /*
+   * Tiếp tục kiểm tra nền sau khi người dùng đã cấp quyền.
+   * Khi có ID, hệ thống tự ẩn khung và gửi sự kiện cho app.js.
+   */
+  function startBackgroundSubscriptionSync() {
+    if (state.backgroundSyncPromise) {
+      return state.backgroundSyncPromise;
+    }
+
+    state.backgroundSyncPromise =
+      (async () => {
+        const startedAt =
+          Date.now();
+
+        while (
+          Date.now() - startedAt <
+          BACKGROUND_SYNC_TIMEOUT_MS
+        ) {
+          const subscriptionId =
+            getSubscriptionId();
+
+          if (subscriptionId) {
+            console.info(
+              "OneSignal đã đồng bộ Subscription ID:",
+              subscriptionId
+            );
+
+            hideStatusBox();
+            emitSubscriptionChange();
+
+            return subscriptionId;
+          }
+
+          await sleep(1000);
+        }
+
+        console.warn(
+          "OneSignal chưa tạo Subscription ID sau thời gian chờ nền."
+        );
+
+        return null;
+      })().finally(() => {
+        state.backgroundSyncPromise =
+          null;
+      });
+
+    return state.backgroundSyncPromise;
+  }
+
   /* =======================================================
-   * NHẬN DIỆN NGƯỜI DÙNG
+   * NHẬN DIỆN TÀI KHOẢN FIREBASE
    * ======================================================= */
 
-  async function identify(uid, profile) {
+  async function identify(
+    uid,
+    profile
+  ) {
     const normalizedUid =
-      normalizeText(uid);
+      cleanText(uid);
 
     if (
       !normalizedUid ||
       !profile
     ) {
-      return;
+      return false;
     }
 
     /*
-     * Chỉ lưu yêu cầu nhận diện.
-     * Chưa login ngay nếu thiết bị chưa có Subscription ID.
+     * Không gọi:
+     * - OneSignal.login()
+     * - OneSignal.User.addTags()
+     *
+     * Vì hai phân hệ dùng chung OneSignal App ID.
+     * Firebase quản lý quan hệ giữa Subscription ID và tài khoản.
      */
-    state.requestedUid =
+    state.currentUid =
       normalizedUid;
 
-    state.requestedProfile =
+    state.currentProfile =
       profile;
 
     try {
       await ensureInitialized();
 
-      /*
-       * Nếu Subscription đã sẵn sàng thì liên kết ngay.
-       * Nếu chưa, listener change sẽ gọi lại sau.
-       */
-      if (getSubscriptionId()) {
-        await syncIdentityIfReady();
-      }
-
       await refreshStatus();
 
+      /*
+       * Nếu thiết bị đã có Subscription ID,
+       * app.js sẽ nhận sự kiện và lưu vào Firestore.
+       */
       emitSubscriptionChange();
+
+      console.info(
+        "Đã chuẩn bị thông báo nhiệm vụ cho tài khoản:",
+        {
+          uid:
+            normalizedUid,
+
+          departmentId:
+            profile.departmentId || "",
+
+          role:
+            profile.role || "",
+
+          module:
+            MODULE_NAME
+        }
+      );
+
+      return true;
 
     } catch (error) {
       console.error(
-        "Không chuẩn bị được nhận diện OneSignal:",
+        "Không chuẩn bị được thông báo nhiệm vụ:",
         error
       );
 
       setStatus({
         mode: "warning",
-        title: "Chưa kết nối được thông báo",
+        title:
+          "Chưa kết nối được thông báo",
         text:
-          "Ứng dụng vẫn sử dụng được nhưng chưa thể liên kết tài khoản với OneSignal.",
+          "Ứng dụng vẫn sử dụng được nhưng tính năng thông báo chưa sẵn sàng.",
         showBox: true,
         showAction: true,
         actionText: "Thử lại"
       });
-    }
-  }
-
-  async function syncIdentityIfReady() {
-    if (state.identitySyncPromise) {
-      return state.identitySyncPromise;
-    }
-
-    state.identitySyncPromise =
-      performIdentitySync()
-        .finally(() => {
-          state.identitySyncPromise =
-            null;
-        });
-
-    return state.identitySyncPromise;
-  }
-
-  async function performIdentitySync() {
-    const OneSignal =
-      await ensureInitialized();
-
-    const uid =
-      normalizeText(
-        state.requestedUid
-      );
-
-    const profile =
-      state.requestedProfile;
-
-    if (!uid || !profile) {
-      return false;
-    }
-
-    const subscriptionId =
-      getSubscriptionId(OneSignal);
-
-    if (!subscriptionId) {
-      console.info(
-        "Chưa đồng bộ danh tính vì chưa có Subscription ID."
-      );
 
       return false;
     }
-
-    /*
-     * Không login lặp lại nếu đã đúng UID.
-     */
-    const currentExternalId =
-      normalizeText(
-        getExternalId(OneSignal)
-      );
-
-    if (
-      currentExternalId !== uid ||
-      state.identifiedUid !== uid
-    ) {
-      console.info(
-        "Đang liên kết OneSignal với Firebase UID:",
-        uid
-      );
-
-      await OneSignal.login(uid);
-
-      /*
-       * Đợi User Model cập nhật External ID.
-       * Không gọi addTags ngay sau login.
-       */
-      await waitForExternalId(
-        uid,
-        IDENTITY_WAIT_TIMEOUT_MS
-      );
-    }
-
-    /*
-     * Chỉ ghi tag sau khi login hoàn thành.
-     */
-    await OneSignal.User.addTags({
-      module:
-        MODULE_NAME,
-
-      departmentId:
-        normalizeText(
-          profile.departmentId
-        ),
-
-      role:
-        normalizeText(
-          profile.role
-        ),
-
-      active:
-        profile.active === true
-          ? "true"
-          : "false"
-    });
-
-    state.identifiedUid =
-      uid;
-
-    console.info(
-      "OneSignal đã liên kết tài khoản thành công:",
-      {
-        externalId:
-          getExternalId(OneSignal) ||
-          uid,
-
-        oneSignalId:
-          getOneSignalId(OneSignal),
-
-        subscriptionId:
-          getSubscriptionId(OneSignal),
-
-        departmentId:
-          profile.departmentId,
-
-        role:
-          profile.role,
-
-        module:
-          MODULE_NAME
-      }
-    );
-
-    emitSubscriptionChange();
-
-    return true;
-  }
-
-  async function waitForExternalId(
-    expectedUid,
-    timeoutMs
-  ) {
-    const startedAt =
-      Date.now();
-
-    while (
-      Date.now() - startedAt <
-      timeoutMs
-    ) {
-      const externalId =
-        normalizeText(
-          getExternalId()
-        );
-
-      /*
-       * Một số phiên bản SDK không cập nhật thuộc tính
-       * externalId ngay lập tức dù login đã thành công.
-       * Nếu đã có OneSignal ID thì có thể tiếp tục.
-       */
-      if (
-        externalId === expectedUid ||
-        getOneSignalId()
-      ) {
-        return true;
-      }
-
-      await sleep(
-        POLLING_INTERVAL_MS
-      );
-    }
-
-    /*
-     * Không ném lỗi chỉ vì thuộc tính local chưa cập nhật.
-     * OneSignal.login() đã resolve thì vẫn tiếp tục ghi tags.
-     */
-    console.warn(
-      "OneSignal chưa phản ánh External ID trên SDK sau thời gian chờ.",
-      {
-        expectedUid,
-        currentExternalId:
-          getExternalId(),
-        oneSignalId:
-          getOneSignalId()
-      }
-    );
-
-    return false;
   }
 
   /* =======================================================
@@ -810,15 +674,15 @@
       const subscriptionId =
         getSubscriptionId(OneSignal);
 
+      /*
+       * Đã đăng ký thành công:
+       * ẩn toàn bộ khung thông báo.
+       */
       if (
         permission === "granted" &&
         optedIn &&
         subscriptionId
       ) {
-        /*
-         * Đã đăng ký thành công:
-         * ẩn toàn bộ khung thông báo.
-         */
         hideStatusBox();
         return;
       }
@@ -837,16 +701,20 @@
         return;
       }
 
+      /*
+       * Trình duyệt đã có quyền và Push đã opt-in,
+       * nhưng OneSignal chưa trả Subscription ID.
+       * Đây là trạng thái chờ, không phải lỗi đỏ.
+       */
       if (
         permission === "granted" &&
         optedIn &&
         !subscriptionId
       ) {
-        /*
-         * Đây là trạng thái đồng bộ,
-         * không hiển thị lỗi đỏ.
-         */
         showSynchronizingStatus();
+
+        startBackgroundSubscriptionSync();
+
         return;
       }
 
@@ -883,7 +751,7 @@
   }
 
   /* =======================================================
-   * YÊU CẦU BẬT THÔNG BÁO
+   * BẬT THÔNG BÁO
    * ======================================================= */
 
   async function requestPermission() {
@@ -893,10 +761,11 @@
       const OneSignal =
         await ensureInitialized();
 
-      if (
-        !OneSignal.Notifications
-          .isPushSupported()
-      ) {
+      const supported =
+        OneSignal.Notifications
+          .isPushSupported();
+
+      if (!supported) {
         await refreshStatus();
         return false;
       }
@@ -922,7 +791,7 @@
       }
 
       /*
-       * Chỉ yêu cầu quyền nếu chưa được cấp.
+       * Chỉ mở hộp thoại xin quyền khi chưa được cấp.
        */
       if (
         permissionBefore !==
@@ -955,7 +824,7 @@
       }
 
       /*
-       * Người dùng đã cấp quyền nhưng có thể đang opt-out.
+       * Trường hợp quyền đã cấp nhưng subscription đang opt-out.
        */
       if (!isOptedIn(OneSignal)) {
         await OneSignal.User
@@ -965,9 +834,6 @@
 
       showSynchronizingStatus();
 
-      /*
-       * Đợi tối đa 30 giây để OneSignal tạo Subscription ID.
-       */
       const subscriptionId =
         await waitForSubscriptionId({
           timeoutMs:
@@ -976,42 +842,25 @@
 
       if (!subscriptionId) {
         /*
-         * Không kết luận là lỗi vĩnh viễn.
-         * Cho phép người dùng thử đồng bộ lại.
+         * Không báo lỗi đỏ.
+         * Tiếp tục theo dõi đồng bộ ở chế độ nền.
          */
         setStatus({
-          mode: "warning",
+          mode: "loading",
           title:
-            "Thiết bị đang chờ đồng bộ",
+            "Đang đồng bộ thiết bị",
           text:
-            "Trình duyệt đã cấp quyền nhưng OneSignal chưa hoàn tất đồng bộ. Hãy tải lại trang hoặc bấm thử lại sau ít phút.",
+            "Trình duyệt đã cấp quyền. OneSignal đang hoàn tất đăng ký thiết bị; bạn có thể tiếp tục sử dụng ứng dụng.",
           showBox: true,
-          showAction: true,
-          actionText:
-            "Thử đồng bộ lại"
+          showAction: false
         });
 
-        emitSubscriptionChange();
+        startBackgroundSubscriptionSync();
 
         return false;
       }
 
-      /*
-       * Khi đã có Subscription ID mới login và add tags.
-       */
-      if (
-        state.requestedUid &&
-        state.requestedProfile
-      ) {
-        await syncIdentityIfReady();
-      }
-
       emitSubscriptionChange();
-
-      /*
-       * Đăng ký hoàn tất:
-       * ẩn khung.
-       */
       hideStatusBox();
 
       console.info(
@@ -1045,41 +894,36 @@
   }
 
   /* =======================================================
-   * ĐĂNG XUẤT
+   * ĐĂNG XUẤT PHÂN HỆ NHIỆM VỤ
    * ======================================================= */
 
   async function logout() {
-    try {
-      const OneSignal =
-        await ensureInitialized();
+    /*
+     * Không gọi OneSignal.logout() hoặc optOut().
+     *
+     * Hai phân hệ dùng chung OneSignal App ID.
+     * Gọi logout/optOut ở đây có thể ảnh hưởng tới
+     * hệ thống Nhắc việc văn bản.
+     *
+     * app.js đã đánh dấu bản ghi taskPushSubscriptions
+     * của tài khoản hiện tại thành active = false
+     * trước khi gọi hàm này.
+     */
 
-      /*
-       * logout chỉ gỡ External ID khỏi OneSignal User.
-       * Không gọi optOut để thiết bị vẫn có thể đăng nhập
-       * bằng tài khoản khác và tái liên kết.
-       */
-      await OneSignal.logout();
+    state.currentUid =
+      null;
 
-    } catch (error) {
-      console.warn(
-        "Không thể đăng xuất OneSignal:",
-        error
-      );
+    state.currentProfile =
+      null;
 
-    } finally {
-      state.requestedUid =
-        null;
+    /*
+     * Không phát sự kiện subscription-change tại đây,
+     * vì app.js có thể lưu lại active = true sau khi
+     * vừa đánh dấu thiết bị là false.
+     */
+    hideStatusBox();
 
-      state.requestedProfile =
-        null;
-
-      state.identifiedUid =
-        null;
-
-      emitSubscriptionChange();
-
-      hideStatusBox();
-    }
+    return true;
   }
 
   /* =======================================================
@@ -1105,7 +949,7 @@
   }
 
   /* =======================================================
-   * API CÔNG KHAI
+   * API CHO APP.JS
    * ======================================================= */
 
   window.TaskPush = {
@@ -1120,35 +964,48 @@
    * KHỞI ĐỘNG
    * ======================================================= */
 
-  document.addEventListener(
-    "DOMContentLoaded",
-    () => {
-      bindButtons();
+  async function bootstrap() {
+    bindButtons();
 
-      ensureInitialized()
-        .then(async () => {
-          await refreshStatus();
+    try {
+      await ensureInitialized();
 
-          emitSubscriptionChange();
-        })
-        .catch((error) => {
-          console.error(
-            "OneSignal khởi tạo thất bại:",
-            error
-          );
+      await refreshStatus();
 
-          setStatus({
-            mode: "error",
-            title:
-              "Chưa khởi tạo được thông báo",
-            text:
-              "Ứng dụng vẫn hoạt động nhưng tính năng thông báo chưa sẵn sàng.",
-            showBox: true,
-            showAction: true,
-            actionText:
-              "Thử lại"
-          });
-        });
+      emitSubscriptionChange();
+
+    } catch (error) {
+      console.error(
+        "OneSignal khởi tạo thất bại:",
+        error
+      );
+
+      setStatus({
+        mode: "error",
+        title:
+          "Chưa khởi tạo được thông báo",
+        text:
+          "Ứng dụng vẫn hoạt động nhưng tính năng thông báo chưa sẵn sàng.",
+        showBox: true,
+        showAction: true,
+        actionText:
+          "Thử lại"
+      });
     }
-  );
+  }
+
+  if (
+    document.readyState ===
+    "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      bootstrap,
+      {
+        once: true
+      }
+    );
+  } else {
+    bootstrap();
+  }
 })();
