@@ -1,11 +1,11 @@
 import {
   auth,
   db
-} from "./firebase-config.js?v=20260715.1500";
+} from "./firebase-config.js?v=20260716.2000";
 
 import {
   NOTIFICATION_WEB_APP_URL
-} from "./notification-config.js?v=20260715.1500";
+} from "./notification-config.js?v=20260716.2000";
 
 import {
   GoogleAuthProvider,
@@ -886,46 +886,12 @@ async function loadTasks() {
        * vấn thứ ba cũng tránh một truy vấn bị từ chối làm hỏng toàn bộ
        * Promise.all().
        */
-     /*
- * Đọc nhiệm vụ thuộc Phòng/Khu chính.
- * Đây là truy vấn bắt buộc.
- */
-const primarySnapshot = await getDocsFromServer(
-  query(
-    tasksRef,
-    where(
-      "primaryDepartmentId",
-      "==",
-      departmentId
-    )
-  )
-);
+      const results = await Promise.all([
+        getDocs(query(tasksRef, where("primaryDepartmentId", "==", departmentId))),
+        getDocs(query(tasksRef, where("visibleDepartmentIds", "array-contains", departmentId)))
+      ]);
 
-addSnapshotToMap(primarySnapshot);
-
-/*
- * Đọc thêm nhiệm vụ có liên quan.
- * Truy vấn phụ lỗi không được làm mất nhiệm vụ phòng chính.
- */
-try {
-  const visibleSnapshot = await getDocsFromServer(
-    query(
-      tasksRef,
-      where(
-        "visibleDepartmentIds",
-        "array-contains",
-        departmentId
-      )
-    )
-  );
-
-  addSnapshotToMap(visibleSnapshot);
-} catch (visibleError) {
-  console.warn(
-    "Chưa đọc được nhiệm vụ liên quan theo visibleDepartmentIds:",
-    visibleError
-  );
-}
+      results.forEach(addSnapshotToMap);
     } else {
       throw new Error("Vai trò tài khoản chưa được cấp quyền xem nhiệm vụ.");
     }
@@ -1243,7 +1209,7 @@ function exportTaskReport() {
         </td>
 
         <td class="column-department">${escapeHtml(departmentName(task.primaryDepartmentId))}</td>
-        <td class="column-owner">${escapeHtml(task.ownerName || "Chưa xác định")}</td>
+        <td class="column-owner">${escapeHtml(task.ownerName || "Chờ phân công nội bộ")}</td>
         <td class="column-deadline">${escapeHtml(formatDate(task.deadline))}</td>
         <td class="column-progress"><strong>${progressValue}%</strong></td>
 
@@ -1668,7 +1634,7 @@ function renderTasks(tasks) {
           </span>
         </td>
         <td>${escapeHtml(departmentName(task.primaryDepartmentId))}</td>
-        <td>${escapeHtml(task.ownerName || "Chưa xác định")}</td>
+        <td>${escapeHtml(task.ownerName || "Chờ phân công nội bộ")}</td>
         <td>
           <strong>${escapeHtml(formatDate(task.deadline))}</strong><br>
           <span class="badge ${due.className}">${escapeHtml(due.text)}</span>
@@ -1709,7 +1675,7 @@ function renderTasks(tasks) {
           </div>
           <div>
             <span>Người phụ trách</span>
-            <strong>${escapeHtml(task.ownerName || "Chưa xác định")}</strong>
+            <strong>${escapeHtml(task.ownerName || "Chờ phân công nội bộ")}</strong>
           </div>
           <div>
             <span>Hạn hoàn thành</span>
@@ -1738,9 +1704,14 @@ function canUpdateTask(task) {
     return true;
   }
 
+  /*
+   * Trong Bước 1, nhiệm vụ thuộc về Phòng/Khu.
+   * Mọi Trưởng/Phó đang hoạt động của Phòng/Khu chính đều có thể
+   * tiếp nhận, cập nhật tiến độ và kết thúc nhiệm vụ.
+   */
   if (
     state.profile.role === "DEPARTMENT_LEADER" &&
-    task.ownerUserId === state.user.uid
+    task.primaryDepartmentId === state.profile.departmentId
   ) {
     return true;
   }
@@ -1812,25 +1783,17 @@ function openTaskDetail(taskId) {
 
   const due = deadlineState(task);
 
-  const relatedNames = Array.isArray(task.relatedUserNames)
-    ? task.relatedUserNames
+  const relatedDepartmentIds = Array.isArray(task.relatedDepartmentIds)
+    ? task.relatedDepartmentIds
     : (
-      Array.isArray(task.relatedUserIds)
-        ? task.relatedUserIds.map(userDisplayName)
+      Array.isArray(task.supportDepartmentIds)
+        ? task.supportDepartmentIds
         : []
     );
 
-  const legacySupportNames = Array.isArray(task.supportDepartmentIds)
-    ? task.supportDepartmentIds.map(departmentName)
-    : [];
-
-  const peopleRelatedText = relatedNames.length > 0
-    ? relatedNames.join(", ")
-    : (
-      legacySupportNames.length > 0
-        ? legacySupportNames.join(", ")
-        : "Không có"
-    );
+  const relatedDepartmentsText = relatedDepartmentIds.length > 0
+    ? relatedDepartmentIds.map(departmentName).join(", ")
+    : "Không có";
 
   const progressText = Number.isFinite(Number(task.progress))
     ? `${Number(task.progress)}%`
@@ -1869,16 +1832,20 @@ function openTaskDetail(taskId) {
 
     <div class="detail-grid">
       <div class="detail-item">
-        <span>Người chịu trách nhiệm chính</span>
-        <strong>${escapeHtml(task.ownerName || "Chưa xác định")}</strong>
+        <span>Trạng thái phân công nội bộ</span>
+        <strong>${escapeHtml(
+          task.ownerName
+            ? `Đã phân công: ${task.ownerName}`
+            : "Chờ Phòng/Khu phân công"
+        )}</strong>
       </div>
       <div class="detail-item">
         <span>Phòng/Khu</span>
         <strong>${escapeHtml(departmentName(task.primaryDepartmentId))}</strong>
       </div>
       <div class="detail-item detail-span-2">
-        <span>Trưởng/Phó có liên quan</span>
-        <strong>${escapeHtml(peopleRelatedText)}</strong>
+        <span>Phòng/Khu phối hợp</span>
+        <strong>${escapeHtml(relatedDepartmentsText)}</strong>
       </div>
       <div class="detail-item">
         <span>Người giao/chỉ đạo</span>
@@ -2022,12 +1989,12 @@ function fillPrimaryDepartmentOptions() {
 
     primaryDepartmentId.value = state.profile.departmentId;
     primaryDepartmentId.disabled = true;
-    primaryHelp.textContent = "Phòng/Khu được cố định theo tài khoản đang đăng nhập.";
+    primaryHelp.textContent = "Phòng/Khu chịu trách nhiệm được cố định theo tài khoản đang đăng nhập.";
     return;
   }
 
   primaryDepartmentId.disabled = false;
-  primaryDepartmentId.innerHTML = '<option value="">Chọn phòng/khu của người nhận</option>';
+  primaryDepartmentId.innerHTML = '<option value="">Chọn Phòng/Khu chịu trách nhiệm</option>';
 
   state.departments
     .filter((item) => item.id !== "BGD")
@@ -2038,103 +2005,79 @@ function fillPrimaryDepartmentOptions() {
       primaryDepartmentId.appendChild(option);
     });
 
-  primaryHelp.textContent = "Chọn phòng/khu trước, sau đó chọn người chịu trách nhiệm.";
+  primaryHelp.textContent = "Chọn Phòng/Khu tiếp nhận và chịu trách nhiệm chính.";
 }
 
 function fillOwnerOptions() {
-  if (currentEntryMode() === "SELF_RECORDED") {
-    ownerUserId.innerHTML = "";
-
-    const option = document.createElement("option");
-    option.value = state.user.uid;
-    option.textContent = [state.profile.fullName, state.profile.position]
-      .filter(Boolean)
-      .join(" — ");
-
-    ownerUserId.appendChild(option);
-    ownerUserId.value = state.user.uid;
-    ownerUserId.disabled = true;
-    ownerHelp.textContent = "Người chịu trách nhiệm chính là tài khoản đang đăng nhập.";
-    return;
+  /*
+   * Bước 1: nhiệm vụ được giao cho Phòng/Khu, chưa giao cá nhân.
+   * Trưởng/Phó của Phòng/Khu sẽ thực hiện phân công nội bộ ở bước sau.
+   */
+  if (ownerUserId) {
+    ownerUserId.value = "";
   }
 
-  const departmentId = primaryDepartmentId.value;
-  ownerUserId.innerHTML = '<option value="">Chọn Trưởng/Phó chịu trách nhiệm</option>';
-
-  if (!departmentId) {
-    ownerUserId.disabled = true;
-    ownerHelp.textContent = "Chọn phòng/khu của người nhận trước.";
-    return;
+  if (ownerHelp) {
+    ownerHelp.textContent =
+      "Nhiệm vụ được chuyển đến Phòng/Khu; chưa phân công cá nhân tại bước tạo.";
   }
-
-  const leaders = state.users
-    .filter((item) => (
-      item.active === true &&
-      item.role === "DEPARTMENT_LEADER" &&
-      item.departmentId === departmentId
-    ))
-    .sort((a, b) => String(a.fullName || "").localeCompare(String(b.fullName || ""), "vi"));
-
-  leaders.forEach((item) => {
-    const option = document.createElement("option");
-    option.value = item.id;
-    option.textContent = [item.fullName, item.position].filter(Boolean).join(" — ");
-    ownerUserId.appendChild(option);
-  });
-
-  ownerUserId.disabled = leaders.length === 0;
-  ownerHelp.textContent = leaders.length > 0
-    ? "Chọn một Trưởng/Phó chịu trách nhiệm chính."
-    : "Phòng/Khu này chưa có tài khoản Trưởng/Phó đang hoạt động.";
 }
 
-function availableRelatedUsers() {
-  const ownerId = ownerUserId.value;
+function availableRelatedDepartments() {
+  const primaryId = primaryDepartmentId.value || state.profile?.departmentId || "";
 
-  return state.users
+  return state.departments
     .filter((item) => (
-      item.active === true &&
-      item.role === "DEPARTMENT_LEADER" &&
-      item.id !== ownerId
+      item.active !== false &&
+      item.id !== "BGD" &&
+      item.id !== primaryId
     ))
-    .sort((a, b) => String(a.fullName || "").localeCompare(String(b.fullName || ""), "vi"));
+    .sort((a, b) => (
+      Number(a.order || 0) - Number(b.order || 0)
+      || String(a.name || a.code || a.id)
+        .localeCompare(String(b.name || b.code || b.id), "vi")
+    ));
 }
 
 function renderSupportOptions() {
   const keyword = normalizeText(supportSearchInput.value);
 
-  const users = availableRelatedUsers()
+  const departments = availableRelatedDepartments()
     .filter((item) => normalizeText([
-      item.fullName,
-      item.position,
-      departmentName(item.departmentId)
+      item.name,
+      item.code,
+      item.id
     ].filter(Boolean).join(" ")).includes(keyword));
 
-  if (users.length === 0) {
-    supportOptions.innerHTML = '<div class="multi-select-empty">Không tìm thấy Trưởng/Phó phù hợp.</div>';
+  if (departments.length === 0) {
+    supportOptions.innerHTML =
+      '<div class="multi-select-empty">Không tìm thấy Phòng/Khu phù hợp.</div>';
     return;
   }
 
-  supportOptions.innerHTML = users.map((item) => `
-    <label class="multi-select-option">
-      <input
-        type="checkbox"
-        value="${escapeHtml(item.id)}"
-        ${state.selectedSupportIds.has(item.id) ? "checked" : ""}
-      >
-      <span>
-        <strong>${escapeHtml(item.fullName || "Chưa có họ tên")}</strong>
-        <small>${escapeHtml([
-          item.position,
-          departmentName(item.departmentId)
-        ].filter(Boolean).join(" • "))}</small>
-      </span>
-    </label>
-  `).join("");
+  supportOptions.innerHTML = departments.map((item) => {
+    const label = item.name || item.code || item.id;
+
+    return `
+      <label class="multi-select-option">
+        <input
+          type="checkbox"
+          value="${escapeHtml(item.id)}"
+          ${state.selectedSupportIds.has(item.id) ? "checked" : ""}
+        >
+        <span>
+          <strong>${escapeHtml(label)}</strong>
+          <small>${escapeHtml(item.code || item.id)}</small>
+        </span>
+      </label>
+    `;
+  }).join("");
 }
 
 function renderSelectedSupportChips() {
-  const availableIds = new Set(availableRelatedUsers().map((item) => item.id));
+  const availableIds = new Set(
+    availableRelatedDepartments().map((item) => item.id)
+  );
 
   const selectedIds = Array.from(state.selectedSupportIds)
     .filter((id) => availableIds.has(id));
@@ -2142,21 +2085,24 @@ function renderSelectedSupportChips() {
   state.selectedSupportIds = new Set(selectedIds);
 
   if (selectedIds.length === 0) {
-    supportSummary.textContent = "Chọn người có liên quan";
+    supportSummary.textContent = "Chọn Phòng/Khu phối hợp";
     supportSelectedChips.innerHTML = "";
     return;
   }
 
-  supportSummary.textContent = `Đã chọn ${selectedIds.length} người`;
+  supportSummary.textContent = `Đã chọn ${selectedIds.length} Phòng/Khu`;
 
   supportSelectedChips.innerHTML = selectedIds.map((id) => {
-    const person = userById(id);
-    const label = person?.fullName || id;
+    const label = departmentName(id);
 
     return `
       <span class="selected-chip">
         ${escapeHtml(label)}
-        <button type="button" data-remove-support-id="${escapeHtml(id)}" aria-label="Bỏ ${escapeHtml(label)}">×</button>
+        <button
+          type="button"
+          data-remove-support-id="${escapeHtml(id)}"
+          aria-label="Bỏ ${escapeHtml(label)}"
+        >×</button>
       </span>
     `;
   }).join("");
@@ -2689,16 +2635,11 @@ async function saveTask(event) {
     const sourceInformation = cleanText(sourceDetail.value);
     const assignedBy = userById(assignedByUserId.value);
     const primaryId = primaryDepartmentId.value;
-    const owner = userById(ownerUserId.value);
     const assignedDate = parseDateInput(assignedAt.value, false);
     const deadlineDate = parseDateInput(deadline.value, true);
 
-    const relatedUserIds = Array.from(state.selectedSupportIds)
-      .filter((uid) => uid !== owner?.id);
-
-    const relatedUsers = relatedUserIds
-      .map(userById)
-      .filter(Boolean);
+    const supportDepartmentIds = Array.from(state.selectedSupportIds)
+      .filter((departmentId) => departmentId && departmentId !== primaryId);
 
     if (!title) {
       throw new Error("Vui lòng nhập tên nhiệm vụ.");
@@ -2721,19 +2662,10 @@ async function saveTask(event) {
     }
 
     if (!primaryId) {
-      throw new Error("Vui lòng xác định Phòng/Khu của người chịu trách nhiệm.");
+      throw new Error("Vui lòng xác định Phòng/Khu chịu trách nhiệm.");
     }
 
-    if (!owner) {
-      throw new Error("Vui lòng chọn người chịu trách nhiệm chính.");
-    }
 
-    if (
-      mode === "SELF_RECORDED" &&
-      owner.id !== state.user.uid
-    ) {
-      throw new Error("Nhiệm vụ tự ghi nhận phải thuộc tài khoản đang đăng nhập.");
-    }
 
     if (
       mode === "SELF_RECORDED" &&
@@ -2742,12 +2674,6 @@ async function saveTask(event) {
       throw new Error("Phòng/Khu của nhiệm vụ tự ghi nhận không hợp lệ.");
     }
 
-    if (
-      mode === "DIRECT_ASSIGNED" &&
-      owner.role !== "DEPARTMENT_LEADER"
-    ) {
-      throw new Error("Người nhận nhiệm vụ trực tiếp phải là Trưởng/Phó phòng, khu.");
-    }
 
     if (!assignedDate) {
       throw new Error("Ngày được chỉ đạo không hợp lệ.");
@@ -2774,26 +2700,18 @@ async function saveTask(event) {
 
     const taskCode = createTaskCode();
 
-    const relatedUserNames = relatedUsers.map((item) => (
-      [item.fullName, item.position].filter(Boolean).join(" — ")
-    ));
-
-    const supportDepartmentIds = Array.from(new Set(
-      relatedUsers
-        .map((item) => item.departmentId)
-        .filter((id) => id && id !== "BGD" && id !== primaryId)
-    ));
+    const relatedDepartmentIds = Array.from(
+      new Set(supportDepartmentIds)
+    );
 
     const visibleDepartmentIds = Array.from(new Set([
       primaryId,
-      ...supportDepartmentIds
+      ...relatedDepartmentIds
     ]));
 
     const visibleUserIds = Array.from(new Set([
-      owner.id,
       state.user.uid,
-      assignedBy.id,
-      ...relatedUserIds
+      assignedBy.id
     ]));
 
     const taskPayload = {
@@ -2814,13 +2732,21 @@ async function saveTask(event) {
       assignedByPosition: assignedBy.position || "",
 
       primaryDepartmentId: primaryId,
-      ownerUserId: owner.id,
-      ownerName: owner.fullName || "",
-      ownerPosition: owner.position || "",
 
-      relatedUserIds,
-      relatedUserNames,
-      supportDepartmentIds,
+      /*
+       * Bước 1: giao cho Phòng/Khu, chưa giao cá nhân.
+       * Các trường owner được giữ để tương thích dữ liệu và dùng cho
+       * chức năng phân công nội bộ ở bước tiếp theo.
+       */
+      ownerUserId: "",
+      ownerName: "",
+      ownerPosition: "",
+      assignmentStatus: "CHO_PHAN_CONG",
+
+      relatedDepartmentIds,
+      supportDepartmentIds: relatedDepartmentIds,
+      relatedUserIds: [],
+      relatedUserNames: [],
       visibleDepartmentIds,
       visibleUserIds,
 
@@ -3316,15 +3242,15 @@ async function initializeUser(user) {
     showView("app");
 
     try {
-      await window.TaskPush?.identify(
-        user.uid,
-        state.profile
-      );
-
+      /*
+       * Không đăng nhập External ID vào OneSignal tại phân hệ nhiệm vụ.
+       * Chỉ liên kết Subscription ID hiện tại với Firebase UID trong
+       * collection taskPushSubscriptions.
+       */
       await syncCurrentPushSubscription();
     } catch (pushError) {
       console.warn(
-        "OneSignal chưa sẵn sàng:",
+        "OneSignal chưa sẵn sàng; ứng dụng vẫn tiếp tục hoạt động:",
         pushError
       );
     }
@@ -3526,11 +3452,6 @@ departmentFilter.addEventListener("change", applyFilters);
 
 primaryDepartmentId.addEventListener("change", () => {
   fillOwnerOptions();
-  syncSupportDepartmentUI();
-});
-
-ownerUserId.addEventListener("change", () => {
-  state.selectedSupportIds.delete(ownerUserId.value);
   syncSupportDepartmentUI();
 });
 
