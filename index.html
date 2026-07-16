@@ -71,6 +71,44 @@
       opacity:.95;
     }
 
+    .header-actions{
+      margin:16px auto 0;
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+
+    .header-action{
+      min-height:42px;
+      padding:10px 15px;
+      border:1px solid rgba(255,255,255,.38);
+      border-radius:12px;
+      background:rgba(255,255,255,.14);
+      color:#fff;
+      font:inherit;
+      font-size:14px;
+      font-weight:800;
+      text-decoration:none;
+      cursor:pointer;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap:7px;
+      box-shadow:0 6px 14px rgba(0,0,0,.10);
+      transition:transform .15s ease, background .15s ease;
+    }
+
+    .header-action:hover{
+      background:rgba(255,255,255,.23);
+      transform:translateY(-1px);
+    }
+
+    .header-action.logout{
+      background:rgba(117,25,25,.28);
+    }
+
     .sync-bar{
       text-align:center;
       background:#eaf4ff;
@@ -499,6 +537,27 @@
 <header>
   <h1>📑 HỆ THỐNG NHẮC VIỆC VĂN BẢN</h1>
   <p>Dashboard giám sát, nhắc việc và lưu trữ kết quả thực hiện nhiệm vụ</p>
+
+  <div class="header-actions" aria-label="Điều hướng hệ thống">
+    <a
+      class="header-action"
+      href="/dashboard-van-ban-tanhiep/nhiem-vu/"
+      title="Mở nhiệm vụ và đánh giá KPI"
+    >
+      <span aria-hidden="true">📊</span>
+      <span>Đánh giá KPI</span>
+    </a>
+
+    <button
+      class="header-action logout"
+      type="button"
+      onclick="dangXuatDashboardVanBan()"
+      title="Đăng xuất khỏi Dashboard Văn bản"
+    >
+      <span aria-hidden="true">🚪</span>
+      <span>Đăng xuất</span>
+    </button>
+  </div>
 </header>
 
 <div id="syncBar" class="sync-bar">
@@ -604,6 +663,29 @@ let oneSignalInstance = null;
 
 const SO_DONG_MOI_TRANG = 10;
 const TU_DONG_DONG_BO_MS = 10000;
+
+function dangXuatDashboardVanBan(){
+  const storageKeys = [
+    "nhac_viec_da_dang_ky_nhan_su",
+    "nhac_viec_ma_nhan_su",
+    "nhac_viec_ho_ten",
+    "nhac_viec_nam_sinh",
+    "nhac_viec_phong",
+    "nhac_viec_chuc_vu",
+    "nhac_viec_vai_tro",
+    "nhac_viec_subscription_id",
+    "nhac_viec_ngay_dang_ky",
+    "nhac_viec_thong_bao_de_sau"
+  ];
+
+  storageKeys.forEach(function(key){
+    localStorage.removeItem(key);
+  });
+
+  window.location.replace(
+    "/dashboard-van-ban-tanhiep/login.html?v=" + encodeURIComponent(APP_VERSION)
+  );
+}
 
 const notificationSetupModal = document.getElementById("notificationSetupModal");
 const notificationSetupText = document.getElementById("notificationSetupText");
