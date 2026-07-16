@@ -1,11 +1,11 @@
 import {
   auth,
   db
-} from "./firebase-config.js?v=20260716.2000";
+} from "./firebase-config.js?v=20260716.2200";
 
 import {
   NOTIFICATION_WEB_APP_URL
-} from "./notification-config.js?v=20260716.2000";
+} from "./notification-config.js?v=20260716.2200";
 
 import {
   GoogleAuthProvider,
@@ -43,6 +43,7 @@ const state = {
   loadingTasks: false,
   savingTask: false,
   savingProgress: false,
+  savingAssignment: false,
   initializedUid: null,
   selectedSupportIds: new Set(),
   selectedTaskId: null
@@ -137,6 +138,19 @@ const detailTaskCode = $("detailTaskCode");
 const detailContent = $("detailContent");
 const detailFooter = $("detailFooter");
 const updateTaskButton = $("updateTaskButton");
+const assignTaskButton = $("assignTaskButton");
+
+const assignmentModal = $("assignmentModal");
+const assignmentForm = $("assignmentForm");
+const assignmentModalTitle = $("assignmentModalTitle");
+const assignmentTaskCode = $("assignmentTaskCode");
+const assignmentTaskSummary = $("assignmentTaskSummary");
+const internalOwnerUserId = $("internalOwnerUserId");
+const assignmentHelp = $("assignmentHelp");
+const assignmentMessage = $("assignmentMessage");
+const closeAssignmentButton = $("closeAssignmentButton");
+const cancelAssignmentButton = $("cancelAssignmentButton");
+const saveAssignmentButton = $("saveAssignmentButton");
 
 const progressModal = $("progressModal");
 const progressForm = $("progressForm");
@@ -184,7 +198,8 @@ function setBodyModalState() {
   const hasOpenModal =
     !taskModal.classList.contains("hidden") ||
     !detailModal.classList.contains("hidden") ||
-    !progressModal.classList.contains("hidden");
+    !progressModal.classList.contains("hidden") ||
+    !assignmentModal.classList.contains("hidden");
 
   document.body.classList.toggle("modal-open", hasOpenModal);
 }
@@ -254,6 +269,7 @@ function resetSessionState() {
   taskModal?.classList.add("hidden");
   detailModal?.classList.add("hidden");
   progressModal?.classList.add("hidden");
+  assignmentModal?.classList.add("hidden");
   document.body.classList.remove("modal-open");
 
   loginForm.reset();
@@ -1695,6 +1711,19 @@ function findTaskById(taskId) {
   return state.tasks.find((task) => task.id === taskId) || null;
 }
 
+function canAssignTask(task) {
+  if (!task || !state.user || !state.profile) {
+    return false;
+  }
+
+  return (
+    state.profile.role === "DEPARTMENT_LEADER" &&
+    task.primaryDepartmentId === state.profile.departmentId &&
+    task.status !== "HOAN_THANH" &&
+    task.status !== "HUY"
+  );
+}
+
 function canUpdateTask(task) {
   if (!task || !state.user || !state.profile) {
     return false;
@@ -1705,15 +1734,14 @@ function canUpdateTask(task) {
   }
 
   /*
-   * Trong Bước 1, nhiệm vụ thuộc về Phòng/Khu.
-   * Mọi Trưởng/Phó đang hoạt động của Phòng/Khu chính đều có thể
-   * tiếp nhận, cập nhật tiến độ và kết thúc nhiệm vụ.
+   * Sau khi phân công nội bộ, Trưởng/Phó được giao trực tiếp
+   * mới cập nhật tiến độ và kết quả nhiệm vụ.
    */
   if (
     state.profile.role === "DEPARTMENT_LEADER" &&
     task.primaryDepartmentId === state.profile.departmentId
   ) {
-    return true;
+    return task.ownerUserId === state.user.uid;
   }
 
   return (
@@ -1881,8 +1909,20 @@ function openTaskDetail(taskId) {
     ${task.status === "HOAN_THANH" ? resultEvidenceHtml(task) : ""}
   `;
 
+  const allowAssign = canAssignTask(task);
   const allowUpdate = canUpdateTask(task);
-  detailFooter.classList.toggle("hidden", !allowUpdate);
+
+  detailFooter.classList.toggle(
+    "hidden",
+    !allowAssign && !allowUpdate
+  );
+
+  assignTaskButton.classList.toggle("hidden", !allowAssign);
+  assignTaskButton.textContent = task.ownerUserId
+    ? "👤 Phân công lại"
+    : "👤 Phân công nội bộ";
+
+  updateTaskButton.classList.toggle("hidden", !allowUpdate);
   updateTaskButton.textContent = task.status === "HOAN_THANH"
     ? "✏️ Chỉnh sửa kết quả hoàn thành"
     : "✏️ Cập nhật / Kết thúc nhiệm vụ";
@@ -2843,6 +2883,203 @@ async function saveTask(event) {
 
 
 /* =========================================================
+ * PHÂN CÔNG NỘI BỘ
+ * ========================================================= */
+
+function internalAssigneeOptions(task) {
+  return state.users
+    .filter((item) => (
+      item.active === true &&
+      item.role === "DEPARTMENT_LEADER" &&
+      item.departmentId === task.primaryDepartmentId
+    ))
+    .sort((a, b) => String(a.fullName || "").localeCompare(
+      String(b.fullName || ""),
+      "vi"
+    ));
+}
+
+function openAssignmentModal(taskId = state.selectedTaskId) {
+  const task = findTaskById(taskId);
+
+  if (!task || !canAssignTask(task)) {
+    return;
+  }
+
+  state.selectedTaskId = task.id;
+  hideMessage(assignmentMessage);
+  assignmentForm.reset();
+
+  assignmentModalTitle.textContent = task.ownerUserId
+    ? "👤 Phân công lại nhiệm vụ"
+    : "👤 Phân công nội bộ";
+  assignmentTaskCode.textContent = task.taskCode || "—";
+  assignmentTaskSummary.innerHTML = `
+    <div>
+      <h3>${escapeHtml(task.title || "Nhiệm vụ")}</h3>
+      <p>${escapeHtml(truncate(task.description || "", 220))}</p>
+    </div>
+    <div class="summary-deadline">
+      <span>Phòng/Khu phụ trách</span>
+      <strong>${escapeHtml(departmentName(task.primaryDepartmentId))}</strong>
+    </div>
+  `;
+
+  const assignees = internalAssigneeOptions(task);
+  internalOwnerUserId.innerHTML =
+    '<option value="">Chọn Trưởng/Phó phụ trách thực hiện</option>';
+
+  assignees.forEach((item) => {
+    const option = document.createElement("option");
+    option.value = item.id;
+    option.textContent = [item.fullName, item.position]
+      .filter(Boolean)
+      .join(" — ");
+    internalOwnerUserId.appendChild(option);
+  });
+
+  internalOwnerUserId.value = assignees.some(
+    (item) => item.id === task.ownerUserId
+  )
+    ? task.ownerUserId
+    : "";
+
+  assignmentHelp.textContent = assignees.length > 0
+    ? "Chỉ hiển thị Trưởng/Phó đang hoạt động thuộc Phòng/Khu chịu trách nhiệm chính."
+    : "Phòng/Khu này chưa có tài khoản Trưởng/Phó đang hoạt động.";
+
+  internalOwnerUserId.disabled = assignees.length === 0;
+  saveAssignmentButton.disabled = assignees.length === 0;
+
+  detailModal.classList.add("hidden");
+  assignmentModal.classList.remove("hidden");
+  setBodyModalState();
+}
+
+function closeAssignmentModal() {
+  if (state.savingAssignment) {
+    return;
+  }
+
+  assignmentModal.classList.add("hidden");
+  setBodyModalState();
+}
+
+async function createAssignmentLog(task, owner) {
+  try {
+    await addDoc(collection(db, "taskLogs"), {
+      taskId: task.id,
+      taskCode: task.taskCode || "",
+      action: task.ownerUserId ? "REASSIGN_INTERNAL" : "ASSIGN_INTERNAL",
+      description: `Phân công nội bộ cho ${owner.fullName || ""}`,
+      oldValue: task.ownerUserId || "",
+      newValue: owner.id,
+      performedByUserId: state.user.uid,
+      performedByName: state.profile.fullName || "",
+      performedAt: serverTimestamp()
+    });
+  } catch (error) {
+    console.warn("Không ghi được nhật ký phân công:", error);
+  }
+}
+
+async function saveInternalAssignment(event) {
+  event.preventDefault();
+
+  if (state.savingAssignment) {
+    return;
+  }
+
+  const task = findTaskById(state.selectedTaskId);
+
+  if (!task || !canAssignTask(task)) {
+    showMessage(
+      assignmentMessage,
+      "Tài khoản không có quyền phân công nhiệm vụ này.",
+      "error"
+    );
+    return;
+  }
+
+  const owner = userById(internalOwnerUserId.value);
+
+  if (
+    !owner ||
+    owner.active !== true ||
+    owner.role !== "DEPARTMENT_LEADER" ||
+    owner.departmentId !== task.primaryDepartmentId
+  ) {
+    showMessage(
+      assignmentMessage,
+      "Vui lòng chọn đúng Trưởng/Phó thuộc Phòng/Khu phụ trách.",
+      "error"
+    );
+    return;
+  }
+
+  state.savingAssignment = true;
+  saveAssignmentButton.disabled = true;
+  saveAssignmentButton.textContent = "Đang phân công...";
+  hideMessage(assignmentMessage);
+
+  try {
+    const visibleUserIds = Array.from(new Set([
+      ...(Array.isArray(task.visibleUserIds) ? task.visibleUserIds : []),
+      owner.id,
+      state.user.uid
+    ]));
+
+    await updateDoc(doc(db, "tasks", task.id), {
+      ownerUserId: owner.id,
+      ownerName: owner.fullName || "",
+      ownerPosition: owner.position || "",
+      assignmentStatus: "DA_PHAN_CONG",
+      internalAssignedByUserId: state.user.uid,
+      internalAssignedByName: state.profile.fullName || "",
+      internalAssignedAt: serverTimestamp(),
+      visibleUserIds,
+      updatedAt: serverTimestamp(),
+      updatedByUserId: state.user.uid,
+      updatedByName: state.profile.fullName || ""
+    });
+
+    await createAssignmentLog(task, owner);
+    await sendNotificationEvent("TASK_INTERNAL_ASSIGNED", task.id);
+
+    showMessage(
+      assignmentMessage,
+      `✅ Đã phân công nhiệm vụ cho ${owner.fullName || "người phụ trách"}.`,
+      "success"
+    );
+
+    await loadTasks();
+
+    window.setTimeout(() => {
+      state.savingAssignment = false;
+      closeAssignmentModal();
+
+      if (findTaskById(task.id)) {
+        openTaskDetail(task.id);
+      }
+    }, 700);
+  } catch (error) {
+    console.error("Không phân công được nhiệm vụ:", error);
+
+    showMessage(
+      assignmentMessage,
+      error?.code === "permission-denied"
+        ? "Firestore chưa cho phép Phòng/Khu phân công nội bộ. Hãy Publish Rules Bước 2."
+        : (error?.message || "Không phân công được nhiệm vụ."),
+      "error"
+    );
+  } finally {
+    state.savingAssignment = false;
+    saveAssignmentButton.disabled = false;
+    saveAssignmentButton.textContent = "Xác nhận phân công";
+  }
+}
+
+/* =========================================================
  * CẬP NHẬT TIẾN ĐỘ VÀ KẾT THÚC NHIỆM VỤ
  * ========================================================= */
 
@@ -3430,9 +3667,13 @@ addTaskButton.addEventListener("click", openTaskModal);
 closeModalButton.addEventListener("click", closeTaskModal);
 cancelTaskButton.addEventListener("click", closeTaskModal);
 closeDetailButton.addEventListener("click", closeTaskDetail);
+assignTaskButton.addEventListener("click", () => openAssignmentModal());
 updateTaskButton.addEventListener("click", () => openProgressModal());
 closeProgressButton.addEventListener("click", closeProgressModal);
 cancelProgressButton.addEventListener("click", closeProgressModal);
+closeAssignmentButton.addEventListener("click", closeAssignmentModal);
+cancelAssignmentButton.addEventListener("click", closeAssignmentModal);
+assignmentForm.addEventListener("submit", saveInternalAssignment);
 progressForm.addEventListener("submit", saveProgress);
 progressStatus.addEventListener("change", syncCompletionEvidenceUI);
 completionProductType.addEventListener("change", syncCompletionEvidenceUI);
@@ -3541,6 +3782,12 @@ progressModal.addEventListener("click", (event) => {
   }
 });
 
+assignmentModal.addEventListener("click", (event) => {
+  if (event.target === assignmentModal) {
+    closeAssignmentModal();
+  }
+});
+
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") {
     return;
@@ -3548,6 +3795,11 @@ document.addEventListener("keydown", (event) => {
 
   if (!supportDropdownPanel.classList.contains("hidden")) {
     toggleSupportDropdown(false);
+    return;
+  }
+
+  if (!assignmentModal.classList.contains("hidden")) {
+    closeAssignmentModal();
     return;
   }
 
