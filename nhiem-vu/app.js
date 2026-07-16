@@ -876,9 +876,18 @@ async function loadTasks() {
       const departmentId = state.profile.departmentId;
       const tasksRef = collection(db, "tasks");
 
+      /*
+       * Chỉ dùng 2 truy vấn khớp trực tiếp với Firestore Rules:
+       * - primaryDepartmentId: tương thích nhiệm vụ cũ;
+       * - visibleDepartmentIds: phạm vi xem chuẩn của dữ liệu hiện tại.
+       *
+       * Không truy vấn riêng supportDepartmentIds vì phòng phối hợp đã
+       * được đưa vào visibleDepartmentIds khi tạo nhiệm vụ. Việc bỏ truy
+       * vấn thứ ba cũng tránh một truy vấn bị từ chối làm hỏng toàn bộ
+       * Promise.all().
+       */
       const results = await Promise.all([
         getDocs(query(tasksRef, where("primaryDepartmentId", "==", departmentId))),
-        getDocs(query(tasksRef, where("supportDepartmentIds", "array-contains", departmentId))),
         getDocs(query(tasksRef, where("visibleDepartmentIds", "array-contains", departmentId)))
       ]);
 
