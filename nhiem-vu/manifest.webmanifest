@@ -1,7 +1,7 @@
 {
   "id": "/dashboard-van-ban-tanhiep/nhiem-vu/",
-  "name": "Quản lý nhiệm vụ Tân Hiệp",
-  "short_name": "Nhiệm vụ",
+  "name": "Nhiệm vụ và đánh giá KPI Tân Hiệp",
+  "short_name": "Đánh giá KPI",
   "start_url": "/dashboard-van-ban-tanhiep/nhiem-vu/",
   "scope": "/dashboard-van-ban-tanhiep/nhiem-vu/",
   "display": "standalone",
