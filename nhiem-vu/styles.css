@@ -2006,3 +2006,127 @@ textarea:focus {
     text-align: left;
   }
 }
+
+/* =========================================================
+ * TẢI MINH CHỨNG LÊN GOOGLE DRIVE
+ * ========================================================= */
+
+.evidence-upload-box {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 86px;
+  padding: 14px 16px;
+  border: 2px dashed #8bb8d8;
+  border-radius: 14px;
+  background: #f4f9fd;
+  color: #174f76;
+  cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    transform 0.2s ease;
+}
+
+.evidence-upload-box:hover,
+.evidence-upload-box:focus-within {
+  border-color: #1f75ad;
+  background: #eaf5fc;
+  transform: translateY(-1px);
+}
+
+.evidence-upload-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: #1f75ad;
+  color: #ffffff;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.evidence-upload-box strong,
+.evidence-upload-box small {
+  display: block;
+}
+
+.evidence-upload-box strong {
+  margin-bottom: 4px;
+  font-size: 15px;
+}
+
+.evidence-upload-box small {
+  color: #5a7184;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.visually-hidden-file {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+.evidence-file-name {
+  margin-top: 9px;
+  padding: 9px 11px;
+  border-radius: 9px;
+  background: #f2f5f7;
+  color: #657789;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.evidence-file-name.has-file {
+  background: #e8f7ef;
+  color: #137348;
+  font-weight: 700;
+}
+
+.existing-evidence-link {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 9px;
+  color: #176b9f;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.existing-evidence-link:hover {
+  text-decoration: underline;
+}
+
+.hidden-upload-frame {
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  left: -9999px;
+  top: -9999px;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+@media (max-width: 640px) {
+  .evidence-upload-box {
+    align-items: flex-start;
+    min-height: 80px;
+    padding: 12px;
+  }
+
+  .evidence-upload-icon {
+    flex-basis: 40px;
+    width: 40px;
+    height: 40px;
+  }
+}
