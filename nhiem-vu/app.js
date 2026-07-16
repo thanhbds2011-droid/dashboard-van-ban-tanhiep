@@ -153,11 +153,12 @@ const completionSection = $("completionSection");
 const completedDate = $("completedDate");
 const completionTimingPreview = $("completionTimingPreview");
 const completionProductType = $("completionProductType");
+const resultSummaryWrap = $("resultSummaryWrap");
 const resultSummary = $("resultSummary");
-const evidenceLinkWrap = $("evidenceLinkWrap");
-const evidenceLinkInput = $("evidenceLinkInput");
-const evidenceTextWrap = $("evidenceTextWrap");
-const evidenceTextInput = $("evidenceTextInput");
+const evidenceFileWrap = $("evidenceFileWrap");
+const evidenceFileInput = $("evidenceFileInput");
+const evidenceFileName = $("evidenceFileName");
+const existingEvidenceLink = $("existingEvidenceLink");
 
 /* =========================================================
  * GIAO DIỆN CHUNG
@@ -541,11 +542,14 @@ function outputTypeName(value) {
 function evidenceTypeName(value) {
   const map = {
     NONE: "Không có minh chứng",
+    FILE: "Tệp/hình ảnh đã tải lên",
+    OTHER: "Minh chứng khác",
+
+    /* Tương thích dữ liệu cũ. */
     LINK: "Đường dẫn liên kết",
     PDF: "Tệp PDF",
     IMAGE: "Hình ảnh",
-    TEXT: "Nội dung nhập tay",
-    OTHER: "Sản phẩm khác"
+    TEXT: "Nội dung nhập tay"
   };
 
   return map[value] || value || "Chưa ghi nhận";
@@ -1046,16 +1050,17 @@ function applyFilters() {
  * XUẤT BÁO CÁO NHIỆM VỤ — A4 NGANG
  * ========================================================= */
 
-/*
- * Tên trạng thái dùng riêng trong báo cáo.
- * Không làm thay đổi dữ liệu lưu trong Firestore.
- */
 function reportTaskStatusName(task) {
-  const due =
-    deadlineState(task);
+  const due = deadlineState(task);
 
   if (task.status === "HOAN_THANH") {
-    return completionTimingInfo(task).text;
+    const timing = completionTimingInfo(task);
+
+    if (timing.code === "EARLY") {
+      return `Hoàn thành sớm ${Math.abs(Number(timing.days) || 0)} ngày`;
+    }
+
+    return timing.text;
   }
 
   if (task.status === "HUY") {
@@ -1069,43 +1074,25 @@ function reportTaskStatusName(task) {
   }
 
   const statusMap = {
-    MOI_TIEP_NHAN:
-      "Chưa thực hiện",
-
-    DANG_THUC_HIEN:
-      "Đang thực hiện",
-
-    CHO_PHOI_HOP:
-      "Chờ phối hợp"
+    MOI_TIEP_NHAN: "Chưa thực hiện",
+    DANG_THUC_HIEN: "Đang thực hiện",
+    CHO_PHOI_HOP: "Chờ phối hợp"
   };
 
-  const statusText =
-    statusMap[task.status] ||
-    statusName(task.status);
+  const statusText = statusMap[task.status] || statusName(task.status);
 
-  if (
-    !due.text ||
-    due.code === "NO_DEADLINE"
-  ) {
-    return statusText;
+  if (due.code === "OVERDUE" || due.code === "DUE_TODAY" || due.code === "UPCOMING") {
+    return `${statusText} — ${due.text}`;
   }
 
-  return `${statusText} — ${due.text}`;
+  return statusText;
 }
 
-
-/*
- * Màu trạng thái trong báo cáo.
- */
 function reportTaskStatusClass(task) {
-  const due =
-    deadlineState(task);
+  const due = deadlineState(task);
 
   if (task.status === "HOAN_THANH") {
-    const timing =
-      completionTimingInfo(task);
-
-    return timing.code === "LATE"
+    return completionTimingInfo(task).code === "LATE"
       ? "status-completed-late"
       : "status-completed";
   }
@@ -1122,100 +1109,21 @@ function reportTaskStatusClass(task) {
     return "status-overdue";
   }
 
-  if (
-    due.code === "DUE_TODAY" ||
-    due.code === "UPCOMING"
-  ) {
+  if (["DUE_TODAY", "UPCOMING"].includes(due.code)) {
     return "status-warning";
   }
 
   return "status-processing";
 }
 
-
-/*
- * Xác định phạm vi đang xuất theo bộ lọc.
- */
 function reportScopeText() {
-  const selectedDepartment =
-    departmentFilter?.value || "ALL";
+  const selectedDepartment = departmentFilter?.value || "ALL";
 
-  if (selectedDepartment === "ALL") {
-    return "Toàn Trung tâm";
-  }
-
-  return departmentName(
-    selectedDepartment
-  );
+  return selectedDepartment === "ALL"
+    ? "Toàn Trung tâm"
+    : departmentName(selectedDepartment);
 }
 
-
-/*
- * Mô tả bộ lọc đã áp dụng.
- */
-function reportFilterText() {
-  const parts = [];
-
-  const keyword =
-    cleanText(
-      searchInput?.value
-    );
-
-  const statusText =
-    statusFilter
-      ?.selectedOptions?.[0]
-      ?.textContent
-      ?.trim() || "";
-
-  const deadlineText =
-    deadlineFilter
-      ?.selectedOptions?.[0]
-      ?.textContent
-      ?.trim() || "";
-
-  const departmentText =
-    departmentFilter
-      ?.selectedOptions?.[0]
-      ?.textContent
-      ?.trim() || "";
-
-  if (keyword) {
-    parts.push(
-      `Từ khóa: ${keyword}`
-    );
-  }
-
-  if (
-    statusFilter?.value &&
-    statusFilter.value !== "ALL"
-  ) {
-    parts.push(statusText);
-  }
-
-  if (
-    deadlineFilter?.value &&
-    deadlineFilter.value !== "ALL"
-  ) {
-    parts.push(deadlineText);
-  }
-
-  if (
-    departmentFilter?.value &&
-    departmentFilter.value !== "ALL"
-  ) {
-    parts.push(departmentText);
-  }
-
-  return parts.length > 0
-    ? parts.join(" • ")
-    : "Không áp dụng bộ lọc chi tiết";
-}
-
-
-/*
- * Xuất báo cáo dạng trang in A4 ngang.
- * Người dùng có thể chọn In hoặc Lưu thành PDF.
- */
 function exportTaskReport() {
   if (!canExportTaskReport()) {
     showMessage(
@@ -1223,16 +1131,12 @@ function exportTaskReport() {
       "Tài khoản không có quyền xuất báo cáo tổng hợp.",
       "error"
     );
-
     return;
   }
 
-  const tasksToExport =
-    Array.isArray(
-      state.filteredTasks
-    )
-      ? state.filteredTasks
-      : [];
+  const tasksToExport = Array.isArray(state.filteredTasks)
+    ? state.filteredTasks
+    : [];
 
   if (tasksToExport.length === 0) {
     showMessage(
@@ -1240,20 +1144,14 @@ function exportTaskReport() {
       "Không có nhiệm vụ trong bộ lọc hiện tại để xuất báo cáo.",
       "warning"
     );
-
     return;
   }
 
-  /*
-   * Mở cửa sổ ngay khi người dùng bấm nút
-   * để tránh trình duyệt chặn popup.
-   */
-  const reportWindow =
-    window.open(
-      "",
-      "_blank",
-      "width=1400,height=900"
-    );
+  const reportWindow = window.open(
+    "",
+    "_blank",
+    "width=1400,height=900"
+  );
 
   if (!reportWindow) {
     showMessage(
@@ -1261,759 +1159,323 @@ function exportTaskReport() {
       "Trình duyệt đang chặn cửa sổ báo cáo. Hãy cho phép cửa sổ bật lên rồi thử lại.",
       "error"
     );
-
     return;
   }
 
-  const now =
-    new Date();
+  const now = new Date();
+  const totalCount = tasksToExport.length;
+  const completedCount = tasksToExport.filter((task) => task.status === "HOAN_THANH").length;
+  const overdueCount = tasksToExport.filter((task) => (
+    task.status !== "HOAN_THANH" &&
+    task.status !== "HUY" &&
+    deadlineState(task).code === "OVERDUE"
+  )).length;
+  const processingCount = tasksToExport.filter((task) => [
+    "MOI_TIEP_NHAN",
+    "DANG_THUC_HIEN",
+    "CHO_PHOI_HOP",
+    "TAM_DUNG"
+  ].includes(task.status)).length;
 
-  const totalCount =
-    tasksToExport.length;
+  const scopeText = reportScopeText();
 
-  const completedCount =
-    tasksToExport.filter(
-      (task) =>
-        task.status ===
-        "HOAN_THANH"
-    ).length;
+  const reportRows = tasksToExport.map((task, index) => {
+    const progressValue = Math.max(0, Math.min(100, Number(task.progress) || 0));
 
-  const overdueCount =
-    tasksToExport.filter(
-      (task) =>
-        task.status !==
-          "HOAN_THANH" &&
-        task.status !==
-          "HUY" &&
-        deadlineState(task).code ===
-          "OVERDUE"
-    ).length;
+    const descriptionHtml = task.description
+      ? `<div class="task-description">${escapeHtml(task.description)}</div>`
+      : "";
 
-  const processingCount =
-    tasksToExport.filter(
-      (task) =>
-        [
-          "MOI_TIEP_NHAN",
-          "DANG_THUC_HIEN",
-          "CHO_PHOI_HOP",
-          "TAM_DUNG"
-        ].includes(task.status)
-    ).length;
+    const resultText = task.status === "HOAN_THANH"
+      ? (task.resultSummary || task.result || "—")
+      : "—";
 
-  const scopeText =
-    reportScopeText();
+    return `
+      <tr>
+        <td class="column-stt">${index + 1}</td>
 
-  const filterText =
-    reportFilterText();
+        <td class="column-task">
+          <strong class="task-title">${escapeHtml(task.title || "Nhiệm vụ chưa có tiêu đề")}</strong>
+          ${descriptionHtml}
+        </td>
 
-  const reportRows =
-    tasksToExport
-      .map(
-        (task, index) => {
-          const progressValue =
-            Math.max(
-              0,
-              Math.min(
-                100,
-                Number(
-                  task.progress
-                ) || 0
-              )
-            );
+        <td class="column-department">${escapeHtml(departmentName(task.primaryDepartmentId))}</td>
+        <td class="column-owner">${escapeHtml(task.ownerName || "Chưa xác định")}</td>
+        <td class="column-deadline">${escapeHtml(formatDate(task.deadline))}</td>
+        <td class="column-progress"><strong>${progressValue}%</strong></td>
 
-          const descriptionHtml =
-            task.description
-              ? `
-                <div class="task-description">
-                  ${escapeHtml(
-                    task.description
-                  )}
-                </div>
-              `
-              : "";
+        <td class="column-status">
+          <span class="report-status ${reportTaskStatusClass(task)}">
+            ${escapeHtml(reportTaskStatusName(task))}
+          </span>
+        </td>
 
-          const resultText =
-            task.status ===
-              "HOAN_THANH"
-              ? (
-                task.resultSummary ||
-                task.result ||
-                "Chưa cập nhật kết quả"
-              )
-              : "—";
+        <td class="column-result">${escapeHtml(resultText)}</td>
+      </tr>
+    `;
+  }).join("");
 
-          return `
-            <tr>
-              <td class="column-stt">
-                ${index + 1}
-              </td>
-
-              <td class="column-task">
-                <strong class="task-title">
-                  ${escapeHtml(
-                    task.title ||
-                    "Nhiệm vụ chưa có tiêu đề"
-                  )}
-                </strong>
-
-                ${descriptionHtml}
-              </td>
-
-              <td class="column-department">
-                ${escapeHtml(
-                  departmentName(
-                    task.primaryDepartmentId
-                  )
-                )}
-              </td>
-
-              <td class="column-owner">
-                ${escapeHtml(
-                  task.ownerName ||
-                  "Chưa xác định"
-                )}
-              </td>
-
-              <td class="column-deadline">
-                ${escapeHtml(
-                  formatDate(
-                    task.deadline
-                  )
-                )}
-              </td>
-
-              <td class="column-progress">
-                <strong>
-                  ${progressValue}%
-                </strong>
-              </td>
-
-              <td class="column-status">
-                <span class="report-status ${reportTaskStatusClass(task)}">
-                  ${escapeHtml(
-                    reportTaskStatusName(
-                      task
-                    )
-                  )}
-                </span>
-              </td>
-
-              <td class="column-result">
-                ${escapeHtml(
-                  resultText
-                )}
-              </td>
-            </tr>
-          `;
-        }
-      )
-      .join("");
-
-  const reportTitle =
-    `Bao-cao-theo-doi-nhiem-vu_${dateKey(now)}`;
+  const reportTitle = `Bao-cao-theo-doi-nhiem-vu_${dateKey(now)}`;
 
   const reportHtml = `
     <!DOCTYPE html>
     <html lang="vi">
     <head>
       <meta charset="UTF-8">
-
-      <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-      >
-
-      <title>
-        ${escapeHtml(reportTitle)}
-      </title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>${escapeHtml(reportTitle)}</title>
 
       <style>
         @page {
           size: A4 landscape;
-          margin:
-            9mm
-            9mm
-            10mm
-            9mm;
+          margin: 9mm 9mm 10mm 9mm;
         }
 
-        * {
-          box-sizing:
-            border-box;
-        }
+        * { box-sizing: border-box; }
 
         html,
         body {
-          margin:
-            0;
-
-          padding:
-            0;
-
-          background:
-            #ffffff;
-
-          color:
-            #172033;
-
-          font-family:
-            Arial,
-            Helvetica,
-            sans-serif;
+          margin: 0;
+          padding: 0;
+          background: #ffffff;
+          color: #172033;
+          font-family: Arial, Helvetica, sans-serif;
         }
 
         body {
-          font-size:
-            9pt;
-
-          line-height:
-            1.35;
+          font-size: 9pt;
+          line-height: 1.35;
         }
 
         .report-page {
-          width:
-            100%;
-
-          margin:
-            0 auto;
+          width: 100%;
+          margin: 0 auto;
         }
 
         .print-toolbar {
-          position:
-            sticky;
-
-          top:
-            0;
-
-          z-index:
-            10;
-
-          display:
-            flex;
-
-          justify-content:
-            center;
-
-          gap:
-            10px;
-
-          padding:
-            12px;
-
-          margin-bottom:
-            16px;
-
-          background:
-            #eaf3fa;
-
-          border-bottom:
-            1px solid #c7d9e8;
+          position: sticky;
+          top: 0;
+          z-index: 10;
+          display: flex;
+          justify-content: center;
+          gap: 10px;
+          padding: 12px;
+          margin-bottom: 16px;
+          background: #eaf3fa;
+          border-bottom: 1px solid #c7d9e8;
         }
 
         .print-toolbar button {
-          min-height:
-            42px;
-
-          padding:
-            0 22px;
-
-          border:
-            1px solid #1c6798;
-
-          border-radius:
-            8px;
-
-          background:
-            #1c6798;
-
-          color:
-            #ffffff;
-
-          font-size:
-            14px;
-
-          font-weight:
-            700;
-
-          cursor:
-            pointer;
+          min-height: 42px;
+          padding: 0 22px;
+          border: 1px solid #1c6798;
+          border-radius: 8px;
+          background: #1c6798;
+          color: #ffffff;
+          font-size: 14px;
+          font-weight: 700;
+          cursor: pointer;
         }
 
         .print-toolbar button.secondary {
-          background:
-            #ffffff;
-
-          color:
-            #1c6798;
+          background: #ffffff;
+          color: #1c6798;
         }
 
         .agency-name {
-          margin:
-            0;
-
-          text-align:
-            center;
-
-          font-family:
-            "Times New Roman",
-            Times,
-            serif;
-
-          font-size:
-            12pt;
-
-          font-weight:
-            700;
-
-          text-transform:
-            uppercase;
+          margin: 0;
+          text-align: center;
+          font-family: "Times New Roman", Times, serif;
+          font-size: 12pt;
+          font-weight: 700;
+          text-transform: uppercase;
         }
 
         .agency-line {
-          width:
-            110px;
-
-          height:
-            1px;
-
-          margin:
-            5px auto 10px;
-
-          background:
-            #172033;
+          width: 110px;
+          height: 1px;
+          margin: 5px auto 10px;
+          background: #172033;
         }
 
         .report-heading {
-          margin:
-            0;
-
-          text-align:
-            center;
-
-          font-family:
-            "Times New Roman",
-            Times,
-            serif;
-
-          font-size:
-            17pt;
-
-          font-weight:
-            700;
-
-          text-transform:
-            uppercase;
+          margin: 0;
+          text-align: center;
+          font-family: "Times New Roman", Times, serif;
+          font-size: 17pt;
+          font-weight: 700;
+          text-transform: uppercase;
         }
 
         .report-subheading {
-          margin:
-            4px 0 14px;
-
-          text-align:
-            center;
-
-          font-family:
-            "Times New Roman",
-            Times,
-            serif;
-
-          font-size:
-            10.5pt;
-
-          font-style:
-            italic;
+          margin: 4px 0 14px;
+          text-align: center;
+          font-family: "Times New Roman", Times, serif;
+          font-size: 10.5pt;
+          font-style: italic;
         }
 
         .report-information {
-          display:
-            grid;
-
-          grid-template-columns:
-            1fr 1fr;
-
-          gap:
-            5px 20px;
-
-          margin:
-            0 0 12px;
-
-          padding:
-            9px 11px;
-
-          border:
-            1px solid #a8becf;
-
-          border-radius:
-            6px;
-
-          background:
-            #f7fafc;
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 5px 20px;
+          margin: 0 0 12px;
+          padding: 9px 11px;
+          border: 1px solid #a8becf;
+          border-radius: 6px;
+          background: #f7fafc;
         }
 
-        .report-information div {
-          min-width:
-            0;
-        }
-
-        .report-information strong {
-          color:
-            #174f76;
-        }
-
-        .information-full {
-          grid-column:
-            1 / -1;
-        }
+        .report-information strong { color: #174f76; }
 
         .summary-grid {
-          display:
-            grid;
-
-          grid-template-columns:
-            repeat(4, 1fr);
-
-          gap:
-            8px;
-
-          margin-bottom:
-            12px;
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 8px;
+          margin-bottom: 12px;
         }
 
         .summary-card {
-          padding:
-            8px 10px;
-
-          border:
-            1px solid #a8becf;
-
-          border-radius:
-            6px;
-
-          text-align:
-            center;
-
-          background:
-            #ffffff;
+          padding: 8px 10px;
+          border: 1px solid #a8becf;
+          border-radius: 6px;
+          text-align: center;
+          background: #ffffff;
         }
 
         .summary-card span {
-          display:
-            block;
-
-          margin-bottom:
-            2px;
-
-          color:
-            #536579;
-
-          font-size:
-            8.5pt;
+          display: block;
+          margin-bottom: 2px;
+          color: #536579;
+          font-size: 8.5pt;
         }
 
         .summary-card strong {
-          display:
-            block;
-
-          color:
-            #174f76;
-
-          font-size:
-            15pt;
+          display: block;
+          color: #174f76;
+          font-size: 15pt;
         }
 
-        .summary-card.completed strong {
-          color:
-            #17834f;
-        }
+        .summary-card.completed strong { color: #17834f; }
+        .summary-card.overdue strong { color: #c93434; }
 
-        .summary-card.overdue strong {
-          color:
-            #c93434;
+        .report-table-wrap {
+          width: 100%;
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
         }
 
         table {
-          width:
-            100%;
-
-          border-collapse:
-            collapse;
-
-          table-layout:
-            fixed;
-
-          font-size:
-            8.5pt;
+          width: 100%;
+          min-width: 1060px;
+          border-collapse: collapse;
+          table-layout: fixed;
+          font-size: 8.5pt;
         }
 
-        thead {
-          display:
-            table-header-group;
-        }
+        thead { display: table-header-group; }
 
         tr {
-          break-inside:
-            avoid;
-
-          page-break-inside:
-            avoid;
+          break-inside: avoid;
+          page-break-inside: avoid;
         }
 
         th,
         td {
-          border:
-            1px solid #7c8b99;
-
-          padding:
-            5px 5px;
-
-          vertical-align:
-            top;
-
-          overflow-wrap:
-            anywhere;
-
-          word-break:
-            normal;
+          border: 1px solid #7c8b99;
+          padding: 5px;
+          vertical-align: top;
+          overflow-wrap: break-word;
+          word-break: normal;
         }
 
         th {
-          background:
-            #1c6798;
-
-          color:
-            #ffffff;
-
-          text-align:
-            center;
-
-          font-weight:
-            700;
-
-          text-transform:
-            uppercase;
+          background: #1c6798;
+          color: #ffffff;
+          text-align: center;
+          font-weight: 700;
+          text-transform: uppercase;
         }
 
-        tbody tr:nth-child(even) {
-          background:
-            #f5f8fa;
-        }
+        tbody tr:nth-child(even) { background: #f5f8fa; }
 
-        .column-stt {
-          width:
-            4%;
-
-          text-align:
-            center;
-        }
-
-        .column-task {
-          width:
-            27%;
-        }
-
-        .column-department {
-          width:
-            11%;
-        }
-
-        .column-owner {
-          width:
-            13%;
-        }
-
-        .column-deadline {
-          width:
-            9%;
-
-          text-align:
-            center;
-        }
-
-        .column-progress {
-          width:
-            7%;
-
-          text-align:
-            center;
-        }
-
-        .column-status {
-          width:
-            13%;
-        }
-
-        .column-result {
-          width:
-            16%;
-        }
+        .column-stt { width: 4%; text-align: center; white-space: nowrap; }
+        .column-task { width: 27%; }
+        .column-department { width: 11%; }
+        .column-owner { width: 13%; }
+        .column-deadline { width: 9%; text-align: center; white-space: nowrap; }
+        .column-progress { width: 7%; text-align: center; white-space: nowrap; }
+        .column-status { width: 13%; }
+        .column-result { width: 16%; }
 
         .task-title {
-          display:
-            block;
-
-          margin-bottom:
-            3px;
-
-          color:
-            #112f46;
+          display: block;
+          margin-bottom: 3px;
+          color: #112f46;
         }
 
         .task-description {
-          color:
-            #495b6b;
-
-          font-size:
-            8pt;
-
-          line-height:
-            1.3;
+          color: #495b6b;
+          font-size: 8pt;
+          line-height: 1.3;
         }
 
-        .report-status {
-          display:
-            inline-block;
-
-          font-weight:
-            700;
-        }
-
-        .status-completed {
-          color:
-            #147c48;
-        }
-
-        .status-completed-late {
-          color:
-            #a86400;
-        }
-
-        .status-overdue {
-          color:
-            #c62828;
-        }
-
-        .status-warning {
-          color:
-            #a45e00;
-        }
-
-        .status-processing {
-          color:
-            #155f91;
-        }
-
+        .report-status { display: inline-block; font-weight: 700; }
+        .status-completed { color: #147c48; }
+        .status-completed-late { color: #a86400; }
+        .status-overdue { color: #c62828; }
+        .status-warning { color: #a45e00; }
+        .status-processing { color: #155f91; }
         .status-paused,
-        .status-cancelled {
-          color:
-            #5f6973;
-        }
+        .status-cancelled { color: #5f6973; }
 
         .report-footer {
-          display:
-            flex;
-
-          justify-content:
-            space-between;
-
-          gap:
-            30px;
-
-          margin-top:
-            15px;
-
-          padding-top:
-            9px;
-
-          border-top:
-            1px solid #9caab6;
+          display: flex;
+          justify-content: space-between;
+          gap: 30px;
+          margin-top: 15px;
+          padding-top: 9px;
+          border-top: 1px solid #9caab6;
         }
 
         .footer-note {
-          flex:
-            1;
-
-          color:
-            #5c6670;
-
-          font-size:
-            8pt;
-
-          font-style:
-            italic;
+          flex: 1;
+          color: #5c6670;
+          font-size: 8pt;
+          font-style: italic;
         }
 
         .signature-block {
-          width:
-            270px;
-
-          text-align:
-            center;
-
-          font-family:
-            "Times New Roman",
-            Times,
-            serif;
-
-          font-size:
-            10pt;
+          width: 270px;
+          text-align: center;
+          font-family: "Times New Roman", Times, serif;
+          font-size: 10pt;
         }
 
         .signature-block strong {
-          display:
-            block;
-
-          text-transform:
-            uppercase;
+          display: block;
+          text-transform: uppercase;
         }
 
-        .signature-space {
-          height:
-            45px;
-        }
+        .signature-space { height: 45px; }
 
         @media print {
-          .no-print {
-            display:
-              none !important;
+          .no-print { display: none !important; }
+
+          .report-table-wrap {
+            overflow: visible;
           }
 
-          html,
-          body {
-            width:
-              100%;
-
-            background:
-              #ffffff;
-          }
-
-          .report-page {
-            width:
-              100%;
+          table {
+            min-width: 0;
           }
 
           .report-information,
-          .summary-card {
-            print-color-adjust:
-              exact;
-
-            -webkit-print-color-adjust:
-              exact;
-          }
-
-          th {
-            print-color-adjust:
-              exact;
-
-            -webkit-print-color-adjust:
-              exact;
-          }
-
+          .summary-card,
+          th,
           tbody tr:nth-child(even) {
-            print-color-adjust:
-              exact;
-
-            -webkit-print-color-adjust:
-              exact;
+            print-color-adjust: exact;
+            -webkit-print-color-adjust: exact;
           }
         }
       </style>
@@ -2021,36 +1483,16 @@ function exportTaskReport() {
 
     <body>
       <div class="print-toolbar no-print">
-        <button
-          type="button"
-          onclick="window.print()"
-        >
-          In / Lưu thành PDF
-        </button>
-
-        <button
-          type="button"
-          class="secondary"
-          onclick="window.close()"
-        >
-          Đóng báo cáo
-        </button>
+        <button type="button" onclick="window.print()">In / Lưu thành PDF</button>
+        <button type="button" class="secondary" onclick="window.close()">Đóng báo cáo</button>
       </div>
 
       <main class="report-page">
-        <p class="agency-name">
-          Trung tâm Bảo trợ xã hội Tân Hiệp
-        </p>
-
+        <p class="agency-name">Trung tâm Bảo trợ xã hội Tân Hiệp</p>
         <div class="agency-line"></div>
 
-        <h1 class="report-heading">
-          Báo cáo theo dõi thực hiện nhiệm vụ
-        </h1>
-
-        <p class="report-subheading">
-          Dữ liệu được tổng hợp theo bộ lọc tại thời điểm xuất báo cáo
-        </p>
+        <h1 class="report-heading">Báo cáo theo dõi thực hiện nhiệm vụ</h1>
+        <p class="report-subheading">Dữ liệu được tổng hợp tại thời điểm xuất báo cáo</p>
 
         <section class="report-information">
           <div>
@@ -2060,102 +1502,59 @@ function exportTaskReport() {
 
           <div>
             <strong>Thời điểm xuất:</strong>
-            ${escapeHtml(
-              formatDateTime(now)
-            )}
+            ${escapeHtml(formatDateTime(now))}
           </div>
 
           <div>
             <strong>Phạm vi báo cáo:</strong>
-            ${escapeHtml(
-              scopeText
-            )}
+            ${escapeHtml(scopeText)}
           </div>
 
           <div>
             <strong>Số nhiệm vụ:</strong>
             ${totalCount} nhiệm vụ
           </div>
-
-          <div class="information-full">
-            <strong>Bộ lọc áp dụng:</strong>
-            ${escapeHtml(
-              filterText
-            )}
-          </div>
         </section>
 
         <section class="summary-grid">
           <div class="summary-card">
             <span>Tổng nhiệm vụ</span>
-            <strong>
-              ${totalCount}
-            </strong>
+            <strong>${totalCount}</strong>
           </div>
 
           <div class="summary-card completed">
             <span>Đã hoàn thành</span>
-            <strong>
-              ${completedCount}
-            </strong>
+            <strong>${completedCount}</strong>
           </div>
 
           <div class="summary-card">
             <span>Đang theo dõi</span>
-            <strong>
-              ${processingCount}
-            </strong>
+            <strong>${processingCount}</strong>
           </div>
 
           <div class="summary-card overdue">
             <span>Quá hạn</span>
-            <strong>
-              ${overdueCount}
-            </strong>
+            <strong>${overdueCount}</strong>
           </div>
         </section>
 
-        <table>
-          <thead>
-            <tr>
-              <th class="column-stt">
-                STT
-              </th>
-
-              <th class="column-task">
-                Nội dung nhiệm vụ
-              </th>
-
-              <th class="column-department">
-                Phòng/Khu
-              </th>
-
-              <th class="column-owner">
-                Người phụ trách
-              </th>
-
-              <th class="column-deadline">
-                Hạn hoàn thành
-              </th>
-
-              <th class="column-progress">
-                Tiến độ
-              </th>
-
-              <th class="column-status">
-                Tình trạng
-              </th>
-
-              <th class="column-result">
-                Kết quả thực hiện
-              </th>
-            </tr>
-          </thead>
-
-          <tbody>
-            ${reportRows}
-          </tbody>
-        </table>
+        <div class="report-table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th class="column-stt">STT</th>
+                <th class="column-task">Nội dung nhiệm vụ</th>
+                <th class="column-department">Phòng/Khu</th>
+                <th class="column-owner">Người phụ trách</th>
+                <th class="column-deadline">Hạn hoàn thành</th>
+                <th class="column-progress">Tiến độ</th>
+                <th class="column-status">Tình trạng</th>
+                <th class="column-result">Kết quả thực hiện</th>
+              </tr>
+            </thead>
+            <tbody>${reportRows}</tbody>
+          </table>
+        </div>
 
         <footer class="report-footer">
           <div class="footer-note">
@@ -2164,10 +1563,7 @@ function exportTaskReport() {
           </div>
 
           <div class="signature-block">
-            <strong>
-              Phòng Tổ chức - Hành chính
-            </strong>
-
+            <strong>Phòng Tổ chức - Hành chính</strong>
             <div class="signature-space"></div>
           </div>
         </footer>
@@ -2177,29 +1573,17 @@ function exportTaskReport() {
   `;
 
   reportWindow.document.open();
-  reportWindow.document.write(
-    reportHtml
-  );
+  reportWindow.document.write(reportHtml);
   reportWindow.document.close();
   reportWindow.focus();
 
-  /*
-   * Tự mở hộp thoại In/Lưu PDF.
-   * Người dùng không cần chỉnh lại khổ giấy.
-   */
-  window.setTimeout(
-    () => {
-      try {
-        reportWindow.print();
-      } catch (error) {
-        console.warn(
-          "Không tự mở được hộp thoại in:",
-          error
-        );
-      }
-    },
-    700
-  );
+  window.setTimeout(() => {
+    try {
+      reportWindow.print();
+    } catch (error) {
+      console.warn("Không tự mở được hộp thoại in:", error);
+    }
+  }, 700);
 
   showMessage(
     dashboardMessage,
@@ -2331,12 +1715,14 @@ function resultEvidenceHtml(task) {
   const evidenceText = task.evidenceText || task.outputDescription || "";
   const fileName = task.evidenceFileName || "Mở tệp minh chứng";
 
-  let evidenceContent = "Chưa ghi nhận";
+  let evidenceContent = evidenceType === "NONE"
+    ? "Không có minh chứng"
+    : "Chưa ghi nhận";
 
   if (evidenceUrl && isValidHttpUrl(evidenceUrl)) {
     evidenceContent = `
       <a href="${escapeHtml(evidenceUrl)}" target="_blank" rel="noopener noreferrer">
-        ${escapeHtml(fileName || "Mở minh chứng")}
+        ${escapeHtml(fileName)}
       </a>
     `;
   } else if (evidenceText) {
@@ -2345,7 +1731,7 @@ function resultEvidenceHtml(task) {
 
   return `
     <div class="result-card">
-      <h4>✅ Kết quả và sản phẩm minh chứng</h4>
+      <h4>✅ Kết quả và minh chứng</h4>
       <div class="result-card-grid">
         <div class="result-card-item">
           <span>Ngày hoàn thành thực tế</span>
@@ -2356,12 +1742,12 @@ function resultEvidenceHtml(task) {
           <strong>${escapeHtml(completionTimingInfo(task).text)}</strong>
         </div>
         <div class="result-card-item">
-          <span>Loại sản phẩm/minh chứng</span>
+          <span>Loại minh chứng</span>
           <strong>${escapeHtml(evidenceTypeName(evidenceType))}</strong>
         </div>
         <div class="result-card-item result-span-2">
-          <span>Mô tả kết quả/sản phẩm</span>
-          <strong>${escapeHtml(task.resultSummary || task.result || "Chưa ghi nhận")}</strong>
+          <span>Kết quả thực hiện</span>
+          <strong>${escapeHtml(task.resultSummary || task.result || "Không yêu cầu nhập kết quả")}</strong>
         </div>
         <div class="result-card-item result-span-2">
           <span>Minh chứng</span>
@@ -2835,6 +2221,161 @@ function detectDeviceName() {
   return "Trình duyệt Web";
 }
 
+
+const MAX_EVIDENCE_FILE_SIZE = 8 * 1024 * 1024;
+const EVIDENCE_UPLOAD_TIMEOUT_MS = 90000;
+
+function readFileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      const result = String(reader.result || "");
+      const commaIndex = result.indexOf(",");
+      resolve(commaIndex >= 0 ? result.slice(commaIndex + 1) : result);
+    };
+
+    reader.onerror = () => {
+      reject(new Error("Không đọc được tệp đã chọn."));
+    };
+
+    reader.readAsDataURL(file);
+  });
+}
+
+function evidenceUploadRequestId() {
+  return [
+    "TASK_UPLOAD",
+    Date.now(),
+    Math.random().toString(36).slice(2, 10)
+  ].join("_");
+}
+
+function validateEvidenceFile(file) {
+  if (!file) {
+    throw new Error("Vui lòng chọn tệp hoặc hình ảnh cần tải lên.");
+  }
+
+  if (file.size <= 0) {
+    throw new Error("Tệp đã chọn không có dữ liệu.");
+  }
+
+  if (file.size > MAX_EVIDENCE_FILE_SIZE) {
+    throw new Error("Dung lượng tệp không được vượt quá 8 MB.");
+  }
+
+  const allowedExtensions = [
+    ".pdf", ".jpg", ".jpeg", ".png", ".webp",
+    ".doc", ".docx", ".xls", ".xlsx",
+    ".ppt", ".pptx", ".txt"
+  ];
+
+  const lowerName = String(file.name || "").toLowerCase();
+
+  if (!allowedExtensions.some((extension) => lowerName.endsWith(extension))) {
+    throw new Error(
+      "Chỉ hỗ trợ PDF, hình ảnh, Word, Excel, PowerPoint hoặc tệp TXT."
+    );
+  }
+}
+
+async function uploadTaskEvidenceToDrive(file, task) {
+  validateEvidenceFile(file);
+
+  if (!NOTIFICATION_WEB_APP_URL) {
+    throw new Error("Chưa cấu hình URL Apps Script tải minh chứng lên Drive.");
+  }
+
+  if (!state.user || !task?.id) {
+    throw new Error("Phiên đăng nhập hoặc nhiệm vụ không hợp lệ.");
+  }
+
+  const requestId = evidenceUploadRequestId();
+  const idToken = await state.user.getIdToken();
+  const base64Data = await readFileAsBase64(file);
+
+  return new Promise((resolve, reject) => {
+    const iframeName = `taskEvidenceUploadFrame_${requestId}`;
+    const iframe = document.createElement("iframe");
+    const form = document.createElement("form");
+    const input = document.createElement("input");
+
+    iframe.name = iframeName;
+    iframe.className = "hidden-upload-frame";
+    iframe.setAttribute("aria-hidden", "true");
+
+    form.method = "POST";
+    form.action = NOTIFICATION_WEB_APP_URL;
+    form.target = iframeName;
+    form.style.display = "none";
+
+    input.type = "hidden";
+    input.name = "payload";
+    input.value = JSON.stringify({
+      action: "UPLOAD_TASK_EVIDENCE",
+      requestId,
+      taskId: task.id,
+      taskCode: task.taskCode || "",
+      idToken,
+      fileName: file.name,
+      mimeType: file.type || "application/octet-stream",
+      base64Data
+    });
+
+    form.appendChild(input);
+
+    let settled = false;
+
+    const cleanup = () => {
+      window.removeEventListener("message", handleMessage);
+      window.clearTimeout(timeoutId);
+      form.remove();
+      iframe.remove();
+    };
+
+    const finish = (callback) => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      cleanup();
+      callback();
+    };
+
+    const handleMessage = (event) => {
+      const data = event?.data;
+
+      if (
+        !data ||
+        data.source !== "TASK_EVIDENCE_UPLOAD" ||
+        data.requestId !== requestId
+      ) {
+        return;
+      }
+
+      if (data.ok === true && data.fileUrl) {
+        finish(() => resolve(data));
+        return;
+      }
+
+      finish(() => reject(
+        new Error(data.error || "Không tải được tệp lên Google Drive.")
+      ));
+    };
+
+    const timeoutId = window.setTimeout(() => {
+      finish(() => reject(
+        new Error("Quá thời gian tải tệp. Hãy kiểm tra mạng và thử lại.")
+      ));
+    }, EVIDENCE_UPLOAD_TIMEOUT_MS);
+
+    window.addEventListener("message", handleMessage);
+    document.body.appendChild(iframe);
+    document.body.appendChild(form);
+    form.submit();
+  });
+}
 
 async function saveTaskPushSubscription(
   snapshot,
@@ -3336,6 +2877,26 @@ async function saveTask(event) {
  * CẬP NHẬT TIẾN ĐỘ VÀ KẾT THÚC NHIỆM VỤ
  * ========================================================= */
 
+function updateEvidenceFileSelection() {
+  const file = evidenceFileInput?.files?.[0] || null;
+
+  if (file) {
+    const sizeMb = (file.size / (1024 * 1024)).toFixed(2);
+    evidenceFileName.textContent = `${file.name} — ${sizeMb} MB`;
+    evidenceFileName.classList.add("has-file");
+    return;
+  }
+
+  const task = findTaskById(state.selectedTaskId);
+  const existingUrl = task?.evidenceUrl || task?.evidenceLink || "";
+
+  evidenceFileName.textContent = existingUrl
+    ? `Đang sử dụng tệp hiện tại: ${task?.evidenceFileName || "Mở tệp minh chứng"}`
+    : "Chưa chọn tệp";
+
+  evidenceFileName.classList.toggle("has-file", Boolean(existingUrl));
+}
+
 function syncCompletionEvidenceUI() {
   const isCompleted = progressStatus.value === "HOAN_THANH";
   completionSection.classList.toggle("hidden", !isCompleted);
@@ -3345,6 +2906,7 @@ function syncCompletionEvidenceUI() {
     progressPercent.disabled = true;
   } else {
     progressPercent.disabled = false;
+
     if (Number(progressPercent.value) >= 100) {
       progressPercent.value = "95";
     }
@@ -3354,13 +2916,24 @@ function syncCompletionEvidenceUI() {
     ? "✓ Hoàn thành nhiệm vụ"
     : "Lưu cập nhật";
 
-  const type = completionProductType.value;
-  evidenceLinkWrap.classList.toggle("hidden", !isCompleted || type !== "LINK");
-  evidenceTextWrap.classList.toggle(
-    "hidden",
-    !isCompleted || !["TEXT", "OTHER"].includes(type)
-  );
+  const evidenceType = completionProductType.value;
+  const showResult = isCompleted && ["FILE", "OTHER"].includes(evidenceType);
+  const showFile = isCompleted && evidenceType === "FILE";
 
+  resultSummaryWrap.classList.toggle("hidden", !showResult);
+  evidenceFileWrap.classList.toggle("hidden", !showFile);
+
+  resultSummary.required = showResult;
+
+  if (!showResult) {
+    resultSummary.value = "";
+  }
+
+  if (!showFile) {
+    evidenceFileInput.value = "";
+  }
+
+  updateEvidenceFileSelection();
   updateCompletionTimingPreview();
 }
 
@@ -3434,10 +3007,21 @@ function openProgressModal(taskId = state.selectedTaskId) {
   completedDate.min = assignedDate ? toDateInput(assignedDate) : "";
   completedDate.max = toDateInput(new Date());
 
-  completionProductType.value = task.evidenceType || "";
+  const savedEvidenceType = task.evidenceType || "";
+
+  completionProductType.value = ["LINK", "PDF", "IMAGE"].includes(savedEvidenceType)
+    ? "FILE"
+    : (savedEvidenceType === "TEXT" ? "OTHER" : savedEvidenceType);
+
   resultSummary.value = task.resultSummary || task.result || "";
-  evidenceLinkInput.value = task.evidenceUrl || task.evidenceLink || "";
-  evidenceTextInput.value = task.evidenceText || "";
+  evidenceFileInput.value = "";
+
+  const existingUrl = task.evidenceUrl || task.evidenceLink || "";
+  existingEvidenceLink.classList.toggle("hidden", !existingUrl);
+  existingEvidenceLink.href = existingUrl || "#";
+  existingEvidenceLink.textContent = task.evidenceFileName
+    ? `Mở tệp hiện tại: ${task.evidenceFileName}`
+    : "Mở tệp minh chứng hiện tại";
 
   syncCompletionEvidenceUI();
 
@@ -3487,7 +3071,11 @@ async function saveProgress(event) {
   const task = findTaskById(state.selectedTaskId);
 
   if (!task || !canUpdateTask(task)) {
-    showMessage(progressMessage, "Tài khoản không có quyền cập nhật nhiệm vụ này.", "error");
+    showMessage(
+      progressMessage,
+      "Tài khoản không có quyền cập nhật nhiệm vụ này.",
+      "error"
+    );
     return;
   }
 
@@ -3495,7 +3083,11 @@ async function saveProgress(event) {
 
   try {
     const newStatus = progressStatus.value;
-    let newProgress = Math.max(0, Math.min(100, Number(progressPercent.value) || 0));
+    let newProgress = Math.max(
+      0,
+      Math.min(100, Number(progressPercent.value) || 0)
+    );
+
     if (newStatus === "HOAN_THANH") {
       newProgress = 100;
     } else if (newProgress >= 100) {
@@ -3518,8 +3110,9 @@ async function saveProgress(event) {
 
     if (newStatus === "HOAN_THANH") {
       const completed = parseDateInput(completedDate.value, false);
-      const productType = completionProductType.value;
-      const summary = cleanText(resultSummary.value);
+      const selectedEvidenceType = completionProductType.value;
+      const needsResult = ["FILE", "OTHER"].includes(selectedEvidenceType);
+      const summary = needsResult ? cleanText(resultSummary.value) : "";
 
       if (!completed) {
         throw new Error("Vui lòng chọn ngày hoàn thành thực tế.");
@@ -3527,42 +3120,41 @@ async function saveProgress(event) {
 
       completed.setHours(12, 0, 0, 0);
 
-      if (!productType) {
+      if (!selectedEvidenceType) {
         throw new Error("Vui lòng chọn loại minh chứng.");
       }
 
-      if (!summary) {
+      if (needsResult && !summary) {
         throw new Error("Vui lòng nhập kết quả thực hiện.");
       }
 
-      let evidenceUrl = task.evidenceUrl || task.evidenceLink || "";
-      let evidenceText = task.evidenceText || "";
-      let evidenceFileName = task.evidenceFileName || "";
-      let evidenceStoragePath = task.evidenceStoragePath || "";
+      let evidenceUrl = "";
+      let evidenceText = "";
+      let evidenceFileNameValue = "";
+      let evidenceStoragePath = "";
 
-      if (productType === "LINK") {
-        evidenceUrl = cleanText(evidenceLinkInput.value);
-        evidenceText = "";
-        evidenceFileName = "Mở đường dẫn minh chứng";
-        evidenceStoragePath = "";
+      if (selectedEvidenceType === "FILE") {
+        const selectedFile = evidenceFileInput.files?.[0] || null;
+        const existingUrl = task.evidenceUrl || task.evidenceLink || "";
 
-        if (!isValidHttpUrl(evidenceUrl)) {
-          throw new Error("Đường dẫn minh chứng phải bắt đầu bằng http:// hoặc https://.");
+        if (selectedFile) {
+          saveProgressButton.textContent = "Đang tải tệp lên Drive...";
+
+          const uploadResult = await uploadTaskEvidenceToDrive(
+            selectedFile,
+            task
+          );
+
+          evidenceUrl = uploadResult.fileUrl || "";
+          evidenceFileNameValue = uploadResult.fileName || selectedFile.name;
+          evidenceStoragePath = uploadResult.fileId || "";
+        } else if (existingUrl) {
+          evidenceUrl = existingUrl;
+          evidenceFileNameValue = task.evidenceFileName || "Mở tệp minh chứng";
+          evidenceStoragePath = task.evidenceStoragePath || "";
+        } else {
+          throw new Error("Vui lòng chọn tệp hoặc hình ảnh cần tải lên.");
         }
-      } else if (["TEXT", "OTHER"].includes(productType)) {
-        evidenceText = cleanText(evidenceTextInput.value);
-        evidenceUrl = "";
-        evidenceFileName = "";
-        evidenceStoragePath = "";
-
-        if (!evidenceText) {
-          throw new Error("Vui lòng nhập nội dung minh chứng.");
-        }
-      } else {
-        evidenceUrl = "";
-        evidenceText = "";
-        evidenceFileName = "";
-        evidenceStoragePath = "";
       }
 
       const timing = completionTimingInfo(task, completed);
@@ -3574,11 +3166,11 @@ async function saveProgress(event) {
         completionDaysDifference: timing.days,
         result: summary,
         resultSummary: summary,
-        evidenceType: productType,
+        evidenceType: selectedEvidenceType,
         evidenceUrl,
         evidenceLink: evidenceUrl,
         evidenceText,
-        evidenceFileName,
+        evidenceFileName: evidenceFileNameValue,
         evidenceStoragePath
       });
     } else {
@@ -3586,11 +3178,23 @@ async function saveProgress(event) {
         completedAt: null,
         completionDateKey: "",
         completionTiming: "",
-        completionDaysDifference: null
+        completionDaysDifference: null,
+        result: "",
+        resultSummary: "",
+        evidenceType: "",
+        evidenceUrl: "",
+        evidenceLink: "",
+        evidenceText: "",
+        evidenceFileName: "",
+        evidenceStoragePath: ""
       });
     }
 
-    await updateDoc(doc(db, "tasks", task.id), updatePayload);
+    await updateDoc(
+      doc(db, "tasks", task.id),
+      updatePayload
+    );
+
     await createProgressLog(
       task,
       task.status,
@@ -3599,8 +3203,14 @@ async function saveProgress(event) {
       newProgress
     );
 
-    if (newStatus === "HOAN_THANH" && task.status !== "HOAN_THANH") {
-      await sendNotificationEvent("TASK_COMPLETED", task.id);
+    if (
+      newStatus === "HOAN_THANH" &&
+      task.status !== "HOAN_THANH"
+    ) {
+      await sendNotificationEvent(
+        "TASK_COMPLETED",
+        task.id
+      );
     }
 
     showMessage(
@@ -3616,13 +3226,16 @@ async function saveProgress(event) {
     window.setTimeout(() => {
       state.savingProgress = false;
       closeProgressModal();
+
       const refreshedTask = findTaskById(task.id);
+
       if (refreshedTask) {
         openTaskDetail(task.id);
       }
     }, 700);
   } catch (error) {
     console.error("Không cập nhật được nhiệm vụ:", error);
+
     showMessage(
       progressMessage,
       error?.message || "Không cập nhật được nhiệm vụ.",
@@ -3632,6 +3245,7 @@ async function saveProgress(event) {
     if (state.savingProgress) {
       state.savingProgress = false;
     }
+
     saveProgressButton.disabled = false;
     saveProgressButton.textContent = progressStatus.value === "HOAN_THANH"
       ? "✓ Hoàn thành nhiệm vụ"
@@ -3853,6 +3467,7 @@ cancelProgressButton.addEventListener("click", closeProgressModal);
 progressForm.addEventListener("submit", saveProgress);
 progressStatus.addEventListener("change", syncCompletionEvidenceUI);
 completionProductType.addEventListener("change", syncCompletionEvidenceUI);
+evidenceFileInput.addEventListener("change", updateEvidenceFileSelection);
 completedDate.addEventListener("input", updateCompletionTimingPreview);
 
 filterToggleButton.addEventListener("click", () => {
