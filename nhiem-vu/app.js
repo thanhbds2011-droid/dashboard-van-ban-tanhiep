@@ -175,7 +175,7 @@ const evidenceFileName = $("evidenceFileName");
 const existingEvidenceLink = $("existingEvidenceLink");
 
 /* =========================================================
- * GIAO DIá»N CHUNG
+ * GIAO DIỆN CHUNG
  * ========================================================= */
 
 function showView(name) {
@@ -223,8 +223,8 @@ function normalizeText(value) {
   return String(value ?? "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/Ä/g, "d")
-    .replace(/Ä/g, "D")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
     .toLowerCase()
     .trim();
 }
@@ -265,7 +265,7 @@ function resetSessionState() {
   state.selectedTaskId = null;
   state.selectedSupportIds = new Set();
 
-  /* ÄÃ³ng giao diá»n theo cÃ¡ch an toÃ n khi phiÃªn ÄÃ£ káº¿t thÃºc. */
+  /* Đóng giao diện theo cách an toàn khi phiên đã kết thúc. */
   taskModal?.classList.add("hidden");
   detailModal?.classList.add("hidden");
   progressModal?.classList.add("hidden");
@@ -278,7 +278,7 @@ function resetSessionState() {
 }
 
 /* =========================================================
- * NGÃY THÃNG
+ * NGÀY THÁNG
  * ========================================================= */
 
 function pad2(value) {
@@ -314,7 +314,7 @@ function formatDate(value) {
   const dateValue = toDate(value);
 
   if (!dateValue) {
-    return "ChÆ°a xÃ¡c Äá»nh";
+    return "Chưa xác định";
   }
 
   return new Intl.DateTimeFormat("vi-VN", {
@@ -394,7 +394,7 @@ function completionTimingInfo(task, completedValue = task?.completedAt) {
     return {
       code: "UNKNOWN",
       days: null,
-      text: "ChÆ°a xÃ¡c Äá»nh thá»i Äiá»m hoÃ n thÃ nh",
+      text: "Chưa xác định thời điểm hoàn thành",
       className: ""
     };
   }
@@ -405,7 +405,7 @@ function completionTimingInfo(task, completedValue = task?.completedAt) {
     return {
       code: "EARLY",
       days: difference,
-      text: `HoÃ n thÃ nh trÆ°á»c háº¡n ${Math.abs(difference)} ngÃ y`,
+      text: `Hoàn thành trước hạn ${Math.abs(difference)} ngày`,
       className: "completion-early"
     };
   }
@@ -414,7 +414,7 @@ function completionTimingInfo(task, completedValue = task?.completedAt) {
     return {
       code: "ON_TIME",
       days: 0,
-      text: "HoÃ n thÃ nh ÄÃºng háº¡n",
+      text: "Hoàn thành đúng hạn",
       className: "completion-on-time"
     };
   }
@@ -422,7 +422,7 @@ function completionTimingInfo(task, completedValue = task?.completedAt) {
   return {
     code: "LATE",
     days: difference,
-    text: `HoÃ n thÃ nh trá» ${difference} ngÃ y`,
+    text: `Hoàn thành trễ ${difference} ngày`,
     className: "completion-late"
   };
 }
@@ -470,119 +470,119 @@ function createTaskCode() {
 }
 
 /* =========================================================
- * TÃN HIá»N THá»
+ * TÊN HIỂN THỊ
  * ========================================================= */
 
 function roleName(role) {
   const map = {
-    ADMIN: "Quáº£n trá» há» thá»ng",
-    DIRECTOR: "Ban GiÃ¡m Äá»c",
-    DEPARTMENT_LEADER: "TrÆ°á»ng/PhÃ³ phÃ²ng"
+    ADMIN: "Quản trị hệ thống",
+    DIRECTOR: "Ban Giám đốc",
+    DEPARTMENT_LEADER: "Trưởng/Phó phòng"
   };
 
-  return map[role] || role || "ChÆ°a xÃ¡c Äá»nh";
+  return map[role] || role || "Chưa xác định";
 }
 
 function statusName(status) {
   const map = {
-    MOI_TIEP_NHAN: "Má»i ghi nháº­n",
-    DANG_THUC_HIEN: "Äang thá»±c hiá»n",
-    CHO_PHOI_HOP: "Chá» phá»i há»£p",
-    HOAN_THANH: "HoÃ n thÃ nh",
-    TAM_DUNG: "Táº¡m dá»«ng",
-    HUY: "Há»§y"
+    MOI_TIEP_NHAN: "Mới ghi nhận",
+    DANG_THUC_HIEN: "Đang thực hiện",
+    CHO_PHOI_HOP: "Chờ phối hợp",
+    HOAN_THANH: "Hoàn thành",
+    TAM_DUNG: "Tạm dừng",
+    HUY: "Hủy"
   };
 
-  return map[status] || status || "ChÆ°a xÃ¡c Äá»nh";
+  return map[status] || status || "Chưa xác định";
 }
 
 function priorityName(value) {
   const map = {
-    THUONG: "ThÆ°á»ng",
-    QUAN_TRONG: "Quan trá»ng",
-    KHAN: "Kháº©n"
+    THUONG: "Thường",
+    QUAN_TRONG: "Quan trọng",
+    KHAN: "Khẩn"
   };
 
-  return map[value] || value || "ThÆ°á»ng";
+  return map[value] || value || "Thường";
 }
 
 function sourceName(value) {
   const map = {
-    VAN_BAN_CHI_DAO: "VÄn báº£n chá» Äáº¡o",
-    HOP_GIAO_BAN: "Cuá»c há»p giao ban",
-    HOP_CHUYEN_DE: "Cuá»c há»p chuyÃªn Äá»",
-    CHI_DAO_TRUC_TIEP: "Chá» Äáº¡o trá»±c tiáº¿p",
-    DOT_XUAT: "Nhiá»m vá»¥ Äá»t xuáº¥t",
-    THUONG_XUYEN: "Nhiá»m vá»¥ thÆ°á»ng xuyÃªn",
-    KE_HOACH_CONG_TAC: "Káº¿ hoáº¡ch cÃ´ng tÃ¡c",
-    DINH_KY: "Nhiá»m vá»¥ Äá»nh ká»³",
-    KHAC: "KhÃ¡c"
+    VAN_BAN_CHI_DAO: "Văn bản chỉ đạo",
+    HOP_GIAO_BAN: "Cuộc họp giao ban",
+    HOP_CHUYEN_DE: "Cuộc họp chuyên đề",
+    CHI_DAO_TRUC_TIEP: "Chỉ đạo trực tiếp",
+    DOT_XUAT: "Nhiệm vụ đột xuất",
+    THUONG_XUYEN: "Nhiệm vụ thường xuyên",
+    KE_HOACH_CONG_TAC: "Kế hoạch công tác",
+    DINH_KY: "Nhiệm vụ định kỳ",
+    KHAC: "Khác"
   };
 
-  return map[value] || value || "ChÆ°a xÃ¡c Äá»nh";
+  return map[value] || value || "Chưa xác định";
 }
 
 function entryModeName(value) {
   const map = {
-    SELF_RECORDED: "Tá»± ghi nháº­n",
-    DIRECT_ASSIGNED: "BGÄ giao trá»±c tiáº¿p"
+    SELF_RECORDED: "Tự ghi nhận",
+    DIRECT_ASSIGNED: "BGĐ giao trực tiếp"
   };
 
-  return map[value] || "Nhiá»m vá»¥ cÅ©";
+  return map[value] || "Nhiệm vụ cũ";
 }
 
 function outputTypeName(value) {
   const map = {
-    BAO_CAO: "BÃ¡o cÃ¡o",
-    KE_HOACH: "Káº¿ hoáº¡ch",
-    CONG_VAN: "CÃ´ng vÄn",
-    QUYET_DINH: "Quyáº¿t Äá»nh",
-    THONG_BAO: "ThÃ´ng bÃ¡o",
-    TO_TRINH: "Tá» trÃ¬nh",
-    QUY_CHE: "Quy cháº¿",
-    BIEN_BAN: "BiÃªn báº£n",
-    DANH_SACH: "Danh sÃ¡ch",
-    BANG_TONG_HOP: "Báº£ng tá»ng há»£p",
-    PHUONG_AN: "PhÆ°Æ¡ng Ã¡n",
-    QUY_TRINH: "Quy trÃ¬nh",
-    HO_SO: "Há» sÆ¡",
-    DU_LIEU_CAP_NHAT: "Dá»¯ liá»u ÄÃ£ cáº­p nháº­t",
-    KET_QUA_KIEM_TRA: "Káº¿t quáº£ kiá»m tra",
-    KET_QUA_THUC_TE: "Káº¿t quáº£ thá»±c táº¿",
-    KHAC: "Sáº£n pháº©m khÃ¡c"
+    BAO_CAO: "Báo cáo",
+    KE_HOACH: "Kế hoạch",
+    CONG_VAN: "Công văn",
+    QUYET_DINH: "Quyết định",
+    THONG_BAO: "Thông báo",
+    TO_TRINH: "Tờ trình",
+    QUY_CHE: "Quy chế",
+    BIEN_BAN: "Biên bản",
+    DANH_SACH: "Danh sách",
+    BANG_TONG_HOP: "Bảng tổng hợp",
+    PHUONG_AN: "Phương án",
+    QUY_TRINH: "Quy trình",
+    HO_SO: "Hồ sơ",
+    DU_LIEU_CAP_NHAT: "Dữ liệu đã cập nhật",
+    KET_QUA_KIEM_TRA: "Kết quả kiểm tra",
+    KET_QUA_THUC_TE: "Kết quả thực tế",
+    KHAC: "Sản phẩm khác"
   };
 
-  return map[value] || value || "ChÆ°a xÃ¡c Äá»nh";
+  return map[value] || value || "Chưa xác định";
 }
 
 function evidenceTypeName(value) {
   const map = {
-    NONE: "KhÃ´ng cÃ³ minh chá»©ng",
-    FILE: "Tá»p/hÃ¬nh áº£nh ÄÃ£ táº£i lÃªn",
-    OTHER: "Minh chá»©ng khÃ¡c",
+    NONE: "Không có minh chứng",
+    FILE: "Tệp/hình ảnh đã tải lên",
+    OTHER: "Minh chứng khác",
 
-    /* TÆ°Æ¡ng thÃ­ch dá»¯ liá»u cÅ©. */
-    LINK: "ÄÆ°á»ng dáº«n liÃªn káº¿t",
-    PDF: "Tá»p PDF",
-    IMAGE: "HÃ¬nh áº£nh",
-    TEXT: "Ná»i dung nháº­p tay"
+    /* Tương thích dữ liệu cũ. */
+    LINK: "Đường dẫn liên kết",
+    PDF: "Tệp PDF",
+    IMAGE: "Hình ảnh",
+    TEXT: "Nội dung nhập tay"
   };
 
-  return map[value] || value || "ChÆ°a ghi nháº­n";
+  return map[value] || value || "Chưa ghi nhận";
 }
 
 function userDisplayName(uid) {
   const user = userById(uid);
 
   if (!user) {
-    return uid || "ChÆ°a xÃ¡c Äá»nh";
+    return uid || "Chưa xác định";
   }
 
   return [
     user.fullName,
     user.position,
     departmentName(user.departmentId)
-  ].filter(Boolean).join(" â ");
+  ].filter(Boolean).join(" — ");
 }
 
 function currentEntryMode() {
@@ -601,7 +601,7 @@ function departmentName(id) {
   const department = departmentById(id);
   return department
     ? (department.name || department.code || department.id)
-    : (id || "ChÆ°a xÃ¡c Äá»nh");
+    : (id || "Chưa xác định");
 }
 
 function userById(uid) {
@@ -645,7 +645,7 @@ function deadlineState(task) {
   if (task.status === "HUY") {
     return {
       code: "CANCELLED",
-      text: "ÄÃ£ há»§y",
+      text: "Đã hủy",
       className: ""
     };
   }
@@ -655,7 +655,7 @@ function deadlineState(task) {
   if (!dueDate) {
     return {
       code: "NO_DEADLINE",
-      text: "ChÆ°a cÃ³ háº¡n",
+      text: "Chưa có hạn",
       className: ""
     };
   }
@@ -667,7 +667,7 @@ function deadlineState(task) {
   if (diffDays < 0) {
     return {
       code: "OVERDUE",
-      text: `QuÃ¡ háº¡n ${Math.abs(diffDays)} ngÃ y`,
+      text: `Quá hạn ${Math.abs(diffDays)} ngày`,
       className: "red"
     };
   }
@@ -675,7 +675,7 @@ function deadlineState(task) {
   if (diffDays === 0) {
     return {
       code: "DUE_TODAY",
-      text: "Äáº¿n háº¡n hÃ´m nay",
+      text: "Đến hạn hôm nay",
       className: "orange"
     };
   }
@@ -683,20 +683,20 @@ function deadlineState(task) {
   if (diffDays <= 5) {
     return {
       code: "UPCOMING",
-      text: `CÃ²n ${diffDays} ngÃ y`,
+      text: `Còn ${diffDays} ngày`,
       className: "blue"
     };
   }
 
   return {
     code: "IN_TIME",
-    text: "CÃ²n háº¡n",
+    text: "Còn hạn",
     className: ""
   };
 }
 
 /* =========================================================
- * Äá»C FIRESTORE
+ * ĐỌC FIRESTORE
  * ========================================================= */
 
 async function loadProfile(user) {
@@ -707,11 +707,11 @@ async function loadProfile(user) {
     const profile = userSnapshot.data();
 
     if (profile.active !== true) {
-      throw new Error("TÃ i khoáº£n ÄÃ£ bá» khÃ³a hoáº·c ngá»«ng hoáº¡t Äá»ng.");
+      throw new Error("Tài khoản đã bị khóa hoặc ngừng hoạt động.");
     }
 
     if (!profile.fullName || !profile.departmentId || !profile.role) {
-      throw new Error("Há» sÆ¡ ngÆ°á»i dÃ¹ng chÆ°a Äáº§y Äá»§ thÃ´ng tin phÃ¢n quyá»n.");
+      throw new Error("Hồ sơ người dùng chưa đầy đủ thông tin phân quyền.");
     }
 
     return {
@@ -723,7 +723,7 @@ async function loadProfile(user) {
   const normalizedEmail = cleanText(user.email).toLowerCase();
 
   if (!normalizedEmail) {
-    throw new Error("TÃ i khoáº£n ÄÄng nháº­p khÃ´ng cung cáº¥p Äá»a chá» email.");
+    throw new Error("Tài khoản đăng nhập không cung cấp địa chỉ email.");
   }
 
   const accessReference = doc(
@@ -736,7 +736,7 @@ async function loadProfile(user) {
 
   if (!accessSnapshot.exists()) {
     const error = new Error(
-      "Email nÃ y chÆ°a ÄÆ°á»£c quáº£n trá» cáº¥p quyá»n sá»­ dá»¥ng há» thá»ng."
+      "Email này chưa được quản trị cấp quyền sử dụng hệ thống."
     );
     error.code = "app/not-authorized";
     throw error;
@@ -746,7 +746,7 @@ async function loadProfile(user) {
 
   if (accessData.active !== true) {
     const error = new Error(
-      "TÃ i khoáº£n ÄÃ£ bá» khÃ³a hoáº·c ngá»«ng hoáº¡t Äá»ng."
+      "Tài khoản đã bị khóa hoặc ngừng hoạt động."
     );
     error.code = "app/account-inactive";
     throw error;
@@ -758,7 +758,7 @@ async function loadProfile(user) {
     !accessData.role
   ) {
     throw new Error(
-      "ThÃ´ng tin cáº¥p quyá»n cá»§a tÃ i khoáº£n chÆ°a Äáº§y Äá»§."
+      "Thông tin cấp quyền của tài khoản chưa đầy đủ."
     );
   }
 
@@ -833,7 +833,7 @@ async function loadReferenceData() {
 }
 
 /* =========================================================
- * PHáº M VI THEO DÃI VÃ Tá»NG Há»¢P
+ * PHẠM VI THEO DÕI VÀ TỔNG HỢP
  * ========================================================= */
 
 function isTchcCoordinationAccount() {
@@ -861,7 +861,7 @@ async function loadTasks() {
 
   state.loadingTasks = true;
   refreshButton.disabled = true;
-  refreshButton.textContent = "â³ Äang táº£i...";
+  refreshButton.textContent = "⏳ Đang tải...";
   hideMessage(dashboardMessage);
 
   try {
@@ -891,10 +891,10 @@ async function loadTasks() {
       const tasksRef = collection(db, "tasks");
 
       if (!departmentId) {
-        throw new Error("Há» sÆ¡ tÃ i khoáº£n chÆ°a cÃ³ mÃ£ PhÃ²ng/Khu.");
+        throw new Error("Hồ sơ tài khoản chưa có mã Phòng/Khu.");
       }
 
-      /* Truy váº¥n báº¯t buá»c: nhiá»m vá»¥ thuá»c PhÃ²ng/Khu chÃ­nh. */
+      /* Truy vấn bắt buộc: nhiệm vụ thuộc Phòng/Khu chính. */
       const primarySnapshot = await getDocsFromServer(
         query(
           tasksRef,
@@ -903,7 +903,7 @@ async function loadTasks() {
       );
       addSnapshotToMap(primarySnapshot);
 
-      /* Truy váº¥n phá»¥: nhiá»m vá»¥ cÃ³ PhÃ²ng/Khu phá»i há»£p. */
+      /* Truy vấn phụ: nhiệm vụ có Phòng/Khu phối hợp. */
       try {
         const visibleSnapshot = await getDocsFromServer(
           query(
@@ -914,12 +914,12 @@ async function loadTasks() {
         addSnapshotToMap(visibleSnapshot);
       } catch (visibleError) {
         console.warn(
-          "ChÆ°a Äá»c ÄÆ°á»£c nhiá»m vá»¥ phá»i há»£p theo visibleDepartmentIds:",
+          "Chưa đọc được nhiệm vụ phối hợp theo visibleDepartmentIds:",
           visibleError
         );
       }
 
-      /* TÆ°Æ¡ng thÃ­ch dá»¯ liá»u cÅ©. */
+      /* Tương thích dữ liệu cũ. */
       try {
         const supportSnapshot = await getDocsFromServer(
           query(
@@ -930,13 +930,13 @@ async function loadTasks() {
         addSnapshotToMap(supportSnapshot);
       } catch (supportError) {
         console.warn(
-          "ChÆ°a Äá»c ÄÆ°á»£c nhiá»m vá»¥ phá»i há»£p theo supportDepartmentIds:",
+          "Chưa đọc được nhiệm vụ phối hợp theo supportDepartmentIds:",
           supportError
         );
       }
 
     } else {
-      throw new Error("Vai trÃ² tÃ i khoáº£n chÆ°a ÄÆ°á»£c cáº¥p quyá»n xem nhiá»m vá»¥.");
+      throw new Error("Vai trò tài khoản chưa được cấp quyền xem nhiệm vụ.");
     }
 
     state.tasks = Array.from(taskMap.values());
@@ -947,24 +947,24 @@ async function loadTasks() {
       return dateB.getTime() - dateA.getTime();
     });
 
-    lastUpdated.textContent = `Cáº­p nháº­t lÃºc ${formatDateTime()}`;
+    lastUpdated.textContent = `Cập nhật lúc ${formatDateTime()}`;
     renderMetrics();
     applyFilters();
 
   } catch (error) {
-    console.error("KhÃ´ng táº£i ÄÆ°á»£c nhiá»m vá»¥:", error);
+    console.error("Không tải được nhiệm vụ:", error);
 
     state.tasks = [];
     renderMetrics();
     applyFilters();
 
-    let message = error?.message || "KhÃ´ng táº£i ÄÆ°á»£c dá»¯ liá»u nhiá»m vá»¥.";
+    let message = error?.message || "Không tải được dữ liệu nhiệm vụ.";
 
     if (
       error?.code === "permission-denied" ||
       error?.code === "firestore/permission-denied"
     ) {
-      message = "Firestore Äang tá»« chá»i truy váº¥n nhiá»m vá»¥. HÃ£y kiá»m tra Rules BÆ°á»c 2 ÄÃ£ Publish thÃ nh cÃ´ng.";
+      message = "Firestore đang từ chối truy vấn nhiệm vụ. Hãy kiểm tra Rules Bước 2 đã Publish thành công.";
     }
 
     showMessage(dashboardMessage, message, "error");
@@ -972,20 +972,20 @@ async function loadTasks() {
   } finally {
     state.loadingTasks = false;
     refreshButton.disabled = false;
-    refreshButton.textContent = "ð LÃ m má»i";
+    refreshButton.textContent = "🔄 Làm mới";
   }
 }
 
 /* =========================================================
- * TÃI KHOáº¢N VÃ Bá» Lá»C
+ * TÀI KHOẢN VÀ BỘ LỌC
  * ========================================================= */
 
 function renderAccount() {
-  welcomeName.textContent = `Xin chÃ o, ${state.profile.fullName}`;
+  welcomeName.textContent = `Xin chào, ${state.profile.fullName}`;
   welcomeDepartment.textContent = [
     departmentName(state.profile.departmentId),
     state.profile.position
-  ].filter(Boolean).join(" â¢ ");
+  ].filter(Boolean).join(" • ");
 
   roleBadge.innerHTML = `
     ${escapeHtml(roleName(state.profile.role))}
@@ -1001,11 +1001,11 @@ function renderAccount() {
   addTaskButton.classList.toggle("hidden", !canCreateTask);
 
   if (state.profile.role === "DEPARTMENT_LEADER") {
-    addTaskButton.textContent = "â Ghi nháº­n nhiá»m vá»¥";
+    addTaskButton.textContent = "➕ Ghi nhận nhiệm vụ";
   } else if (state.profile.role === "DIRECTOR") {
-    addTaskButton.textContent = "â¡ Giao nhiá»m vá»¥ trá»±c tiáº¿p";
+    addTaskButton.textContent = "⚡ Giao nhiệm vụ trực tiếp";
   } else {
-    addTaskButton.textContent = "â¡ Táº¡o nhiá»m vá»¥ trá»±c tiáº¿p";
+    addTaskButton.textContent = "⚡ Tạo nhiệm vụ trực tiếp";
   }
 
   const hasOverviewAccess = canViewAllTasks();
@@ -1016,8 +1016,8 @@ function renderAccount() {
     welcomeDepartment.textContent = [
       departmentName(state.profile.departmentId),
       state.profile.position,
-      "Äáº§u má»i theo dÃµi, tá»ng há»£p nhiá»m vá»¥ toÃ n Trung tÃ¢m"
-    ].filter(Boolean).join(" â¢ ");
+      "Đầu mối theo dõi, tổng hợp nhiệm vụ toàn Trung tâm"
+    ].filter(Boolean).join(" • ");
   }
 
   fillDepartmentFilter();
@@ -1026,7 +1026,7 @@ function renderAccount() {
 function fillDepartmentFilter() {
   const oldValue = departmentFilter.value || "ALL";
 
-  departmentFilter.innerHTML = '<option value="ALL">Táº¥t cáº£ PhÃ²ng/Khu</option>';
+  departmentFilter.innerHTML = '<option value="ALL">Tất cả Phòng/Khu</option>';
 
   state.departments
     .filter((item) => item.id !== "BGD")
@@ -1106,7 +1106,7 @@ function applyFilters() {
 }
 
 /* =========================================================
- * XUáº¤T BÃO CÃO NHIá»M Vá»¤ â A4 NGANG
+ * XUẤT BÁO CÁO NHIỆM VỤ — A4 NGANG
  * ========================================================= */
 
 function reportTaskStatusName(task) {
@@ -1116,32 +1116,32 @@ function reportTaskStatusName(task) {
     const timing = completionTimingInfo(task);
 
     if (timing.code === "EARLY") {
-      return `HoÃ n thÃ nh sá»m ${Math.abs(Number(timing.days) || 0)} ngÃ y`;
+      return `Hoàn thành sớm ${Math.abs(Number(timing.days) || 0)} ngày`;
     }
 
     return timing.text;
   }
 
   if (task.status === "HUY") {
-    return "ÄÃ£ há»§y";
+    return "Đã hủy";
   }
 
   if (task.status === "TAM_DUNG") {
     return due.code === "OVERDUE"
-      ? `Táº¡m dá»«ng â ${due.text}`
-      : "Táº¡m dá»«ng";
+      ? `Tạm dừng — ${due.text}`
+      : "Tạm dừng";
   }
 
   const statusMap = {
-    MOI_TIEP_NHAN: "ChÆ°a thá»±c hiá»n",
-    DANG_THUC_HIEN: "Äang thá»±c hiá»n",
-    CHO_PHOI_HOP: "Chá» phá»i há»£p"
+    MOI_TIEP_NHAN: "Chưa thực hiện",
+    DANG_THUC_HIEN: "Đang thực hiện",
+    CHO_PHOI_HOP: "Chờ phối hợp"
   };
 
   const statusText = statusMap[task.status] || statusName(task.status);
 
   if (due.code === "OVERDUE" || due.code === "DUE_TODAY" || due.code === "UPCOMING") {
-    return `${statusText} â ${due.text}`;
+    return `${statusText} — ${due.text}`;
   }
 
   return statusText;
@@ -1179,7 +1179,7 @@ function reportScopeText() {
   const selectedDepartment = departmentFilter?.value || "ALL";
 
   return selectedDepartment === "ALL"
-    ? "ToÃ n Trung tÃ¢m"
+    ? "Toàn Trung tâm"
     : departmentName(selectedDepartment);
 }
 
@@ -1187,7 +1187,7 @@ function exportTaskReport() {
   if (!canExportTaskReport()) {
     showMessage(
       dashboardMessage,
-      "TÃ i khoáº£n khÃ´ng cÃ³ quyá»n xuáº¥t bÃ¡o cÃ¡o tá»ng há»£p.",
+      "Tài khoản không có quyền xuất báo cáo tổng hợp.",
       "error"
     );
     return;
@@ -1200,7 +1200,7 @@ function exportTaskReport() {
   if (tasksToExport.length === 0) {
     showMessage(
       dashboardMessage,
-      "KhÃ´ng cÃ³ nhiá»m vá»¥ trong bá» lá»c hiá»n táº¡i Äá» xuáº¥t bÃ¡o cÃ¡o.",
+      "Không có nhiệm vụ trong bộ lọc hiện tại để xuất báo cáo.",
       "warning"
     );
     return;
@@ -1215,7 +1215,7 @@ function exportTaskReport() {
   if (!reportWindow) {
     showMessage(
       dashboardMessage,
-      "TrÃ¬nh duyá»t Äang cháº·n cá»­a sá» bÃ¡o cÃ¡o. HÃ£y cho phÃ©p cá»­a sá» báº­t lÃªn rá»i thá»­ láº¡i.",
+      "Trình duyệt đang chặn cửa sổ báo cáo. Hãy cho phép cửa sổ bật lên rồi thử lại.",
       "error"
     );
     return;
@@ -1246,20 +1246,20 @@ function exportTaskReport() {
       : "";
 
     const resultText = task.status === "HOAN_THANH"
-      ? (task.resultSummary || task.result || "â")
-      : "â";
+      ? (task.resultSummary || task.result || "—")
+      : "—";
 
     return `
       <tr>
         <td class="column-stt">${index + 1}</td>
 
         <td class="column-task">
-          <strong class="task-title">${escapeHtml(task.title || "Nhiá»m vá»¥ chÆ°a cÃ³ tiÃªu Äá»")}</strong>
+          <strong class="task-title">${escapeHtml(task.title || "Nhiệm vụ chưa có tiêu đề")}</strong>
           ${descriptionHtml}
         </td>
 
         <td class="column-department">${escapeHtml(departmentName(task.primaryDepartmentId))}</td>
-        <td class="column-owner">${escapeHtml(task.ownerName || "Chá» phÃ¢n cÃ´ng ná»i bá»")}</td>
+        <td class="column-owner">${escapeHtml(task.ownerName || "Chờ phân công nội bộ")}</td>
         <td class="column-deadline">${escapeHtml(formatDate(task.deadline))}</td>
         <td class="column-progress"><strong>${progressValue}%</strong></td>
 
@@ -1542,57 +1542,57 @@ function exportTaskReport() {
 
     <body>
       <div class="print-toolbar no-print">
-        <button type="button" onclick="window.print()">In / LÆ°u thÃ nh PDF</button>
-        <button type="button" class="secondary" onclick="window.close()">ÄÃ³ng bÃ¡o cÃ¡o</button>
+        <button type="button" onclick="window.print()">In / Lưu thành PDF</button>
+        <button type="button" class="secondary" onclick="window.close()">Đóng báo cáo</button>
       </div>
 
       <main class="report-page">
-        <p class="agency-name">Trung tÃ¢m Báº£o trá»£ xÃ£ há»i TÃ¢n Hiá»p</p>
+        <p class="agency-name">Trung tâm Bảo trợ xã hội Tân Hiệp</p>
         <div class="agency-line"></div>
 
-        <h1 class="report-heading">BÃ¡o cÃ¡o theo dÃµi thá»±c hiá»n nhiá»m vá»¥</h1>
-        <p class="report-subheading">Dá»¯ liá»u ÄÆ°á»£c tá»ng há»£p táº¡i thá»i Äiá»m xuáº¥t bÃ¡o cÃ¡o</p>
+        <h1 class="report-heading">Báo cáo theo dõi thực hiện nhiệm vụ</h1>
+        <p class="report-subheading">Dữ liệu được tổng hợp tại thời điểm xuất báo cáo</p>
 
         <section class="report-information">
           <div>
-            <strong>ÄÆ¡n vá» xuáº¥t bÃ¡o cÃ¡o:</strong>
-            PHÃNG Tá» CHá»¨C - HÃNH CHÃNH
+            <strong>Đơn vị xuất báo cáo:</strong>
+            PHÒNG TỔ CHỨC - HÀNH CHÍNH
           </div>
 
           <div>
-            <strong>Thá»i Äiá»m xuáº¥t:</strong>
+            <strong>Thời điểm xuất:</strong>
             ${escapeHtml(formatDateTime(now))}
           </div>
 
           <div>
-            <strong>Pháº¡m vi bÃ¡o cÃ¡o:</strong>
+            <strong>Phạm vi báo cáo:</strong>
             ${escapeHtml(scopeText)}
           </div>
 
           <div>
-            <strong>Sá» nhiá»m vá»¥:</strong>
-            ${totalCount} nhiá»m vá»¥
+            <strong>Số nhiệm vụ:</strong>
+            ${totalCount} nhiệm vụ
           </div>
         </section>
 
         <section class="summary-grid">
           <div class="summary-card">
-            <span>Tá»ng nhiá»m vá»¥</span>
+            <span>Tổng nhiệm vụ</span>
             <strong>${totalCount}</strong>
           </div>
 
           <div class="summary-card completed">
-            <span>ÄÃ£ hoÃ n thÃ nh</span>
+            <span>Đã hoàn thành</span>
             <strong>${completedCount}</strong>
           </div>
 
           <div class="summary-card">
-            <span>Äang theo dÃµi</span>
+            <span>Đang theo dõi</span>
             <strong>${processingCount}</strong>
           </div>
 
           <div class="summary-card overdue">
-            <span>QuÃ¡ háº¡n</span>
+            <span>Quá hạn</span>
             <strong>${overdueCount}</strong>
           </div>
         </section>
@@ -1602,13 +1602,13 @@ function exportTaskReport() {
             <thead>
               <tr>
                 <th class="column-stt">STT</th>
-                <th class="column-task">Ná»i dung nhiá»m vá»¥</th>
-                <th class="column-department">PhÃ²ng/Khu</th>
-                <th class="column-owner">NgÆ°á»i phá»¥ trÃ¡ch</th>
-                <th class="column-deadline">Háº¡n hoÃ n thÃ nh</th>
-                <th class="column-progress">Tiáº¿n Äá»</th>
-                <th class="column-status">TÃ¬nh tráº¡ng</th>
-                <th class="column-result">Káº¿t quáº£ thá»±c hiá»n</th>
+                <th class="column-task">Nội dung nhiệm vụ</th>
+                <th class="column-department">Phòng/Khu</th>
+                <th class="column-owner">Người phụ trách</th>
+                <th class="column-deadline">Hạn hoàn thành</th>
+                <th class="column-progress">Tiến độ</th>
+                <th class="column-status">Tình trạng</th>
+                <th class="column-result">Kết quả thực hiện</th>
               </tr>
             </thead>
             <tbody>${reportRows}</tbody>
@@ -1617,12 +1617,12 @@ function exportTaskReport() {
 
         <footer class="report-footer">
           <div class="footer-note">
-            BÃ¡o cÃ¡o ÄÆ°á»£c táº¡o tá»± Äá»ng tá»« Há» thá»ng Quáº£n lÃ½ nhiá»m vá»¥
-            cá»§a Trung tÃ¢m Báº£o trá»£ xÃ£ há»i TÃ¢n Hiá»p.
+            Báo cáo được tạo tự động từ Hệ thống Quản lý nhiệm vụ
+            của Trung tâm Bảo trợ xã hội Tân Hiệp.
           </div>
 
           <div class="signature-block">
-            <strong>PhÃ²ng Tá» chá»©c - HÃ nh chÃ­nh</strong>
+            <strong>Phòng Tổ chức - Hành chính</strong>
             <div class="signature-space"></div>
           </div>
         </footer>
@@ -1640,23 +1640,23 @@ function exportTaskReport() {
     try {
       reportWindow.print();
     } catch (error) {
-      console.warn("KhÃ´ng tá»± má» ÄÆ°á»£c há»p thoáº¡i in:", error);
+      console.warn("Không tự mở được hộp thoại in:", error);
     }
   }, 700);
 
   showMessage(
     dashboardMessage,
-    `â ÄÃ£ táº¡o bÃ¡o cÃ¡o A4 ngang gá»m ${totalCount} nhiá»m vá»¥. Chá»n âLÆ°u thÃ nh PDFâ trong cá»­a sá» in.`,
+    `✅ Đã tạo báo cáo A4 ngang gồm ${totalCount} nhiệm vụ. Chọn “Lưu thành PDF” trong cửa sổ in.`,
     "success"
   );
 }
 
 /* =========================================================
- * HIá»N THá» DANH SÃCH
+ * HIỂN THỊ DANH SÁCH
  * ========================================================= */
 
 function renderTasks(tasks) {
-  taskCount.textContent = `${tasks.length} nhiá»m vá»¥`;
+  taskCount.textContent = `${tasks.length} nhiệm vụ`;
 
   const isEmpty = tasks.length === 0;
   emptyState.classList.toggle("hidden", !isEmpty);
@@ -1673,9 +1673,9 @@ function renderTasks(tasks) {
 
     return `
       <tr data-task-id="${escapeHtml(task.id)}" tabindex="0">
-        <td><span class="task-code">${escapeHtml(task.taskCode || "ChÆ°a cÃ³ mÃ£")}</span></td>
+        <td><span class="task-code">${escapeHtml(task.taskCode || "Chưa có mã")}</span></td>
         <td class="task-title-cell">
-          <strong>${escapeHtml(task.title || "Nhiá»m vá»¥ chÆ°a cÃ³ tiÃªu Äá»")}</strong>
+          <strong>${escapeHtml(task.title || "Nhiệm vụ chưa có tiêu đề")}</strong>
           <span class="task-entry-line">
             <span class="badge ${task.entryMode === "DIRECT_ASSIGNED" ? "orange" : "blue"}">
               ${escapeHtml(entryModeName(task.entryMode))}
@@ -1684,7 +1684,7 @@ function renderTasks(tasks) {
           </span>
         </td>
         <td>${escapeHtml(departmentName(task.primaryDepartmentId))}</td>
-        <td>${escapeHtml(task.ownerName || "Chá» phÃ¢n cÃ´ng ná»i bá»")}</td>
+        <td>${escapeHtml(task.ownerName || "Chờ phân công nội bộ")}</td>
         <td>
           <strong>${escapeHtml(formatDate(task.deadline))}</strong><br>
           <span class="badge ${due.className}">${escapeHtml(due.text)}</span>
@@ -1705,11 +1705,11 @@ function renderTasks(tasks) {
       <article class="task-mobile-card" data-task-id="${escapeHtml(task.id)}" tabindex="0">
         <div class="task-mobile-card-head">
           <div>
-            <span class="task-code">${escapeHtml(task.taskCode || "ChÆ°a cÃ³ mÃ£")}</span>
+            <span class="task-code">${escapeHtml(task.taskCode || "Chưa có mã")}</span>
             <span class="badge ${task.entryMode === "DIRECT_ASSIGNED" ? "orange" : "blue"}">
               ${escapeHtml(entryModeName(task.entryMode))}
             </span>
-            <h3>${escapeHtml(task.title || "Nhiá»m vá»¥ chÆ°a cÃ³ tiÃªu Äá»")}</h3>
+            <h3>${escapeHtml(task.title || "Nhiệm vụ chưa có tiêu đề")}</h3>
           </div>
           <span class="badge ${statusBadgeClass(task.status)}">
             ${escapeHtml(statusName(task.status))}
@@ -1720,19 +1720,19 @@ function renderTasks(tasks) {
 
         <div class="task-mobile-meta">
           <div>
-            <span>PhÃ²ng/Khu chÃ­nh</span>
+            <span>Phòng/Khu chính</span>
             <strong>${escapeHtml(departmentName(task.primaryDepartmentId))}</strong>
           </div>
           <div>
-            <span>NgÆ°á»i phá»¥ trÃ¡ch</span>
-            <strong>${escapeHtml(task.ownerName || "Chá» phÃ¢n cÃ´ng ná»i bá»")}</strong>
+            <span>Người phụ trách</span>
+            <strong>${escapeHtml(task.ownerName || "Chờ phân công nội bộ")}</strong>
           </div>
           <div>
-            <span>Háº¡n hoÃ n thÃ nh</span>
+            <span>Hạn hoàn thành</span>
             <strong>${escapeHtml(formatDate(task.deadline))}</strong>
           </div>
           <div>
-            <span>TÃ¬nh tráº¡ng háº¡n</span>
+            <span>Tình trạng hạn</span>
             <strong class="badge ${due.className}">${escapeHtml(due.text)}</strong>
           </div>
         </div>
@@ -1768,8 +1768,8 @@ function canUpdateTask(task) {
   }
 
   /*
-   * Sau khi phÃ¢n cÃ´ng ná»i bá», TrÆ°á»ng/PhÃ³ ÄÆ°á»£c giao trá»±c tiáº¿p
-   * má»i cáº­p nháº­t tiáº¿n Äá» vÃ  káº¿t quáº£ nhiá»m vá»¥.
+   * Sau khi phân công nội bộ, Trưởng/Phó được giao trực tiếp
+   * mới cập nhật tiến độ và kết quả nhiệm vụ.
    */
   if (
     state.profile.role === "DEPARTMENT_LEADER" &&
@@ -1789,11 +1789,11 @@ function resultEvidenceHtml(task) {
   const evidenceType = task.evidenceType || task.outputType || "";
   const evidenceUrl = task.evidenceUrl || task.evidenceLink || "";
   const evidenceText = task.evidenceText || task.outputDescription || "";
-  const fileName = task.evidenceFileName || "Má» tá»p minh chá»©ng";
+  const fileName = task.evidenceFileName || "Mở tệp minh chứng";
 
   let evidenceContent = evidenceType === "NONE"
-    ? "KhÃ´ng cÃ³ minh chá»©ng"
-    : "ChÆ°a ghi nháº­n";
+    ? "Không có minh chứng"
+    : "Chưa ghi nhận";
 
   if (evidenceUrl && isValidHttpUrl(evidenceUrl)) {
     evidenceContent = `
@@ -1807,26 +1807,26 @@ function resultEvidenceHtml(task) {
 
   return `
     <div class="result-card">
-      <h4>â Káº¿t quáº£ vÃ  minh chá»©ng</h4>
+      <h4>✅ Kết quả và minh chứng</h4>
       <div class="result-card-grid">
         <div class="result-card-item">
-          <span>NgÃ y hoÃ n thÃ nh thá»±c táº¿</span>
+          <span>Ngày hoàn thành thực tế</span>
           <strong>${escapeHtml(formatDate(task.completedAt))}</strong>
         </div>
         <div class="result-card-item">
-          <span>ÄÃ¡nh giÃ¡ thá»i háº¡n</span>
+          <span>Đánh giá thời hạn</span>
           <strong>${escapeHtml(completionTimingInfo(task).text)}</strong>
         </div>
         <div class="result-card-item">
-          <span>Loáº¡i minh chá»©ng</span>
+          <span>Loại minh chứng</span>
           <strong>${escapeHtml(evidenceTypeName(evidenceType))}</strong>
         </div>
         <div class="result-card-item result-span-2">
-          <span>Káº¿t quáº£ thá»±c hiá»n</span>
-          <strong>${escapeHtml(task.resultSummary || task.result || "KhÃ´ng yÃªu cáº§u nháº­p káº¿t quáº£")}</strong>
+          <span>Kết quả thực hiện</span>
+          <strong>${escapeHtml(task.resultSummary || task.result || "Không yêu cầu nhập kết quả")}</strong>
         </div>
         <div class="result-card-item result-span-2">
-          <span>Minh chá»©ng</span>
+          <span>Minh chứng</span>
           <strong>${evidenceContent}</strong>
         </div>
       </div>
@@ -1855,11 +1855,11 @@ function openTaskDetail(taskId) {
 
   const relatedDepartmentsText = relatedDepartmentIds.length > 0
     ? relatedDepartmentIds.map(departmentName).join(", ")
-    : "KhÃ´ng cÃ³";
+    : "Không có";
 
   const progressText = Number.isFinite(Number(task.progress))
     ? `${Number(task.progress)}%`
-    : "ChÆ°a cáº­p nháº­t";
+    : "Chưa cập nhật";
 
   const legacyOutputHtml = (
     task.status !== "HOAN_THANH" &&
@@ -1867,21 +1867,21 @@ function openTaskDetail(taskId) {
   )
     ? `
       <div class="detail-item">
-        <span>Sáº£n pháº©m dá»± kiáº¿n (dá»¯ liá»u cÅ©)</span>
+        <span>Sản phẩm dự kiến (dữ liệu cũ)</span>
         <strong>${escapeHtml(outputTypeName(task.outputType))}</strong>
       </div>
       <div class="detail-item detail-span-2">
-        <span>MÃ´ táº£ sáº£n pháº©m dá»± kiáº¿n</span>
-        <strong>${escapeHtml(task.outputDescription || "ChÆ°a ghi nháº­n")}</strong>
+        <span>Mô tả sản phẩm dự kiến</span>
+        <strong>${escapeHtml(task.outputDescription || "Chưa ghi nhận")}</strong>
       </div>
     `
     : "";
 
-  detailTaskCode.textContent = task.taskCode || "ChÆ°a cÃ³ mÃ£";
+  detailTaskCode.textContent = task.taskCode || "Chưa có mã";
 
   detailContent.innerHTML = `
-    <h3 class="detail-title">${escapeHtml(task.title || "Nhiá»m vá»¥ chÆ°a cÃ³ tiÃªu Äá»")}</h3>
-    <p class="detail-description">${escapeHtml(task.description || "ChÆ°a cÃ³ ná»i dung chi tiáº¿t")}</p>
+    <h3 class="detail-title">${escapeHtml(task.title || "Nhiệm vụ chưa có tiêu đề")}</h3>
+    <p class="detail-description">${escapeHtml(task.description || "Chưa có nội dung chi tiết")}</p>
 
     <div class="detail-badges">
       <span class="badge ${task.entryMode === "DIRECT_ASSIGNED" ? "orange" : "blue"}">
@@ -1894,48 +1894,48 @@ function openTaskDetail(taskId) {
 
     <div class="detail-grid">
       <div class="detail-item">
-        <span>Tráº¡ng thÃ¡i phÃ¢n cÃ´ng ná»i bá»</span>
+        <span>Trạng thái phân công nội bộ</span>
         <strong>${escapeHtml(
           task.ownerName
-            ? `ÄÃ£ phÃ¢n cÃ´ng: ${task.ownerName}`
-            : "Chá» PhÃ²ng/Khu phÃ¢n cÃ´ng"
+            ? `Đã phân công: ${task.ownerName}`
+            : "Chờ Phòng/Khu phân công"
         )}</strong>
       </div>
       <div class="detail-item">
-        <span>PhÃ²ng/Khu</span>
+        <span>Phòng/Khu</span>
         <strong>${escapeHtml(departmentName(task.primaryDepartmentId))}</strong>
       </div>
       <div class="detail-item detail-span-2">
-        <span>PhÃ²ng/Khu phá»i há»£p</span>
+        <span>Phòng/Khu phối hợp</span>
         <strong>${escapeHtml(relatedDepartmentsText)}</strong>
       </div>
       <div class="detail-item">
-        <span>NgÆ°á»i giao/chá» Äáº¡o</span>
-        <strong>${escapeHtml(task.assignedByName || "ChÆ°a xÃ¡c Äá»nh")}</strong>
+        <span>Người giao/chỉ đạo</span>
+        <strong>${escapeHtml(task.assignedByName || "Chưa xác định")}</strong>
       </div>
       <div class="detail-item">
-        <span>Nguá»n nhiá»m vá»¥</span>
+        <span>Nguồn nhiệm vụ</span>
         <strong>${escapeHtml(sourceName(task.sourceType))}</strong>
       </div>
       <div class="detail-item detail-span-2">
-        <span>CÄn cá»© hoáº·c ná»i dung liÃªn quan</span>
-        <strong>${escapeHtml(task.sourceDetail || task.sourceReference || "ChÆ°a xÃ¡c Äá»nh")}</strong>
+        <span>Căn cứ hoặc nội dung liên quan</span>
+        <strong>${escapeHtml(task.sourceDetail || task.sourceReference || "Chưa xác định")}</strong>
       </div>
       <div class="detail-item">
-        <span>NgÃ y ÄÆ°á»£c chá» Äáº¡o</span>
+        <span>Ngày được chỉ đạo</span>
         <strong>${escapeHtml(formatDate(task.sourceDate || task.assignedAt))}</strong>
       </div>
       <div class="detail-item">
-        <span>Háº¡n hoÃ n thÃ nh</span>
+        <span>Hạn hoàn thành</span>
         <strong>${escapeHtml(formatDate(task.deadline))}</strong>
       </div>
       <div class="detail-item">
-        <span>Tiáº¿n Äá» hiá»n táº¡i</span>
+        <span>Tiến độ hiện tại</span>
         <strong>${escapeHtml(progressText)}</strong>
       </div>
       <div class="detail-item">
-        <span>NgÆ°á»i nháº­p nhiá»m vá»¥</span>
-        <strong>${escapeHtml(task.createdByName || "ChÆ°a xÃ¡c Äá»nh")}</strong>
+        <span>Người nhập nhiệm vụ</span>
+        <strong>${escapeHtml(task.createdByName || "Chưa xác định")}</strong>
       </div>
       ${legacyOutputHtml}
     </div>
@@ -1953,13 +1953,13 @@ function openTaskDetail(taskId) {
 
   assignTaskButton.classList.toggle("hidden", !allowAssign);
   assignTaskButton.textContent = task.ownerUserId
-    ? "ð¤ PhÃ¢n cÃ´ng láº¡i"
-    : "ð¤ PhÃ¢n cÃ´ng ná»i bá»";
+    ? "👤 Phân công lại"
+    : "👤 Phân công nội bộ";
 
   updateTaskButton.classList.toggle("hidden", !allowUpdate);
   updateTaskButton.textContent = task.status === "HOAN_THANH"
-    ? "âï¸ Chá»nh sá»­a káº¿t quáº£ hoÃ n thÃ nh"
-    : "âï¸ Cáº­p nháº­t / Káº¿t thÃºc nhiá»m vá»¥";
+    ? "✏️ Chỉnh sửa kết quả hoàn thành"
+    : "✏️ Cập nhật / Kết thúc nhiệm vụ";
 
   detailModal.classList.remove("hidden");
   setBodyModalState();
@@ -1973,7 +1973,7 @@ function closeTaskDetail() {
 }
 
 /* =========================================================
- * BIá»U MáºªU THÃM NHIá»M Vá»¤
+ * BIỂU MẪU THÊM NHIỆM VỤ
  * ========================================================= */
 
 function configureEntryMode() {
@@ -1983,12 +1983,12 @@ function configureEntryMode() {
   const selfRecorded = mode === "SELF_RECORDED";
 
   taskModalTitle.textContent = selfRecorded
-    ? "â Ghi nháº­n nhiá»m vá»¥"
-    : "â¡ Giao nhiá»m vá»¥ trá»±c tiáº¿p";
+    ? "➕ Ghi nhận nhiệm vụ"
+    : "⚡ Giao nhiệm vụ trực tiếp";
 
   taskModalSubtitle.textContent = selfRecorded
-    ? "Ghi nháº­n nhiá»m vá»¥ ÄÃ£ ÄÆ°á»£c Ban GiÃ¡m Äá»c chá» Äáº¡o táº¡i cuá»c há»p, vÄn báº£n hoáº·c trá»±c tiáº¿p."
-    : "DÃ¹ng cho nhiá»m vá»¥ Äá»t xuáº¥t cáº§n Ban GiÃ¡m Äá»c giao trá»±c tiáº¿p trÃªn á»©ng dá»¥ng.";
+    ? "Ghi nhận nhiệm vụ đã được Ban Giám đốc chỉ đạo tại cuộc họp, văn bản hoặc trực tiếp."
+    : "Dùng cho nhiệm vụ đột xuất cần Ban Giám đốc giao trực tiếp trên ứng dụng.";
 
   entryModeBanner.className = selfRecorded
     ? "entry-mode-banner entry-mode-self"
@@ -1996,17 +1996,17 @@ function configureEntryMode() {
 
   entryModeBanner.innerHTML = selfRecorded
     ? `
-      <strong>Tá»° GHI NHáº¬N</strong>
-      <span>NgÆ°á»i Äang ÄÄng nháº­p tá»± bÃ¡o cÃ¡o nhiá»m vá»¥ mÃ¬nh ÄÃ£ ÄÆ°á»£c chá» Äáº¡o.</span>
+      <strong>TỰ GHI NHẬN</strong>
+      <span>Người đang đăng nhập tự báo cáo nhiệm vụ mình đã được chỉ đạo.</span>
     `
     : `
-      <strong>BGÄ GIAO TRá»°C TIáº¾P</strong>
-      <span>Nhiá»m vá»¥ Äá»t xuáº¥t ÄÆ°á»£c nháº­p trá»±c tiáº¿p vÃ  gá»­i thÃ´ng bÃ¡o tá»i ngÆ°á»i nháº­n.</span>
+      <strong>BGĐ GIAO TRỰC TIẾP</strong>
+      <span>Nhiệm vụ đột xuất được nhập trực tiếp và gửi thông báo tới người nhận.</span>
     `;
 
   saveTaskButton.textContent = selfRecorded
-    ? "LÆ°u ghi nháº­n"
-    : "Giao nhiá»m vá»¥";
+    ? "Lưu ghi nhận"
+    : "Giao nhiệm vụ";
 }
 
 function fillAssignedByOptions() {
@@ -2014,12 +2014,12 @@ function fillAssignedByOptions() {
     .filter((item) => item.active === true && item.role === "DIRECTOR")
     .sort((a, b) => String(a.fullName || "").localeCompare(String(b.fullName || ""), "vi"));
 
-  assignedByUserId.innerHTML = '<option value="">Chá»n ngÆ°á»i giao/chá» Äáº¡o</option>';
+  assignedByUserId.innerHTML = '<option value="">Chọn người giao/chỉ đạo</option>';
 
   directors.forEach((item) => {
     const option = document.createElement("option");
     option.value = item.id;
-    option.textContent = [item.fullName, item.position].filter(Boolean).join(" â ");
+    option.textContent = [item.fullName, item.position].filter(Boolean).join(" — ");
     assignedByUserId.appendChild(option);
   });
 
@@ -2036,7 +2036,7 @@ function fillAssignedByOptions() {
     option.textContent = [
       state.profile.fullName,
       state.profile.position
-    ].filter(Boolean).join(" â ");
+    ].filter(Boolean).join(" — ");
 
     assignedByUserId.appendChild(option);
     assignedByUserId.value = state.user.uid;
@@ -2048,7 +2048,7 @@ function fillAssignedByOptions() {
   assignedByUserId.disabled = directors.length === 0;
 
   if (directors.length === 0) {
-    assignedByUserId.innerHTML = '<option value="">ChÆ°a cÃ³ tÃ i khoáº£n Ban GiÃ¡m Äá»c</option>';
+    assignedByUserId.innerHTML = '<option value="">Chưa có tài khoản Ban Giám đốc</option>';
   }
 }
 
@@ -2063,12 +2063,12 @@ function fillPrimaryDepartmentOptions() {
 
     primaryDepartmentId.value = state.profile.departmentId;
     primaryDepartmentId.disabled = true;
-    primaryHelp.textContent = "PhÃ²ng/Khu chá»u trÃ¡ch nhiá»m ÄÆ°á»£c cá» Äá»nh theo tÃ i khoáº£n Äang ÄÄng nháº­p.";
+    primaryHelp.textContent = "Phòng/Khu chịu trách nhiệm được cố định theo tài khoản đang đăng nhập.";
     return;
   }
 
   primaryDepartmentId.disabled = false;
-  primaryDepartmentId.innerHTML = '<option value="">Chá»n PhÃ²ng/Khu chá»u trÃ¡ch nhiá»m</option>';
+  primaryDepartmentId.innerHTML = '<option value="">Chọn Phòng/Khu chịu trách nhiệm</option>';
 
   state.departments
     .filter((item) => item.id !== "BGD")
@@ -2079,13 +2079,13 @@ function fillPrimaryDepartmentOptions() {
       primaryDepartmentId.appendChild(option);
     });
 
-  primaryHelp.textContent = "Chá»n PhÃ²ng/Khu tiáº¿p nháº­n vÃ  chá»u trÃ¡ch nhiá»m chÃ­nh.";
+  primaryHelp.textContent = "Chọn Phòng/Khu tiếp nhận và chịu trách nhiệm chính.";
 }
 
 function fillOwnerOptions() {
   /*
-   * BÆ°á»c 1: nhiá»m vá»¥ ÄÆ°á»£c giao cho PhÃ²ng/Khu, chÆ°a giao cÃ¡ nhÃ¢n.
-   * TrÆ°á»ng/PhÃ³ cá»§a PhÃ²ng/Khu sáº½ thá»±c hiá»n phÃ¢n cÃ´ng ná»i bá» á» bÆ°á»c sau.
+   * Bước 1: nhiệm vụ được giao cho Phòng/Khu, chưa giao cá nhân.
+   * Trưởng/Phó của Phòng/Khu sẽ thực hiện phân công nội bộ ở bước sau.
    */
   if (ownerUserId) {
     ownerUserId.value = "";
@@ -2093,7 +2093,7 @@ function fillOwnerOptions() {
 
   if (ownerHelp) {
     ownerHelp.textContent =
-      "Nhiá»m vá»¥ ÄÆ°á»£c chuyá»n Äáº¿n PhÃ²ng/Khu; chÆ°a phÃ¢n cÃ´ng cÃ¡ nhÃ¢n táº¡i bÆ°á»c táº¡o.";
+      "Nhiệm vụ được chuyển đến Phòng/Khu; chưa phân công cá nhân tại bước tạo.";
   }
 }
 
@@ -2125,7 +2125,7 @@ function renderSupportOptions() {
 
   if (departments.length === 0) {
     supportOptions.innerHTML =
-      '<div class="multi-select-empty">KhÃ´ng tÃ¬m tháº¥y PhÃ²ng/Khu phÃ¹ há»£p.</div>';
+      '<div class="multi-select-empty">Không tìm thấy Phòng/Khu phù hợp.</div>';
     return;
   }
 
@@ -2159,12 +2159,12 @@ function renderSelectedSupportChips() {
   state.selectedSupportIds = new Set(selectedIds);
 
   if (selectedIds.length === 0) {
-    supportSummary.textContent = "Chá»n PhÃ²ng/Khu phá»i há»£p";
+    supportSummary.textContent = "Chọn Phòng/Khu phối hợp";
     supportSelectedChips.innerHTML = "";
     return;
   }
 
-  supportSummary.textContent = `ÄÃ£ chá»n ${selectedIds.length} PhÃ²ng/Khu`;
+  supportSummary.textContent = `Đã chọn ${selectedIds.length} Phòng/Khu`;
 
   supportSelectedChips.innerHTML = selectedIds.map((id) => {
     const label = departmentName(id);
@@ -2175,8 +2175,8 @@ function renderSelectedSupportChips() {
         <button
           type="button"
           data-remove-support-id="${escapeHtml(id)}"
-          aria-label="Bá» ${escapeHtml(label)}"
-        >Ã</button>
+          aria-label="Bỏ ${escapeHtml(label)}"
+        >×</button>
       </span>
     `;
   }).join("");
@@ -2231,10 +2231,10 @@ async function openTaskModal() {
     toggleSupportDropdown(false);
     taskTitle.focus();
   } catch (error) {
-    console.error("KhÃ´ng táº£i ÄÆ°á»£c biá»u máº«u:", error);
+    console.error("Không tải được biểu mẫu:", error);
     showMessage(
       taskMessage,
-      error?.message || "KhÃ´ng táº£i ÄÆ°á»£c danh má»¥c phÃ²ng ban vÃ  ngÆ°á»i dÃ¹ng.",
+      error?.message || "Không tải được danh mục phòng ban và người dùng.",
       "error"
     );
   }
@@ -2253,7 +2253,7 @@ function closeTaskModal() {
 
 
 /* =========================================================
- * LÆ¯U THIáº¾T Bá» NHáº¬N THÃNG BÃO VÃO FIRESTORE
+ * LƯU THIẾT BỊ NHẬN THÔNG BÁO VÀO FIRESTORE
  * =========================================================
  */
 
@@ -2270,18 +2270,18 @@ function detectDeviceName() {
   }
 
   if (/Android/i.test(userAgent)) {
-    return "Äiá»n thoáº¡i Android";
+    return "Điện thoại Android";
   }
 
   if (/Windows/i.test(userAgent)) {
-    return "MÃ¡y tÃ­nh Windows";
+    return "Máy tính Windows";
   }
 
   if (/Macintosh|Mac OS X/i.test(userAgent)) {
-    return "MÃ¡y tÃ­nh Mac";
+    return "Máy tính Mac";
   }
 
-  return "TrÃ¬nh duyá»t Web";
+  return "Trình duyệt Web";
 }
 
 
@@ -2299,7 +2299,7 @@ function readFileAsBase64(file) {
     };
 
     reader.onerror = () => {
-      reject(new Error("KhÃ´ng Äá»c ÄÆ°á»£c tá»p ÄÃ£ chá»n."));
+      reject(new Error("Không đọc được tệp đã chọn."));
     };
 
     reader.readAsDataURL(file);
@@ -2316,15 +2316,15 @@ function evidenceUploadRequestId() {
 
 function validateEvidenceFile(file) {
   if (!file) {
-    throw new Error("Vui lÃ²ng chá»n tá»p hoáº·c hÃ¬nh áº£nh cáº§n táº£i lÃªn.");
+    throw new Error("Vui lòng chọn tệp hoặc hình ảnh cần tải lên.");
   }
 
   if (file.size <= 0) {
-    throw new Error("Tá»p ÄÃ£ chá»n khÃ´ng cÃ³ dá»¯ liá»u.");
+    throw new Error("Tệp đã chọn không có dữ liệu.");
   }
 
   if (file.size > MAX_EVIDENCE_FILE_SIZE) {
-    throw new Error("Dung lÆ°á»£ng tá»p khÃ´ng ÄÆ°á»£c vÆ°á»£t quÃ¡ 8 MB.");
+    throw new Error("Dung lượng tệp không được vượt quá 8 MB.");
   }
 
   const allowedExtensions = [
@@ -2337,7 +2337,7 @@ function validateEvidenceFile(file) {
 
   if (!allowedExtensions.some((extension) => lowerName.endsWith(extension))) {
     throw new Error(
-      "Chá» há» trá»£ PDF, hÃ¬nh áº£nh, Word, Excel, PowerPoint hoáº·c tá»p TXT."
+      "Chỉ hỗ trợ PDF, hình ảnh, Word, Excel, PowerPoint hoặc tệp TXT."
     );
   }
 }
@@ -2346,11 +2346,11 @@ async function uploadTaskEvidenceToDrive(file, task) {
   validateEvidenceFile(file);
 
   if (!NOTIFICATION_WEB_APP_URL) {
-    throw new Error("ChÆ°a cáº¥u hÃ¬nh URL Apps Script táº£i minh chá»©ng lÃªn Drive.");
+    throw new Error("Chưa cấu hình URL Apps Script tải minh chứng lên Drive.");
   }
 
   if (!state.user || !task?.id) {
-    throw new Error("PhiÃªn ÄÄng nháº­p hoáº·c nhiá»m vá»¥ khÃ´ng há»£p lá».");
+    throw new Error("Phiên đăng nhập hoặc nhiệm vụ không hợp lệ.");
   }
 
   const requestId = evidenceUploadRequestId();
@@ -2423,13 +2423,13 @@ async function uploadTaskEvidenceToDrive(file, task) {
       }
 
       finish(() => reject(
-        new Error(data.error || "KhÃ´ng táº£i ÄÆ°á»£c tá»p lÃªn Google Drive.")
+        new Error(data.error || "Không tải được tệp lên Google Drive.")
       ));
     };
 
     const timeoutId = window.setTimeout(() => {
       finish(() => reject(
-        new Error("QuÃ¡ thá»i gian táº£i tá»p. HÃ£y kiá»m tra máº¡ng vÃ  thá»­ láº¡i.")
+        new Error("Quá thời gian tải tệp. Hãy kiểm tra mạng và thử lại.")
       ));
     }, EVIDENCE_UPLOAD_TIMEOUT_MS);
 
@@ -2525,7 +2525,7 @@ async function saveTaskPushSubscription(
   );
 
   console.info(
-    "ÄÃ£ Äá»ng bá» taskPushSubscriptions:",
+    "Đã đồng bộ taskPushSubscriptions:",
     {
       subscriptionId,
       uid:
@@ -2548,7 +2548,7 @@ async function syncCurrentPushSubscription(
 
     if (!snapshot?.subscriptionId) {
       console.info(
-        "OneSignal chÆ°a cÃ³ Subscription ID Äá» Äá»ng bá»."
+        "OneSignal chưa có Subscription ID để đồng bộ."
       );
 
       return false;
@@ -2561,7 +2561,7 @@ async function syncCurrentPushSubscription(
 
   } catch (error) {
     console.warn(
-      "ChÆ°a Äá»ng bá» ÄÆ°á»£c thiáº¿t bá» thÃ´ng bÃ¡o:",
+      "Chưa đồng bộ được thiết bị thông báo:",
       error
     );
 
@@ -2585,7 +2585,7 @@ window.addEventListener(
     ).catch(
       (error) => {
         console.warn(
-          "KhÃ´ng lÆ°u ÄÆ°á»£c thay Äá»i Subscription:",
+          "Không lưu được thay đổi Subscription:",
           error
         );
       }
@@ -2595,7 +2595,7 @@ window.addEventListener(
 
 
 /* =========================================================
- * Gá»I GOOGLE APPS SCRIPT Gá»¬I THÃNG BÃO
+ * GỌI GOOGLE APPS SCRIPT GỬI THÔNG BÁO
  * =========================================================
  */
 
@@ -2610,7 +2610,7 @@ async function sendNotificationEvent(
     )
   ) {
     console.warn(
-      "ChÆ°a cáº¥u hÃ¬nh URL Google Apps Script gá»­i thÃ´ng bÃ¡o."
+      "Chưa cấu hình URL Google Apps Script gửi thông báo."
     );
 
     return false;
@@ -2628,11 +2628,11 @@ async function sendNotificationEvent(
       await state.user.getIdToken();
 
     /*
-     * DÃ¹ng text/plain vÃ  no-cors Äá» gá»­i tá»« GitHub Pages
-     * tá»i Google Apps Script mÃ  khÃ´ng phÃ¡t sinh lá»i CORS.
+     * Dùng text/plain và no-cors để gửi từ GitHub Pages
+     * tới Google Apps Script mà không phát sinh lỗi CORS.
      *
-     * PhÃ­a Apps Script váº«n xÃ¡c minh Firebase ID Token
-     * trÆ°á»c khi gá»­i thÃ´ng bÃ¡o OneSignal.
+     * Phía Apps Script vẫn xác minh Firebase ID Token
+     * trước khi gửi thông báo OneSignal.
      */
     await fetch(
       NOTIFICATION_WEB_APP_URL,
@@ -2659,7 +2659,7 @@ async function sendNotificationEvent(
 
   } catch (error) {
     console.warn(
-      "ChÆ°a gá»­i ÄÆ°á»£c yÃªu cáº§u thÃ´ng bÃ¡o:",
+      "Chưa gửi được yêu cầu thông báo:",
       error
     );
 
@@ -2676,8 +2676,8 @@ async function createTaskLog(taskReference, taskCode, title, mode) {
       taskCode,
       action: selfRecorded ? "SELF_RECORD_TASK" : "DIRECT_ASSIGN_TASK",
       description: selfRecorded
-        ? `Tá»± ghi nháº­n nhiá»m vá»¥: ${title}`
-        : `Giao nhiá»m vá»¥ trá»±c tiáº¿p: ${title}`,
+        ? `Tự ghi nhận nhiệm vụ: ${title}`
+        : `Giao nhiệm vụ trực tiếp: ${title}`,
       oldValue: null,
       newValue: "MOI_TIEP_NHAN",
       performedByUserId: state.user.uid,
@@ -2687,7 +2687,7 @@ async function createTaskLog(taskReference, taskCode, title, mode) {
 
     return true;
   } catch (error) {
-    console.error("KhÃ´ng ghi ÄÆ°á»£c nháº­t kÃ½ nhiá»m vá»¥:", error);
+    console.error("Không ghi được nhật ký nhiệm vụ:", error);
     return false;
   }
 }
@@ -2716,27 +2716,27 @@ async function saveTask(event) {
       .filter((departmentId) => departmentId && departmentId !== primaryId);
 
     if (!title) {
-      throw new Error("Vui lÃ²ng nháº­p tÃªn nhiá»m vá»¥.");
+      throw new Error("Vui lòng nhập tên nhiệm vụ.");
     }
 
     if (!description) {
-      throw new Error("Vui lÃ²ng nháº­p ná»i dung thá»±c hiá»n.");
+      throw new Error("Vui lòng nhập nội dung thực hiện.");
     }
 
     if (!selectedSource) {
-      throw new Error("Vui lÃ²ng chá»n nguá»n nhiá»m vá»¥.");
+      throw new Error("Vui lòng chọn nguồn nhiệm vụ.");
     }
 
     if (!sourceInformation) {
-      throw new Error("Vui lÃ²ng nháº­p cÄn cá»© hoáº·c ná»i dung chá» Äáº¡o liÃªn quan.");
+      throw new Error("Vui lòng nhập căn cứ hoặc nội dung chỉ đạo liên quan.");
     }
 
     if (!assignedBy) {
-      throw new Error("Vui lÃ²ng chá»n ngÆ°á»i giao/chá» Äáº¡o.");
+      throw new Error("Vui lòng chọn người giao/chỉ đạo.");
     }
 
     if (!primaryId) {
-      throw new Error("Vui lÃ²ng xÃ¡c Äá»nh PhÃ²ng/Khu chá»u trÃ¡ch nhiá»m.");
+      throw new Error("Vui lòng xác định Phòng/Khu chịu trách nhiệm.");
     }
 
 
@@ -2745,30 +2745,30 @@ async function saveTask(event) {
       mode === "SELF_RECORDED" &&
       primaryId !== state.profile.departmentId
     ) {
-      throw new Error("PhÃ²ng/Khu cá»§a nhiá»m vá»¥ tá»± ghi nháº­n khÃ´ng há»£p lá».");
+      throw new Error("Phòng/Khu của nhiệm vụ tự ghi nhận không hợp lệ.");
     }
 
 
     if (!assignedDate) {
-      throw new Error("NgÃ y ÄÆ°á»£c chá» Äáº¡o khÃ´ng há»£p lá».");
+      throw new Error("Ngày được chỉ đạo không hợp lệ.");
     }
 
     if (!deadlineDate) {
-      throw new Error("Háº¡n hoÃ n thÃ nh khÃ´ng há»£p lá».");
+      throw new Error("Hạn hoàn thành không hợp lệ.");
     }
 
     if (deadlineDate.getTime() < assignedDate.getTime()) {
-      throw new Error("Háº¡n hoÃ n thÃ nh khÃ´ng ÄÆ°á»£c trÆ°á»c ngÃ y ÄÆ°á»£c chá» Äáº¡o.");
+      throw new Error("Hạn hoàn thành không được trước ngày được chỉ đạo.");
     }
 
     state.savingTask = true;
     saveTaskButton.disabled = true;
-    saveTaskButton.textContent = "Äang lÆ°u...";
+    saveTaskButton.textContent = "Đang lưu...";
     showMessage(
       taskMessage,
       mode === "SELF_RECORDED"
-        ? "Äang lÆ°u ná»i dung ghi nháº­n..."
-        : "Äang giao nhiá»m vá»¥ trá»±c tiáº¿p...",
+        ? "Đang lưu nội dung ghi nhận..."
+        : "Đang giao nhiệm vụ trực tiếp...",
       "info"
     );
 
@@ -2808,9 +2808,9 @@ async function saveTask(event) {
       primaryDepartmentId: primaryId,
 
       /*
-       * BÆ°á»c 1: giao cho PhÃ²ng/Khu, chÆ°a giao cÃ¡ nhÃ¢n.
-       * CÃ¡c trÆ°á»ng owner ÄÆ°á»£c giá»¯ Äá» tÆ°Æ¡ng thÃ­ch dá»¯ liá»u vÃ  dÃ¹ng cho
-       * chá»©c nÄng phÃ¢n cÃ´ng ná»i bá» á» bÆ°á»c tiáº¿p theo.
+       * Bước 1: giao cho Phòng/Khu, chưa giao cá nhân.
+       * Các trường owner được giữ để tương thích dữ liệu và dùng cho
+       * chức năng phân công nội bộ ở bước tiếp theo.
        */
       ownerUserId: "",
       ownerName: "",
@@ -2871,9 +2871,9 @@ async function saveTask(event) {
     );
 
     /*
-     * Apps Script sáº½ tá»± xÃ¡c Äá»nh ngÆ°á»i nháº­n:
-     * - SELF_RECORDED: chá» ngÆ°á»i cÃ³ liÃªn quan;
-     * - DIRECT_ASSIGNED: ngÆ°á»i chá»u trÃ¡ch nhiá»m vÃ  ngÆ°á»i cÃ³ liÃªn quan.
+     * Apps Script sẽ tự xác định người nhận:
+     * - SELF_RECORDED: chỉ người có liên quan;
+     * - DIRECT_ASSIGNED: người chịu trách nhiệm và người có liên quan.
      */
     await sendNotificationEvent(
       "TASK_CREATED",
@@ -2885,10 +2885,10 @@ async function saveTask(event) {
       logCreated
         ? (
           mode === "SELF_RECORDED"
-            ? `â ÄÃ£ ghi nháº­n nhiá»m vá»¥ ${taskCode}.`
-            : `â ÄÃ£ giao nhiá»m vá»¥ ${taskCode}.`
+            ? `✅ Đã ghi nhận nhiệm vụ ${taskCode}.`
+            : `✅ Đã giao nhiệm vụ ${taskCode}.`
         )
-        : `â ÄÃ£ lÆ°u nhiá»m vá»¥ ${taskCode}, nhÆ°ng chÆ°a ghi ÄÆ°á»£c nháº­t kÃ½.`,
+        : `✅ Đã lưu nhiệm vụ ${taskCode}, nhưng chưa ghi được nhật ký.`,
       logCreated ? "success" : "warning"
     );
 
@@ -2898,26 +2898,26 @@ async function saveTask(event) {
       closeTaskModal();
     }, 900);
   } catch (error) {
-    console.error("KhÃ´ng lÆ°u ÄÆ°á»£c nhiá»m vá»¥:", error);
+    console.error("Không lưu được nhiệm vụ:", error);
 
     const message = error?.code === "permission-denied"
-      ? "TÃ i khoáº£n chÆ°a ÄÆ°á»£c cáº¥p quyá»n lÆ°u nhiá»m vá»¥ theo phÆ°Æ¡ng thá»©c nÃ y. HÃ£y cáº­p nháº­t Firestore Rules cá»§a BÆ°á»c 9.3."
-      : (error?.message || "KhÃ´ng lÆ°u ÄÆ°á»£c nhiá»m vá»¥.");
+      ? "Tài khoản chưa được cấp quyền lưu nhiệm vụ theo phương thức này. Hãy cập nhật Firestore Rules của Bước 9.3."
+      : (error?.message || "Không lưu được nhiệm vụ.");
 
     showMessage(taskMessage, message, "error");
   } finally {
     state.savingTask = false;
     saveTaskButton.disabled = false;
     saveTaskButton.textContent = currentEntryMode() === "SELF_RECORDED"
-      ? "LÆ°u ghi nháº­n"
-      : "Giao nhiá»m vá»¥";
+      ? "Lưu ghi nhận"
+      : "Giao nhiệm vụ";
   }
 }
 
 
 
 /* =========================================================
- * PHÃN CÃNG Ná»I Bá»
+ * PHÂN CÔNG NỘI BỘ
  * ========================================================= */
 
 function internalAssigneeOptions(task) {
@@ -2945,30 +2945,30 @@ function openAssignmentModal(taskId = state.selectedTaskId) {
   assignmentForm.reset();
 
   assignmentModalTitle.textContent = task.ownerUserId
-    ? "ð¤ PhÃ¢n cÃ´ng láº¡i nhiá»m vá»¥"
-    : "ð¤ PhÃ¢n cÃ´ng ná»i bá»";
-  assignmentTaskCode.textContent = task.taskCode || "â";
+    ? "👤 Phân công lại nhiệm vụ"
+    : "👤 Phân công nội bộ";
+  assignmentTaskCode.textContent = task.taskCode || "—";
   assignmentTaskSummary.innerHTML = `
     <div>
-      <h3>${escapeHtml(task.title || "Nhiá»m vá»¥")}</h3>
+      <h3>${escapeHtml(task.title || "Nhiệm vụ")}</h3>
       <p>${escapeHtml(truncate(task.description || "", 220))}</p>
     </div>
     <div class="summary-deadline">
-      <span>PhÃ²ng/Khu phá»¥ trÃ¡ch</span>
+      <span>Phòng/Khu phụ trách</span>
       <strong>${escapeHtml(departmentName(task.primaryDepartmentId))}</strong>
     </div>
   `;
 
   const assignees = internalAssigneeOptions(task);
   internalOwnerUserId.innerHTML =
-    '<option value="">Chá»n TrÆ°á»ng/PhÃ³ phá»¥ trÃ¡ch thá»±c hiá»n</option>';
+    '<option value="">Chọn Trưởng/Phó phụ trách thực hiện</option>';
 
   assignees.forEach((item) => {
     const option = document.createElement("option");
     option.value = item.id;
     option.textContent = [item.fullName, item.position]
       .filter(Boolean)
-      .join(" â ");
+      .join(" — ");
     internalOwnerUserId.appendChild(option);
   });
 
@@ -2979,8 +2979,8 @@ function openAssignmentModal(taskId = state.selectedTaskId) {
     : "";
 
   assignmentHelp.textContent = assignees.length > 0
-    ? "Chá» hiá»n thá» TrÆ°á»ng/PhÃ³ Äang hoáº¡t Äá»ng thuá»c PhÃ²ng/Khu chá»u trÃ¡ch nhiá»m chÃ­nh."
-    : "PhÃ²ng/Khu nÃ y chÆ°a cÃ³ tÃ i khoáº£n TrÆ°á»ng/PhÃ³ Äang hoáº¡t Äá»ng.";
+    ? "Chỉ hiển thị Trưởng/Phó đang hoạt động thuộc Phòng/Khu chịu trách nhiệm chính."
+    : "Phòng/Khu này chưa có tài khoản Trưởng/Phó đang hoạt động.";
 
   internalOwnerUserId.disabled = assignees.length === 0;
   saveAssignmentButton.disabled = assignees.length === 0;
@@ -3005,7 +3005,7 @@ async function createAssignmentLog(task, owner) {
       taskId: task.id,
       taskCode: task.taskCode || "",
       action: task.ownerUserId ? "REASSIGN_INTERNAL" : "ASSIGN_INTERNAL",
-      description: `PhÃ¢n cÃ´ng ná»i bá» cho ${owner.fullName || ""}`,
+      description: `Phân công nội bộ cho ${owner.fullName || ""}`,
       oldValue: task.ownerUserId || "",
       newValue: owner.id,
       performedByUserId: state.user.uid,
@@ -3013,7 +3013,7 @@ async function createAssignmentLog(task, owner) {
       performedAt: serverTimestamp()
     });
   } catch (error) {
-    console.warn("KhÃ´ng ghi ÄÆ°á»£c nháº­t kÃ½ phÃ¢n cÃ´ng:", error);
+    console.warn("Không ghi được nhật ký phân công:", error);
   }
 }
 
@@ -3029,7 +3029,7 @@ async function saveInternalAssignment(event) {
   if (!task || !canAssignTask(task)) {
     showMessage(
       assignmentMessage,
-      "TÃ i khoáº£n khÃ´ng cÃ³ quyá»n phÃ¢n cÃ´ng nhiá»m vá»¥ nÃ y.",
+      "Tài khoản không có quyền phân công nhiệm vụ này.",
       "error"
     );
     return;
@@ -3045,7 +3045,7 @@ async function saveInternalAssignment(event) {
   ) {
     showMessage(
       assignmentMessage,
-      "Vui lÃ²ng chá»n ÄÃºng TrÆ°á»ng/PhÃ³ thuá»c PhÃ²ng/Khu phá»¥ trÃ¡ch.",
+      "Vui lòng chọn đúng Trưởng/Phó thuộc Phòng/Khu phụ trách.",
       "error"
     );
     return;
@@ -3053,7 +3053,7 @@ async function saveInternalAssignment(event) {
 
   state.savingAssignment = true;
   saveAssignmentButton.disabled = true;
-  saveAssignmentButton.textContent = "Äang phÃ¢n cÃ´ng...";
+  saveAssignmentButton.textContent = "Đang phân công...";
   hideMessage(assignmentMessage);
 
   try {
@@ -3082,7 +3082,7 @@ async function saveInternalAssignment(event) {
 
     showMessage(
       assignmentMessage,
-      `â ÄÃ£ phÃ¢n cÃ´ng nhiá»m vá»¥ cho ${owner.fullName || "ngÆ°á»i phá»¥ trÃ¡ch"}.`,
+      `✅ Đã phân công nhiệm vụ cho ${owner.fullName || "người phụ trách"}.`,
       "success"
     );
 
@@ -3097,24 +3097,24 @@ async function saveInternalAssignment(event) {
       }
     }, 700);
   } catch (error) {
-    console.error("KhÃ´ng phÃ¢n cÃ´ng ÄÆ°á»£c nhiá»m vá»¥:", error);
+    console.error("Không phân công được nhiệm vụ:", error);
 
     showMessage(
       assignmentMessage,
       error?.code === "permission-denied"
-        ? "Firestore chÆ°a cho phÃ©p PhÃ²ng/Khu phÃ¢n cÃ´ng ná»i bá». HÃ£y Publish Rules BÆ°á»c 2."
-        : (error?.message || "KhÃ´ng phÃ¢n cÃ´ng ÄÆ°á»£c nhiá»m vá»¥."),
+        ? "Firestore chưa cho phép Phòng/Khu phân công nội bộ. Hãy Publish Rules Bước 2."
+        : (error?.message || "Không phân công được nhiệm vụ."),
       "error"
     );
   } finally {
     state.savingAssignment = false;
     saveAssignmentButton.disabled = false;
-    saveAssignmentButton.textContent = "XÃ¡c nháº­n phÃ¢n cÃ´ng";
+    saveAssignmentButton.textContent = "Xác nhận phân công";
   }
 }
 
 /* =========================================================
- * Cáº¬P NHáº¬T TIáº¾N Äá» VÃ Káº¾T THÃC NHIá»M Vá»¤
+ * CẬP NHẬT TIẾN ĐỘ VÀ KẾT THÚC NHIỆM VỤ
  * ========================================================= */
 
 function updateEvidenceFileSelection() {
@@ -3122,7 +3122,7 @@ function updateEvidenceFileSelection() {
 
   if (file) {
     const sizeMb = (file.size / (1024 * 1024)).toFixed(2);
-    evidenceFileName.textContent = `${file.name} â ${sizeMb} MB`;
+    evidenceFileName.textContent = `${file.name} — ${sizeMb} MB`;
     evidenceFileName.classList.add("has-file");
     return;
   }
@@ -3131,8 +3131,8 @@ function updateEvidenceFileSelection() {
   const existingUrl = task?.evidenceUrl || task?.evidenceLink || "";
 
   evidenceFileName.textContent = existingUrl
-    ? `Äang sá»­ dá»¥ng tá»p hiá»n táº¡i: ${task?.evidenceFileName || "Má» tá»p minh chá»©ng"}`
-    : "ChÆ°a chá»n tá»p";
+    ? `Đang sử dụng tệp hiện tại: ${task?.evidenceFileName || "Mở tệp minh chứng"}`
+    : "Chưa chọn tệp";
 
   evidenceFileName.classList.toggle("has-file", Boolean(existingUrl));
 }
@@ -3153,8 +3153,8 @@ function syncCompletionEvidenceUI() {
   }
 
   saveProgressButton.textContent = isCompleted
-    ? "â HoÃ n thÃ nh nhiá»m vá»¥"
-    : "LÆ°u cáº­p nháº­t";
+    ? "✓ Hoàn thành nhiệm vụ"
+    : "Lưu cập nhật";
 
   const evidenceType = completionProductType.value;
   const showResult = isCompleted && ["FILE", "OTHER"].includes(evidenceType);
@@ -3189,7 +3189,7 @@ function updateCompletionTimingPreview() {
   const completed = parseDateInput(completedDate.value, false);
 
   if (!task || !completed) {
-    completionTimingPreview.textContent = "Chá»n ngÃ y hoÃ n thÃ nh Äá» há» thá»ng xÃ¡c Äá»nh ÄÃºng háº¡n hoáº·c trá» háº¡n.";
+    completionTimingPreview.textContent = "Chọn ngày hoàn thành để hệ thống xác định đúng hạn hoặc trễ hạn.";
     return;
   }
 
@@ -3214,17 +3214,17 @@ function openProgressModal(taskId = state.selectedTaskId) {
   progressForm.reset();
 
   progressModalTitle.textContent = task.status === "HOAN_THANH"
-    ? "âï¸ Chá»nh sá»­a káº¿t quáº£ hoÃ n thÃ nh"
-    : "âï¸ Cáº­p nháº­t / Káº¿t thÃºc nhiá»m vá»¥";
-  progressTaskCode.textContent = task.taskCode || "â";
+    ? "✏️ Chỉnh sửa kết quả hoàn thành"
+    : "✏️ Cập nhật / Kết thúc nhiệm vụ";
+  progressTaskCode.textContent = task.taskCode || "—";
 
   progressTaskSummary.innerHTML = `
     <div>
-      <h3>${escapeHtml(task.title || "Nhiá»m vá»¥")}</h3>
+      <h3>${escapeHtml(task.title || "Nhiệm vụ")}</h3>
       <p>${escapeHtml(truncate(task.description || "", 220))}</p>
     </div>
     <div class="summary-deadline">
-      <span>Háº¡n hoÃ n thÃ nh</span>
+      <span>Hạn hoàn thành</span>
       <strong>${escapeHtml(formatDate(task.deadline))}</strong>
     </div>
   `;
@@ -3260,8 +3260,8 @@ function openProgressModal(taskId = state.selectedTaskId) {
   existingEvidenceLink.classList.toggle("hidden", !existingUrl);
   existingEvidenceLink.href = existingUrl || "#";
   existingEvidenceLink.textContent = task.evidenceFileName
-    ? `Má» tá»p hiá»n táº¡i: ${task.evidenceFileName}`
-    : "Má» tá»p minh chá»©ng hiá»n táº¡i";
+    ? `Mở tệp hiện tại: ${task.evidenceFileName}`
+    : "Mở tệp minh chứng hiện tại";
 
   syncCompletionEvidenceUI();
 
@@ -3286,8 +3286,8 @@ async function createProgressLog(task, oldStatus, newStatus, oldProgress, newPro
       taskCode: task.taskCode || "",
       action: newStatus === "HOAN_THANH" ? "COMPLETE_TASK" : "UPDATE_PROGRESS",
       description: newStatus === "HOAN_THANH"
-        ? `Káº¿t thÃºc nhiá»m vá»¥: ${task.title || ""}`
-        : `Cáº­p nháº­t tiáº¿n Äá» nhiá»m vá»¥: ${task.title || ""}`,
+        ? `Kết thúc nhiệm vụ: ${task.title || ""}`
+        : `Cập nhật tiến độ nhiệm vụ: ${task.title || ""}`,
       oldStatus: oldStatus || "",
       newStatus,
       oldProgress: Number(oldProgress) || 0,
@@ -3297,7 +3297,7 @@ async function createProgressLog(task, oldStatus, newStatus, oldProgress, newPro
       performedAt: serverTimestamp()
     });
   } catch (error) {
-    console.warn("KhÃ´ng ghi ÄÆ°á»£c nháº­t kÃ½ cáº­p nháº­t nhiá»m vá»¥:", error);
+    console.warn("Không ghi được nhật ký cập nhật nhiệm vụ:", error);
   }
 }
 
@@ -3313,7 +3313,7 @@ async function saveProgress(event) {
   if (!task || !canUpdateTask(task)) {
     showMessage(
       progressMessage,
-      "TÃ i khoáº£n khÃ´ng cÃ³ quyá»n cáº­p nháº­t nhiá»m vá»¥ nÃ y.",
+      "Tài khoản không có quyền cập nhật nhiệm vụ này.",
       "error"
     );
     return;
@@ -3337,8 +3337,8 @@ async function saveProgress(event) {
     state.savingProgress = true;
     saveProgressButton.disabled = true;
     saveProgressButton.textContent = newStatus === "HOAN_THANH"
-      ? "Äang káº¿t thÃºc..."
-      : "Äang lÆ°u...";
+      ? "Đang kết thúc..."
+      : "Đang lưu...";
 
     const updatePayload = {
       status: newStatus,
@@ -3355,17 +3355,17 @@ async function saveProgress(event) {
       const summary = needsResult ? cleanText(resultSummary.value) : "";
 
       if (!completed) {
-        throw new Error("Vui lÃ²ng chá»n ngÃ y hoÃ n thÃ nh thá»±c táº¿.");
+        throw new Error("Vui lòng chọn ngày hoàn thành thực tế.");
       }
 
       completed.setHours(12, 0, 0, 0);
 
       if (!selectedEvidenceType) {
-        throw new Error("Vui lÃ²ng chá»n loáº¡i minh chá»©ng.");
+        throw new Error("Vui lòng chọn loại minh chứng.");
       }
 
       if (needsResult && !summary) {
-        throw new Error("Vui lÃ²ng nháº­p káº¿t quáº£ thá»±c hiá»n.");
+        throw new Error("Vui lòng nhập kết quả thực hiện.");
       }
 
       let evidenceUrl = "";
@@ -3378,7 +3378,7 @@ async function saveProgress(event) {
         const existingUrl = task.evidenceUrl || task.evidenceLink || "";
 
         if (selectedFile) {
-          saveProgressButton.textContent = "Äang táº£i tá»p lÃªn Drive...";
+          saveProgressButton.textContent = "Đang tải tệp lên Drive...";
 
           const uploadResult = await uploadTaskEvidenceToDrive(
             selectedFile,
@@ -3390,10 +3390,10 @@ async function saveProgress(event) {
           evidenceStoragePath = uploadResult.fileId || "";
         } else if (existingUrl) {
           evidenceUrl = existingUrl;
-          evidenceFileNameValue = task.evidenceFileName || "Má» tá»p minh chá»©ng";
+          evidenceFileNameValue = task.evidenceFileName || "Mở tệp minh chứng";
           evidenceStoragePath = task.evidenceStoragePath || "";
         } else {
-          throw new Error("Vui lÃ²ng chá»n tá»p hoáº·c hÃ¬nh áº£nh cáº§n táº£i lÃªn.");
+          throw new Error("Vui lòng chọn tệp hoặc hình ảnh cần tải lên.");
         }
       }
 
@@ -3456,8 +3456,8 @@ async function saveProgress(event) {
     showMessage(
       progressMessage,
       newStatus === "HOAN_THANH"
-        ? `â ÄÃ£ káº¿t thÃºc nhiá»m vá»¥. ${completionTimingInfo(task, updatePayload.completedAt).text}.`
-        : "â ÄÃ£ cáº­p nháº­t tiáº¿n Äá» nhiá»m vá»¥.",
+        ? `✅ Đã kết thúc nhiệm vụ. ${completionTimingInfo(task, updatePayload.completedAt).text}.`
+        : "✅ Đã cập nhật tiến độ nhiệm vụ.",
       "success"
     );
 
@@ -3474,11 +3474,11 @@ async function saveProgress(event) {
       }
     }, 700);
   } catch (error) {
-    console.error("KhÃ´ng cáº­p nháº­t ÄÆ°á»£c nhiá»m vá»¥:", error);
+    console.error("Không cập nhật được nhiệm vụ:", error);
 
     showMessage(
       progressMessage,
-      error?.message || "KhÃ´ng cáº­p nháº­t ÄÆ°á»£c nhiá»m vá»¥.",
+      error?.message || "Không cập nhật được nhiệm vụ.",
       "error"
     );
   } finally {
@@ -3488,13 +3488,13 @@ async function saveProgress(event) {
 
     saveProgressButton.disabled = false;
     saveProgressButton.textContent = progressStatus.value === "HOAN_THANH"
-      ? "â HoÃ n thÃ nh nhiá»m vá»¥"
-      : "LÆ°u cáº­p nháº­t";
+      ? "✓ Hoàn thành nhiệm vụ"
+      : "Lưu cập nhật";
   }
 }
 
 /* =========================================================
- * KHá»I Táº O VÃ ÄÄNG NHáº¬P
+ * KHỞI TẠO VÀ ĐĂNG NHẬP
  * ========================================================= */
 
 async function initializeUser(user) {
@@ -3514,70 +3514,70 @@ async function initializeUser(user) {
 
     try {
       /*
-       * KhÃ´ng ÄÄng nháº­p External ID vÃ o OneSignal táº¡i phÃ¢n há» nhiá»m vá»¥.
-       * Chá» liÃªn káº¿t Subscription ID hiá»n táº¡i vá»i Firebase UID trong
+       * Không đăng nhập External ID vào OneSignal tại phân hệ nhiệm vụ.
+       * Chỉ liên kết Subscription ID hiện tại với Firebase UID trong
        * collection taskPushSubscriptions.
        */
       await syncCurrentPushSubscription();
     } catch (pushError) {
       console.warn(
-        "OneSignal chÆ°a sáºµn sÃ ng; á»©ng dá»¥ng váº«n tiáº¿p tá»¥c hoáº¡t Äá»ng:",
+        "OneSignal chưa sẵn sàng; ứng dụng vẫn tiếp tục hoạt động:",
         pushError
       );
     }
 
     await loadTasks();
   } catch (error) {
-    console.error("KhÃ´ng khá»i táº¡o ÄÆ°á»£c ngÆ°á»i dÃ¹ng:", error);
+    console.error("Không khởi tạo được người dùng:", error);
 
     state.initializedUid = null;
 
     try {
       await signOut(auth);
     } catch (signOutError) {
-      console.error("KhÃ´ng thá» ÄÄng xuáº¥t:", signOutError);
+      console.error("Không thể đăng xuất:", signOutError);
     }
 
     showView("login");
     showMessage(
       loginMessage,
-      error?.message || "KhÃ´ng khá»i táº¡o ÄÆ°á»£c tÃ i khoáº£n.",
+      error?.message || "Không khởi tạo được tài khoản.",
       "error"
     );
   }
 }
 
 /* =========================================================
- * Sá»° KIá»N
+ * SỰ KIỆN
  * ========================================================= */
 
 googleLoginButton.addEventListener("click", async () => {
   hideMessage(loginMessage);
 
   googleLoginButton.disabled = true;
-  googleLoginButton.innerHTML = "<span class=\"google-mark\">G</span><span>Äang má» Google...</span>";
+  googleLoginButton.innerHTML = "<span class=\"google-mark\">G</span><span>Đang mở Google...</span>";
 
   try {
     await signInWithPopup(auth, googleProvider);
   } catch (error) {
-    console.error("KhÃ´ng ÄÄng nháº­p ÄÆ°á»£c báº±ng Google:", error);
+    console.error("Không đăng nhập được bằng Google:", error);
 
-    let message = "KhÃ´ng ÄÄng nháº­p ÄÆ°á»£c báº±ng Google. Vui lÃ²ng thá»­ láº¡i.";
+    let message = "Không đăng nhập được bằng Google. Vui lòng thử lại.";
 
     if (error?.code === "auth/popup-closed-by-user") {
-      message = "Báº¡n ÄÃ£ ÄÃ³ng cá»­a sá» ÄÄng nháº­p Google trÆ°á»c khi hoÃ n táº¥t.";
+      message = "Bạn đã đóng cửa sổ đăng nhập Google trước khi hoàn tất.";
     } else if (error?.code === "auth/popup-blocked") {
-      message = "TrÃ¬nh duyá»t Äang cháº·n cá»­a sá» ÄÄng nháº­p Google. HÃ£y cho phÃ©p cá»­a sá» báº­t lÃªn rá»i thá»­ láº¡i.";
+      message = "Trình duyệt đang chặn cửa sổ đăng nhập Google. Hãy cho phép cửa sổ bật lên rồi thử lại.";
     } else if (error?.code === "auth/account-exists-with-different-credential") {
-      message = "Email nÃ y Äang dÃ¹ng phÆ°Æ¡ng thá»©c Email/Máº­t kháº©u. HÃ£y ÄÄng nháº­p báº±ng máº­t kháº©u hiá»n táº¡i; khÃ´ng táº¡o thÃªm tÃ i khoáº£n trÃ¹ng email.";
+      message = "Email này đang dùng phương thức Email/Mật khẩu. Hãy đăng nhập bằng mật khẩu hiện tại; không tạo thêm tài khoản trùng email.";
     } else if (error?.code === "auth/unauthorized-domain") {
-      message = "TÃªn miá»n GitHub Pages chÆ°a ÄÆ°á»£c thÃªm vÃ o Authorized domains cá»§a Firebase Authentication.";
+      message = "Tên miền GitHub Pages chưa được thêm vào Authorized domains của Firebase Authentication.";
     }
 
     showMessage(loginMessage, message, "error");
   } finally {
     googleLoginButton.disabled = false;
-    googleLoginButton.innerHTML = "<span class=\"google-mark\">G</span><span>ÄÄng nháº­p báº±ng Google</span>";
+    googleLoginButton.innerHTML = "<span class=\"google-mark\">G</span><span>Đăng nhập bằng Google</span>";
   }
 });
 
@@ -3589,19 +3589,19 @@ loginForm.addEventListener("submit", async (event) => {
   const passwordValue = loginPassword.value;
 
   if (!email) {
-    showMessage(loginMessage, "Vui lÃ²ng nháº­p email.", "error");
+    showMessage(loginMessage, "Vui lòng nhập email.", "error");
     loginEmail.focus();
     return;
   }
 
   if (!passwordValue) {
-    showMessage(loginMessage, "Vui lÃ²ng nháº­p máº­t kháº©u.", "error");
+    showMessage(loginMessage, "Vui lòng nhập mật khẩu.", "error");
     loginPassword.focus();
     return;
   }
 
   loginButton.disabled = true;
-  loginButton.textContent = "Äang ÄÄng nháº­p...";
+  loginButton.textContent = "Đang đăng nhập...";
 
   try {
     await signInWithEmailAndPassword(auth, email, passwordValue);
@@ -3611,27 +3611,27 @@ loginForm.addEventListener("submit", async (event) => {
       "auth/user-not-found",
       "auth/wrong-password"
     ].includes(error?.code)
-      ? "Email hoáº·c máº­t kháº©u khÃ´ng chÃ­nh xÃ¡c."
+      ? "Email hoặc mật khẩu không chính xác."
       : (
         error?.code === "auth/too-many-requests"
-          ? "ÄÄng nháº­p sai quÃ¡ nhiá»u láº§n. Vui lÃ²ng thá»­ láº¡i sau."
-          : "KhÃ´ng ÄÄng nháº­p ÄÆ°á»£c. Vui lÃ²ng kiá»m tra láº¡i thÃ´ng tin."
+          ? "Đăng nhập sai quá nhiều lần. Vui lòng thử lại sau."
+          : "Không đăng nhập được. Vui lòng kiểm tra lại thông tin."
       );
 
     showMessage(loginMessage, message, "error");
   } finally {
     loginButton.disabled = false;
-    loginButton.textContent = "ÄÄng nháº­p";
+    loginButton.textContent = "Đăng nhập";
   }
 });
 
 togglePasswordButton.addEventListener("click", () => {
   const isHidden = loginPassword.type === "password";
   loginPassword.type = isHidden ? "text" : "password";
-  togglePasswordButton.textContent = isHidden ? "ð" : "ð";
+  togglePasswordButton.textContent = isHidden ? "🙈" : "👁";
   togglePasswordButton.setAttribute(
     "aria-label",
-    isHidden ? "áº¨n máº­t kháº©u" : "Hiá»n máº­t kháº©u"
+    isHidden ? "Ẩn mật khẩu" : "Hiện mật khẩu"
   );
   loginPassword.focus();
 });
@@ -3644,12 +3644,12 @@ logoutButton.addEventListener("click", async () => {
   const originalContent = logoutButton.innerHTML;
   logoutButton.disabled = true;
   logoutButton.classList.add("logout-pending");
-  logoutButton.innerHTML = '<span aria-hidden="true">â³</span><span class="top-button-text">Äang ÄÄng xuáº¥t...</span>';
+  logoutButton.innerHTML = '<span aria-hidden="true">⏳</span><span class="top-button-text">Đang đăng xuất...</span>';
 
-  /* Hiá»n thá» ngay mÃ n hÃ¬nh ÄÄng nháº­p, khÃ´ng giá»¯ ngÆ°á»i dÃ¹ng á» mÃ n hÃ¬nh táº£i. */
+  /* Hiển thị ngay màn hình đăng nhập, không giữ người dùng ở màn hình tải. */
   showView("login");
   loginForm.reset();
-  showMessage(loginMessage, "Äang káº¿t thÃºc phiÃªn ÄÄng nháº­p...", "info");
+  showMessage(loginMessage, "Đang kết thúc phiên đăng nhập...", "info");
   googleLoginButton.disabled = true;
   loginButton.disabled = true;
 
@@ -3670,16 +3670,16 @@ logoutButton.addEventListener("click", async () => {
     resetSessionState();
     showMessage(
       loginMessage,
-      "â ÄÃ£ ÄÄng xuáº¥t. Báº¡n cÃ³ thá» ÄÄng nháº­p báº±ng tÃ i khoáº£n khÃ¡c.",
+      "✅ Đã đăng xuất. Bạn có thể đăng nhập bằng tài khoản khác.",
       "success"
     );
     window.history.replaceState(null, "", "./");
   } catch (error) {
-    console.error("KhÃ´ng ÄÄng xuáº¥t ÄÆ°á»£c:", error);
+    console.error("Không đăng xuất được:", error);
     resetSessionState();
     showMessage(
       loginMessage,
-      "PhiÃªn trÃªn giao diá»n ÄÃ£ ÄÆ°á»£c ÄÃ³ng. HÃ£y kiá»m tra máº¡ng rá»i ÄÄng nháº­p tÃ i khoáº£n cáº§n sá»­ dá»¥ng.",
+      "Phiên trên giao diện đã được đóng. Hãy kiểm tra mạng rồi đăng nhập tài khoản cần sử dụng.",
       "warning"
     );
   } finally {
@@ -3717,7 +3717,7 @@ completedDate.addEventListener("input", updateCompletionTimingPreview);
 filterToggleButton.addEventListener("click", () => {
   const isOpen = filterFields.classList.toggle("open");
   filterToggleButton.setAttribute("aria-expanded", String(isOpen));
-  filterToggleButton.textContent = isOpen ? "â ÄÃ³ng lá»c" : "ð Bá» lá»c";
+  filterToggleButton.textContent = isOpen ? "✕ Đóng lọc" : "🔎 Bộ lọc";
 });
 
 searchInput.addEventListener("input", applyFilters);
