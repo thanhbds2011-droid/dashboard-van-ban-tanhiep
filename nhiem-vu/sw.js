@@ -1,4 +1,4 @@
-const APP_VERSION = "20260716.1500";
+const APP_VERSION = "20260716.1600";
 const CACHE_NAME = `nhiem-vu-shell-v${APP_VERSION}`;
 const APP_BASE_URL = new URL("./", self.location.href);
 
