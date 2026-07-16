@@ -15,12 +15,12 @@
   <meta name="apple-mobile-web-app-title" content="Đánh giá KPI">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
 
-  <link rel="manifest" href="./manifest.webmanifest?v=20260716.2000">
-  <link rel="icon" type="image/png" sizes="64x64" href="./icons/favicon-64.png?v=20260716.2000">
-  <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png?v=20260716.2000">
-  <link rel="stylesheet" href="./styles.css?v=20260716.2000">
+  <link rel="manifest" href="./manifest.webmanifest?v=20260716.2200">
+  <link rel="icon" type="image/png" sizes="64x64" href="./icons/favicon-64.png?v=20260716.2200">
+  <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png?v=20260716.2200">
+  <link rel="stylesheet" href="./styles.css?v=20260716.2200">
   <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
-  <script src="./onesignal.js?v=20260716.2000" defer></script>
+  <script src="./onesignal.js?v=20260716.2200" defer></script>
 </head>
 <body>
   <div id="offlineBanner" class="pwa-system-banner offline-banner hidden" role="status">
@@ -465,8 +465,55 @@
       </header>
       <div id="detailContent" class="detail-content"></div>
       <footer id="detailFooter" class="modal-footer detail-footer hidden">
+        <button id="assignTaskButton" class="secondary-button" type="button">👤 Phân công nội bộ</button>
         <button id="updateTaskButton" class="primary-button" type="button">✏️ Cập nhật / Kết thúc nhiệm vụ</button>
       </footer>
+    </section>
+  </div>
+
+
+
+  <!-- MODAL PHÂN CÔNG NỘI BỘ -->
+  <div id="assignmentModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="assignmentModalTitle">
+    <section class="progress-modal">
+      <header class="modal-header progress-modal-header">
+        <div>
+          <h2 id="assignmentModalTitle">👤 Phân công nội bộ</h2>
+          <p id="assignmentTaskCode">—</p>
+        </div>
+        <button id="closeAssignmentButton" class="modal-close" type="button" aria-label="Đóng">×</button>
+      </header>
+
+      <form id="assignmentForm" novalidate>
+        <div class="modal-body">
+          <div id="assignmentTaskSummary" class="progress-task-summary"></div>
+
+          <div class="form-grid progress-form-grid">
+            <div class="form-section-title form-span-2">
+              <span>1</span>
+              <div>
+                <strong>Chọn người phụ trách nội bộ</strong>
+                <small>Trưởng/Phó của Phòng/Khu tiếp nhận phân công người trực tiếp chịu trách nhiệm.</small>
+              </div>
+            </div>
+
+            <div class="field-block form-span-2">
+              <label for="internalOwnerUserId">Trưởng/Phó phụ trách thực hiện <span>*</span></label>
+              <select id="internalOwnerUserId" required>
+                <option value="">Chọn Trưởng/Phó phụ trách thực hiện</option>
+              </select>
+              <small id="assignmentHelp" class="field-help"></small>
+            </div>
+          </div>
+
+          <div id="assignmentMessage" class="message" role="status" aria-live="polite"></div>
+        </div>
+
+        <footer class="modal-footer">
+          <button id="cancelAssignmentButton" class="secondary-button" type="button">Hủy</button>
+          <button id="saveAssignmentButton" class="primary-button" type="submit">Xác nhận phân công</button>
+        </footer>
+      </form>
     </section>
   </div>
 
@@ -618,10 +665,10 @@
     </div>
   </div>
 
-  <script src="./pwa.js?v=20260716.2000" defer></script>
+  <script src="./pwa.js?v=20260716.2200" defer></script>
   <script
   type="module"
-  src="./app.js?v=20260716.2000"
+  src="./app.js?v=20260716.2200"
 ></script>
 </body>
 </html>
