@@ -886,12 +886,46 @@ async function loadTasks() {
        * vấn thứ ba cũng tránh một truy vấn bị từ chối làm hỏng toàn bộ
        * Promise.all().
        */
-      const results = await Promise.all([
-        getDocs(query(tasksRef, where("primaryDepartmentId", "==", departmentId))),
-        getDocs(query(tasksRef, where("visibleDepartmentIds", "array-contains", departmentId)))
-      ]);
+     /*
+ * Đọc nhiệm vụ thuộc Phòng/Khu chính.
+ * Đây là truy vấn bắt buộc.
+ */
+const primarySnapshot = await getDocsFromServer(
+  query(
+    tasksRef,
+    where(
+      "primaryDepartmentId",
+      "==",
+      departmentId
+    )
+  )
+);
 
-      results.forEach(addSnapshotToMap);
+addSnapshotToMap(primarySnapshot);
+
+/*
+ * Đọc thêm nhiệm vụ có liên quan.
+ * Truy vấn phụ lỗi không được làm mất nhiệm vụ phòng chính.
+ */
+try {
+  const visibleSnapshot = await getDocsFromServer(
+    query(
+      tasksRef,
+      where(
+        "visibleDepartmentIds",
+        "array-contains",
+        departmentId
+      )
+    )
+  );
+
+  addSnapshotToMap(visibleSnapshot);
+} catch (visibleError) {
+  console.warn(
+    "Chưa đọc được nhiệm vụ liên quan theo visibleDepartmentIds:",
+    visibleError
+  );
+}
     } else {
       throw new Error("Vai trò tài khoản chưa được cấp quyền xem nhiệm vụ.");
     }
