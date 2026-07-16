@@ -15,22 +15,38 @@
   <meta name="apple-mobile-web-app-title" content="Đánh giá KPI">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
 
-  <link rel="manifest" href="./manifest.webmanifest?v=20260716.2200">
-  <link rel="icon" type="image/png" sizes="64x64" href="./icons/favicon-64.png?v=20260716.2200">
-  <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png?v=20260716.2200">
-  <link rel="stylesheet" href="./styles.css?v=20260716.2200">
-  <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
-  <script src="./onesignal.js?v=20260716.2200" defer></script>
+  <link rel="manifest" href="./manifest.webmanifest?v=20260716.2300">
+  <link rel="icon" type="image/png" sizes="64x64" href="./icons/favicon-64.png?v=20260716.2300">
+  <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png?v=20260716.2300">
+  <link rel="stylesheet" href="./styles.css?v=20260716.2300">
+
+  <script
+    src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js"
+    defer
+  ></script>
+
+  <script
+    src="./onesignal.js?v=20260716.2300"
+    defer
+  ></script>
 </head>
+
 <body>
-  <div id="offlineBanner" class="pwa-system-banner offline-banner hidden" role="status">
-    <span>📡 Thiết bị đang ngoại tuyến. Dữ liệu Firebase sẽ được tải lại khi có Internet.</span>
+  <div
+    id="offlineBanner"
+    class="pwa-system-banner offline-banner hidden"
+    role="status"
+  >
+    <span>
+      📡 Thiết bị đang ngoại tuyến. Dữ liệu Firebase sẽ được tải lại khi có Internet.
+    </span>
   </div>
 
   <!-- MÀN HÌNH KHỞI TẠO -->
   <section id="loadingView" class="view loading-view">
     <div class="loading-card">
       <div class="loading-logo" aria-hidden="true">📋</div>
+
       <div>
         <h1>Nhiệm vụ và đánh giá KPI</h1>
         <p>Đang kiểm tra tài khoản và tải dữ liệu...</p>
@@ -43,6 +59,7 @@
     <div class="login-card">
       <div class="login-brand">
         <div class="login-logo" aria-hidden="true">📋</div>
+
         <div>
           <h1>Nhiệm vụ và đánh giá KPI</h1>
           <p>Trung tâm Bảo trợ xã hội Tân Hiệp</p>
@@ -50,15 +67,24 @@
       </div>
 
       <p class="login-description">
-        Đăng nhập bằng tài khoản Google đã được quản trị cấp quyền. Email và mật khẩu được giữ lại làm phương án dự phòng.
+        Đăng nhập bằng tài khoản Google đã được quản trị cấp quyền.
+        Email và mật khẩu được giữ lại làm phương án dự phòng.
       </p>
 
-      <button id="googleLoginButton" class="google-login-button" type="button">
+      <button
+        id="googleLoginButton"
+        class="google-login-button"
+        type="button"
+      >
         <span class="google-mark" aria-hidden="true">G</span>
         <span>Đăng nhập bằng Google</span>
       </button>
 
-      <button id="loginInstallButton" class="secondary-button full-width pwa-login-install hidden" type="button">
+      <button
+        id="loginInstallButton"
+        class="secondary-button full-width pwa-login-install hidden"
+        type="button"
+      >
         📲 Cài ứng dụng trên thiết bị
       </button>
 
@@ -69,6 +95,7 @@
       <form id="loginForm" novalidate>
         <div class="field-block">
           <label for="loginEmail">Email</label>
+
           <input
             id="loginEmail"
             type="email"
@@ -81,6 +108,7 @@
 
         <div class="field-block">
           <label for="loginPassword">Mật khẩu</label>
+
           <div class="password-field">
             <input
               id="loginPassword"
@@ -89,17 +117,37 @@
               placeholder="Nhập mật khẩu"
               required
             >
-            <button id="togglePasswordButton" class="icon-button" type="button" aria-label="Hiện mật khẩu">👁</button>
+
+            <button
+              id="togglePasswordButton"
+              class="icon-button"
+              type="button"
+              aria-label="Hiện mật khẩu"
+            >
+              👁
+            </button>
           </div>
         </div>
 
-        <button id="loginButton" class="primary-button full-width" type="submit">Đăng nhập</button>
+        <button
+          id="loginButton"
+          class="primary-button full-width"
+          type="submit"
+        >
+          Đăng nhập
+        </button>
       </form>
 
-      <div id="loginMessage" class="message" role="status" aria-live="polite"></div>
+      <div
+        id="loginMessage"
+        class="message"
+        role="status"
+        aria-live="polite"
+      ></div>
 
       <div class="security-note">
-        Chỉ tài khoản có trong danh sách được cấp quyền mới sử dụng được hệ thống. Không dùng chung một tài khoản cho nhiều người.
+        Chỉ tài khoản có trong danh sách được cấp quyền mới sử dụng được hệ thống.
+        Không dùng chung một tài khoản cho nhiều người.
       </div>
     </div>
   </section>
@@ -110,6 +158,7 @@
       <div class="topbar-inner">
         <div class="brand">
           <div class="brand-logo" aria-hidden="true">📋</div>
+
           <div class="brand-copy">
             <h1>Nhiệm vụ và đánh giá KPI</h1>
             <p>Trung tâm Bảo trợ xã hội Tân Hiệp</p>
@@ -117,16 +166,31 @@
         </div>
 
         <div class="top-actions">
-          <button id="installAppButton" class="top-button hidden" type="button" title="Cài ứng dụng">
+          <button
+            id="installAppButton"
+            class="top-button hidden"
+            type="button"
+            title="Cài ứng dụng"
+          >
             <span aria-hidden="true">📲</span>
             <span class="top-button-text">Cài ứng dụng</span>
           </button>
 
-          <button id="portalButton" class="top-button" type="button" title="Trở về Dashboard Văn bản">
+          <button
+            id="portalButton"
+            class="top-button"
+            type="button"
+            title="Trở về Dashboard Văn bản"
+          >
             <span aria-hidden="true">🏠</span>
             <span class="top-button-text">Dashboard Văn bản</span>
           </button>
-          <button id="logoutButton" class="top-button" type="button">
+
+          <button
+            id="logoutButton"
+            class="top-button"
+            type="button"
+          >
             <span aria-hidden="true">🚪</span>
             <span class="top-button-text">Đăng xuất</span>
           </button>
@@ -138,37 +202,64 @@
       <section class="welcome-card">
         <div>
           <h2 id="welcomeName">Xin chào</h2>
-          <p id="welcomeDepartment">Đang tải thông tin đơn vị...</p>
+          <p id="welcomeDepartment">
+            Đang tải thông tin đơn vị...
+          </p>
         </div>
-        <div id="roleBadge" class="role-badge">—<span>—</span></div>
+
+        <div id="roleBadge" class="role-badge">
+          —
+          <span>—</span>
+        </div>
       </section>
 
-      <section id="pushStatusBox" class="push-status-box hidden" role="status" aria-live="polite">
+      <section
+        id="pushStatusBox"
+        class="push-status-box hidden"
+        role="status"
+        aria-live="polite"
+      >
         <div>
-          <strong id="pushStatusTitle">Thông báo nhiệm vụ</strong>
-          <span id="pushStatusText">Đang kiểm tra trạng thái thông báo...</span>
+          <strong id="pushStatusTitle">
+            Thông báo nhiệm vụ
+          </strong>
+
+          <span id="pushStatusText">
+            Đang kiểm tra trạng thái thông báo...
+          </span>
         </div>
-        <button id="pushStatusAction" class="secondary-button hidden" type="button">
+
+        <button
+          id="pushStatusAction"
+          class="secondary-button hidden"
+          type="button"
+        >
           Bật thông báo
         </button>
       </section>
 
-      <section class="metrics-grid" aria-label="Thống kê nhiệm vụ">
+      <section
+        class="metrics-grid"
+        aria-label="Thống kê nhiệm vụ"
+      >
         <article class="metric-card metric-total">
           <span class="metric-icon" aria-hidden="true">📌</span>
           <strong id="metricTotal">0</strong>
           <span>Tổng nhiệm vụ</span>
         </article>
+
         <article class="metric-card metric-completed">
           <span class="metric-icon" aria-hidden="true">✅</span>
           <strong id="metricCompleted">0</strong>
           <span>Đã hoàn thành</span>
         </article>
+
         <article class="metric-card metric-processing">
           <span class="metric-icon" aria-hidden="true">🔄</span>
           <strong id="metricProcessing">0</strong>
           <span>Đang thực hiện</span>
         </article>
+
         <article class="metric-card metric-overdue">
           <span class="metric-icon" aria-hidden="true">⚠️</span>
           <strong id="metricOverdue">0</strong>
@@ -182,14 +273,23 @@
             <h2>Bộ lọc nhiệm vụ</h2>
             <p id="lastUpdated">Chưa tải dữ liệu</p>
           </div>
-          <button id="filterToggleButton" class="secondary-button mobile-only" type="button" aria-expanded="false">
+
+          <button
+            id="filterToggleButton"
+            class="secondary-button mobile-only"
+            type="button"
+            aria-expanded="false"
+          >
             🔎 Bộ lọc
           </button>
         </div>
 
         <div id="filterFields" class="filter-grid">
           <div class="filter-search">
-            <label class="sr-only" for="searchInput">Tìm kiếm</label>
+            <label class="sr-only" for="searchInput">
+              Tìm kiếm
+            </label>
+
             <input
               id="searchInput"
               type="search"
@@ -199,7 +299,10 @@
           </div>
 
           <div>
-            <label class="sr-only" for="statusFilter">Trạng thái</label>
+            <label class="sr-only" for="statusFilter">
+              Trạng thái
+            </label>
+
             <select id="statusFilter">
               <option value="ALL">Tất cả trạng thái</option>
               <option value="MOI_TIEP_NHAN">Mới ghi nhận</option>
@@ -212,7 +315,10 @@
           </div>
 
           <div>
-            <label class="sr-only" for="deadlineFilter">Thời hạn</label>
+            <label class="sr-only" for="deadlineFilter">
+              Thời hạn
+            </label>
+
             <select id="deadlineFilter">
               <option value="ALL">Tất cả thời hạn</option>
               <option value="OVERDUE">Quá hạn</option>
@@ -223,16 +329,44 @@
           </div>
 
           <div id="departmentFilterWrap" class="hidden">
-            <label class="sr-only" for="departmentFilter">Phòng/Khu xử lý chính</label>
+            <label
+              class="sr-only"
+              for="departmentFilter"
+            >
+              Phòng/Khu xử lý chính
+            </label>
+
             <select id="departmentFilter">
-              <option value="ALL">Tất cả Phòng/Khu</option>
+              <option value="ALL">
+                Tất cả Phòng/Khu
+              </option>
             </select>
           </div>
 
           <div class="filter-actions">
-            <button id="refreshButton" class="secondary-button" type="button">🔄 Làm mới</button>
-            <button id="exportReportButton" class="secondary-button export-button hidden" type="button">📊 Xuất báo cáo</button>
-            <button id="addTaskButton" class="primary-button hidden" type="button">➕ Ghi nhận nhiệm vụ</button>
+            <button
+              id="refreshButton"
+              class="secondary-button"
+              type="button"
+            >
+              🔄 Làm mới
+            </button>
+
+            <button
+              id="exportReportButton"
+              class="secondary-button export-button hidden"
+              type="button"
+            >
+              📊 Xuất báo cáo
+            </button>
+
+            <button
+              id="addTaskButton"
+              class="primary-button hidden"
+              type="button"
+            >
+              ➕ Ghi nhận nhiệm vụ
+            </button>
           </div>
         </div>
       </section>
@@ -241,12 +375,22 @@
         <div class="section-heading">
           <div>
             <h2>Danh sách nhiệm vụ</h2>
-            <p>Nhấn vào một nhiệm vụ để xem đầy đủ nội dung.</p>
+            <p>
+              Nhấn vào một nhiệm vụ để xem đầy đủ nội dung.
+            </p>
           </div>
-          <strong id="taskCount">0 nhiệm vụ</strong>
+
+          <strong id="taskCount">
+            0 nhiệm vụ
+          </strong>
         </div>
 
-        <div id="dashboardMessage" class="message" role="status" aria-live="polite"></div>
+        <div
+          id="dashboardMessage"
+          class="message"
+          role="status"
+          aria-live="polite"
+        ></div>
 
         <!-- BẢNG DESKTOP -->
         <div id="taskTableWrap" class="task-table-wrap">
@@ -261,53 +405,106 @@
                 <th>Trạng thái</th>
               </tr>
             </thead>
+
             <tbody id="taskTableBody"></tbody>
           </table>
         </div>
 
         <!-- THẺ MOBILE -->
-        <div id="taskCardList" class="task-card-list"></div>
+        <div
+          id="taskCardList"
+          class="task-card-list"
+        ></div>
 
-        <div id="emptyState" class="empty-state hidden">
+        <div
+          id="emptyState"
+          class="empty-state hidden"
+        >
           <div aria-hidden="true">📭</div>
           <h3>Chưa có nhiệm vụ</h3>
-          <p>Trưởng/Phó phòng bấm “Ghi nhận nhiệm vụ” để nhập nhiệm vụ đã được chỉ đạo.</p>
+
+          <p>
+            Trưởng/Phó phòng bấm “Ghi nhận nhiệm vụ”
+            để nhập nhiệm vụ đã được chỉ đạo.
+          </p>
         </div>
       </section>
     </main>
   </div>
 
   <!-- MODAL GHI NHẬN / GIAO TRỰC TIẾP NHIỆM VỤ -->
-  <div id="taskModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="taskModalTitle">
+  <div
+    id="taskModal"
+    class="modal-backdrop hidden"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="taskModalTitle"
+  >
     <section class="task-modal">
       <header class="modal-header">
         <div>
-          <h2 id="taskModalTitle">➕ Ghi nhận nhiệm vụ</h2>
-          <p id="taskModalSubtitle">Ghi nhận nhiệm vụ đã được Ban Giám đốc chỉ đạo tại cuộc họp, văn bản hoặc trực tiếp.</p>
+          <h2 id="taskModalTitle">
+            ➕ Ghi nhận nhiệm vụ
+          </h2>
+
+          <p id="taskModalSubtitle">
+            Ghi nhận nhiệm vụ đã được Ban Giám đốc chỉ đạo
+            tại cuộc họp, văn bản hoặc trực tiếp.
+          </p>
         </div>
-        <button id="closeModalButton" class="modal-close" type="button" aria-label="Đóng">×</button>
+
+        <button
+          id="closeModalButton"
+          class="modal-close"
+          type="button"
+          aria-label="Đóng"
+        >
+          ×
+        </button>
       </header>
 
-      <form id="taskForm" class="task-form" novalidate>
-        <input id="entryMode" type="hidden" value="SELF_RECORDED">
+      <form
+        id="taskForm"
+        class="task-form"
+        novalidate
+      >
+        <input
+          id="entryMode"
+          type="hidden"
+          value="SELF_RECORDED"
+        >
 
         <div class="modal-body">
-          <div id="entryModeBanner" class="entry-mode-banner entry-mode-self">
+          <div
+            id="entryModeBanner"
+            class="entry-mode-banner entry-mode-self"
+          >
             <strong>TỰ GHI NHẬN</strong>
-            <span>Người đang đăng nhập tự báo cáo nhiệm vụ mình đã được chỉ đạo.</span>
+
+            <span>
+              Người đang đăng nhập tự báo cáo nhiệm vụ
+              mình đã được chỉ đạo.
+            </span>
           </div>
 
           <div class="form-grid">
             <div class="form-section-title form-span-2">
               <span>1</span>
+
               <div>
                 <strong>Thông tin chỉ đạo</strong>
-                <small>Rõ nguồn chỉ đạo, người chỉ đạo và ngày được giao.</small>
+
+                <small>
+                  Rõ nguồn chỉ đạo, người chỉ đạo và ngày được giao.
+                </small>
               </div>
             </div>
 
             <div class="field-block">
-              <label for="sourceType">Nguồn nhiệm vụ <span>*</span></label>
+              <label for="sourceType">
+                Nguồn nhiệm vụ <span>*</span>
+              </label>
+
               <select id="sourceType" required>
                 <option value="">Chọn nguồn</option>
                 <option value="HOP_GIAO_BAN">Cuộc họp giao ban</option>
@@ -322,19 +519,34 @@
             </div>
 
             <div class="field-block">
-              <label for="assignedAt">Ngày được chỉ đạo <span>*</span></label>
-              <input id="assignedAt" type="date" required>
+              <label for="assignedAt">
+                Ngày được chỉ đạo <span>*</span>
+              </label>
+
+              <input
+                id="assignedAt"
+                type="date"
+                required
+              >
             </div>
 
             <div class="field-block">
-              <label for="assignedByUserId">Người giao/chỉ đạo <span>*</span></label>
+              <label for="assignedByUserId">
+                Người giao/chỉ đạo <span>*</span>
+              </label>
+
               <select id="assignedByUserId" required>
-                <option value="">Chọn người giao/chỉ đạo</option>
+                <option value="">
+                  Chọn người giao/chỉ đạo
+                </option>
               </select>
             </div>
 
             <div class="field-block">
-              <label for="sourceDetail">Căn cứ hoặc nội dung liên quan <span>*</span></label>
+              <label for="sourceDetail">
+                Căn cứ hoặc nội dung liên quan <span>*</span>
+              </label>
+
               <input
                 id="sourceDetail"
                 type="text"
@@ -346,19 +558,36 @@
 
             <div class="form-section-title form-span-2">
               <span>2</span>
+
               <div>
                 <strong>Nội dung và trách nhiệm</strong>
-                <small>Rõ người chịu trách nhiệm, nhiệm vụ và người có liên quan.</small>
+
+                <small>
+                  Rõ Phòng/Khu chịu trách nhiệm, nhiệm vụ
+                  và đơn vị phối hợp.
+                </small>
               </div>
             </div>
 
             <div class="field-block form-span-2">
-              <label for="taskTitle">Tên nhiệm vụ <span>*</span></label>
-              <input id="taskTitle" type="text" maxlength="250" placeholder="Nhập tên nhiệm vụ ngắn gọn, rõ việc" required>
+              <label for="taskTitle">
+                Tên nhiệm vụ <span>*</span>
+              </label>
+
+              <input
+                id="taskTitle"
+                type="text"
+                maxlength="250"
+                placeholder="Nhập tên nhiệm vụ ngắn gọn, rõ việc"
+                required
+              >
             </div>
 
             <div class="field-block form-span-2">
-              <label for="taskDescription">Nội dung thực hiện <span>*</span></label>
+              <label for="taskDescription">
+                Nội dung thực hiện <span>*</span>
+              </label>
+
               <textarea
                 id="taskDescription"
                 rows="4"
@@ -369,21 +598,45 @@
             </div>
 
             <div class="field-block form-span-2">
-              <label for="primaryDepartmentId">Phòng/Khu chịu trách nhiệm chính <span>*</span></label>
-              <select id="primaryDepartmentId" required></select>
-              <small id="primaryHelp" class="field-help"></small>
+              <label for="primaryDepartmentId">
+                Phòng/Khu chịu trách nhiệm chính <span>*</span>
+              </label>
 
-              <!-- Giữ trường ẩn để tương thích app.js và dữ liệu cũ. -->
-              <input id="ownerUserId" type="hidden" value="">
-              <small id="ownerHelp" class="field-help">
-                Nhiệm vụ được chuyển đến Phòng/Khu; Trưởng/Phó sẽ phân công nội bộ ở bước tiếp theo.
+              <select
+                id="primaryDepartmentId"
+                required
+              ></select>
+
+              <small
+                id="primaryHelp"
+                class="field-help"
+              ></small>
+
+              <!-- Giữ trường ẩn để tương thích app.js và dữ liệu cũ -->
+              <input
+                id="ownerUserId"
+                type="hidden"
+                value=""
+              >
+
+              <small
+                id="ownerHelp"
+                class="field-help"
+              >
+                Nhiệm vụ được chuyển đến Phòng/Khu;
+                Trưởng/Phó sẽ phân công nội bộ ở bước tiếp theo.
               </small>
             </div>
 
             <div class="field-block form-span-2">
-              <label>Phòng/Khu phối hợp</label>
+              <label>
+                Phòng/Khu phối hợp
+              </label>
 
-              <div id="supportDropdown" class="multi-select">
+              <div
+                id="supportDropdown"
+                class="multi-select"
+              >
                 <button
                   id="supportDropdownButton"
                   class="multi-select-button"
@@ -391,11 +644,17 @@
                   aria-haspopup="listbox"
                   aria-expanded="false"
                 >
-                  <span id="supportSummary">Chọn Phòng/Khu phối hợp</span>
+                  <span id="supportSummary">
+                    Chọn Phòng/Khu phối hợp
+                  </span>
+
                   <span aria-hidden="true">▾</span>
                 </button>
 
-                <div id="supportDropdownPanel" class="multi-select-panel hidden">
+                <div
+                  id="supportDropdownPanel"
+                  class="multi-select-panel hidden"
+                >
                   <div class="multi-select-search">
                     <input
                       id="supportSearchInput"
@@ -404,6 +663,7 @@
                       autocomplete="off"
                     >
                   </div>
+
                   <div
                     id="supportOptions"
                     class="multi-select-options"
@@ -413,14 +673,24 @@
                 </div>
               </div>
 
-              <div id="supportSelectedChips" class="selected-chips"></div>
+              <div
+                id="supportSelectedChips"
+                class="selected-chips"
+              ></div>
+
               <small class="field-help">
-                Khi chọn một Phòng/Khu phối hợp, toàn bộ tài khoản Trưởng/Phó đang hoạt động của Phòng/Khu đó sẽ nhìn thấy nhiệm vụ và nhận thông báo.
+                Khi chọn một Phòng/Khu phối hợp,
+                toàn bộ tài khoản Trưởng/Phó đang hoạt động
+                của Phòng/Khu đó sẽ nhìn thấy nhiệm vụ
+                và nhận thông báo.
               </small>
             </div>
 
             <div class="field-block">
-              <label for="priority">Mức độ ưu tiên <span>*</span></label>
+              <label for="priority">
+                Mức độ ưu tiên <span>*</span>
+              </label>
+
               <select id="priority" required>
                 <option value="THUONG">Thường</option>
                 <option value="QUAN_TRONG">Quan trọng</option>
@@ -429,173 +699,420 @@
             </div>
 
             <div class="field-block">
-              <label for="deadline">Hạn hoàn thành <span>*</span></label>
-              <input id="deadline" type="date" required>
+              <label for="deadline">
+                Hạn hoàn thành <span>*</span>
+              </label>
+
+              <input
+                id="deadline"
+                type="date"
+                required
+              >
             </div>
 
             <div class="task-form-note form-span-2">
               <span aria-hidden="true">ℹ️</span>
+
               <div>
-                <strong>Sản phẩm và minh chứng được bổ sung khi kết thúc nhiệm vụ.</strong>
-                <small>Người chịu trách nhiệm cập nhật kết quả và minh chứng bằng đường dẫn Google Drive hoặc nội dung nhập tay tại bước “Cập nhật/Kết thúc”.</small>
+                <strong>
+                  Sản phẩm và minh chứng được bổ sung
+                  khi kết thúc nhiệm vụ.
+                </strong>
+
+                <small>
+                  Người chịu trách nhiệm cập nhật kết quả
+                  và minh chứng tại bước “Cập nhật/Kết thúc”.
+                </small>
               </div>
             </div>
           </div>
 
-          <div id="taskMessage" class="message" role="status" aria-live="polite"></div>
+          <div
+            id="taskMessage"
+            class="message"
+            role="status"
+            aria-live="polite"
+          ></div>
         </div>
 
         <footer class="modal-footer">
-          <button id="cancelTaskButton" class="secondary-button" type="button">Hủy</button>
-          <button id="saveTaskButton" class="primary-button" type="submit">Lưu ghi nhận</button>
+          <button
+            id="cancelTaskButton"
+            class="secondary-button"
+            type="button"
+          >
+            Hủy
+          </button>
+
+          <button
+            id="saveTaskButton"
+            class="primary-button"
+            type="submit"
+          >
+            Lưu ghi nhận
+          </button>
         </footer>
       </form>
     </section>
   </div>
 
   <!-- MODAL XEM CHI TIẾT -->
-  <div id="detailModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="detailModalTitle">
+  <div
+    id="detailModal"
+    class="modal-backdrop hidden"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="detailModalTitle"
+  >
     <section class="detail-modal">
       <header class="modal-header">
         <div>
-          <h2 id="detailModalTitle">Chi tiết nhiệm vụ</h2>
+          <h2 id="detailModalTitle">
+            Chi tiết nhiệm vụ
+          </h2>
+
           <p id="detailTaskCode">—</p>
         </div>
-        <button id="closeDetailButton" class="modal-close" type="button" aria-label="Đóng">×</button>
+
+        <button
+          id="closeDetailButton"
+          class="modal-close"
+          type="button"
+          aria-label="Đóng"
+        >
+          ×
+        </button>
       </header>
-      <div id="detailContent" class="detail-content"></div>
-      <footer id="detailFooter" class="modal-footer detail-footer hidden">
-        <button id="assignTaskButton" class="secondary-button" type="button">👤 Phân công nội bộ</button>
-        <button id="updateTaskButton" class="primary-button" type="button">✏️ Cập nhật / Kết thúc nhiệm vụ</button>
+
+      <div
+        id="detailContent"
+        class="detail-content"
+      ></div>
+
+      <footer
+        id="detailFooter"
+        class="modal-footer detail-footer hidden"
+      >
+        <button
+          id="assignTaskButton"
+          class="secondary-button"
+          type="button"
+        >
+          👤 Phân công nội bộ
+        </button>
+
+        <button
+          id="updateTaskButton"
+          class="primary-button"
+          type="button"
+        >
+          ✏️ Cập nhật / Kết thúc nhiệm vụ
+        </button>
       </footer>
     </section>
   </div>
 
-
-
   <!-- MODAL PHÂN CÔNG NỘI BỘ -->
-  <div id="assignmentModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="assignmentModalTitle">
+  <div
+    id="assignmentModal"
+    class="modal-backdrop hidden"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="assignmentModalTitle"
+  >
     <section class="progress-modal">
       <header class="modal-header progress-modal-header">
         <div>
-          <h2 id="assignmentModalTitle">👤 Phân công nội bộ</h2>
+          <h2 id="assignmentModalTitle">
+            👤 Phân công nội bộ
+          </h2>
+
           <p id="assignmentTaskCode">—</p>
         </div>
-        <button id="closeAssignmentButton" class="modal-close" type="button" aria-label="Đóng">×</button>
+
+        <button
+          id="closeAssignmentButton"
+          class="modal-close"
+          type="button"
+          aria-label="Đóng"
+        >
+          ×
+        </button>
       </header>
 
       <form id="assignmentForm" novalidate>
         <div class="modal-body">
-          <div id="assignmentTaskSummary" class="progress-task-summary"></div>
+          <div
+            id="assignmentTaskSummary"
+            class="progress-task-summary"
+          ></div>
 
           <div class="form-grid progress-form-grid">
             <div class="form-section-title form-span-2">
               <span>1</span>
+
               <div>
-                <strong>Chọn người phụ trách nội bộ</strong>
-                <small>Trưởng/Phó của Phòng/Khu tiếp nhận phân công người trực tiếp chịu trách nhiệm.</small>
+                <strong>
+                  Chọn người phụ trách nội bộ
+                </strong>
+
+                <small>
+                  Trưởng/Phó của Phòng/Khu tiếp nhận
+                  phân công người trực tiếp chịu trách nhiệm.
+                </small>
               </div>
             </div>
 
             <div class="field-block form-span-2">
-              <label for="internalOwnerUserId">Trưởng/Phó phụ trách thực hiện <span>*</span></label>
-              <select id="internalOwnerUserId" required>
-                <option value="">Chọn Trưởng/Phó phụ trách thực hiện</option>
+              <label for="internalOwnerUserId">
+                Trưởng/Phó phụ trách thực hiện <span>*</span>
+              </label>
+
+              <select
+                id="internalOwnerUserId"
+                required
+              >
+                <option value="">
+                  Chọn Trưởng/Phó phụ trách thực hiện
+                </option>
               </select>
-              <small id="assignmentHelp" class="field-help"></small>
+
+              <small
+                id="assignmentHelp"
+                class="field-help"
+              ></small>
             </div>
           </div>
 
-          <div id="assignmentMessage" class="message" role="status" aria-live="polite"></div>
+          <div
+            id="assignmentMessage"
+            class="message"
+            role="status"
+            aria-live="polite"
+          ></div>
         </div>
 
         <footer class="modal-footer">
-          <button id="cancelAssignmentButton" class="secondary-button" type="button">Hủy</button>
-          <button id="saveAssignmentButton" class="primary-button" type="submit">Xác nhận phân công</button>
+          <button
+            id="cancelAssignmentButton"
+            class="secondary-button"
+            type="button"
+          >
+            Hủy
+          </button>
+
+          <button
+            id="saveAssignmentButton"
+            class="primary-button"
+            type="submit"
+          >
+            Xác nhận phân công
+          </button>
         </footer>
       </form>
     </section>
   </div>
 
   <!-- MODAL CẬP NHẬT / KẾT THÚC NHIỆM VỤ -->
-  <div id="progressModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="progressModalTitle">
+  <div
+    id="progressModal"
+    class="modal-backdrop hidden"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="progressModalTitle"
+  >
     <section class="progress-modal">
       <header class="modal-header progress-modal-header">
         <div>
-          <h2 id="progressModalTitle">✏️ Cập nhật nhiệm vụ</h2>
+          <h2 id="progressModalTitle">
+            ✏️ Cập nhật nhiệm vụ
+          </h2>
+
           <p id="progressTaskCode">—</p>
         </div>
-        <button id="closeProgressButton" class="modal-close" type="button" aria-label="Đóng">×</button>
+
+        <button
+          id="closeProgressButton"
+          class="modal-close"
+          type="button"
+          aria-label="Đóng"
+        >
+          ×
+        </button>
       </header>
 
       <form id="progressForm" novalidate>
         <div class="modal-body">
-          <div id="progressTaskSummary" class="progress-task-summary"></div>
+          <div
+            id="progressTaskSummary"
+            class="progress-task-summary"
+          ></div>
 
           <div class="form-grid progress-form-grid">
             <div class="form-section-title form-span-2">
               <span>1</span>
+
               <div>
-                <strong>Tình trạng thực hiện</strong>
-                <small>Cập nhật đúng trạng thái và mức độ hoàn thành tại thời điểm báo cáo.</small>
+                <strong>
+                  Tình trạng thực hiện
+                </strong>
+
+                <small>
+                  Cập nhật đúng trạng thái và mức độ hoàn thành
+                  tại thời điểm báo cáo.
+                </small>
               </div>
             </div>
 
             <div class="field-block">
-              <label for="progressStatus">Trạng thái <span>*</span></label>
+              <label for="progressStatus">
+                Trạng thái <span>*</span>
+              </label>
+
               <select id="progressStatus" required>
-                <option value="DANG_THUC_HIEN">Đang thực hiện</option>
-                <option value="CHO_PHOI_HOP">Chờ phối hợp</option>
-                <option value="HOAN_THANH">Hoàn thành / Kết thúc</option>
-                <option value="TAM_DUNG">Tạm dừng</option>
+                <option value="DANG_THUC_HIEN">
+                  Đang thực hiện
+                </option>
+
+                <option value="CHO_PHOI_HOP">
+                  Chờ phối hợp
+                </option>
+
+                <option value="HOAN_THANH">
+                  Hoàn thành / Kết thúc
+                </option>
+
+                <option value="TAM_DUNG">
+                  Tạm dừng
+                </option>
               </select>
             </div>
 
             <div class="field-block">
-              <label for="progressPercent">Tiến độ (%) <span>*</span></label>
-              <input id="progressPercent" type="number" min="0" max="100" step="5" value="0" required>
+              <label for="progressPercent">
+                Tiến độ (%) <span>*</span>
+              </label>
+
+              <input
+                id="progressPercent"
+                type="number"
+                min="0"
+                max="100"
+                step="5"
+                value="0"
+                required
+              >
             </div>
 
-            <div id="completionSection" class="completion-section form-span-2 hidden">
+            <div
+              id="completionSection"
+              class="completion-section form-span-2 hidden"
+            >
               <div class="form-section-title">
                 <span>2</span>
+
                 <div>
-                  <strong>Kết quả và minh chứng</strong>
-                  <small>Chỉ hiển thị khi chọn “Hoàn thành / Kết thúc”.</small>
+                  <strong>
+                    Kết quả và minh chứng
+                  </strong>
+
+                  <small>
+                    Chỉ hiển thị khi chọn
+                    “Hoàn thành / Kết thúc”.
+                  </small>
                 </div>
               </div>
 
               <div class="completion-grid">
                 <div class="field-block">
-                  <label for="completedDate">Ngày hoàn thành thực tế <span>*</span></label>
-                  <input id="completedDate" type="date">
-                  <small id="completionTimingPreview" class="field-help completion-preview"></small>
+                  <label for="completedDate">
+                    Ngày hoàn thành thực tế <span>*</span>
+                  </label>
+
+                  <input
+                    id="completedDate"
+                    type="date"
+                  >
+
+                  <small
+                    id="completionTimingPreview"
+                    class="field-help completion-preview"
+                  ></small>
                 </div>
 
                 <div class="field-block">
-                  <label for="completionProductType">Loại minh chứng <span>*</span></label>
+                  <label for="completionProductType">
+                    Loại minh chứng <span>*</span>
+                  </label>
+
                   <select id="completionProductType">
-                    <option value="">Chọn loại minh chứng</option>
-                    <option value="NONE">Không có minh chứng</option>
-                    <option value="FILE">Tải tệp/hình ảnh lên</option>
-                    <option value="OTHER">Minh chứng khác</option>
+                    <option value="">
+                      Chọn loại minh chứng
+                    </option>
+
+                    <option value="NONE">
+                      Không có minh chứng
+                    </option>
+
+                    <option value="FILE">
+                      Tải tệp/hình ảnh lên
+                    </option>
+
+                    <option value="OTHER">
+                      Minh chứng khác
+                    </option>
                   </select>
-                  <small class="field-help">Chọn loại minh chứng để hệ thống hiển thị đúng nội dung cần nhập.</small>
+
+                  <small class="field-help">
+                    Chọn loại minh chứng để hệ thống
+                    hiển thị đúng nội dung cần nhập.
+                  </small>
                 </div>
 
-                <div id="resultSummaryWrap" class="field-block form-span-2 hidden">
-                  <label for="resultSummary">Kết quả thực hiện <span>*</span></label>
-                  <textarea id="resultSummary" rows="4" maxlength="4000" placeholder="Ví dụ: Đã hoàn thành công việc theo yêu cầu, tổng hợp kết quả và báo cáo đúng thời hạn."></textarea>
+                <div
+                  id="resultSummaryWrap"
+                  class="field-block form-span-2 hidden"
+                >
+                  <label for="resultSummary">
+                    Kết quả thực hiện <span>*</span>
+                  </label>
+
+                  <textarea
+                    id="resultSummary"
+                    rows="4"
+                    maxlength="4000"
+                    placeholder="Ví dụ: Đã hoàn thành công việc theo yêu cầu, tổng hợp kết quả và báo cáo đúng thời hạn."
+                  ></textarea>
                 </div>
 
-                <div id="evidenceFileWrap" class="field-block form-span-2 hidden">
-                  <label for="evidenceFileInput">Tệp hoặc hình ảnh minh chứng <span>*</span></label>
+                <div
+                  id="evidenceFileWrap"
+                  class="field-block form-span-2 hidden"
+                >
+                  <label for="evidenceFileInput">
+                    Tệp hoặc hình ảnh minh chứng <span>*</span>
+                  </label>
 
-                  <label class="evidence-upload-box" for="evidenceFileInput">
-                    <span class="evidence-upload-icon" aria-hidden="true">⬆</span>
+                  <label
+                    class="evidence-upload-box"
+                    for="evidenceFileInput"
+                  >
+                    <span
+                      class="evidence-upload-icon"
+                      aria-hidden="true"
+                    >
+                      ⬆
+                    </span>
+
                     <span>
-                      <strong>Chọn tệp từ thiết bị</strong>
-                      <small>Hỗ trợ PDF, hình ảnh, Word, Excel, PowerPoint hoặc TXT; tối đa 8 MB.</small>
+                      <strong>
+                        Chọn tệp từ thiết bị
+                      </strong>
+
+                      <small>
+                        Hỗ trợ PDF, hình ảnh, Word, Excel,
+                        PowerPoint hoặc TXT; tối đa 8 MB.
+                      </small>
                     </span>
                   </label>
 
@@ -606,7 +1123,12 @@
                     accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
                   >
 
-                  <div id="evidenceFileName" class="evidence-file-name">Chưa chọn tệp</div>
+                  <div
+                    id="evidenceFileName"
+                    class="evidence-file-name"
+                  >
+                    Chưa chọn tệp
+                  </div>
 
                   <a
                     id="existingEvidenceLink"
@@ -619,56 +1141,124 @@
                   </a>
 
                   <small class="field-help">
-                    Tệp được tải tự động lên thư mục Google Drive của hệ thống; không cần tự tải lên rồi dán đường dẫn.
+                    Tệp được tải tự động lên thư mục Google Drive
+                    của hệ thống; không cần tự tải lên rồi dán đường dẫn.
                   </small>
                 </div>
               </div>
             </div>
           </div>
 
-          <div id="progressMessage" class="message" role="status" aria-live="polite"></div>
+          <div
+            id="progressMessage"
+            class="message"
+            role="status"
+            aria-live="polite"
+          ></div>
         </div>
 
         <footer class="modal-footer">
-          <button id="cancelProgressButton" class="secondary-button" type="button">Hủy</button>
-          <button id="saveProgressButton" class="primary-button" type="submit">Lưu cập nhật</button>
+          <button
+            id="cancelProgressButton"
+            class="secondary-button"
+            type="button"
+          >
+            Hủy
+          </button>
+
+          <button
+            id="saveProgressButton"
+            class="primary-button"
+            type="submit"
+          >
+            Lưu cập nhật
+          </button>
         </footer>
       </form>
     </section>
   </div>
 
   <!-- HƯỚNG DẪN CÀI ỨNG DỤNG -->
-  <div id="installHelpModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="installHelpTitle">
+  <div
+    id="installHelpModal"
+    class="modal-backdrop hidden"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="installHelpTitle"
+  >
     <section class="install-help-modal">
       <header class="modal-header">
         <div>
-          <h2 id="installHelpTitle">Cài ứng dụng</h2>
-          <p>Mở hệ thống từ màn hình chính mà không hiển thị thanh địa chỉ.</p>
+          <h2 id="installHelpTitle">
+            Cài ứng dụng
+          </h2>
+
+          <p>
+            Mở hệ thống từ màn hình chính
+            mà không hiển thị thanh địa chỉ.
+          </p>
         </div>
-        <button id="closeInstallHelpButton" class="modal-close" type="button" aria-label="Đóng">×</button>
+
+        <button
+          id="closeInstallHelpButton"
+          class="modal-close"
+          type="button"
+          aria-label="Đóng"
+        >
+          ×
+        </button>
       </header>
 
-      <div id="installHelpContent" class="install-help-content"></div>
+      <div
+        id="installHelpContent"
+        class="install-help-content"
+      ></div>
     </section>
   </div>
 
   <!-- THÔNG BÁO CÓ PHIÊN BẢN MỚI -->
-  <div id="updateBanner" class="pwa-update-banner hidden" role="status">
+  <div
+    id="updateBanner"
+    class="pwa-update-banner hidden"
+    role="status"
+  >
     <div>
-      <strong>Có phiên bản mới của ứng dụng</strong>
-      <span>Cập nhật để sử dụng giao diện và chức năng mới nhất.</span>
+      <strong>
+        Có phiên bản mới của ứng dụng
+      </strong>
+
+      <span>
+        Cập nhật để sử dụng giao diện và chức năng mới nhất.
+      </span>
     </div>
 
     <div class="pwa-update-actions">
-      <button id="dismissUpdateButton" class="secondary-button" type="button">Để sau</button>
-      <button id="updateNowButton" class="primary-button" type="button">Cập nhật</button>
+      <button
+        id="dismissUpdateButton"
+        class="secondary-button"
+        type="button"
+      >
+        Để sau
+      </button>
+
+      <button
+        id="updateNowButton"
+        class="primary-button"
+        type="button"
+      >
+        Cập nhật
+      </button>
     </div>
   </div>
 
-  <script src="./pwa.js?v=20260716.2200" defer></script>
   <script
-  type="module"
-  src="./app.js?v=20260716.2200"
-></script>
+    src="./pwa.js?v=20260716.2300"
+    defer
+  ></script>
+
+  <script
+    type="module"
+    src="./app.js?v=20260716.2300"
+  ></script>
 </body>
 </html>
