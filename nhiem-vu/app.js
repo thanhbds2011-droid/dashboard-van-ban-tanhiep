@@ -1,11 +1,11 @@
 import {
   auth,
   db
-} from "./firebase-config.js?v=20260717.1500";
+} from "./firebase-config.js?v=20260717.1800";
 
 import {
   NOTIFICATION_WEB_APP_URL
-} from "./notification-config.js?v=20260717.1500";
+} from "./notification-config.js?v=20260717.1800";
 
 import {
   GoogleAuthProvider,
@@ -2760,7 +2760,8 @@ window.addEventListener(
 
 async function sendNotificationEvent(
   action,
-  taskId
+  taskId,
+  eventData = {}
 ) {
   if (
     !NOTIFICATION_WEB_APP_URL
@@ -2786,12 +2787,19 @@ async function sendNotificationEvent(
     const idToken =
       await state.user.getIdToken();
 
+    const normalizedEventData =
+      eventData
+      && typeof eventData === "object"
+      && !Array.isArray(eventData)
+        ? eventData
+        : {};
+
     /*
      * Dùng text/plain và no-cors để gửi từ GitHub Pages
      * tới Google Apps Script mà không phát sinh lỗi CORS.
      *
-     * Phía Apps Script vẫn xác minh Firebase ID Token
-     * trước khi gửi thông báo OneSignal.
+     * Phía Apps Script vẫn xác minh Firebase ID Token,
+     * người vừa thao tác và dữ liệu nhiệm vụ trước khi gửi.
      */
     await fetch(
       NOTIFICATION_WEB_APP_URL,
@@ -2808,6 +2816,7 @@ async function sendNotificationEvent(
           action,
           taskId,
           idToken,
+          eventData: normalizedEventData,
           eventId: [
             action,
             taskId,
@@ -2824,7 +2833,7 @@ async function sendNotificationEvent(
 
   } catch (error) {
     console.warn(
-      "Chưa gửi được yêu cầu thông báo:",
+      "Không gọi được dịch vụ gửi thông báo:",
       error
     );
 
@@ -3409,7 +3418,14 @@ async function saveTaskSupportDepartments(event) {
       performedAt: serverTimestamp()
     });
 
-    await sendNotificationEvent("TASK_SUPPORT_UPDATED", task.id);
+    await sendNotificationEvent(
+      "TASK_SUPPORT_UPDATED",
+      task.id,
+      {
+        addedDepartmentIds: addedIds,
+        removedDepartmentIds: removedIds
+      }
+    );
 
     showMessage(
       supportEditMessage,
