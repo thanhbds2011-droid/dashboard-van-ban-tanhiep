@@ -1,4 +1,4 @@
-const APP_VERSION = "20260716.2300";
+const APP_VERSION = "20260717.1200";
 const CACHE_NAME = `nhiem-vu-shell-v${APP_VERSION}`;
 const APP_BASE_URL = new URL("./", self.location.href);
 
@@ -34,7 +34,7 @@ async function cacheAppShell() {
       );
 
       if (!response.ok) {
-        throw new Error(`KhÃ´ng táº£i ÄÆ°á»£c tÃ i nguyÃªn PWA: ${relativePath}`);
+        throw new Error(`Không tải được tài nguyên PWA: ${relativePath}`);
       }
 
       await cache.put(absoluteUrl, response);
