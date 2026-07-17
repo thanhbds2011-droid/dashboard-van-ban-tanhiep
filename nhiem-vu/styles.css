@@ -2379,6 +2379,56 @@ textarea:focus {
   width: min(650px, calc(100vw - 28px));
 }
 
+/*
+ * Modal xóa chỉ có tiêu đề và mô tả nhiệm vụ, không có cột hạn hoàn thành.
+ * Ép phần tóm tắt về một cột để nội dung dài luôn xuống dòng,
+ * đặc biệt tại vùng màn hình 721–760px.
+ */
+.delete-task-modal,
+.delete-task-modal form,
+.delete-task-modal .modal-body,
+.delete-task-modal .progress-task-summary,
+.delete-task-modal .modal-header > div {
+  min-width: 0;
+}
+
+.delete-task-modal .modal-body {
+  overflow-x: hidden;
+}
+
+.delete-task-modal .progress-task-summary {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+}
+
+.delete-task-modal .progress-task-summary h3,
+.delete-task-modal .progress-task-summary p {
+  width: 100%;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.delete-task-modal .progress-task-summary h3 {
+  line-height: 1.4;
+}
+
+.delete-task-modal .progress-task-summary p {
+  margin-top: 6px;
+}
+
+.delete-task-modal .modal-header > div {
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.delete-task-modal #deleteTaskCode {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .danger-header {
   background: linear-gradient(135deg, #b52f2f, #d64c4c);
 }
