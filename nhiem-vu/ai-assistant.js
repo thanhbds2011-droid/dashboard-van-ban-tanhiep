@@ -2,14 +2,14 @@ import { auth } from "./firebase-config.js?v=20260717.2200";
 import { NOTIFICATION_WEB_APP_URL } from "./notification-config.js?v=20260717.2200";
 
 /* =========================================================
- * TRỢ LÝ AI GỢI Ý NỘI DUNG THEO TINH THẦN 6 RÕ
+ * AI MODULE V2 — TRỢ LÝ GỢI Ý NỘI DUNG THEO TINH THẦN 6 RÕ
  *
- * Đây là mô-đun độc lập, được nạp cuối cùng.
- * Muốn gỡ AI: xóa 2 dòng nạp ai-assistant.css/js trong index.html
- * và xóa nhánh AI_SUGGEST_TASK cùng khối AI ở cuối Code.gs.
+ * Mô-đun độc lập, được nạp cuối cùng.
+ * Muốn gỡ AI: xóa dòng nạp ai-assistant.css/js trong index.html
+ * và xóa nhánh AI_SUGGEST_TASK cùng khối AI MODULE V2 trong Code.gs.
  * ========================================================= */
 
-const AI_REQUEST_TIMEOUT_MS = 45000;
+const AI_REQUEST_TIMEOUT_MS = 120000;
 const AI_SOURCE = "TASK_AI_SUGGESTION";
 
 const elements = {
@@ -24,7 +24,7 @@ const elements = {
   resultSummary: document.getElementById("resultSummary")
 };
 
-let pendingRequest = null;
+let pendingRequestId = "";
 let currentSuggestion = null;
 
 function clean(value, maxLength = 3000) {
@@ -75,7 +75,7 @@ function buildTaskAssistant() {
         </button>
       </div>
 
-      <div id="taskAiMessage" class="task-ai-message hidden" role="status"></div>
+      <div id="taskAiMessage" class="task-ai-message hidden" role="status" aria-live="polite"></div>
 
       <div id="taskAiResult" class="task-ai-result hidden">
         <div class="task-ai-result-heading">
@@ -120,20 +120,16 @@ function buildTaskAssistant() {
     fieldBlock.insertAdjacentElement("afterend", panel);
   }
 
-  document
-    .getElementById("taskAiSuggestButton")
+  document.getElementById("taskAiSuggestButton")
     ?.addEventListener("click", requestTaskSuggestion);
 
-  document
-    .getElementById("taskAiRegenerateButton")
+  document.getElementById("taskAiRegenerateButton")
     ?.addEventListener("click", requestTaskSuggestion);
 
-  document
-    .getElementById("taskAiApplyContentButton")
+  document.getElementById("taskAiApplyContentButton")
     ?.addEventListener("click", () => applyTaskSuggestion(false));
 
-  document
-    .getElementById("taskAiApplyAllButton")
+  document.getElementById("taskAiApplyAllButton")
     ?.addEventListener("click", () => applyTaskSuggestion(true));
 }
 
@@ -153,7 +149,7 @@ function buildResultAssistant() {
           Gợi ý kết quả
         </button>
       </div>
-      <div id="resultAiMessage" class="task-ai-message hidden" role="status"></div>
+      <div id="resultAiMessage" class="task-ai-message hidden" role="status" aria-live="polite"></div>
     </section>
   `);
 
@@ -162,8 +158,7 @@ function buildResultAssistant() {
     fieldBlock.appendChild(panel);
   }
 
-  document
-    .getElementById("resultAiSuggestButton")
+  document.getElementById("resultAiSuggestButton")
     ?.addEventListener("click", requestResultSuggestion);
 }
 
@@ -230,43 +225,64 @@ function collectResultContext() {
 
 function validateTaskContext(context) {
   if (!context.title && !context.description) {
-    throw new Error("Hãy nhập tên nhiệm vụ hoặc nội dung thực hiện trước khi yêu cầu AI gợi ý.");
+    throw new Error(
+      "Hãy nhập tên nhiệm vụ hoặc nội dung thực hiện trước khi yêu cầu AI gợi ý."
+    );
   }
 }
 
-function submitAiRequest(context) {
-  if (!NOTIFICATION_WEB_APP_URL || NOTIFICATION_WEB_APP_URL.includes("DAN_LINK_WEB_APP")) {
-    return Promise.reject(new Error("Chưa cấu hình đường dẫn Google Apps Script."));
+async function submitAiRequest(context) {
+  if (
+    !NOTIFICATION_WEB_APP_URL ||
+    NOTIFICATION_WEB_APP_URL.includes("DAN_LINK_WEB_APP")
+  ) {
+    throw new Error("Chưa cấu hình đường dẫn Google Apps Script.");
   }
 
   if (!auth.currentUser) {
-    return Promise.reject(new Error("Phiên đăng nhập đã hết hạn. Hãy đăng nhập lại."));
+    throw new Error("Phiên đăng nhập đã hết hạn. Hãy đăng nhập lại.");
   }
 
-  if (pendingRequest) {
-    return Promise.reject(new Error("AI đang xử lý một yêu cầu khác. Vui lòng chờ."));
+  if (pendingRequestId) {
+    throw new Error("AI đang xử lý một yêu cầu khác. Vui lòng chờ.");
   }
 
   const requestId = [
-    "AI",
+    "AI_V2",
     Date.now(),
     Math.random().toString(36).slice(2, 10)
   ].join("_");
 
-  return new Promise(async (resolve, reject) => {
-    let timeoutId = null;
-    let iframe = null;
-    let form = null;
+  pendingRequestId = requestId;
 
-    const cleanup = () => {
-      window.removeEventListener("message", onMessage);
-      clearTimeout(timeoutId);
-      iframe?.remove();
-      form?.remove();
-      pendingRequest = null;
+  let timeoutId = null;
+  let iframe = null;
+  let form = null;
+
+  const cleanup = () => {
+    window.removeEventListener("message", onMessage);
+    if (timeoutId) {
+      window.clearTimeout(timeoutId);
+    }
+    iframe?.remove();
+    form?.remove();
+    pendingRequestId = "";
+  };
+
+  const resultPromise = new Promise((resolve, reject) => {
+    const onTimeout = () => {
+      cleanup();
+      reject(
+        new Error(
+          "AI phản hồi quá lâu. Vui lòng kiểm tra kết nối hoặc thử lại sau."
+        )
+      );
     };
 
-    const onMessage = (event) => {
+    window.addEventListener("message", onMessage);
+    timeoutId = window.setTimeout(onTimeout, AI_REQUEST_TIMEOUT_MS);
+
+    function onMessage(event) {
       const data = event.data;
 
       if (
@@ -284,50 +300,44 @@ function submitAiRequest(context) {
       } else {
         reject(new Error(data.error || "AI không trả được gợi ý."));
       }
-    };
-
-    try {
-      const idToken = await auth.currentUser.getIdToken();
-
-      iframe = document.createElement("iframe");
-      iframe.name = `aiFrame_${requestId}`;
-      iframe.className = "task-ai-hidden-frame";
-      iframe.setAttribute("aria-hidden", "true");
-
-      form = document.createElement("form");
-      form.method = "POST";
-      form.action = NOTIFICATION_WEB_APP_URL;
-      form.target = iframe.name;
-      form.className = "hidden";
-
-      const payloadInput = document.createElement("input");
-      payloadInput.type = "hidden";
-      payloadInput.name = "payload";
-      payloadInput.value = JSON.stringify({
-        action: "AI_SUGGEST_TASK",
-        requestId,
-        idToken,
-        context
-      });
-
-      form.appendChild(payloadInput);
-      document.body.appendChild(iframe);
-      document.body.appendChild(form);
-
-      pendingRequest = requestId;
-      window.addEventListener("message", onMessage);
-
-      timeoutId = window.setTimeout(() => {
-        cleanup();
-        reject(new Error("AI phản hồi quá lâu. Vui lòng thử lại sau."));
-      }, AI_REQUEST_TIMEOUT_MS);
-
-      form.submit();
-    } catch (error) {
-      cleanup();
-      reject(error);
     }
   });
+
+  try {
+    const idToken = await auth.currentUser.getIdToken(true);
+
+    iframe = document.createElement("iframe");
+    iframe.name = `aiFrame_${requestId}`;
+    iframe.className = "task-ai-hidden-frame";
+    iframe.setAttribute("aria-hidden", "true");
+    iframe.setAttribute("tabindex", "-1");
+
+    form = document.createElement("form");
+    form.method = "POST";
+    form.action = NOTIFICATION_WEB_APP_URL;
+    form.target = iframe.name;
+    form.className = "hidden";
+
+    const payloadInput = document.createElement("input");
+    payloadInput.type = "hidden";
+    payloadInput.name = "payload";
+    payloadInput.value = JSON.stringify({
+      action: "AI_SUGGEST_TASK",
+      requestId,
+      idToken,
+      context
+    });
+
+    form.appendChild(payloadInput);
+    document.body.appendChild(iframe);
+    document.body.appendChild(form);
+    form.submit();
+  } catch (error) {
+    cleanup();
+    throw error;
+  }
+
+  return resultPromise;
 }
 
 async function requestTaskSuggestion() {
@@ -339,7 +349,11 @@ async function requestTaskSuggestion() {
 
     setButtonBusy("taskAiSuggestButton", true, "Đang gợi ý...", "Gợi ý nội dung");
     setButtonBusy("taskAiRegenerateButton", true, "Đang tạo lại...", "Tạo lại");
-    showMessage("taskAiMessage", "AI đang phân tích nội dung theo tinh thần 6 rõ...", "info");
+    showMessage(
+      "taskAiMessage",
+      "AI đang phân tích nội dung theo tinh thần 6 rõ...",
+      "info"
+    );
 
     const response = await submitAiRequest(context);
     currentSuggestion = response.suggestion || null;
@@ -349,9 +363,19 @@ async function requestTaskSuggestion() {
     }
 
     renderTaskSuggestion(currentSuggestion);
-    showMessage("taskAiMessage", "Đã tạo gợi ý. Hãy kiểm tra trước khi áp dụng.", "success");
+    showMessage(
+      "taskAiMessage",
+      response.cached
+        ? "Đã sử dụng gợi ý gần nhất. Hãy kiểm tra trước khi áp dụng."
+        : "Đã tạo gợi ý. Hãy kiểm tra trước khi áp dụng.",
+      "success"
+    );
   } catch (error) {
-    showMessage("taskAiMessage", error.message || "Không tạo được gợi ý AI.", "error");
+    showMessage(
+      "taskAiMessage",
+      error?.message || "Không tạo được gợi ý AI.",
+      "error"
+    );
   } finally {
     setButtonBusy("taskAiSuggestButton", false, "Đang gợi ý...", "Gợi ý nội dung");
     setButtonBusy("taskAiRegenerateButton", false, "Đang tạo lại...", "Tạo lại");
@@ -369,10 +393,17 @@ async function requestResultSuggestion() {
     }
 
     setButtonBusy("resultAiSuggestButton", true, "Đang gợi ý...", "Gợi ý kết quả");
-    showMessage("resultAiMessage", "AI đang chuẩn hóa kết quả thực hiện...", "info");
+    showMessage(
+      "resultAiMessage",
+      "AI đang chuẩn hóa kết quả thực hiện...",
+      "info"
+    );
 
     const response = await submitAiRequest(context);
-    const suggestedContent = clean(response.suggestion?.suggestedContent, 3000);
+    const suggestedContent = clean(
+      response.suggestion?.suggestedContent,
+      3000
+    );
 
     if (!suggestedContent) {
       throw new Error("AI không trả về nội dung kết quả phù hợp.");
@@ -380,9 +411,17 @@ async function requestResultSuggestion() {
 
     elements.resultSummary.value = suggestedContent;
     elements.resultSummary.dispatchEvent(new Event("input", { bubbles: true }));
-    showMessage("resultAiMessage", "Đã điền gợi ý. Hãy kiểm tra và chỉnh lại trước khi lưu.", "success");
+    showMessage(
+      "resultAiMessage",
+      "Đã điền gợi ý. Hãy kiểm tra và chỉnh lại trước khi lưu.",
+      "success"
+    );
   } catch (error) {
-    showMessage("resultAiMessage", error.message || "Không tạo được gợi ý kết quả.", "error");
+    showMessage(
+      "resultAiMessage",
+      error?.message || "Không tạo được gợi ý kết quả.",
+      "error"
+    );
   } finally {
     setButtonBusy("resultAiSuggestButton", false, "Đang gợi ý...", "Gợi ý kết quả");
   }
@@ -400,11 +439,15 @@ function renderTaskSuggestion(suggestion) {
     return;
   }
 
-  title.textContent = clean(suggestion.suggestedTitle, 250) || "Giữ nguyên tiêu đề hiện tại";
+  title.textContent =
+    clean(suggestion.suggestedTitle, 250) || "Giữ nguyên tiêu đề hiện tại";
   content.textContent = clean(suggestion.suggestedContent, 3000);
 
   const missing = Array.isArray(suggestion.missingItems)
-    ? suggestion.missingItems.map((item) => clean(item, 250)).filter(Boolean).slice(0, 3)
+    ? suggestion.missingItems
+        .map((item) => clean(item, 250))
+        .filter(Boolean)
+        .slice(0, 3)
     : [];
 
   missingItems.innerHTML = missing
@@ -471,7 +514,9 @@ function initializeAiAssistant() {
 }
 
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", initializeAiAssistant, { once: true });
+  document.addEventListener("DOMContentLoaded", initializeAiAssistant, {
+    once: true
+  });
 } else {
   initializeAiAssistant();
 }
