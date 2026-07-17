@@ -1,11 +1,11 @@
 import {
   auth,
   db
-} from "./firebase-config.js?v=20260717.1300";
+} from "./firebase-config.js?v=20260717.1400";
 
 import {
   NOTIFICATION_WEB_APP_URL
-} from "./notification-config.js?v=20260717.1300";
+} from "./notification-config.js?v=20260717.1400";
 
 import {
   GoogleAuthProvider,
@@ -48,7 +48,8 @@ const state = {
   deletingTask: false,
   initializedUid: null,
   selectedSupportIds: new Set(),
-  selectedTaskId: null
+  selectedTaskId: null,
+  taskView: "ACTIVE"
 };
 
 const googleProvider = new GoogleAuthProvider();
@@ -100,6 +101,14 @@ const taskTableWrap = $("taskTableWrap");
 const taskTableBody = $("taskTableBody");
 const taskCardList = $("taskCardList");
 const emptyState = $("emptyState");
+const activeTasksTab = $("activeTasksTab");
+const archiveTasksTab = $("archiveTasksTab");
+const activeTaskCount = $("activeTaskCount");
+const archiveTaskCount = $("archiveTaskCount");
+const taskListTitle = $("taskListTitle");
+const taskListSubtitle = $("taskListSubtitle");
+const emptyStateTitle = $("emptyStateTitle");
+const emptyStateText = $("emptyStateText");
 
 const taskModal = $("taskModal");
 const closeModalButton = $("closeModalButton");
@@ -290,6 +299,7 @@ function resetSessionState() {
   state.initializedUid = null;
   state.selectedTaskId = null;
   state.selectedSupportIds = new Set();
+  state.taskView = "ACTIVE";
 
   /* Đóng giao diện theo cách an toàn khi phiên đã kết thúc. */
   taskModal?.classList.add("hidden");
@@ -1011,15 +1021,33 @@ async function loadTasks() {
  * TÀI KHOẢN VÀ BỘ LỌC
  * ========================================================= */
 
+function accountPositionTitle() {
+  const position = cleanText(state.profile?.position);
+
+  if (position) {
+    return position;
+  }
+
+  if (state.profile?.role === "ADMIN") {
+    return "Quản trị hệ thống";
+  }
+
+  if (state.profile?.role === "DIRECTOR") {
+    return "Ban Giám đốc";
+  }
+
+  return roleName(state.profile?.role);
+}
+
 function renderAccount() {
   welcomeName.textContent = `Xin chào, ${state.profile.fullName}`;
   welcomeDepartment.textContent = [
-    departmentName(state.profile.departmentId),
-    state.profile.position
+    accountPositionTitle(),
+    departmentName(state.profile.departmentId)
   ].filter(Boolean).join(" • ");
 
   roleBadge.innerHTML = `
-    ${escapeHtml(roleName(state.profile.role))}
+    ${escapeHtml(accountPositionTitle())}
     <span>${escapeHtml(state.profile.email || state.user.email || "")}</span>
   `;
 
@@ -1045,8 +1073,8 @@ function renderAccount() {
 
   if (isTchcCoordinationAccount()) {
     welcomeDepartment.textContent = [
+      accountPositionTitle(),
       departmentName(state.profile.departmentId),
-      state.profile.position,
       "Đầu mối theo dõi, tổng hợp nhiệm vụ toàn Trung tâm"
     ].filter(Boolean).join(" • ");
   }
@@ -1091,6 +1119,10 @@ function renderMetrics() {
   metricCompleted.textContent = String(completed);
   metricProcessing.textContent = String(processing);
   metricOverdue.textContent = String(overdue);
+
+  const activeCount = state.tasks.filter((task) => task.status !== "HOAN_THANH").length;
+  activeTaskCount.textContent = String(activeCount);
+  archiveTaskCount.textContent = String(completed);
 }
 
 function applyFilters() {
@@ -1100,6 +1132,10 @@ function applyFilters() {
   const selectedDepartment = departmentFilter.value || "ALL";
 
   const filteredTasks = state.tasks.filter((task) => {
+    const matchesView = state.taskView === "ARCHIVE"
+      ? task.status === "HOAN_THANH"
+      : task.status !== "HOAN_THANH";
+
     const searchableContent = normalizeText([
       task.taskCode,
       task.title,
@@ -1129,7 +1165,7 @@ function applyFilters() {
       task.primaryDepartmentId === selectedDepartment
     );
 
-    return matchesKeyword && matchesStatus && matchesDeadline && matchesDepartment;
+    return matchesView && matchesKeyword && matchesStatus && matchesDeadline && matchesDepartment;
   });
 
   state.filteredTasks = filteredTasks;
@@ -1694,7 +1730,26 @@ function exportTaskReport() {
  * ========================================================= */
 
 function renderTasks(tasks) {
+  const isArchive = state.taskView === "ARCHIVE";
+
   taskCount.textContent = `${tasks.length} nhiệm vụ`;
+  taskListTitle.textContent = isArchive
+    ? "Lưu trữ nhiệm vụ hoàn thành"
+    : "Danh sách nhiệm vụ";
+  taskListSubtitle.textContent = isArchive
+    ? "Các nhiệm vụ đã hoàn thành được lưu riêng để tra cứu và báo cáo."
+    : "Danh sách các nhiệm vụ đang được giao, theo dõi hoặc chờ xử lý.";
+  emptyStateTitle.textContent = isArchive
+    ? "Chưa có nhiệm vụ hoàn thành"
+    : "Chưa có nhiệm vụ đang xử lý";
+  emptyStateText.textContent = isArchive
+    ? "Nhiệm vụ sẽ tự động chuyển vào đây sau khi được cập nhật hoàn thành."
+    : "Những nhiệm vụ mới được giao hoặc đang thực hiện sẽ hiển thị tại đây.";
+
+  activeTasksTab.classList.toggle("active", !isArchive);
+  archiveTasksTab.classList.toggle("active", isArchive);
+  activeTasksTab.setAttribute("aria-selected", String(!isArchive));
+  archiveTasksTab.setAttribute("aria-selected", String(isArchive));
 
   const isEmpty = tasks.length === 0;
   emptyState.classList.toggle("hidden", !isEmpty);
@@ -4132,6 +4187,20 @@ searchInput.addEventListener("input", applyFilters);
 statusFilter.addEventListener("change", applyFilters);
 deadlineFilter.addEventListener("change", applyFilters);
 departmentFilter.addEventListener("change", applyFilters);
+
+activeTasksTab.addEventListener("click", () => {
+  state.taskView = "ACTIVE";
+  statusFilter.value = "ALL";
+  deadlineFilter.value = "ALL";
+  applyFilters();
+});
+
+archiveTasksTab.addEventListener("click", () => {
+  state.taskView = "ARCHIVE";
+  statusFilter.value = "ALL";
+  deadlineFilter.value = "ALL";
+  applyFilters();
+});
 
 primaryDepartmentId.addEventListener("change", () => {
   fillOwnerOptions();
