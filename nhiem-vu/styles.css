@@ -376,7 +376,7 @@ textarea:focus {
 }
 
 .topbar-inner {
-  width: min(100% - 32px, 1220px);
+  width: min(100% - 32px, 1260px);
   min-height: 76px;
   margin: 0 auto;
   display: flex;
@@ -580,7 +580,7 @@ textarea:focus {
 
 .filter-grid {
   display: grid;
-  grid-template-columns: minmax(270px, 1.6fr) minmax(170px, .8fr) minmax(170px, .8fr) minmax(180px, .9fr) auto;
+  grid-template-columns: minmax(220px, 1.35fr) minmax(145px, .72fr) minmax(145px, .72fr) minmax(150px, .76fr) minmax(360px, 1.25fr);
   gap: 10px;
   align-items: center;
 }
@@ -591,17 +591,17 @@ textarea:focus {
 
 .filter-actions {
   display: grid;
-  grid-template-columns: repeat(3, minmax(132px, 1fr));
-  gap: 10px;
-  min-width: 430px;
+  grid-template-columns: repeat(3, minmax(112px, 1fr));
+  gap: 8px;
+  min-width: 0;
   justify-content: stretch;
 }
 
 .filter-actions button {
   width: 100%;
   min-width: 0;
-  min-height: 52px;
-  padding: 10px 14px;
+  min-height: 50px;
+  padding: 9px 10px;
   justify-content: center;
   white-space: nowrap;
   line-height: 1.2;
@@ -629,6 +629,57 @@ textarea:focus {
 .evidence-open-link:hover {
   background: #e3f1fa;
   border-color: var(--primary);
+}
+
+
+.task-view-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 5px;
+  border: 1px solid #d5e3ee;
+  border-radius: 14px;
+  background: #f3f7fa;
+}
+
+.task-view-tab {
+  min-height: 48px;
+  padding: 9px 14px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  background: transparent;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.task-view-tab strong {
+  min-width: 31px;
+  height: 31px;
+  padding: 0 8px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #dfeaf2;
+  color: var(--primary-dark);
+}
+
+.task-view-tab.active {
+  border-color: #b8d4e7;
+  background: #ffffff;
+  color: var(--primary-dark);
+  box-shadow: 0 4px 12px rgba(17, 73, 111, 0.08);
+}
+
+.task-view-tab.active strong {
+  background: var(--primary);
+  color: #ffffff;
 }
 
 .tasks-section {
@@ -2350,5 +2401,31 @@ textarea:focus {
 
   .detail-footer #supportTaskButton {
     order: 3;
+  }
+}
+
+
+@media (min-width: 1051px) {
+  .filter-actions button {
+    font-size: 13.5px;
+    letter-spacing: -0.1px;
+  }
+
+  .filter-actions #addTaskButton {
+    min-width: 145px;
+  }
+}
+
+@media (max-width: 760px) {
+  .task-view-tabs {
+    grid-template-columns: 1fr;
+    gap: 7px;
+    padding: 4px;
+  }
+
+  .task-view-tab {
+    min-height: 46px;
+    padding: 8px 11px;
+    font-size: 13px;
   }
 }
