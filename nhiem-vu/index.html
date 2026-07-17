@@ -15,10 +15,10 @@
   <meta name="apple-mobile-web-app-title" content="Đánh giá KPI">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
 
-  <link rel="manifest" href="./manifest.webmanifest?v=20260716.2300">
-  <link rel="icon" type="image/png" sizes="64x64" href="./icons/favicon-64.png?v=20260716.2300">
-  <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png?v=20260716.2300">
-  <link rel="stylesheet" href="./styles.css?v=20260716.2300">
+  <link rel="manifest" href="./manifest.webmanifest?v=20260717.1200">
+  <link rel="icon" type="image/png" sizes="64x64" href="./icons/favicon-64.png?v=20260717.1200">
+  <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png?v=20260717.1200">
+  <link rel="stylesheet" href="./styles.css?v=20260717.1200">
 
   <script
     src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js"
@@ -26,7 +26,7 @@
   ></script>
 
   <script
-    src="./onesignal.js?v=20260716.2300"
+    src="./onesignal.js?v=20260717.1200"
     defer
   ></script>
 </head>
@@ -802,11 +802,27 @@
         </button>
 
         <button
+          id="supportTaskButton"
+          class="secondary-button"
+          type="button"
+        >
+          🏢 Cập nhật phối hợp
+        </button>
+
+        <button
           id="updateTaskButton"
           class="primary-button"
           type="button"
         >
           ✏️ Cập nhật / Kết thúc nhiệm vụ
+        </button>
+
+        <button
+          id="deleteTaskButton"
+          class="danger-button"
+          type="button"
+        >
+          🗑️ Xóa nhiệm vụ
         </button>
       </footer>
     </section>
@@ -907,6 +923,167 @@
             type="submit"
           >
             Xác nhận phân công
+          </button>
+        </footer>
+      </form>
+    </section>
+  </div>
+
+
+  <!-- MODAL CẬP NHẬT PHÒNG/KHU PHỐI HỢP -->
+  <div
+    id="supportEditModal"
+    class="modal-backdrop hidden"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="supportEditModalTitle"
+  >
+    <section class="progress-modal operation-modal">
+      <header class="modal-header progress-modal-header">
+        <div>
+          <h2 id="supportEditModalTitle">
+            🏢 Cập nhật Phòng/Khu phối hợp
+          </h2>
+          <p id="supportEditTaskCode">—</p>
+        </div>
+
+        <button
+          id="closeSupportEditButton"
+          class="modal-close"
+          type="button"
+          aria-label="Đóng"
+        >
+          ×
+        </button>
+      </header>
+
+      <form id="supportEditForm" novalidate>
+        <div class="modal-body">
+          <div
+            id="supportEditSummary"
+            class="progress-task-summary"
+          ></div>
+
+          <div class="form-section-title">
+            <span>1</span>
+            <div>
+              <strong>Chọn Phòng/Khu cần phối hợp</strong>
+              <small>
+                Có thể bổ sung hoặc bỏ đơn vị phối hợp trong quá trình thực hiện nhiệm vụ.
+              </small>
+            </div>
+          </div>
+
+          <div
+            id="supportEditOptions"
+            class="support-edit-options"
+          ></div>
+
+          <div
+            id="supportEditMessage"
+            class="message"
+            role="status"
+            aria-live="polite"
+          ></div>
+        </div>
+
+        <footer class="modal-footer">
+          <button
+            id="cancelSupportEditButton"
+            class="secondary-button"
+            type="button"
+          >
+            Hủy
+          </button>
+
+          <button
+            id="saveSupportEditButton"
+            class="primary-button"
+            type="submit"
+          >
+            Lưu Phòng/Khu phối hợp
+          </button>
+        </footer>
+      </form>
+    </section>
+  </div>
+
+  <!-- MODAL XÓA NHIỆM VỤ -->
+  <div
+    id="deleteTaskModal"
+    class="modal-backdrop hidden"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="deleteTaskModalTitle"
+  >
+    <section class="progress-modal operation-modal delete-task-modal">
+      <header class="modal-header progress-modal-header danger-header">
+        <div>
+          <h2 id="deleteTaskModalTitle">
+            🗑️ Xóa nhiệm vụ
+          </h2>
+          <p id="deleteTaskCode">—</p>
+        </div>
+
+        <button
+          id="closeDeleteTaskButton"
+          class="modal-close"
+          type="button"
+          aria-label="Đóng"
+        >
+          ×
+        </button>
+      </header>
+
+      <form id="deleteTaskForm" novalidate>
+        <div class="modal-body">
+          <div
+            id="deleteTaskSummary"
+            class="progress-task-summary"
+          ></div>
+
+          <div class="delete-warning">
+            <strong>Lưu ý:</strong>
+            Nhiệm vụ sẽ được ẩn khỏi danh sách theo dõi nhưng vẫn lưu nhật ký phục vụ kiểm tra.
+          </div>
+
+          <div class="field-block">
+            <label for="deleteReason">
+              Lý do xóa <span>*</span>
+            </label>
+
+            <textarea
+              id="deleteReason"
+              rows="4"
+              maxlength="500"
+              placeholder="Ví dụ: Nhập sai nội dung nhiệm vụ, tạo trùng nhiệm vụ..."
+              required
+            ></textarea>
+          </div>
+
+          <div
+            id="deleteTaskMessage"
+            class="message"
+            role="status"
+            aria-live="polite"
+          ></div>
+        </div>
+
+        <footer class="modal-footer">
+          <button
+            id="cancelDeleteTaskButton"
+            class="secondary-button"
+            type="button"
+          >
+            Hủy
+          </button>
+
+          <button
+            id="confirmDeleteTaskButton"
+            class="danger-button"
+            type="submit"
+          >
+            Xác nhận xóa
           </button>
         </footer>
       </form>
@@ -1252,13 +1429,13 @@
   </div>
 
   <script
-    src="./pwa.js?v=20260716.2300"
+    src="./pwa.js?v=20260717.1200"
     defer
   ></script>
 
   <script
     type="module"
-    src="./app.js?v=20260716.2300"
+    src="./app.js?v=20260717.1200"
   ></script>
 </body>
 </html>
