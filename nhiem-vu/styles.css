@@ -580,31 +580,56 @@ textarea:focus {
 
 .filter-grid {
   display: grid;
-  grid-template-columns: minmax(220px, 1.35fr) minmax(145px, .72fr) minmax(145px, .72fr) minmax(150px, .76fr) minmax(360px, 1.25fr);
+  grid-template-columns:
+    minmax(250px, 1.45fr)
+    minmax(150px, .72fr)
+    minmax(150px, .72fr)
+    minmax(420px, 1.45fr);
   gap: 10px;
-  align-items: center;
+  align-items: stretch;
+}
+
+.filter-grid.has-department-filter {
+  grid-template-columns:
+    minmax(220px, 1.2fr)
+    minmax(135px, .64fr)
+    minmax(135px, .64fr)
+    minmax(145px, .68fr)
+    minmax(420px, 1.4fr);
+}
+
+.filter-grid > div {
+  min-width: 0;
 }
 
 .filter-search {
   min-width: 0;
 }
 
+.filter-grid input,
+.filter-grid select {
+  width: 100%;
+  min-width: 0;
+}
+
 .filter-actions {
   display: grid;
-  grid-template-columns: repeat(3, minmax(112px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   min-width: 0;
-  justify-content: stretch;
+  align-items: stretch;
 }
 
 .filter-actions button {
   width: 100%;
   min-width: 0;
   min-height: 50px;
-  padding: 9px 10px;
+  padding: 9px 8px;
   justify-content: center;
   white-space: nowrap;
-  line-height: 1.2;
+  line-height: 1.15;
+  font-size: clamp(12px, .78vw, 13.5px);
+  letter-spacing: -0.15px;
 }
 
 .evidence-type-help {
@@ -1240,8 +1265,9 @@ textarea:focus {
 }
 
 /* ===== RESPONSIVE ===== */
-@media (max-width: 1050px) {
-  .filter-grid {
+@media (max-width: 1180px) {
+  .filter-grid,
+  .filter-grid.has-department-filter {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -1253,6 +1279,10 @@ textarea:focus {
     grid-column: 1 / -1;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     min-width: 0;
+  }
+
+  .filter-actions button {
+    font-size: 13.5px;
   }
 }
 
@@ -2405,14 +2435,21 @@ textarea:focus {
 }
 
 
-@media (min-width: 1051px) {
+@media (min-width: 1181px) {
   .filter-actions button {
-    font-size: 13.5px;
-    letter-spacing: -0.1px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+
+@media (max-width: 460px) {
+  .filter-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .filter-actions #addTaskButton {
-    min-width: 145px;
+    grid-column: 1 / -1;
   }
 }
 
