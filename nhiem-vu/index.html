@@ -18,7 +18,7 @@
   <link rel="manifest" href="./manifest.webmanifest?v=20260717.1500">
   <link rel="icon" type="image/png" sizes="64x64" href="./icons/favicon-64.png?v=20260717.1500">
   <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png?v=20260717.1500">
-  <link rel="stylesheet" href="./styles.css?v=20260717.1500">
+  <link rel="stylesheet" href="./styles.css?v=20260717.1600">
 
   <script
     src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js"
@@ -346,10 +346,12 @@
           <div class="filter-actions">
             <button
               id="refreshButton"
-              class="secondary-button"
+              class="secondary-button refresh-icon-button"
               type="button"
+              aria-label="Làm mới dữ liệu"
+              title="Làm mới dữ liệu"
             >
-              🔄 Làm mới
+              <span class="refresh-icon" aria-hidden="true">↻</span>
             </button>
 
             <button
@@ -365,7 +367,7 @@
               class="primary-button hidden"
               type="button"
             >
-              ➕ Ghi nhận nhiệm vụ
+              ➕ Ghi nhận
             </button>
           </div>
         </div>
@@ -1458,7 +1460,7 @@
 
   <script
     type="module"
-    src="./app.js?v=20260717.1500"
+    src="./app.js?v=20260717.1600"
   ></script>
 </body>
 </html>
