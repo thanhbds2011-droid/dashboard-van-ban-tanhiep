@@ -15,10 +15,10 @@
   <meta name="apple-mobile-web-app-title" content="Đánh giá KPI">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
 
-  <link rel="manifest" href="./manifest.webmanifest?v=20260717.1300">
-  <link rel="icon" type="image/png" sizes="64x64" href="./icons/favicon-64.png?v=20260717.1300">
-  <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png?v=20260717.1300">
-  <link rel="stylesheet" href="./styles.css?v=20260717.1300">
+  <link rel="manifest" href="./manifest.webmanifest?v=20260717.1400">
+  <link rel="icon" type="image/png" sizes="64x64" href="./icons/favicon-64.png?v=20260717.1400">
+  <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png?v=20260717.1400">
+  <link rel="stylesheet" href="./styles.css?v=20260717.1400">
 
   <script
     src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js"
@@ -26,7 +26,7 @@
   ></script>
 
   <script
-    src="./onesignal.js?v=20260717.1300"
+    src="./onesignal.js?v=20260717.1400"
     defer
   ></script>
 </head>
@@ -372,11 +372,35 @@
       </section>
 
       <section class="tasks-section">
+        <div class="task-view-tabs" role="tablist" aria-label="Phân loại nhiệm vụ">
+          <button
+            id="activeTasksTab"
+            class="task-view-tab active"
+            type="button"
+            role="tab"
+            aria-selected="true"
+          >
+            <span>📋 Công việc đang xử lý</span>
+            <strong id="activeTaskCount">0</strong>
+          </button>
+
+          <button
+            id="archiveTasksTab"
+            class="task-view-tab"
+            type="button"
+            role="tab"
+            aria-selected="false"
+          >
+            <span>🗄️ Lưu trữ hoàn thành</span>
+            <strong id="archiveTaskCount">0</strong>
+          </button>
+        </div>
+
         <div class="section-heading">
           <div>
-            <h2>Danh sách nhiệm vụ</h2>
-            <p>
-              Nhấn vào một nhiệm vụ để xem đầy đủ nội dung.
+            <h2 id="taskListTitle">Danh sách nhiệm vụ</h2>
+            <p id="taskListSubtitle">
+              Danh sách các nhiệm vụ đang được giao, theo dõi hoặc chờ xử lý.
             </p>
           </div>
 
@@ -421,11 +445,10 @@
           class="empty-state hidden"
         >
           <div aria-hidden="true">📭</div>
-          <h3>Chưa có nhiệm vụ</h3>
+          <h3 id="emptyStateTitle">Chưa có nhiệm vụ đang xử lý</h3>
 
-          <p>
-            Trưởng/Phó phòng bấm “Ghi nhận nhiệm vụ”
-            để nhập nhiệm vụ đã được chỉ đạo.
+          <p id="emptyStateText">
+            Những nhiệm vụ mới được giao hoặc đang thực hiện sẽ hiển thị tại đây.
           </p>
         </div>
       </section>
@@ -1428,13 +1451,13 @@
   </div>
 
   <script
-    src="./pwa.js?v=20260717.1300"
+    src="./pwa.js?v=20260717.1400"
     defer
   ></script>
 
   <script
     type="module"
-    src="./app.js?v=20260717.1300"
+    src="./app.js?v=20260717.1400"
   ></script>
 </body>
 </html>
