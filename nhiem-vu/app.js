@@ -1,11 +1,11 @@
 import {
   auth,
   db
-} from "./firebase-config.js?v=20260717.1200";
+} from "./firebase-config.js?v=20260717.1300";
 
 import {
   NOTIFICATION_WEB_APP_URL
-} from "./notification-config.js?v=20260717.1200";
+} from "./notification-config.js?v=20260717.1300";
 
 import {
   GoogleAuthProvider,
@@ -1868,28 +1868,43 @@ function canDeleteTask(task) {
 }
 
 function resultEvidenceHtml(task) {
-  const evidenceType = task.evidenceType || task.outputType || "";
+  const evidenceType = task.evidenceType || task.outputType || "NONE";
   const evidenceUrl = task.evidenceUrl || task.evidenceLink || "";
   const evidenceText = task.evidenceText || task.outputDescription || "";
   const fileName = task.evidenceFileName || "Mở tệp minh chứng";
 
-  let evidenceContent = evidenceType === "NONE"
-    ? "Không có minh chứng"
-    : "Chưa ghi nhận";
+  const isFileEvidence = ["FILE", "LINK", "PDF", "IMAGE"].includes(evidenceType);
+  const isOtherEvidence = ["OTHER", "TEXT"].includes(evidenceType);
 
-  if (evidenceUrl && isValidHttpUrl(evidenceUrl)) {
-    evidenceContent = `
-      <a href="${escapeHtml(evidenceUrl)}" target="_blank" rel="noopener noreferrer">
-        ${escapeHtml(fileName)}
-      </a>
+  let optionalContent = "";
+
+  if (isOtherEvidence) {
+    optionalContent = `
+      <div class="result-card-item result-span-2">
+        <span>Kết quả thực hiện</span>
+        <strong>${escapeHtml(task.resultSummary || task.result || evidenceText || "Chưa ghi nhận")}</strong>
+      </div>
     `;
-  } else if (evidenceText) {
-    evidenceContent = escapeHtml(evidenceText);
+  } else if (isFileEvidence) {
+    const evidenceContent = evidenceUrl && isValidHttpUrl(evidenceUrl)
+      ? `
+        <a class="evidence-open-link" href="${escapeHtml(evidenceUrl)}" target="_blank" rel="noopener noreferrer">
+          📎 ${escapeHtml(fileName)}
+        </a>
+      `
+      : "Chưa ghi nhận tệp minh chứng";
+
+    optionalContent = `
+      <div class="result-card-item result-span-2">
+        <span>Tệp/hình ảnh minh chứng</span>
+        <strong>${evidenceContent}</strong>
+      </div>
+    `;
   }
 
   return `
     <div class="result-card">
-      <h4>✅ Kết quả và minh chứng</h4>
+      <h4>✅ Kết quả hoàn thành</h4>
       <div class="result-card-grid">
         <div class="result-card-item">
           <span>Ngày hoàn thành thực tế</span>
@@ -1903,14 +1918,7 @@ function resultEvidenceHtml(task) {
           <span>Loại minh chứng</span>
           <strong>${escapeHtml(evidenceTypeName(evidenceType))}</strong>
         </div>
-        <div class="result-card-item result-span-2">
-          <span>Kết quả thực hiện</span>
-          <strong>${escapeHtml(task.resultSummary || task.result || "Không yêu cầu nhập kết quả")}</strong>
-        </div>
-        <div class="result-card-item result-span-2">
-          <span>Minh chứng</span>
-          <strong>${evidenceContent}</strong>
-        </div>
+        ${optionalContent}
       </div>
     </div>
   `;
@@ -3535,13 +3543,21 @@ function syncCompletionEvidenceUI() {
     : "Lưu cập nhật";
 
   const evidenceType = completionProductType.value;
-  const showResult = isCompleted && ["FILE", "OTHER"].includes(evidenceType);
+
+  // Minh chứng khác: chỉ nhập kết quả thực hiện.
+  // Tệp/hình ảnh: chỉ đính kèm tệp.
+  // Không có minh chứng: không hiển thị thêm trường nào.
+  const showResult = isCompleted && evidenceType === "OTHER";
   const showFile = isCompleted && evidenceType === "FILE";
 
   resultSummaryWrap.classList.toggle("hidden", !showResult);
   evidenceFileWrap.classList.toggle("hidden", !showFile);
 
   resultSummary.required = showResult;
+  evidenceFileInput.required = showFile && !(
+    findTaskById(state.selectedTaskId)?.evidenceUrl ||
+    findTaskById(state.selectedTaskId)?.evidenceLink
+  );
 
   if (!showResult) {
     resultSummary.value = "";
@@ -3549,6 +3565,7 @@ function syncCompletionEvidenceUI() {
 
   if (!showFile) {
     evidenceFileInput.value = "";
+    evidenceFileInput.required = false;
   }
 
   updateEvidenceFileSelection();
@@ -3729,7 +3746,7 @@ async function saveProgress(event) {
     if (newStatus === "HOAN_THANH") {
       const completed = parseDateInput(completedDate.value, false);
       const selectedEvidenceType = completionProductType.value;
-      const needsResult = ["FILE", "OTHER"].includes(selectedEvidenceType);
+      const needsResult = selectedEvidenceType === "OTHER";
       const summary = needsResult ? cleanText(resultSummary.value) : "";
 
       if (!completed) {
