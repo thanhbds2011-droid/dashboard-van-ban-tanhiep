@@ -4,7 +4,7 @@
  * =========================================================
  */
 
-const PWA_VERSION = "20260717.1900";
+const PWA_VERSION = "20260717.2100";
 const UPDATE_CHECK_INTERVAL = 30 * 60 * 1000;
 
 let deferredInstallPrompt = null;
