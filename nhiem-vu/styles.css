@@ -2130,3 +2130,181 @@ textarea:focus {
     height: 40px;
   }
 }
+
+
+/* =========================================================
+ * THAO TÁC NHIỆM VỤ: PHỐI HỢP, XÓA MỀM, DESKTOP/MOBILE
+ * ========================================================= */
+
+.danger-button {
+  min-height: 44px;
+  padding: 10px 16px;
+  border: 1px solid #cf3d3d;
+  border-radius: 10px;
+  background: #cf3d3d;
+  color: #ffffff;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.danger-button:hover {
+  background: #b72f2f;
+  border-color: #b72f2f;
+}
+
+.danger-button:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.detail-footer {
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.detail-footer > button {
+  flex: 1 1 185px;
+}
+
+.operation-modal {
+  width: min(760px, calc(100vw - 28px));
+}
+
+.support-edit-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.support-edit-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 64px;
+  padding: 12px;
+  border: 1px solid #cbdce8;
+  border-radius: 12px;
+  background: #f8fbfd;
+  cursor: pointer;
+}
+
+.support-edit-option:hover {
+  border-color: #2c83b8;
+  background: #eef7fc;
+}
+
+.support-edit-option input {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  accent-color: #176b9f;
+}
+
+.support-edit-option span {
+  min-width: 0;
+}
+
+.support-edit-option strong,
+.support-edit-option small {
+  display: block;
+}
+
+.support-edit-option strong {
+  color: #123f60;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.support-edit-option small {
+  margin-top: 3px;
+  color: #6a7d8f;
+  font-size: 12px;
+}
+
+.delete-task-modal {
+  width: min(650px, calc(100vw - 28px));
+}
+
+.danger-header {
+  background: linear-gradient(135deg, #b52f2f, #d64c4c);
+}
+
+.delete-warning {
+  margin: 14px 0;
+  padding: 12px 14px;
+  border: 1px solid #efb1b1;
+  border-radius: 10px;
+  background: #fff3f3;
+  color: #8b2626;
+  line-height: 1.5;
+}
+
+@media (min-width: 761px) {
+  .detail-footer {
+    justify-content: flex-end;
+  }
+
+  .detail-footer > button {
+    flex: 0 1 auto;
+    min-width: 170px;
+  }
+}
+
+@media (max-width: 760px) {
+  .operation-modal,
+  .delete-task-modal {
+    width: 100%;
+    max-width: none;
+    min-height: 100dvh;
+    border-radius: 0;
+  }
+
+  .support-edit-options {
+    grid-template-columns: 1fr;
+  }
+
+  .support-edit-option {
+    min-height: 58px;
+  }
+
+  .detail-footer,
+  .operation-modal .modal-footer,
+  .delete-task-modal .modal-footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 9px;
+    padding: 12px 14px calc(12px + env(safe-area-inset-bottom));
+    background: rgba(255, 255, 255, 0.97);
+    border-top: 1px solid #d7e3ec;
+    backdrop-filter: blur(10px);
+  }
+
+  .detail-footer > button,
+  .operation-modal .modal-footer > button,
+  .delete-task-modal .modal-footer > button {
+    width: 100%;
+    min-height: 48px;
+  }
+
+  .detail-footer #deleteTaskButton {
+    order: 4;
+  }
+
+  .detail-footer #updateTaskButton {
+    order: 1;
+  }
+
+  .detail-footer #assignTaskButton {
+    order: 2;
+  }
+
+  .detail-footer #supportTaskButton {
+    order: 3;
+  }
+}
