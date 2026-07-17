@@ -3929,7 +3929,13 @@ async function saveProgress(event) {
     } else {
       await sendNotificationEvent(
         "TASK_UPDATED",
-        task.id
+        task.id,
+        {
+          oldStatus: task.status || "",
+          newStatus,
+          oldProgress: Number(task.progress) || 0,
+          newProgress
+        }
       );
     }
 
