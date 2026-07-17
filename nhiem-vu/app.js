@@ -904,7 +904,10 @@ async function loadTasks() {
 
   state.loadingTasks = true;
   refreshButton.disabled = true;
-  refreshButton.textContent = "⏳ Đang tải...";
+  refreshButton.classList.add("is-loading");
+  refreshButton.setAttribute("aria-label", "Đang làm mới dữ liệu");
+  refreshButton.title = "Đang làm mới dữ liệu";
+  refreshButton.innerHTML = '<span class="refresh-icon" aria-hidden="true">↻</span>';
   hideMessage(dashboardMessage);
 
   try {
@@ -1015,7 +1018,10 @@ async function loadTasks() {
   } finally {
     state.loadingTasks = false;
     refreshButton.disabled = false;
-    refreshButton.textContent = "🔄 Làm mới";
+    refreshButton.classList.remove("is-loading");
+    refreshButton.setAttribute("aria-label", "Làm mới dữ liệu");
+    refreshButton.title = "Làm mới dữ liệu";
+    refreshButton.innerHTML = '<span class="refresh-icon" aria-hidden="true">↻</span>';
   }
 }
 
@@ -1062,11 +1068,11 @@ function renderAccount() {
   addTaskButton.classList.toggle("hidden", !canCreateTask);
 
   if (state.profile.role === "DEPARTMENT_LEADER") {
-    addTaskButton.textContent = "➕ Ghi nhận nhiệm vụ";
+    addTaskButton.textContent = "➕ Ghi nhận";
   } else if (state.profile.role === "DIRECTOR") {
-    addTaskButton.textContent = "⚡ Giao nhiệm vụ trực tiếp";
+    addTaskButton.textContent = "⚡ Giao trực tiếp";
   } else {
-    addTaskButton.textContent = "⚡ Tạo nhiệm vụ trực tiếp";
+    addTaskButton.textContent = "⚡ Tạo nhiệm vụ";
   }
 
   const hasOverviewAccess = canViewAllTasks();
