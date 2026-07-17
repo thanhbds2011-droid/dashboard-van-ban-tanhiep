@@ -1,11 +1,11 @@
 import {
   auth,
   db
-} from "./firebase-config.js?v=20260717.2700";
+} from "./firebase-config.js?v=20260717.2200";
 
 import {
   NOTIFICATION_WEB_APP_URL
-} from "./notification-config.js?v=20260717.2700";
+} from "./notification-config.js?v=20260717.2200";
 
 import {
   GoogleAuthProvider,
