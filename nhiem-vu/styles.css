@@ -581,21 +581,21 @@ textarea:focus {
 .filter-grid {
   display: grid;
   grid-template-columns:
-    minmax(250px, 1.45fr)
+    minmax(310px, 1.65fr)
     minmax(150px, .72fr)
     minmax(150px, .72fr)
-    minmax(420px, 1.45fr);
-  gap: 10px;
+    minmax(350px, 1.25fr);
+  gap: 12px;
   align-items: stretch;
 }
 
 .filter-grid.has-department-filter {
   grid-template-columns:
-    minmax(220px, 1.2fr)
-    minmax(135px, .64fr)
-    minmax(135px, .64fr)
-    minmax(145px, .68fr)
-    minmax(420px, 1.4fr);
+    minmax(260px, 1.25fr)
+    minmax(135px, .62fr)
+    minmax(135px, .62fr)
+    minmax(145px, .66fr)
+    minmax(350px, 1.22fr);
 }
 
 .filter-grid > div {
@@ -614,8 +614,8 @@ textarea:focus {
 
 .filter-actions {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+  grid-template-columns: 52px repeat(2, minmax(132px, 1fr));
+  gap: 10px;
   min-width: 0;
   align-items: stretch;
 }
@@ -624,12 +624,38 @@ textarea:focus {
   width: 100%;
   min-width: 0;
   min-height: 50px;
-  padding: 9px 8px;
+  padding: 9px 12px;
   justify-content: center;
   white-space: nowrap;
   line-height: 1.15;
-  font-size: clamp(12px, .78vw, 13.5px);
-  letter-spacing: -0.15px;
+  font-size: clamp(12.5px, .78vw, 13.5px);
+  letter-spacing: -0.1px;
+}
+
+.refresh-icon-button {
+  width: 52px;
+  min-width: 52px;
+  padding: 0 !important;
+  border-radius: 13px;
+}
+
+.refresh-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  line-height: 1;
+  transform-origin: center;
+}
+
+.refresh-icon-button.is-loading .refresh-icon {
+  animation: task-refresh-spin .8s linear infinite;
+}
+
+@keyframes task-refresh-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .evidence-type-help {
@@ -1277,7 +1303,7 @@ textarea:focus {
 
   .filter-actions {
     grid-column: 1 / -1;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: 52px repeat(2, minmax(0, 1fr));
     min-width: 0;
   }
 
@@ -1370,7 +1396,7 @@ textarea:focus {
 
   .filter-actions {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: 52px repeat(2, minmax(0, 1fr));
     gap: 8px;
     min-width: 0;
   }
@@ -2445,11 +2471,18 @@ textarea:focus {
 
 @media (max-width: 460px) {
   .filter-actions {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 48px repeat(2, minmax(0, 1fr));
+    gap: 7px;
   }
 
-  .filter-actions #addTaskButton {
-    grid-column: 1 / -1;
+  .refresh-icon-button {
+    width: 48px;
+    min-width: 48px;
+  }
+
+  .filter-actions button {
+    padding-inline: 7px;
+    font-size: 12.5px;
   }
 }
 
