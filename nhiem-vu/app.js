@@ -1,11 +1,11 @@
 import {
   auth,
   db
-} from "./firebase-config.js?v=20260716.2700";
+} from "./firebase-config.js?v=20260717.1200";
 
 import {
   NOTIFICATION_WEB_APP_URL
-} from "./notification-config.js?v=20260716.2700";
+} from "./notification-config.js?v=20260717.1200";
 
 import {
   GoogleAuthProvider,
@@ -44,6 +44,8 @@ const state = {
   savingTask: false,
   savingProgress: false,
   savingAssignment: false,
+  savingSupport: false,
+  deletingTask: false,
   initializedUid: null,
   selectedSupportIds: new Set(),
   selectedTaskId: null
@@ -139,6 +141,28 @@ const detailContent = $("detailContent");
 const detailFooter = $("detailFooter");
 const updateTaskButton = $("updateTaskButton");
 const assignTaskButton = $("assignTaskButton");
+const supportTaskButton = $("supportTaskButton");
+const deleteTaskButton = $("deleteTaskButton");
+
+const supportEditModal = $("supportEditModal");
+const supportEditForm = $("supportEditForm");
+const supportEditTaskCode = $("supportEditTaskCode");
+const supportEditSummary = $("supportEditSummary");
+const supportEditOptions = $("supportEditOptions");
+const supportEditMessage = $("supportEditMessage");
+const closeSupportEditButton = $("closeSupportEditButton");
+const cancelSupportEditButton = $("cancelSupportEditButton");
+const saveSupportEditButton = $("saveSupportEditButton");
+
+const deleteTaskModal = $("deleteTaskModal");
+const deleteTaskForm = $("deleteTaskForm");
+const deleteTaskCode = $("deleteTaskCode");
+const deleteTaskSummary = $("deleteTaskSummary");
+const deleteReason = $("deleteReason");
+const deleteTaskMessage = $("deleteTaskMessage");
+const closeDeleteTaskButton = $("closeDeleteTaskButton");
+const cancelDeleteTaskButton = $("cancelDeleteTaskButton");
+const confirmDeleteTaskButton = $("confirmDeleteTaskButton");
 
 const assignmentModal = $("assignmentModal");
 const assignmentForm = $("assignmentForm");
@@ -199,7 +223,9 @@ function setBodyModalState() {
     !taskModal.classList.contains("hidden") ||
     !detailModal.classList.contains("hidden") ||
     !progressModal.classList.contains("hidden") ||
-    !assignmentModal.classList.contains("hidden");
+    !assignmentModal.classList.contains("hidden") ||
+    !supportEditModal.classList.contains("hidden") ||
+    !deleteTaskModal.classList.contains("hidden");
 
   document.body.classList.toggle("modal-open", hasOpenModal);
 }
@@ -270,6 +296,8 @@ function resetSessionState() {
   detailModal?.classList.add("hidden");
   progressModal?.classList.add("hidden");
   assignmentModal?.classList.add("hidden");
+  supportEditModal?.classList.add("hidden");
+  deleteTaskModal?.classList.add("hidden");
   document.body.classList.remove("modal-open");
 
   loginForm.reset();
@@ -851,7 +879,10 @@ function canViewAllTasks() {
 }
 
 function canExportTaskReport() {
-  return canViewAllTasks();
+  return Boolean(
+    state.profile?.active === true &&
+    ["ADMIN", "DIRECTOR", "DEPARTMENT_LEADER"].includes(state.profile?.role)
+  );
 }
 
 async function loadTasks() {
@@ -1176,6 +1207,10 @@ function reportTaskStatusClass(task) {
 }
 
 function reportScopeText() {
+  if (!canViewAllTasks()) {
+    return departmentName(state.profile?.departmentId);
+  }
+
   const selectedDepartment = departmentFilter?.value || "ALL";
 
   return selectedDepartment === "ALL"
@@ -1237,6 +1272,9 @@ function exportTaskReport() {
   ].includes(task.status)).length;
 
   const scopeText = reportScopeText();
+  const exportUnitText = state.profile?.role === "DIRECTOR"
+    ? "BAN GIÁM ĐỐC"
+    : departmentName(state.profile?.departmentId).toUpperCase();
 
   const reportRows = tasksToExport.map((task, index) => {
     const progressValue = Math.max(0, Math.min(100, Number(task.progress) || 0));
@@ -1556,7 +1594,7 @@ function exportTaskReport() {
         <section class="report-information">
           <div>
             <strong>Đơn vị xuất báo cáo:</strong>
-            PHÒNG TỔ CHỨC - HÀNH CHÍNH
+            ${escapeHtml(exportUnitText)}
           </div>
 
           <div>
@@ -1622,7 +1660,7 @@ function exportTaskReport() {
           </div>
 
           <div class="signature-block">
-            <strong>Phòng Tổ chức - Hành chính</strong>
+            <strong>${escapeHtml(exportUnitText)}</strong>
             <div class="signature-space"></div>
           </div>
         </footer>
@@ -1782,6 +1820,50 @@ function canUpdateTask(task) {
     state.profile.role === "DIRECTOR" &&
     task.entryMode === "DIRECT_ASSIGNED" &&
     task.assignedByUserId === state.user.uid
+  );
+}
+
+
+function canEditTaskSupport(task) {
+  if (!task || !state.user || !state.profile || task.active === false) {
+    return false;
+  }
+
+  if (state.profile.role === "ADMIN") {
+    return true;
+  }
+
+  if (
+    state.profile.role === "DIRECTOR" &&
+    task.entryMode === "DIRECT_ASSIGNED"
+  ) {
+    return true;
+  }
+
+  return (
+    state.profile.role === "DEPARTMENT_LEADER" &&
+    task.primaryDepartmentId === state.profile.departmentId &&
+    task.status !== "HUY"
+  );
+}
+
+function canDeleteTask(task) {
+  if (!task || !state.user || !state.profile || task.active === false) {
+    return false;
+  }
+
+  if (state.profile.role === "ADMIN") {
+    return true;
+  }
+
+  if (task.entryMode === "DIRECT_ASSIGNED") {
+    return state.profile.role === "DIRECTOR";
+  }
+
+  return (
+    task.entryMode === "SELF_RECORDED" &&
+    state.profile.role === "DEPARTMENT_LEADER" &&
+    task.primaryDepartmentId === state.profile.departmentId
   );
 }
 
@@ -1945,10 +2027,12 @@ function openTaskDetail(taskId) {
 
   const allowAssign = canAssignTask(task);
   const allowUpdate = canUpdateTask(task);
+  const allowSupportEdit = canEditTaskSupport(task);
+  const allowDelete = canDeleteTask(task);
 
   detailFooter.classList.toggle(
     "hidden",
-    !allowAssign && !allowUpdate
+    !allowAssign && !allowUpdate && !allowSupportEdit && !allowDelete
   );
 
   assignTaskButton.classList.toggle("hidden", !allowAssign);
@@ -1960,6 +2044,9 @@ function openTaskDetail(taskId) {
   updateTaskButton.textContent = task.status === "HOAN_THANH"
     ? "✏️ Chỉnh sửa kết quả hoàn thành"
     : "✏️ Cập nhật / Kết thúc nhiệm vụ";
+
+  supportTaskButton.classList.toggle("hidden", !allowSupportEdit);
+  deleteTaskButton.classList.toggle("hidden", !allowDelete);
 
   detailModal.classList.remove("hidden");
   setBodyModalState();
@@ -2649,6 +2736,12 @@ async function sendNotificationEvent(
           action,
           taskId,
           idToken,
+          eventId: [
+            action,
+            taskId,
+            Date.now(),
+            Math.random().toString(36).slice(2, 10)
+          ].join("_"),
           sentAt:
             new Date().toISOString()
         })
@@ -3113,6 +3206,291 @@ async function saveInternalAssignment(event) {
   }
 }
 
+
+/* =========================================================
+ * CẬP NHẬT PHÒNG/KHU PHỐI HỢP
+ * ========================================================= */
+
+function currentTaskSupportIds(task) {
+  return Array.from(new Set([
+    ...(Array.isArray(task?.relatedDepartmentIds) ? task.relatedDepartmentIds : []),
+    ...(Array.isArray(task?.supportDepartmentIds) ? task.supportDepartmentIds : [])
+  ])).filter((id) => id && id !== task?.primaryDepartmentId);
+}
+
+function openSupportEditModal(taskId = state.selectedTaskId) {
+  const task = findTaskById(taskId);
+
+  if (!task || !canEditTaskSupport(task)) {
+    return;
+  }
+
+  state.selectedTaskId = task.id;
+  hideMessage(supportEditMessage);
+
+  const selectedIds = new Set(currentTaskSupportIds(task));
+  const departments = state.departments
+    .filter((item) => item.active !== false && item.id !== "BGD" && item.id !== task.primaryDepartmentId)
+    .sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
+
+  supportEditTaskCode.textContent = task.taskCode || "—";
+  supportEditSummary.innerHTML = `
+    <div>
+      <h3>${escapeHtml(task.title || "Nhiệm vụ")}</h3>
+      <p>Phòng/Khu chính: <strong>${escapeHtml(departmentName(task.primaryDepartmentId))}</strong></p>
+    </div>
+  `;
+
+  supportEditOptions.innerHTML = departments.length
+    ? departments.map((item) => `
+      <label class="support-edit-option">
+        <input
+          type="checkbox"
+          value="${escapeHtml(item.id)}"
+          ${selectedIds.has(item.id) ? "checked" : ""}
+        >
+        <span>
+          <strong>${escapeHtml(item.name || item.code || item.id)}</strong>
+          <small>${escapeHtml(item.code || item.id)}</small>
+        </span>
+      </label>
+    `).join("")
+    : '<div class="multi-select-empty">Chưa có Phòng/Khu phù hợp để phối hợp.</div>';
+
+  detailModal.classList.add("hidden");
+  supportEditModal.classList.remove("hidden");
+  setBodyModalState();
+}
+
+function closeSupportEditModal() {
+  if (state.savingSupport) {
+    return;
+  }
+
+  supportEditModal.classList.add("hidden");
+  setBodyModalState();
+}
+
+async function saveTaskSupportDepartments(event) {
+  event.preventDefault();
+
+  if (state.savingSupport) {
+    return;
+  }
+
+  const task = findTaskById(state.selectedTaskId);
+
+  if (!task || !canEditTaskSupport(task)) {
+    showMessage(
+      supportEditMessage,
+      "Tài khoản không có quyền cập nhật Phòng/Khu phối hợp của nhiệm vụ này.",
+      "error"
+    );
+    return;
+  }
+
+  const selectedIds = Array.from(
+    supportEditOptions.querySelectorAll('input[type="checkbox"]:checked')
+  )
+    .map((input) => cleanText(input.value))
+    .filter((id) => id && id !== task.primaryDepartmentId);
+
+  const uniqueIds = Array.from(new Set(selectedIds));
+  const oldIds = currentTaskSupportIds(task);
+  const addedIds = uniqueIds.filter((id) => !oldIds.includes(id));
+  const removedIds = oldIds.filter((id) => !uniqueIds.includes(id));
+
+  state.savingSupport = true;
+  saveSupportEditButton.disabled = true;
+  saveSupportEditButton.textContent = "Đang lưu...";
+  hideMessage(supportEditMessage);
+
+  try {
+    await updateDoc(doc(db, "tasks", task.id), {
+      relatedDepartmentIds: uniqueIds,
+      supportDepartmentIds: uniqueIds,
+      visibleDepartmentIds: Array.from(new Set([
+        task.primaryDepartmentId,
+        ...uniqueIds
+      ])),
+      updatedAt: serverTimestamp(),
+      updatedByUserId: state.user.uid,
+      updatedByName: state.profile.fullName || ""
+    });
+
+    await addDoc(collection(db, "taskLogs"), {
+      taskId: task.id,
+      taskCode: task.taskCode || "",
+      action: "UPDATE_SUPPORT_DEPARTMENTS",
+      description: [
+        addedIds.length
+          ? `Thêm phối hợp: ${addedIds.map(departmentName).join(", ")}`
+          : "",
+        removedIds.length
+          ? `Bỏ phối hợp: ${removedIds.map(departmentName).join(", ")}`
+          : ""
+      ].filter(Boolean).join("; ") || "Không thay đổi danh sách phối hợp",
+      oldValue: oldIds,
+      newValue: uniqueIds,
+      performedByUserId: state.user.uid,
+      performedByName: state.profile.fullName || "",
+      performedAt: serverTimestamp()
+    });
+
+    await sendNotificationEvent("TASK_SUPPORT_UPDATED", task.id);
+
+    showMessage(
+      supportEditMessage,
+      "✅ Đã cập nhật Phòng/Khu phối hợp.",
+      "success"
+    );
+
+    await loadTasks();
+
+    window.setTimeout(() => {
+      state.savingSupport = false;
+      closeSupportEditModal();
+
+      if (findTaskById(task.id)) {
+        openTaskDetail(task.id);
+      }
+    }, 650);
+  } catch (error) {
+    console.error("Không cập nhật được Phòng/Khu phối hợp:", error);
+    showMessage(
+      supportEditMessage,
+      error?.message || "Không cập nhật được Phòng/Khu phối hợp.",
+      "error"
+    );
+  } finally {
+    state.savingSupport = false;
+    saveSupportEditButton.disabled = false;
+    saveSupportEditButton.textContent = "Lưu Phòng/Khu phối hợp";
+  }
+}
+
+/* =========================================================
+ * XÓA MỀM NHIỆM VỤ
+ * ========================================================= */
+
+function openDeleteTaskModal(taskId = state.selectedTaskId) {
+  const task = findTaskById(taskId);
+
+  if (!task || !canDeleteTask(task)) {
+    return;
+  }
+
+  state.selectedTaskId = task.id;
+  deleteTaskForm.reset();
+  hideMessage(deleteTaskMessage);
+
+  deleteTaskCode.textContent = task.taskCode || "—";
+  deleteTaskSummary.innerHTML = `
+    <h3>${escapeHtml(task.title || "Nhiệm vụ")}</h3>
+    <p>${escapeHtml(truncate(task.description || "", 220))}</p>
+  `;
+
+  detailModal.classList.add("hidden");
+  deleteTaskModal.classList.remove("hidden");
+  setBodyModalState();
+  deleteReason.focus();
+}
+
+function closeDeleteTaskModal() {
+  if (state.deletingTask) {
+    return;
+  }
+
+  deleteTaskModal.classList.add("hidden");
+  setBodyModalState();
+}
+
+async function softDeleteTask(event) {
+  event.preventDefault();
+
+  if (state.deletingTask) {
+    return;
+  }
+
+  const task = findTaskById(state.selectedTaskId);
+  const reason = cleanText(deleteReason.value);
+
+  if (!task || !canDeleteTask(task)) {
+    showMessage(
+      deleteTaskMessage,
+      "Tài khoản không có quyền xóa nhiệm vụ này.",
+      "error"
+    );
+    return;
+  }
+
+  if (reason.length < 5) {
+    showMessage(
+      deleteTaskMessage,
+      "Vui lòng nhập lý do xóa rõ ràng, tối thiểu 5 ký tự.",
+      "error"
+    );
+    deleteReason.focus();
+    return;
+  }
+
+  state.deletingTask = true;
+  confirmDeleteTaskButton.disabled = true;
+  confirmDeleteTaskButton.textContent = "Đang xóa...";
+  hideMessage(deleteTaskMessage);
+
+  try {
+    await updateDoc(doc(db, "tasks", task.id), {
+      active: false,
+      deletedAt: serverTimestamp(),
+      deletedByUserId: state.user.uid,
+      deletedByName: state.profile.fullName || "",
+      deletedReason: reason,
+      updatedAt: serverTimestamp(),
+      updatedByUserId: state.user.uid,
+      updatedByName: state.profile.fullName || ""
+    });
+
+    await addDoc(collection(db, "taskLogs"), {
+      taskId: task.id,
+      taskCode: task.taskCode || "",
+      action: "SOFT_DELETE_TASK",
+      description: `Xóa nhiệm vụ. Lý do: ${reason}`,
+      oldValue: true,
+      newValue: false,
+      performedByUserId: state.user.uid,
+      performedByName: state.profile.fullName || "",
+      performedAt: serverTimestamp()
+    });
+
+    await sendNotificationEvent("TASK_DELETED", task.id);
+
+    showMessage(
+      deleteTaskMessage,
+      "✅ Đã xóa nhiệm vụ khỏi danh sách theo dõi.",
+      "success"
+    );
+
+    await loadTasks();
+
+    window.setTimeout(() => {
+      state.deletingTask = false;
+      closeDeleteTaskModal();
+    }, 650);
+  } catch (error) {
+    console.error("Không xóa được nhiệm vụ:", error);
+    showMessage(
+      deleteTaskMessage,
+      error?.message || "Không xóa được nhiệm vụ.",
+      "error"
+    );
+  } finally {
+    state.deletingTask = false;
+    confirmDeleteTaskButton.disabled = false;
+    confirmDeleteTaskButton.textContent = "Xác nhận xóa";
+  }
+}
+
 /* =========================================================
  * CẬP NHẬT TIẾN ĐỘ VÀ KẾT THÚC NHIỆM VỤ
  * ========================================================= */
@@ -3451,6 +3829,11 @@ async function saveProgress(event) {
         "TASK_COMPLETED",
         task.id
       );
+    } else {
+      await sendNotificationEvent(
+        "TASK_UPDATED",
+        task.id
+      );
     }
 
     showMessage(
@@ -3703,6 +4086,14 @@ cancelTaskButton.addEventListener("click", closeTaskModal);
 closeDetailButton.addEventListener("click", closeTaskDetail);
 assignTaskButton.addEventListener("click", () => openAssignmentModal());
 updateTaskButton.addEventListener("click", () => openProgressModal());
+supportTaskButton.addEventListener("click", () => openSupportEditModal());
+deleteTaskButton.addEventListener("click", () => openDeleteTaskModal());
+closeSupportEditButton.addEventListener("click", closeSupportEditModal);
+cancelSupportEditButton.addEventListener("click", closeSupportEditModal);
+supportEditForm.addEventListener("submit", saveTaskSupportDepartments);
+closeDeleteTaskButton.addEventListener("click", closeDeleteTaskModal);
+cancelDeleteTaskButton.addEventListener("click", closeDeleteTaskModal);
+deleteTaskForm.addEventListener("submit", softDeleteTask);
 closeProgressButton.addEventListener("click", closeProgressModal);
 cancelProgressButton.addEventListener("click", closeProgressModal);
 closeAssignmentButton.addEventListener("click", closeAssignmentModal);
@@ -3822,6 +4213,18 @@ assignmentModal.addEventListener("click", (event) => {
   }
 });
 
+supportEditModal.addEventListener("click", (event) => {
+  if (event.target === supportEditModal) {
+    closeSupportEditModal();
+  }
+});
+
+deleteTaskModal.addEventListener("click", (event) => {
+  if (event.target === deleteTaskModal) {
+    closeDeleteTaskModal();
+  }
+});
+
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") {
     return;
@@ -3829,6 +4232,16 @@ document.addEventListener("keydown", (event) => {
 
   if (!supportDropdownPanel.classList.contains("hidden")) {
     toggleSupportDropdown(false);
+    return;
+  }
+
+  if (!deleteTaskModal.classList.contains("hidden")) {
+    closeDeleteTaskModal();
+    return;
+  }
+
+  if (!supportEditModal.classList.contains("hidden")) {
+    closeSupportEditModal();
     return;
   }
 
