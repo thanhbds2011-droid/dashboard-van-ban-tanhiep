@@ -1,11 +1,11 @@
 import {
   auth,
   db
-} from "./firebase-config.js?v=20260717.1400";
+} from "./firebase-config.js?v=20260717.1500";
 
 import {
   NOTIFICATION_WEB_APP_URL
-} from "./notification-config.js?v=20260717.1400";
+} from "./notification-config.js?v=20260717.1500";
 
 import {
   GoogleAuthProvider,
@@ -538,7 +538,8 @@ function priorityName(value) {
   const map = {
     THUONG: "Thường",
     QUAN_TRONG: "Quan trọng",
-    KHAN: "Khẩn"
+    KHAN: "Khẩn",
+    DOT_XUAT: "Đột xuất"
   };
 
   return map[value] || value || "Thường";
@@ -662,6 +663,7 @@ function statusBadgeClass(status) {
 function priorityBadgeClass(value) {
   const map = {
     KHAN: "red",
+    DOT_XUAT: "purple",
     QUAN_TRONG: "orange",
     THUONG: ""
   };
@@ -1069,6 +1071,7 @@ function renderAccount() {
 
   const hasOverviewAccess = canViewAllTasks();
   departmentFilterWrap.classList.toggle("hidden", !hasOverviewAccess);
+  filterFields.classList.toggle("has-department-filter", hasOverviewAccess);
   exportReportButton?.classList.toggle("hidden", !canExportTaskReport());
 
   if (isTchcCoordinationAccount()) {
