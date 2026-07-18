@@ -741,32 +741,21 @@ function deadlineState(task) {
  * ========================================================= */
 
 async function loadProfile(user) {
-  const userReference = doc(db, "users", user.uid);
-  const userSnapshot = await getDoc(userReference);
-
-  if (userSnapshot.exists()) {
-    const profile = userSnapshot.data();
-
-    if (profile.active !== true) {
-      throw new Error("Tài khoản đã bị khóa hoặc ngừng hoạt động.");
-    }
-
-    if (!profile.fullName || !profile.departmentId || !profile.role) {
-      throw new Error("Hồ sơ người dùng chưa đầy đủ thông tin phân quyền.");
-    }
-
-    return {
-      id: userSnapshot.id,
-      ...profile
-    };
-  }
-
   const normalizedEmail = cleanText(user.email).toLowerCase();
 
   if (!normalizedEmail) {
-    throw new Error("Tài khoản đăng nhập không cung cấp địa chỉ email.");
+    const error = new Error(
+      "Tài khoản đăng nhập không cung cấp địa chỉ email."
+    );
+    error.code = "app/email-missing";
+    throw error;
   }
 
+  /*
+   * accessAccounts là nguồn kiểm soát quyền truy cập chính.
+   * Luôn kiểm tra collection này ở mọi lần đăng nhập, kể cả khi
+   * users/{UID} đã tồn tại từ trước.
+   */
   const accessReference = doc(
     db,
     "accessAccounts",
@@ -787,7 +776,7 @@ async function loadProfile(user) {
 
   if (accessData.active !== true) {
     const error = new Error(
-      "Tài khoản đã bị khóa hoặc ngừng hoạt động."
+      "Tài khoản đã bị khóa hoặc ngừng hoạt động. Liên hệ Phòng Tổ chức – Hành chính."
     );
     error.code = "app/account-inactive";
     throw error;
@@ -798,17 +787,26 @@ async function loadProfile(user) {
     !accessData.departmentId ||
     !accessData.role
   ) {
-    throw new Error(
+    const error = new Error(
       "Thông tin cấp quyền của tài khoản chưa đầy đủ."
     );
+    error.code = "app/access-profile-incomplete";
+    throw error;
   }
+
+  const userReference = doc(db, "users", user.uid);
+  const userSnapshot = await getDoc(userReference);
 
   const providerIds = user.providerData
     .map((provider) => provider.providerId)
     .filter(Boolean)
     .join(",");
 
-  const profile = {
+  /*
+   * Đồng bộ users/{UID} từ accessAccounts ở mỗi lần đăng nhập.
+   * createdAt chỉ được tạo một lần cho tài khoản mới.
+   */
+  const profileToSave = {
     employeeCode: accessData.employeeCode || "",
     fullName: accessData.fullName,
     email: normalizedEmail,
@@ -817,15 +815,23 @@ async function loadProfile(user) {
     role: accessData.role,
     active: true,
     authProvider: providerIds || "unknown",
-    createdAt: serverTimestamp(),
     updatedAt: serverTimestamp()
   };
 
-  await setDoc(userReference, profile);
+  if (!userSnapshot.exists()) {
+    profileToSave.createdAt = serverTimestamp();
+  }
+
+  await setDoc(
+    userReference,
+    profileToSave,
+    { merge: true }
+  );
 
   return {
     id: user.uid,
-    ...profile
+    ...(userSnapshot.exists() ? userSnapshot.data() : {}),
+    ...profileToSave
   };
 }
 
