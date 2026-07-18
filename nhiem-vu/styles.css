@@ -2885,3 +2885,663 @@ textarea {
     font-size: 14px;
   }
 }
+/* =========================================================
+ * MOBILE FIRST RIÊNG CHO PWA — 20260718.0500
+ * Chỉ tác động màn hình <= 760px.
+ * Desktop, dữ liệu, nghiệp vụ, Firebase, AI và OneSignal giữ nguyên.
+ * ========================================================= */
+
+@media (max-width: 760px) {
+  :root {
+    --mobile-gutter: 12px;
+    --mobile-gap: 10px;
+    --mobile-radius: 14px;
+  }
+
+  body {
+    background: #eef4f8;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* ===== HEADER GỌN ===== */
+  .topbar {
+    box-shadow: 0 3px 12px rgba(15, 77, 120, 0.18);
+  }
+
+  .topbar-inner {
+    width: 100%;
+    min-height: 58px;
+    padding: 0 var(--mobile-gutter);
+    gap: 8px;
+  }
+
+  .brand {
+    gap: 9px;
+    flex: 1 1 auto;
+    overflow: hidden;
+  }
+
+  .brand-logo {
+    width: 38px;
+    height: 38px;
+    flex: 0 0 38px;
+    border-radius: 11px;
+    font-size: 19px;
+  }
+
+  .brand-copy {
+    min-width: 0;
+  }
+
+  .brand-copy h1 {
+    overflow: hidden;
+    font-size: 16px;
+    line-height: 1.18;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .brand-copy p {
+    display: none;
+  }
+
+  .top-actions {
+    flex: 0 0 auto;
+    gap: 6px;
+  }
+
+  .top-button {
+    width: 38px;
+    min-width: 38px;
+    min-height: 38px;
+    height: 38px;
+    border-radius: 11px;
+    font-size: 17px;
+  }
+
+  /* ===== KHUNG TRANG ===== */
+  .page-container {
+    width: 100%;
+    padding: 10px var(--mobile-gutter) calc(24px + env(safe-area-inset-bottom));
+  }
+
+  /* ===== THÔNG TIN NGƯỜI DÙNG GỌN ===== */
+  .welcome-card {
+    position: relative;
+    display: block;
+    padding: 13px 14px;
+    border-radius: var(--mobile-radius);
+    box-shadow: 0 5px 16px rgba(25, 71, 107, 0.06);
+  }
+
+  .welcome-card h2 {
+    padding-right: 0;
+    font-size: 18px;
+    line-height: 1.25;
+  }
+
+  .welcome-card p {
+    margin-top: 3px;
+    font-size: 13px;
+    line-height: 1.35;
+  }
+
+  .role-badge {
+    width: auto;
+    margin-top: 8px;
+    padding: 7px 10px;
+    border-radius: 10px;
+    font-size: 13px;
+    line-height: 1.25;
+    text-align: left;
+  }
+
+  .role-badge span {
+    display: inline;
+    margin: 0 0 0 5px;
+    font-size: 11px;
+  }
+
+  .role-badge span::before {
+    content: "• ";
+  }
+
+  /* ===== TRẠNG THÁI PUSH GỌN ===== */
+  .push-status-box {
+    margin-top: var(--mobile-gap);
+    padding: 11px 12px;
+    gap: 8px;
+    border-radius: 12px;
+  }
+
+  .push-status-box strong {
+    font-size: 13px;
+  }
+
+  .push-status-box span {
+    margin-top: 2px;
+    font-size: 12px;
+  }
+
+  .push-status-box button {
+    min-height: 42px;
+  }
+
+  /* ===== 4 CHỈ SỐ NHỎ GỌN ===== */
+  .metrics-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 7px;
+    margin-top: var(--mobile-gap);
+  }
+
+  .metric-card {
+    min-height: 76px;
+    padding: 9px 6px 8px;
+    border-left-width: 0;
+    border-top: 3px solid var(--primary);
+    border-radius: 12px;
+    text-align: center;
+    box-shadow: 0 4px 13px rgba(25, 71, 107, 0.055);
+  }
+
+  .metric-completed {
+    border-top-color: var(--green);
+  }
+
+  .metric-processing {
+    border-top-color: var(--blue);
+  }
+
+  .metric-overdue {
+    border-top-color: var(--red);
+  }
+
+  .metric-icon {
+    display: none;
+  }
+
+  .metric-card strong {
+    margin-top: 0;
+    font-size: 23px;
+    line-height: 1;
+  }
+
+  .metric-card > span:last-child {
+    margin-top: 6px;
+    overflow: hidden;
+    color: #667085;
+    font-size: 10px;
+    font-weight: 750;
+    line-height: 1.15;
+    text-overflow: ellipsis;
+  }
+
+  /* ===== BỘ LỌC GỌN ===== */
+  .filter-card {
+    margin-top: var(--mobile-gap);
+    padding: 11px 12px;
+    border-radius: var(--mobile-radius);
+    box-shadow: 0 5px 16px rgba(25, 71, 107, 0.06);
+  }
+
+  .filter-card-head {
+    min-height: 42px;
+    gap: 8px;
+  }
+
+  .filter-card-head h2 {
+    font-size: 15px;
+    line-height: 1.2;
+  }
+
+  .filter-card-head p {
+    margin-top: 2px;
+    font-size: 10.5px;
+  }
+
+  #filterToggleButton {
+    min-height: 40px;
+    padding: 8px 11px;
+    border-radius: 10px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+
+  .filter-grid {
+    gap: 9px;
+    margin-top: 10px;
+  }
+
+  .filter-grid input,
+  .filter-grid select {
+    min-height: 44px;
+    padding: 9px 11px;
+    border-radius: 10px;
+    font-size: 14px;
+  }
+
+  .filter-actions {
+    grid-template-columns: 44px repeat(2, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  .refresh-icon-button {
+    width: 44px;
+    min-width: 44px;
+  }
+
+  .filter-actions button {
+    min-height: 44px;
+    padding: 7px 6px;
+    border-radius: 10px;
+    font-size: 12px;
+    line-height: 1.15;
+  }
+
+  /* ===== KHU DANH SÁCH ===== */
+  .tasks-section {
+    margin-top: var(--mobile-gap);
+    padding: 10px;
+    border-radius: var(--mobile-radius);
+    box-shadow: 0 5px 16px rgba(25, 71, 107, 0.06);
+  }
+
+  .task-view-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 5px;
+    margin-bottom: 10px;
+    padding: 3px;
+    border-radius: 11px;
+  }
+
+  .task-view-tab {
+    min-height: 42px;
+    padding: 6px 8px;
+    border-radius: 9px;
+    font-size: 11.5px;
+    line-height: 1.2;
+  }
+
+  .task-view-tab span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .task-view-tab strong {
+    min-width: 25px;
+    height: 25px;
+    padding: 0 6px;
+    font-size: 11px;
+  }
+
+  .section-heading {
+    align-items: center;
+    margin: 0 2px 9px;
+    gap: 8px;
+  }
+
+  .section-heading h2 {
+    font-size: 17px;
+    line-height: 1.2;
+  }
+
+  .section-heading > strong {
+    font-size: 13px;
+  }
+
+  /* ===== THẺ NHIỆM VỤ MOBILE FIRST ===== */
+  .task-card-list {
+    display: grid;
+    gap: 8px;
+  }
+
+  .task-mobile-card,
+  .task-mobile-card + .task-mobile-card {
+    width: 100%;
+    margin-top: 0;
+  }
+
+  .task-mobile-card {
+    position: relative;
+    padding: 12px;
+    overflow: hidden;
+    border: 1px solid #dbe6ed;
+    border-radius: 13px;
+    background: #fff;
+    box-shadow: 0 4px 13px rgba(25, 71, 107, 0.055);
+  }
+
+  .task-mobile-card:active {
+    transform: scale(0.995);
+  }
+
+  .task-mobile-card-head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .task-mobile-card-head .task-code {
+    flex: 1 1 180px;
+    min-width: 0;
+    overflow: hidden;
+    font-size: 13px;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .task-mobile-card-head .badge {
+    flex: 0 0 auto;
+    min-height: 23px;
+    max-width: 42%;
+    margin-top: 0;
+    padding: 3px 7px;
+    overflow: hidden;
+    border-radius: 999px;
+    font-size: 10.5px;
+    line-height: 1.1;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .task-mobile-card h3 {
+    margin-top: 8px;
+    font-size: 15px;
+    line-height: 1.32;
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  /* Danh sách chỉ dùng để quét nhanh; nội dung đầy đủ nằm trong Chi tiết. */
+  .task-mobile-card > p {
+    display: -webkit-box;
+    margin-top: 6px;
+    overflow: hidden;
+    color: #667085;
+    font-size: 12px;
+    line-height: 1.38;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+  }
+
+  .task-mobile-meta {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px 10px;
+    margin-top: 9px;
+    padding-top: 9px;
+  }
+
+  .task-mobile-meta > div {
+    min-width: 0;
+  }
+
+  .task-mobile-meta span {
+    overflow: hidden;
+    color: #7a8795;
+    font-size: 9.5px;
+    line-height: 1.15;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .task-mobile-meta strong {
+    margin-top: 2px;
+    overflow: hidden;
+    font-size: 12px;
+    line-height: 1.25;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Ô tình trạng hạn thường là mục cuối: hiển thị dạng badge thay vì thanh dài. */
+  .task-mobile-meta > div:last-child {
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-end;
+  }
+
+  .task-mobile-meta > div:last-child span {
+    display: none;
+  }
+
+  .task-mobile-meta > div:last-child strong,
+  .task-mobile-meta > div:last-child .badge {
+    display: inline-flex;
+    width: auto;
+    min-height: 24px;
+    margin: 0;
+    padding: 4px 8px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    font-size: 10.5px;
+    white-space: nowrap;
+  }
+
+  /* ===== TRẠNG THÁI RỖNG ===== */
+  .empty-state {
+    padding: 24px 14px;
+    border-radius: 12px;
+  }
+
+  .empty-state > div {
+    font-size: 30px;
+  }
+
+  .empty-state h3 {
+    margin-top: 7px;
+    font-size: 16px;
+  }
+
+  .empty-state p {
+    margin-top: 5px;
+    font-size: 12px;
+  }
+
+  /* ===== MODAL MOBILE: GIỮ NGHIỆP VỤ, GIẢM RỐI MẮT ===== */
+  .modal-header {
+    min-height: 62px;
+    padding: max(10px, env(safe-area-inset-top)) 12px 10px;
+  }
+
+  .modal-header h2 {
+    font-size: 17px;
+    line-height: 1.25;
+  }
+
+  .modal-close {
+    width: 40px;
+    height: 40px;
+    flex-basis: 40px;
+    font-size: 24px;
+  }
+
+  .modal-body,
+  .detail-content {
+    padding: 2px 12px 18px;
+  }
+
+  .modal-footer {
+    gap: 8px;
+    padding: 10px 12px max(10px, env(safe-area-inset-bottom));
+  }
+
+  .modal-footer button {
+    min-height: 44px;
+    font-size: 13px;
+  }
+
+  .entry-mode-banner {
+    gap: 8px;
+    margin-bottom: 12px;
+    padding: 10px 11px;
+    border-radius: 11px;
+    font-size: 13px;
+  }
+
+  .form-section-title {
+    gap: 8px;
+    padding: 9px 10px;
+    border-radius: 10px;
+  }
+
+  .form-section-title > span {
+    width: 25px;
+    height: 25px;
+    font-size: 12px;
+  }
+
+  .form-section-title strong {
+    font-size: 13px;
+  }
+
+  .form-section-title small {
+    font-size: 11px;
+  }
+
+  .field-block {
+    margin-top: 12px;
+  }
+
+  .field-block label {
+    margin-bottom: 5px;
+    font-size: 13px;
+  }
+
+  input,
+  select,
+  textarea,
+  .multi-select-button {
+    min-height: 46px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    font-size: 16px;
+  }
+
+  textarea {
+    line-height: 1.45;
+  }
+
+  .field-help {
+    margin-top: 5px;
+    font-size: 11px;
+  }
+
+  .progress-task-summary {
+    gap: 8px;
+    margin-bottom: 12px;
+    padding: 12px;
+    border-radius: 12px;
+  }
+
+  .progress-task-summary h3 {
+    margin-bottom: 4px;
+    font-size: 15px;
+  }
+
+  .progress-task-summary p {
+    font-size: 12px;
+  }
+
+  .completion-section,
+  .result-card {
+    padding: 12px;
+    border-radius: 12px;
+  }
+
+  .detail-title {
+    font-size: 18px;
+  }
+
+  .detail-description {
+    margin-top: 9px;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .detail-badges {
+    margin-top: 10px;
+  }
+
+  .detail-grid {
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .detail-item {
+    padding: 10px;
+    border-radius: 10px;
+  }
+
+  /* ===== PWA UPDATE ===== */
+  .pwa-update-banner {
+    right: 8px;
+    bottom: max(8px, env(safe-area-inset-bottom));
+    width: calc(100% - 16px);
+    padding: 12px;
+    gap: 10px;
+    border-radius: 13px;
+  }
+}
+
+@media (max-width: 430px) {
+  .page-container {
+    padding-left: 9px;
+    padding-right: 9px;
+  }
+
+  .topbar-inner {
+    padding-left: 9px;
+    padding-right: 9px;
+  }
+
+  .metrics-grid {
+    gap: 5px;
+  }
+
+  .metric-card {
+    min-height: 72px;
+    padding-inline: 4px;
+  }
+
+  .metric-card strong {
+    font-size: 21px;
+  }
+
+  .metric-card > span:last-child {
+    font-size: 9px;
+  }
+
+  .task-view-tab {
+    padding-inline: 6px;
+    font-size: 10.5px;
+  }
+
+  .task-mobile-card {
+    padding: 11px;
+  }
+
+  .task-mobile-card-head .task-code {
+    flex-basis: 155px;
+    font-size: 12px;
+  }
+
+  .task-mobile-meta {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 0.9fr);
+    gap: 6px 8px;
+  }
+}
+
+/* iPhone/PWA standalone: giữ nội dung không bị home indicator che. */
+@media (display-mode: standalone) and (max-width: 760px) {
+  .page-container {
+    padding-bottom: calc(28px + env(safe-area-inset-bottom));
+  }
+}
