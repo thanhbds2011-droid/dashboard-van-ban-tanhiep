@@ -1,11 +1,11 @@
 import {
   auth,
   db
-} from "./firebase-config.js?v=20260717.2300";
+} from "./firebase-config.js?v=20260718.0400";
 
 import {
   NOTIFICATION_WEB_APP_URL
-} from "./notification-config.js?v=20260717.2300";
+} from "./notification-config.js?v=20260718.0400";
 
 import {
   GoogleAuthProvider,
@@ -196,6 +196,7 @@ const saveProgressButton = $("saveProgressButton");
 const progressMessage = $("progressMessage");
 const progressStatus = $("progressStatus");
 const progressPercent = $("progressPercent");
+const progressMilestoneHelp = $("progressMilestoneHelp");
 const completionSection = $("completionSection");
 const completedDate = $("completedDate");
 const completionTimingPreview = $("completionTimingPreview");
@@ -3583,6 +3584,42 @@ async function softDeleteTask(event) {
  * CẬP NHẬT TIẾN ĐỘ VÀ KẾT THÚC NHIỆM VỤ
  * ========================================================= */
 
+const PROGRESS_MILESTONES = Object.freeze([0, 25, 50, 75, 90, 100]);
+
+const PROGRESS_MILESTONE_DESCRIPTIONS = Object.freeze({
+  0: "Chưa triển khai hoặc chưa phát sinh hoạt động thực hiện.",
+  25: "Đã tiếp nhận, xác định cách thực hiện và bắt đầu triển khai.",
+  50: "Đang thực hiện; khối lượng công việc đã hoàn thành khoảng một nửa.",
+  75: "Đã hoàn thành phần chính; đang hoàn thiện, lấy ý kiến hoặc phối hợp.",
+  90: "Đã hoàn tất nội dung; đang chờ ký, ban hành, bàn giao hoặc thủ tục kết thúc.",
+  100: "Nhiệm vụ đã hoàn thành và được chuyển sang lưu trữ."
+});
+
+function normalizeProgressMilestone(value, isCompleted = false) {
+  if (isCompleted) {
+    return 100;
+  }
+
+  const numericValue = Math.max(0, Math.min(99, Number(value) || 0));
+  const availableMilestones = PROGRESS_MILESTONES.filter((item) => item < 100);
+
+  return availableMilestones.reduce((selected, milestone) => (
+    milestone <= numericValue ? milestone : selected
+  ), 0);
+}
+
+function updateProgressMilestoneHelp() {
+  if (!progressMilestoneHelp || !progressPercent) {
+    return;
+  }
+
+  const value = Number(progressPercent.value) || 0;
+  progressMilestoneHelp.innerHTML = `
+    <strong>${value}%</strong>
+    <span>${escapeHtml(PROGRESS_MILESTONE_DESCRIPTIONS[value] || "Chọn đúng mốc phản ánh tình hình thực tế.")}</span>
+  `;
+}
+
 function updateEvidenceFileSelection() {
   const file = evidenceFileInput?.files?.[0] || null;
 
@@ -3617,6 +3654,8 @@ function syncCompletionEvidenceUI() {
       progressPercent.value = "95";
     }
   }
+
+  updateProgressMilestoneHelp();
 
   saveProgressButton.textContent = isCompleted
     ? "✓ Hoàn thành nhiệm vụ"
@@ -3714,7 +3753,7 @@ function openProgressModal(taskId = state.selectedTaskId) {
   progressStatus.value = allowedStatuses.includes(task.status)
     ? task.status
     : "DANG_THUC_HIEN";
-  progressPercent.value = String(Number(task.progress) || 0);
+  progressPercent.value = String(normalizeProgressMilestone(task.progress, task.status === "HOAN_THANH"));
 
   const completedValue = toDate(task.completedAt) || new Date();
   completedDate.value = toDateInput(completedValue);
@@ -3798,15 +3837,16 @@ async function saveProgress(event) {
 
   try {
     const newStatus = progressStatus.value;
-    let newProgress = Math.max(
-      0,
-      Math.min(100, Number(progressPercent.value) || 0)
-    );
+    let newProgress = Number(progressPercent.value) || 0;
+
+    if (!PROGRESS_MILESTONES.includes(newProgress)) {
+      throw new Error("Vui lòng chọn một mốc tiến độ hợp lệ.");
+    }
 
     if (newStatus === "HOAN_THANH") {
       newProgress = 100;
-    } else if (newProgress >= 100) {
-      newProgress = 95;
+    } else if (newProgress === 100) {
+      throw new Error("Mốc 100% chỉ áp dụng khi chọn trạng thái Hoàn thành / Kết thúc.");
     }
 
     state.savingProgress = true;
@@ -4204,6 +4244,7 @@ cancelAssignmentButton.addEventListener("click", closeAssignmentModal);
 assignmentForm.addEventListener("submit", saveInternalAssignment);
 progressForm.addEventListener("submit", saveProgress);
 progressStatus.addEventListener("change", syncCompletionEvidenceUI);
+progressPercent.addEventListener("change", updateProgressMilestoneHelp);
 completionProductType.addEventListener("change", syncCompletionEvidenceUI);
 evidenceFileInput.addEventListener("change", updateEvidenceFileSelection);
 completedDate.addEventListener("input", updateCompletionTimingPreview);
