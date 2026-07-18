@@ -1,4 +1,5 @@
-const APP_VERSION = "20260717.2300";
+const APP_VERSION = "20260718.0400";
+const AI_VERSION = "20260718.0300";
 const CACHE_NAME = `nhiem-vu-shell-v${APP_VERSION}`;
 const APP_BASE_URL = new URL("./", self.location.href);
 
@@ -6,9 +7,9 @@ const APP_SHELL = [
   "./",
   "./index.html",
   `./styles.css?v=${APP_VERSION}`,
-  `./ai-assistant.css?v=${APP_VERSION}`,
+  `./ai-assistant.css?v=${AI_VERSION}`,
   `./app.js?v=${APP_VERSION}`,
-  `./ai-assistant.js?v=${APP_VERSION}`,
+  `./ai-assistant.js?v=${AI_VERSION}`,
   `./pwa.js?v=${APP_VERSION}`,
   `./firebase-config.js?v=${APP_VERSION}`,
   `./notification-config.js?v=${APP_VERSION}`,
