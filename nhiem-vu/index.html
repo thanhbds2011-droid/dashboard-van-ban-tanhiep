@@ -15,11 +15,11 @@
   <meta name="apple-mobile-web-app-title" content="Đánh giá KPI">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
 
-  <link rel="manifest" href="./manifest.webmanifest?v=20260717.2300">
-  <link rel="icon" type="image/png" sizes="64x64" href="./icons/favicon-64.png?v=20260717.2300">
-  <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png?v=20260717.2300">
-  <link rel="stylesheet" href="./styles.css?v=20260717.2300">
-  <link rel="stylesheet" href="./ai-assistant.css?v=20260717.2300">
+  <link rel="manifest" href="./manifest.webmanifest?v=20260718.0400">
+  <link rel="icon" type="image/png" sizes="64x64" href="./icons/favicon-64.png?v=20260718.0400">
+  <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png?v=20260718.0400">
+  <link rel="stylesheet" href="./styles.css?v=20260718.0400">
+  <link rel="stylesheet" href="./ai-assistant.css?v=20260718.0300">
 
   <script
     src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js"
@@ -27,7 +27,7 @@
   ></script>
 
   <script
-    src="./onesignal.js?v=20260717.2300"
+    src="./onesignal.js?v=20260718.0400"
     defer
   ></script>
 </head>
@@ -1192,20 +1192,25 @@
               </select>
             </div>
 
-            <div class="field-block">
+            <div class="field-block progress-milestone-field">
               <label for="progressPercent">
-                Tiến độ (%) <span>*</span>
+                Mức độ hoàn thành <span>*</span>
               </label>
 
-              <input
-                id="progressPercent"
-                type="number"
-                min="0"
-                max="100"
-                step="5"
-                value="0"
-                required
-              >
+              <select id="progressPercent" required>
+                <option value="0">0% — Chưa triển khai</option>
+                <option value="25">25% — Đã tiếp nhận, bắt đầu thực hiện</option>
+                <option value="50">50% — Đang thực hiện, hoàn thành khoảng một nửa</option>
+                <option value="75">75% — Đã hoàn thành phần chính, đang hoàn thiện/phối hợp</option>
+                <option value="90">90% — Đã hoàn tất nội dung, chờ ban hành/bàn giao</option>
+                <option value="100">100% — Hoàn thành / Kết thúc nhiệm vụ</option>
+              </select>
+
+              <div
+                id="progressMilestoneHelp"
+                class="progress-milestone-help"
+                aria-live="polite"
+              ></div>
             </div>
 
             <div
@@ -1455,19 +1460,19 @@
   </div>
 
   <script
-    src="./pwa.js?v=20260717.2300"
+    src="./pwa.js?v=20260718.0400"
     defer
   ></script>
 
   <script
     type="module"
-    src="./app.js?v=20260717.2300"
+    src="./app.js?v=20260718.0400"
   ></script>
 
   <!-- MÔ-ĐUN AI ĐƯỢC NẠP CUỐI CÙNG; XÓA DÒNG NÀY ĐỂ TẮT AI -->
   <script
     type="module"
-    src="./ai-assistant.js?v=20260717.2300"
+    src="./ai-assistant.js?v=20260718.0300"
   ></script>
 </body>
 </html>
