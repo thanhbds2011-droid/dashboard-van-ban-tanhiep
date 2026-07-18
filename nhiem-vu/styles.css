@@ -2837,3 +2837,51 @@ textarea {
     font-size: 18px;
   }
 }
+
+
+/* =========================================================
+ * MỐC TIẾN ĐỘ CHUẨN HÓA — 0 / 25 / 50 / 75 / 90 / 100
+ * ========================================================= */
+.progress-milestone-field select {
+  min-height: 50px;
+  font-weight: 700;
+  color: #153f5d;
+}
+
+.progress-milestone-help {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-top: 9px;
+  padding: 11px 12px;
+  border: 1px solid #d5e5ef;
+  border-radius: 12px;
+  background: #f4f9fc;
+  color: #526d7f;
+  line-height: 1.45;
+}
+
+.progress-milestone-help strong {
+  flex: 0 0 auto;
+  min-width: 42px;
+  color: #0f5e8f;
+  font-size: 16px;
+}
+
+.progress-milestone-help span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 720px) {
+  .progress-milestone-field select {
+    min-height: 54px;
+    font-size: 16px;
+  }
+
+  .progress-milestone-help {
+    gap: 8px;
+    padding: 10px 11px;
+    font-size: 14px;
+  }
+}
