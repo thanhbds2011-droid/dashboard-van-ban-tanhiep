@@ -3646,7 +3646,7 @@ textarea {
 
 .advanced-filter-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(160px, auto);
   gap: 12px;
   align-items: end;
 }
@@ -3672,14 +3672,25 @@ textarea {
   min-width: 0;
 }
 
-.advanced-filter-footer {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 12px;
+.advanced-filter-export-field {
+  min-width: 0;
 }
 
-.advanced-filter-footer .export-button {
+.advanced-filter-export-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0.78rem;
+  line-height: 1;
+}
+
+.advanced-filter-export-field .export-button {
+  width: 100%;
   min-width: 160px;
+  min-height: 46px;
+}
+
+.system-hidden-fields {
+  display: none !important;
 }
 
 .task-table th:last-child,
@@ -3728,6 +3739,10 @@ textarea {
 
   .advanced-filter-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .advanced-filter-export-field {
+    align-self: end;
   }
 }
 
@@ -3802,11 +3817,15 @@ textarea {
     gap: 10px;
   }
 
-  .advanced-filter-footer {
-    display: block;
+  .advanced-filter-export-field {
+    width: 100%;
   }
 
-  .advanced-filter-footer .export-button {
+  .advanced-filter-export-label {
+    display: none;
+  }
+
+  .advanced-filter-export-field .export-button {
     width: 100%;
     min-width: 0;
   }
@@ -3914,5 +3933,39 @@ textarea {
 
   .metric-card > span:last-child {
     font-size: 10.5px;
+  }
+}
+
+/* =========================================================
+ * BỐ CỤC GHI NHẬN & BỘ LỌC — 20260719.2400
+ * ========================================================= */
+@media (min-width: 1281px) {
+  .advanced-filter-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(160px, 180px);
+    align-items: end;
+  }
+
+  .advanced-filter-export-field .export-button {
+    width: 100%;
+    min-height: 46px;
+  }
+}
+
+@media (max-width: 760px) {
+  .advanced-filter-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .advanced-filter-export-field {
+    width: 100%;
+  }
+
+  .advanced-filter-export-label {
+    display: none;
+  }
+
+  .advanced-filter-export-field .export-button {
+    width: 100%;
+    min-width: 0;
   }
 }
