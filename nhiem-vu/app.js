@@ -1,11 +1,11 @@
 import {
   auth,
   db
-} from "./firebase-config.js?v=20260719.2200";
+} from "./firebase-config.js?v=20260719.2300";
 
 import {
   NOTIFICATION_WEB_APP_URL
-} from "./notification-config.js?v=20260719.2200";
+} from "./notification-config.js?v=20260719.2300";
 
 import {
   GoogleAuthProvider,
@@ -992,6 +992,41 @@ async function loadTasks() {
         );
       }
 
+
+    } else if (state.profile.role === "STAFF") {
+      const tasksRef = collection(db, "tasks");
+
+      /*
+       * Nhân viên chỉ đọc nhiệm vụ được phân công trực tiếp.
+       * Truy vấn ownerUserId là nguồn chính.
+       */
+      const ownerSnapshot = await getDocsFromServer(
+        query(
+          tasksRef,
+          where("ownerUserId", "==", state.user.uid)
+        )
+      );
+      addSnapshotToMap(ownerSnapshot);
+
+      /*
+       * Tương thích dữ liệu cũ hoặc nhiệm vụ đã thêm UID vào
+       * visibleUserIds trước khi hoàn thiện ownerUserId.
+       */
+      try {
+        const visibleUserSnapshot = await getDocsFromServer(
+          query(
+            tasksRef,
+            where("visibleUserIds", "array-contains", state.user.uid)
+          )
+        );
+        addSnapshotToMap(visibleUserSnapshot);
+      } catch (visibleUserError) {
+        console.warn(
+          "Chưa đọc được nhiệm vụ theo visibleUserIds:",
+          visibleUserError
+        );
+      }
+
     } else {
       throw new Error("Vai trò tài khoản chưa được cấp quyền xem nhiệm vụ.");
     }
@@ -1949,6 +1984,10 @@ function canUpdateTask(task) {
     state.profile.role === "DEPARTMENT_LEADER" &&
     task.primaryDepartmentId === state.profile.departmentId
   ) {
+    return task.ownerUserId === state.user.uid;
+  }
+
+  if (state.profile.role === "STAFF") {
     return task.ownerUserId === state.user.uid;
   }
 
@@ -3167,16 +3206,40 @@ async function saveTask(event) {
  * ========================================================= */
 
 function internalAssigneeOptions(task) {
+  const allowedRoles = new Set([
+    "DEPARTMENT_LEADER",
+    "STAFF"
+  ]);
+
   return state.users
     .filter((item) => (
       item.active === true &&
-      item.role === "DEPARTMENT_LEADER" &&
+      allowedRoles.has(item.role) &&
       item.departmentId === task.primaryDepartmentId
     ))
-    .sort((a, b) => String(a.fullName || "").localeCompare(
-      String(b.fullName || ""),
-      "vi"
-    ));
+    .sort((a, b) => {
+      /*
+       * Trưởng/Phó hiển thị trước, sau đó đến nhân viên;
+       * trong từng nhóm sắp xếp theo họ tên.
+       */
+      const roleOrder = {
+        DEPARTMENT_LEADER: 1,
+        STAFF: 2
+      };
+
+      const orderDifference =
+        Number(roleOrder[a.role] || 99) -
+        Number(roleOrder[b.role] || 99);
+
+      if (orderDifference !== 0) {
+        return orderDifference;
+      }
+
+      return String(a.fullName || "").localeCompare(
+        String(b.fullName || ""),
+        "vi"
+      );
+    });
 }
 
 function openAssignmentModal(taskId = state.selectedTaskId) {
@@ -3207,7 +3270,7 @@ function openAssignmentModal(taskId = state.selectedTaskId) {
 
   const assignees = internalAssigneeOptions(task);
   internalOwnerUserId.innerHTML =
-    '<option value="">Chọn Trưởng/Phó phụ trách thực hiện</option>';
+    '<option value="">Chọn người phụ trách thực hiện</option>';
 
   assignees.forEach((item) => {
     const option = document.createElement("option");
@@ -3225,8 +3288,8 @@ function openAssignmentModal(taskId = state.selectedTaskId) {
     : "";
 
   assignmentHelp.textContent = assignees.length > 0
-    ? "Chỉ hiển thị Trưởng/Phó đang hoạt động thuộc Phòng/Khu chịu trách nhiệm chính."
-    : "Phòng/Khu này chưa có tài khoản Trưởng/Phó đang hoạt động.";
+    ? "Hiển thị Trưởng/Phó và nhân viên đang hoạt động thuộc Phòng/Khu chịu trách nhiệm chính."
+    : "Phòng/Khu này chưa có tài khoản lãnh đạo hoặc nhân viên đang hoạt động để phân công.";
 
   internalOwnerUserId.disabled = assignees.length === 0;
   saveAssignmentButton.disabled = assignees.length === 0;
@@ -3286,12 +3349,12 @@ async function saveInternalAssignment(event) {
   if (
     !owner ||
     owner.active !== true ||
-    owner.role !== "DEPARTMENT_LEADER" ||
+    !["DEPARTMENT_LEADER", "STAFF"].includes(owner.role) ||
     owner.departmentId !== task.primaryDepartmentId
   ) {
     showMessage(
       assignmentMessage,
-      "Vui lòng chọn đúng Trưởng/Phó thuộc Phòng/Khu phụ trách.",
+      "Vui lòng chọn đúng người phụ trách đang hoạt động thuộc Phòng/Khu chính.",
       "error"
     );
     return;
