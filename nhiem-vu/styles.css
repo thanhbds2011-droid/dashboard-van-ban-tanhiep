@@ -3545,3 +3545,280 @@ textarea {
     padding-bottom: calc(28px + env(safe-area-inset-bottom));
   }
 }
+
+
+/* =========================================================
+ * GIAO DIỆN NHIỆM VỤ V2.2 — DESKTOP VÀ PWA
+ * - 06 thẻ thống kê cân đối
+ * - Tìm kiếm luôn hiển thị
+ * - Bộ lọc nâng cao đóng/mở
+ * - Nút ghi nhận tách khỏi vùng lọc
+ * - Tiến độ trên bảng và thẻ mobile
+ * ========================================================= */
+
+.metrics-grid {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.metric-card {
+  min-height: 116px;
+  padding: 15px 16px;
+}
+
+.metric-card strong {
+  margin-top: 6px;
+  font-size: 28px;
+}
+
+.metric-card > span:last-child {
+  margin-top: 7px;
+}
+
+.metric-waiting {
+  border-left-color: var(--purple);
+}
+
+.metric-waiting strong {
+  color: var(--purple);
+}
+
+.metric-paused {
+  border-left-color: #6f7d8c;
+}
+
+.metric-paused strong {
+  color: #5e6b78;
+}
+
+.filter-card {
+  padding: 18px;
+}
+
+.filter-card-head {
+  margin-bottom: 14px;
+}
+
+.filter-create-button {
+  min-width: 150px;
+  flex: 0 0 auto;
+}
+
+.filter-search-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 130px;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.filter-search-row input,
+.filter-reset-button {
+  min-height: 48px;
+}
+
+.filter-reset-button {
+  width: 100%;
+  padding-inline: 14px;
+  white-space: nowrap;
+}
+
+.advanced-filter-toggle {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 12px;
+  justify-content: center;
+  border-style: dashed;
+  background: #f8fbfd;
+}
+
+.advanced-filter-panel {
+  display: none;
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid #d8e5ee;
+  border-radius: 14px;
+  background: #f8fbfd;
+}
+
+.advanced-filter-panel.open {
+  display: block;
+}
+
+.advanced-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.advanced-filter-grid > div {
+  min-width: 0;
+}
+
+.advanced-filter-grid label {
+  display: block;
+  margin-bottom: 6px;
+  color: #23445f;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.advanced-filter-grid input,
+.advanced-filter-grid select {
+  min-height: 46px;
+}
+
+.date-filter-field {
+  min-width: 0;
+}
+
+.advanced-filter-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+.advanced-filter-footer .export-button {
+  min-width: 160px;
+}
+
+.task-table th:last-child,
+.task-table td:last-child {
+  width: 120px;
+  text-align: center;
+}
+
+.task-progress-cell,
+.task-mobile-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.task-progress-cell strong,
+.task-mobile-progress strong {
+  color: #135f96;
+  font-weight: 850;
+}
+
+.task-progress-track {
+  display: block;
+  width: 100%;
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e3edf5;
+}
+
+.task-progress-track > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2588c9, #36a578);
+}
+
+.task-mobile-progress {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 1280px) and (min-width: 761px) {
+  .metrics-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .advanced-filter-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .metrics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .metric-card {
+    min-height: 108px;
+    padding: 14px 12px;
+  }
+
+  .filter-card {
+    padding: 14px;
+  }
+
+  .filter-card-head {
+    align-items: center;
+    margin-bottom: 12px;
+  }
+
+  .filter-card-head > div {
+    min-width: 0;
+  }
+
+  .filter-create-button {
+    min-width: 0;
+    padding: 9px 12px;
+    font-size: 13px;
+  }
+
+  .filter-search-row {
+    grid-template-columns: minmax(0, 1fr) 48px;
+    gap: 8px;
+  }
+
+  .filter-reset-button {
+    width: 48px;
+    min-width: 48px;
+    padding: 0;
+    overflow: hidden;
+    font-size: 0;
+  }
+
+  .filter-reset-button::before {
+    content: "↻";
+    font-size: 24px;
+    line-height: 1;
+  }
+
+  .advanced-filter-toggle {
+    min-height: 46px;
+    font-size: 14px;
+  }
+
+  .advanced-filter-panel {
+    padding: 12px;
+  }
+
+  .advanced-filter-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .advanced-filter-footer {
+    display: block;
+  }
+
+  .advanced-filter-footer .export-button {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .task-mobile-meta {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 460px) {
+  .filter-card-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .filter-create-button {
+    width: 100%;
+  }
+
+  .task-mobile-meta {
+    grid-template-columns: 1fr;
+  }
+}
