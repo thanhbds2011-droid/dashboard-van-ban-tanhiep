@@ -15,12 +15,12 @@
   <meta name="apple-mobile-web-app-title" content="Đánh giá KPI">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
 
-  <link rel="manifest" href="./manifest.webmanifest?v=20260718.2000">
-  <link rel="icon" type="image/png" sizes="64x64" href="./icons/favicon-64.png?v=20260718.2000">
-  <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png?v=20260718.2000">
-  <link rel="stylesheet" href="./styles.css?v=20260718.0500">
-  <link rel="stylesheet" href="./styles-v2.css?v=20260719.2000">
-  <link rel="stylesheet" href="./ai-assistant.css?v=20260718.0300">
+  <link rel="manifest" href="./manifest.webmanifest?v=20260718.0600">
+  <link rel="icon" type="image/png" sizes="64x64" href="./icons/favicon-64.png?v=20260718.0600">
+  <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png?v=20260718.0600">
+  <link rel="stylesheet" href="./styles.css?v=20260719.2100">
+  <link rel="stylesheet" href="./ai-assistant.css?v=20260719.2100">
+  <link rel="stylesheet" href="./styles-v2.1.css?v=20260719.2100">
 
   <script
     src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js"
@@ -28,7 +28,7 @@
   ></script>
 
   <script
-    src="./onesignal.js?v=20260718.2000"
+    src="./onesignal.js?v=20260718.0600"
     defer
   ></script>
 </head>
@@ -215,16 +215,6 @@
         </div>
       </section>
 
-      <nav class="module-navigation" aria-label="Phân hệ quản lý nhiệm vụ">
-        <button id="tasksModuleButton" class="module-nav-button active" type="button" aria-selected="true">
-          <span aria-hidden="true">📋</span><span>Nhiệm vụ</span>
-        </button>
-        <button id="journalModuleButton" class="module-nav-button" type="button" aria-selected="false">
-          <span aria-hidden="true">📚</span><span>Nhật ký & Báo cáo</span>
-        </button>
-      </nav>
-
-      <div id="tasksModuleView" class="module-view">
       <section
         id="pushStatusBox"
         class="push-status-box hidden"
@@ -272,10 +262,22 @@
           <span>Đang thực hiện</span>
         </article>
 
+        <article class="metric-card metric-waiting">
+          <span class="metric-icon" aria-hidden="true">🤝</span>
+          <strong id="metricWaiting">0</strong>
+          <span>Chờ phối hợp</span>
+        </article>
+
         <article class="metric-card metric-overdue">
           <span class="metric-icon" aria-hidden="true">⚠️</span>
           <strong id="metricOverdue">0</strong>
           <span>Quá hạn</span>
+        </article>
+
+        <article class="metric-card metric-paused">
+          <span class="metric-icon" aria-hidden="true">⏸️</span>
+          <strong id="metricPaused">0</strong>
+          <span>Tạm dừng</span>
         </article>
       </section>
 
@@ -353,6 +355,16 @@
                 Tất cả Phòng/Khu
               </option>
             </select>
+          </div>
+
+          <div class="date-filter-field">
+            <label for="dateFromFilter">Từ ngày</label>
+            <input id="dateFromFilter" type="date">
+          </div>
+
+          <div class="date-filter-field">
+            <label for="dateToFilter">Đến ngày</label>
+            <input id="dateToFilter" type="date">
           </div>
 
           <div class="filter-actions">
@@ -441,6 +453,7 @@
                 <th>Người phụ trách</th>
                 <th>Hạn hoàn thành</th>
                 <th>Trạng thái</th>
+                <th>Tiến độ</th>
               </tr>
             </thead>
 
@@ -465,115 +478,6 @@
             Những nhiệm vụ mới được giao hoặc đang thực hiện sẽ hiển thị tại đây.
           </p>
         </div>
-      </section>
-      </div>
-
-      <section id="journalModuleView" class="module-view hidden" aria-labelledby="journalModuleTitle">
-        <div class="journal-hero">
-          <div>
-            <span class="journal-eyebrow">PHÂN HỆ ĐIỀU HÀNH V2.0</span>
-            <h2 id="journalModuleTitle">Nhật ký nhiệm vụ & Báo cáo điều hành</h2>
-            <p>Theo dõi lịch sử thao tác và tổng hợp nhiệm vụ theo ngày, tháng, quý hoặc năm.</p>
-          </div>
-          <div class="journal-hero-actions">
-            <button id="journalRefreshButton" class="secondary-button" type="button">↻ Làm mới</button>
-            <button id="journalExportButton" class="primary-button" type="button">📊 Xuất báo cáo kỳ</button>
-          </div>
-        </div>
-
-        <section class="journal-filter-card">
-          <div class="journal-filter-heading">
-            <div>
-              <h3>Kỳ báo cáo</h3>
-              <p id="journalPeriodLabel">Tháng hiện tại</p>
-            </div>
-            <button id="journalFilterToggle" class="secondary-button mobile-only" type="button" aria-expanded="false">🔎 Bộ lọc</button>
-          </div>
-          <div id="journalFilterFields" class="journal-filter-grid">
-            <div class="field-block">
-              <label for="journalPeriodType">Loại kỳ</label>
-              <select id="journalPeriodType">
-                <option value="DAY">Theo ngày</option>
-                <option value="MONTH" selected>Theo tháng</option>
-                <option value="QUARTER">Theo quý</option>
-                <option value="YEAR">Theo năm</option>
-                <option value="CUSTOM">Khoảng tùy chọn</option>
-              </select>
-            </div>
-            <div id="journalDayWrap" class="field-block hidden">
-              <label for="journalDay">Ngày</label>
-              <input id="journalDay" type="date">
-            </div>
-            <div id="journalMonthWrap" class="field-block">
-              <label for="journalMonth">Tháng</label>
-              <input id="journalMonth" type="month">
-            </div>
-            <div id="journalQuarterWrap" class="field-block hidden">
-              <label for="journalQuarter">Quý</label>
-              <select id="journalQuarter">
-                <option value="1">Quý I</option><option value="2">Quý II</option>
-                <option value="3">Quý III</option><option value="4">Quý IV</option>
-              </select>
-            </div>
-            <div id="journalYearWrap" class="field-block hidden">
-              <label for="journalYear">Năm</label>
-              <input id="journalYear" type="number" min="2020" max="2100" step="1">
-            </div>
-            <div id="journalCustomFromWrap" class="field-block hidden">
-              <label for="journalDateFrom">Từ ngày</label>
-              <input id="journalDateFrom" type="date">
-            </div>
-            <div id="journalCustomToWrap" class="field-block hidden">
-              <label for="journalDateTo">Đến ngày</label>
-              <input id="journalDateTo" type="date">
-            </div>
-            <div id="journalDepartmentWrap" class="field-block">
-              <label for="journalDepartment">Phòng/Khu</label>
-              <select id="journalDepartment"><option value="ALL">Tất cả Phòng/Khu</option></select>
-            </div>
-            <div class="field-block">
-              <label for="journalStatus">Trạng thái hiện tại</label>
-              <select id="journalStatus">
-                <option value="ALL">Tất cả trạng thái</option>
-                <option value="MOI_TIEP_NHAN">Mới ghi nhận</option>
-                <option value="DANG_THUC_HIEN">Đang thực hiện</option>
-                <option value="CHO_PHOI_HOP">Chờ phối hợp</option>
-                <option value="HOAN_THANH">Hoàn thành</option>
-                <option value="TAM_DUNG">Tạm dừng</option>
-                <option value="HUY">Hủy</option>
-              </select>
-            </div>
-          </div>
-        </section>
-
-        <section class="journal-metrics-grid" aria-label="Thống kê kỳ báo cáo">
-          <article><span>📌</span><strong id="journalMetricTotal">0</strong><small>Nhiệm vụ được giao</small></article>
-          <article><span>✅</span><strong id="journalMetricCompleted">0</strong><small>Đã hoàn thành</small></article>
-          <article><span>🔄</span><strong id="journalMetricProcessing">0</strong><small>Đang thực hiện</small></article>
-          <article><span>🤝</span><strong id="journalMetricWaiting">0</strong><small>Chờ phối hợp</small></article>
-          <article><span>⚠️</span><strong id="journalMetricOverdue">0</strong><small>Quá hạn</small></article>
-          <article><span>⏸️</span><strong id="journalMetricPaused">0</strong><small>Tạm dừng</small></article>
-        </section>
-
-        <section class="journal-layout">
-          <article class="journal-panel journal-task-panel">
-            <div class="journal-panel-head"><div><h3>Danh sách nhiệm vụ trong kỳ</h3><p id="journalTaskSummary">0 nhiệm vụ</p></div></div>
-            <div class="journal-table-wrap">
-              <table class="journal-table">
-                <thead><tr><th>STT</th><th>Ngày giao</th><th>Nhiệm vụ</th><th>Phòng/Khu</th><th>Trạng thái</th><th>Tiến độ</th></tr></thead>
-                <tbody id="journalTaskTableBody"></tbody>
-              </table>
-            </div>
-            <div id="journalTaskCardList" class="journal-task-card-list"></div>
-            <div id="journalTaskEmpty" class="journal-empty hidden">Không có nhiệm vụ phù hợp trong kỳ đã chọn.</div>
-          </article>
-
-          <article class="journal-panel journal-log-panel">
-            <div class="journal-panel-head"><div><h3>Dòng thời gian thao tác</h3><p id="journalLogSummary">0 sự kiện</p></div></div>
-            <div id="journalTimeline" class="journal-timeline"></div>
-            <div id="journalLogEmpty" class="journal-empty hidden">Chưa có nhật ký thao tác trong kỳ đã chọn.</div>
-          </article>
-        </section>
       </section>
     </main>
   </div>
@@ -1580,19 +1484,19 @@
   </div>
 
   <script
-    src="./pwa.js?v=20260719.2000"
+    src="./pwa.js?v=20260719.2100"
     defer
   ></script>
 
   <script
     type="module"
-    src="./app.js?v=20260719.2000"
+    src="./app.js?v=20260719.2100"
   ></script>
 
   <!-- MÔ-ĐUN AI ĐƯỢC NẠP CUỐI CÙNG; XÓA DÒNG NÀY ĐỂ TẮT AI -->
   <script
     type="module"
-    src="./ai-assistant.js?v=20260718.0300"
+    src="./ai-assistant.js?v=20260719.2100"
   ></script>
 </body>
 </html>
