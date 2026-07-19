@@ -18,9 +18,8 @@
   <link rel="manifest" href="./manifest.webmanifest?v=20260718.0600">
   <link rel="icon" type="image/png" sizes="64x64" href="./icons/favicon-64.png?v=20260718.0600">
   <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png?v=20260718.0600">
-  <link rel="stylesheet" href="./styles.css?v=20260719.2100">
-  <link rel="stylesheet" href="./ai-assistant.css?v=20260719.2100">
-  <link rel="stylesheet" href="./styles-v2.1.css?v=20260719.2100">
+  <link rel="stylesheet" href="./styles.css?v=20260719.2200">
+  <link rel="stylesheet" href="./ai-assistant.css?v=20260719.2200">
 
   <script
     src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js"
@@ -289,20 +288,17 @@
           </div>
 
           <button
-            id="filterToggleButton"
-            class="secondary-button mobile-only"
+            id="addTaskButton"
+            class="primary-button filter-create-button hidden"
             type="button"
-            aria-expanded="false"
           >
-            🔎 Bộ lọc
+            ➕ Ghi nhận
           </button>
         </div>
 
-        <div id="filterFields" class="filter-grid">
+        <div class="filter-search-row">
           <div class="filter-search">
-            <label class="sr-only" for="searchInput">
-              Tìm kiếm
-            </label>
+            <label class="sr-only" for="searchInput">Tìm kiếm</label>
 
             <input
               id="searchInput"
@@ -312,86 +308,78 @@
             >
           </div>
 
-          <div>
-            <label class="sr-only" for="statusFilter">
-              Trạng thái
-            </label>
+          <button
+            id="refreshButton"
+            class="secondary-button filter-reset-button"
+            type="button"
+            aria-label="Đặt lại bộ lọc và làm mới dữ liệu"
+            title="Đặt lại bộ lọc và làm mới dữ liệu"
+          >
+            ↻ Đặt lại
+          </button>
+        </div>
 
-            <select id="statusFilter">
-              <option value="ALL">Tất cả trạng thái</option>
-              <option value="MOI_TIEP_NHAN">Mới ghi nhận</option>
-              <option value="DANG_THUC_HIEN">Đang thực hiện</option>
-              <option value="CHO_PHOI_HOP">Chờ phối hợp</option>
-              <option value="HOAN_THANH">Hoàn thành</option>
-              <option value="TAM_DUNG">Tạm dừng</option>
-              <option value="HUY">Hủy</option>
-            </select>
+        <button
+          id="filterToggleButton"
+          class="secondary-button advanced-filter-toggle"
+          type="button"
+          aria-expanded="false"
+          aria-controls="filterFields"
+        >
+          🔎 Bộ lọc nâng cao
+        </button>
+
+        <div id="filterFields" class="advanced-filter-panel">
+          <div class="advanced-filter-grid">
+            <div class="date-filter-field">
+              <label for="dateFromFilter">Từ ngày</label>
+              <input id="dateFromFilter" type="date">
+            </div>
+
+            <div class="date-filter-field">
+              <label for="dateToFilter">Đến ngày</label>
+              <input id="dateToFilter" type="date">
+            </div>
+
+            <div>
+              <label for="statusFilter">Trạng thái</label>
+              <select id="statusFilter">
+                <option value="ALL">Tất cả trạng thái</option>
+                <option value="MOI_TIEP_NHAN">Mới ghi nhận</option>
+                <option value="DANG_THUC_HIEN">Đang thực hiện</option>
+                <option value="CHO_PHOI_HOP">Chờ phối hợp</option>
+                <option value="HOAN_THANH">Hoàn thành</option>
+                <option value="TAM_DUNG">Tạm dừng</option>
+                <option value="HUY">Hủy</option>
+              </select>
+            </div>
+
+            <div>
+              <label for="deadlineFilter">Thời hạn</label>
+              <select id="deadlineFilter">
+                <option value="ALL">Tất cả thời hạn</option>
+                <option value="OVERDUE">Quá hạn</option>
+                <option value="DUE_TODAY">Đến hạn hôm nay</option>
+                <option value="UPCOMING">Sắp đến hạn ≤ 5 ngày</option>
+                <option value="COMPLETED">Đã hoàn thành</option>
+              </select>
+            </div>
+
+            <div id="departmentFilterWrap" class="hidden">
+              <label for="departmentFilter">Phòng/Khu</label>
+              <select id="departmentFilter">
+                <option value="ALL">Tất cả Phòng/Khu</option>
+              </select>
+            </div>
           </div>
 
-          <div>
-            <label class="sr-only" for="deadlineFilter">
-              Thời hạn
-            </label>
-
-            <select id="deadlineFilter">
-              <option value="ALL">Tất cả thời hạn</option>
-              <option value="OVERDUE">Quá hạn</option>
-              <option value="DUE_TODAY">Đến hạn hôm nay</option>
-              <option value="UPCOMING">Sắp đến hạn ≤ 5 ngày</option>
-              <option value="COMPLETED">Đã hoàn thành</option>
-            </select>
-          </div>
-
-          <div id="departmentFilterWrap" class="hidden">
-            <label
-              class="sr-only"
-              for="departmentFilter"
-            >
-              Phòng/Khu xử lý chính
-            </label>
-
-            <select id="departmentFilter">
-              <option value="ALL">
-                Tất cả Phòng/Khu
-              </option>
-            </select>
-          </div>
-
-          <div class="date-filter-field">
-            <label for="dateFromFilter">Từ ngày</label>
-            <input id="dateFromFilter" type="date">
-          </div>
-
-          <div class="date-filter-field">
-            <label for="dateToFilter">Đến ngày</label>
-            <input id="dateToFilter" type="date">
-          </div>
-
-          <div class="filter-actions">
-            <button
-              id="refreshButton"
-              class="secondary-button refresh-icon-button"
-              type="button"
-              aria-label="Làm mới dữ liệu"
-              title="Làm mới dữ liệu"
-            >
-              <span class="refresh-icon" aria-hidden="true">↻</span>
-            </button>
-
+          <div class="advanced-filter-footer">
             <button
               id="exportReportButton"
               class="secondary-button export-button hidden"
               type="button"
             >
               📊 Xuất báo cáo
-            </button>
-
-            <button
-              id="addTaskButton"
-              class="primary-button hidden"
-              type="button"
-            >
-              ➕ Ghi nhận
             </button>
           </div>
         </div>
@@ -1484,19 +1472,19 @@
   </div>
 
   <script
-    src="./pwa.js?v=20260719.2100"
+    src="./pwa.js?v=20260719.2200"
     defer
   ></script>
 
   <script
     type="module"
-    src="./app.js?v=20260719.2100"
+    src="./app.js?v=20260719.2200"
   ></script>
 
   <!-- MÔ-ĐUN AI ĐƯỢC NẠP CUỐI CÙNG; XÓA DÒNG NÀY ĐỂ TẮT AI -->
   <script
     type="module"
-    src="./ai-assistant.js?v=20260719.2100"
+    src="./ai-assistant.js?v=20260719.2200"
   ></script>
 </body>
 </html>
