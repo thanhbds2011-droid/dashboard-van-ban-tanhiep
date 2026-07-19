@@ -1,5 +1,5 @@
-import { auth } from "./firebase-config.js?v=20260718.0300";
-import { NOTIFICATION_WEB_APP_URL } from "./notification-config.js?v=20260718.0300";
+import { auth } from "./firebase-config.js?v=20260718.2000";
+import { NOTIFICATION_WEB_APP_URL } from "./notification-config.js?v=20260718.2000";
 
 /* =========================================================
  * AI MODULE V3 — HYBRID CALLBACK + MOBILE POLLING — TRỢ LÝ GỢI Ý NỘI DUNG THEO TINH THẦN 6 RÕ
