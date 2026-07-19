@@ -1,9 +1,162 @@
-
 /* =========================================================
-   NHIỆM VỤ & KPI — GIAO DIỆN V2.0
-   Tệp bổ sung; giữ nguyên styles.css hiện tại.
-   ========================================================= */
-.module-navigation{display:flex;gap:10px;margin:0 0 18px;padding:6px;background:#eef5fa;border:1px solid #d5e4ef;border-radius:14px}.module-nav-button{display:flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 18px;border:0;border-radius:10px;background:transparent;color:#31546c;font:inherit;font-weight:700;cursor:pointer}.module-nav-button.active{background:#fff;color:#17639a;box-shadow:0 2px 10px rgba(23,99,154,.12)}.module-view.hidden{display:none!important}.journal-hero{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:24px;margin-bottom:16px;border-radius:18px;background:linear-gradient(135deg,#155d8d,#1c79ad);color:#fff;box-shadow:0 10px 30px rgba(23,99,154,.18)}.journal-hero h2{margin:4px 0 6px;font-size:1.45rem}.journal-hero p{margin:0;opacity:.92}.journal-eyebrow{font-size:.75rem;font-weight:800;letter-spacing:.08em;opacity:.82}.journal-hero-actions{display:flex;gap:10px;flex-wrap:wrap}.journal-hero .secondary-button{background:#fff;color:#17639a;border-color:#fff}.journal-filter-card,.journal-panel{background:#fff;border:1px solid #dbe7ef;border-radius:16px;box-shadow:0 5px 20px rgba(21,66,95,.06)}.journal-filter-card{padding:18px;margin-bottom:16px}.journal-filter-heading,.journal-panel-head{display:flex;justify-content:space-between;align-items:center;gap:12px}.journal-filter-heading h3,.journal-panel-head h3{margin:0;color:#173f59}.journal-filter-heading p,.journal-panel-head p{margin:3px 0 0;color:#6f8190}.journal-filter-grid{display:grid;grid-template-columns:repeat(6,minmax(140px,1fr));gap:12px;margin-top:14px}.journal-metrics-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:16px}.journal-metrics-grid article{display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto;column-gap:10px;align-items:center;padding:16px;background:#fff;border:1px solid #dbe7ef;border-radius:14px}.journal-metrics-grid article>span{grid-row:1/3;font-size:1.5rem}.journal-metrics-grid strong{font-size:1.55rem;color:#174f76}.journal-metrics-grid small{color:#6f8190}.journal-layout{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(360px,.9fr);gap:16px}.journal-panel{padding:18px;min-width:0}.journal-table-wrap{overflow:auto;margin-top:14px}.journal-table{width:100%;border-collapse:collapse;min-width:780px}.journal-table th,.journal-table td{padding:11px 10px;border-bottom:1px solid #e4edf3;text-align:left;vertical-align:top}.journal-table th{font-size:.78rem;text-transform:uppercase;color:#597083;background:#f5f9fc}.journal-table tbody tr{cursor:pointer}.journal-table tbody tr:hover{background:#f7fbfe}.journal-table td small{display:block;margin-top:3px;color:#7a8a96}.journal-task-card-list{display:none}.journal-timeline{position:relative;margin-top:14px}.journal-timeline:before{content:"";position:absolute;left:95px;top:10px;bottom:10px;width:2px;background:#dbe7ef}.journal-event{display:grid;grid-template-columns:78px 16px 1fr;gap:10px;position:relative;padding:0 0 18px}.journal-event-time{text-align:right}.journal-event-time strong,.journal-event-time span{display:block}.journal-event-time span{font-size:.74rem;color:#778895}.journal-event-dot{width:12px;height:12px;margin-top:6px;border:3px solid #fff;border-radius:50%;background:#1c79ad;box-shadow:0 0 0 2px #90bfdc;z-index:1}.journal-event-content{padding:12px;border:1px solid #e1ebf2;border-radius:12px;background:#fafeff}.journal-event-content>div{display:flex;justify-content:space-between;gap:8px}.journal-event-content>div span{font-size:.76rem;color:#718391}.journal-event-content h4{margin:7px 0 4px;color:#174f76}.journal-event-content p{margin:0;color:#526675;line-height:1.45}.journal-event-content button{margin-top:8px;border:0;background:#e8f3fa;color:#17639a;border-radius:999px;padding:5px 9px;font-weight:700;cursor:pointer}.journal-empty{padding:28px 12px;text-align:center;color:#718391}.journal-task-card{padding:14px;border:1px solid #dfeaf1;border-radius:13px;background:#fff}.journal-task-card>div{display:flex;justify-content:space-between;gap:8px}.journal-task-card h4{margin:8px 0 4px}.journal-task-card p{margin:0;color:#6c7d89}
-@media(max-width:1100px){.journal-filter-grid{grid-template-columns:repeat(3,minmax(140px,1fr))}.journal-metrics-grid{grid-template-columns:repeat(3,1fr)}.journal-layout{grid-template-columns:1fr}}
-@media(max-width:700px){.module-navigation{position:sticky;top:8px;z-index:20;margin:0 0 12px}.module-nav-button{flex:1;padding:0 10px;font-size:.9rem}.journal-hero{display:block;padding:18px;border-radius:15px}.journal-hero h2{font-size:1.2rem}.journal-hero-actions{margin-top:14px}.journal-hero-actions button{flex:1}.journal-filter-card{padding:14px}.journal-filter-grid{display:none;grid-template-columns:1fr 1fr}.journal-filter-grid.open{display:grid}.journal-filter-grid .field-block{min-width:0}.journal-metrics-grid{grid-template-columns:repeat(2,1fr);gap:9px}.journal-metrics-grid article{padding:12px}.journal-metrics-grid strong{font-size:1.25rem}.journal-panel{padding:14px}.journal-table-wrap{display:none}.journal-task-card-list{display:grid;gap:10px;margin-top:12px}.journal-timeline:before{left:9px}.journal-event{grid-template-columns:16px 1fr;gap:10px}.journal-event-time{grid-column:2;text-align:left;display:flex;gap:8px;align-items:center}.journal-event-dot{grid-column:1;grid-row:1/3}.journal-event-content{grid-column:2}.journal-event-content>div{display:block}.journal-event-content>div span{display:block;margin-top:2px}}
-@media(max-width:420px){.journal-filter-grid{grid-template-columns:1fr}.journal-metrics-grid{grid-template-columns:1fr 1fr}.journal-metrics-grid article>span{font-size:1.2rem}.journal-metrics-grid small{font-size:.72rem}}
+ * BỔ SUNG GIAO DIỆN V2.1
+ * - Bộ lọc từ ngày / đến ngày
+ * - 06 thẻ thống kê
+ * - Cột tiến độ trên desktop và PWA
+ * ========================================================= */
+
+.metrics-grid {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.metric-waiting {
+  border-top-color: #9a63d2;
+}
+
+.metric-paused {
+  border-top-color: #6f7d8c;
+}
+
+.filter-grid {
+  grid-template-columns: minmax(260px, 2fr) repeat(5, minmax(145px, 1fr)) auto;
+  align-items: end;
+}
+
+.filter-grid.has-department-filter {
+  grid-template-columns: minmax(250px, 2fr) repeat(6, minmax(140px, 1fr)) auto;
+}
+
+.date-filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.date-filter-field label {
+  color: #23445f;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.date-filter-field input {
+  width: 100%;
+  min-height: 44px;
+}
+
+.task-table th:last-child,
+.task-table td:last-child {
+  width: 120px;
+  text-align: center;
+}
+
+.task-progress-cell,
+.task-mobile-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.task-progress-cell strong,
+.task-mobile-progress strong {
+  color: #135f96;
+  font-weight: 800;
+}
+
+.task-progress-track {
+  display: block;
+  width: 100%;
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e3edf5;
+}
+
+.task-progress-track > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2588c9, #36a578);
+}
+
+.task-mobile-progress {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 1280px) {
+  .metrics-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .filter-grid,
+  .filter-grid.has-department-filter {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .filter-search {
+    grid-column: span 2;
+  }
+
+  .filter-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 760px) {
+  .metrics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .filter-grid,
+  .filter-grid.has-department-filter {
+    grid-template-columns: 1fr;
+  }
+
+  .filter-search,
+  .filter-actions {
+    grid-column: auto;
+  }
+
+  .date-filter-field {
+    width: 100%;
+  }
+
+  .filter-actions {
+    display: grid;
+    grid-template-columns: 52px 1fr 1fr;
+    gap: 8px;
+  }
+
+  .filter-actions button {
+    min-width: 0;
+  }
+
+  .task-mobile-meta {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 460px) {
+  .metrics-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .metric-card {
+    min-height: 112px;
+    padding: 14px 12px;
+  }
+
+  .task-mobile-meta {
+    grid-template-columns: 1fr;
+  }
+
+  .filter-actions {
+    grid-template-columns: 48px 1fr;
+  }
+
+  .filter-actions .primary-button {
+    grid-column: 1 / -1;
+  }
+}
