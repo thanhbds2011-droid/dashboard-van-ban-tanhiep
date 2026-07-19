@@ -1,11 +1,11 @@
 import {
   auth,
   db
-} from "./firebase-config.js?v=20260719.2100";
+} from "./firebase-config.js?v=20260719.2200";
 
 import {
   NOTIFICATION_WEB_APP_URL
-} from "./notification-config.js?v=20260719.2100";
+} from "./notification-config.js?v=20260719.2200";
 
 import {
   GoogleAuthProvider,
@@ -1088,7 +1088,6 @@ function renderAccount() {
 
   const hasOverviewAccess = canViewAllTasks();
   departmentFilterWrap.classList.toggle("hidden", !hasOverviewAccess);
-  filterFields.classList.toggle("has-department-filter", hasOverviewAccess);
   exportReportButton?.classList.toggle("hidden", !canExportTaskReport());
 
   if (isTchcCoordinationAccount()) {
@@ -4293,7 +4292,23 @@ portalButton.addEventListener("click", () => {
   window.location.href = PORTAL_URL;
 });
 
-refreshButton.addEventListener("click", loadTasks);
+refreshButton.addEventListener("click", async () => {
+  searchInput.value = "";
+  statusFilter.value = "ALL";
+  deadlineFilter.value = "ALL";
+  departmentFilter.value = "ALL";
+
+  if (dateFromFilter) {
+    dateFromFilter.value = "";
+  }
+
+  if (dateToFilter) {
+    dateToFilter.value = "";
+  }
+
+  hideMessage(dashboardMessage);
+  await loadTasks();
+});
 exportReportButton?.addEventListener("click", exportTaskReport);
 addTaskButton.addEventListener("click", openTaskModal);
 closeModalButton.addEventListener("click", closeTaskModal);
@@ -4323,8 +4338,15 @@ completedDate.addEventListener("input", updateCompletionTimingPreview);
 
 filterToggleButton.addEventListener("click", () => {
   const isOpen = filterFields.classList.toggle("open");
-  filterToggleButton.setAttribute("aria-expanded", String(isOpen));
-  filterToggleButton.textContent = isOpen ? "✕ Đóng lọc" : "🔎 Bộ lọc";
+
+  filterToggleButton.setAttribute(
+    "aria-expanded",
+    String(isOpen)
+  );
+
+  filterToggleButton.textContent = isOpen
+    ? "✕ Đóng bộ lọc nâng cao"
+    : "🔎 Bộ lọc nâng cao";
 });
 
 searchInput.addEventListener("input", applyFilters);
