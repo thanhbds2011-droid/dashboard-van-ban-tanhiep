@@ -3767,17 +3767,25 @@ textarea {
   }
 
   .filter-reset-button {
+    position: relative;
     width: 48px;
     min-width: 48px;
     padding: 0;
     overflow: hidden;
-    font-size: 0;
+    text-indent: -9999px;
+    white-space: nowrap;
   }
 
   .filter-reset-button::before {
     content: "↻";
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    color: var(--primary);
     font-size: 24px;
     line-height: 1;
+    text-indent: 0;
   }
 
   .advanced-filter-toggle {
