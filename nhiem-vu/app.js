@@ -1,11 +1,11 @@
 import {
   auth,
   db
-} from "./firebase-config.js?v=20260719.2300";
+} from "./firebase-config.js?v=20260719.2400";
 
 import {
   NOTIFICATION_WEB_APP_URL
-} from "./notification-config.js?v=20260719.2300";
+} from "./notification-config.js?v=20260719.2400";
 
 import {
   GoogleAuthProvider,
@@ -2323,22 +2323,31 @@ function fillAssignedByOptions() {
 }
 
 function fillPrimaryDepartmentOptions() {
-  if (currentEntryMode() === "SELF_RECORDED") {
-    primaryDepartmentId.innerHTML = "";
-
-    const option = document.createElement("option");
-    option.value = state.profile.departmentId;
-    option.textContent = departmentName(state.profile.departmentId);
-    primaryDepartmentId.appendChild(option);
-
-    primaryDepartmentId.value = state.profile.departmentId;
-    primaryDepartmentId.disabled = true;
-    primaryHelp.textContent = "Phòng/Khu chịu trách nhiệm được cố định theo tài khoản đang đăng nhập.";
+  if (!primaryDepartmentId) {
     return;
   }
 
-  primaryDepartmentId.disabled = false;
-  primaryDepartmentId.innerHTML = '<option value="">Chọn Phòng/Khu chịu trách nhiệm</option>';
+  primaryDepartmentId.innerHTML = "";
+
+  if (currentEntryMode() === "SELF_RECORDED") {
+    const primaryId = cleanText(state.profile?.departmentId);
+    const option = document.createElement("option");
+    option.value = primaryId;
+    option.textContent = departmentName(primaryId);
+    primaryDepartmentId.appendChild(option);
+    primaryDepartmentId.value = primaryId;
+    primaryDepartmentId.disabled = false;
+
+    if (primaryHelp) {
+      primaryHelp.textContent = "Phòng/Khu chính được xác định tự động theo tài khoản đăng nhập.";
+    }
+    return;
+  }
+
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = "Chọn Phòng/Khu chịu trách nhiệm";
+  primaryDepartmentId.appendChild(placeholder);
 
   state.departments
     .filter((item) => item.id !== "BGD")
@@ -2349,7 +2358,11 @@ function fillPrimaryDepartmentOptions() {
       primaryDepartmentId.appendChild(option);
     });
 
-  primaryHelp.textContent = "Chọn Phòng/Khu tiếp nhận và chịu trách nhiệm chính.";
+  primaryDepartmentId.disabled = false;
+
+  if (primaryHelp) {
+    primaryHelp.textContent = "Chọn Phòng/Khu tiếp nhận và chịu trách nhiệm chính.";
+  }
 }
 
 function fillOwnerOptions() {
@@ -2368,7 +2381,9 @@ function fillOwnerOptions() {
 }
 
 function availableRelatedDepartments() {
-  const primaryId = primaryDepartmentId.value || state.profile?.departmentId || "";
+  const primaryId = cleanText(
+    primaryDepartmentId?.value || state.profile?.departmentId || ""
+  );
 
   return state.departments
     .filter((item) => (
@@ -2993,7 +3008,14 @@ async function saveTask(event) {
     const selectedSource = sourceType.value;
     const sourceInformation = cleanText(sourceDetail.value);
     const assignedBy = userById(assignedByUserId.value);
-    const primaryId = primaryDepartmentId.value;
+    /*
+     * Phòng/Khu chính không còn hiển thị trên biểu mẫu.
+     * Với chế độ tự ghi nhận, luôn lấy theo tài khoản đăng nhập;
+     * với BGĐ giao trực tiếp vẫn dùng giá trị được app gán vào trường ẩn.
+     */
+    const primaryId = currentEntryMode() === "SELF_RECORDED"
+      ? cleanText(state.profile?.departmentId)
+      : cleanText(primaryDepartmentId?.value);
     const assignedDate = parseDateInput(assignedAt.value, false);
     const deadlineDate = parseDateInput(deadline.value, true);
 
