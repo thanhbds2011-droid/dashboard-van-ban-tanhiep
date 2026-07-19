@@ -1,11 +1,11 @@
 import {
   auth,
   db
-} from "./firebase-config.js?v=20260718.2000";
+} from "./firebase-config.js?v=20260719.2100";
 
 import {
   NOTIFICATION_WEB_APP_URL
-} from "./notification-config.js?v=20260718.2000";
+} from "./notification-config.js?v=20260719.2100";
 
 import {
   GoogleAuthProvider,
@@ -49,12 +49,7 @@ const state = {
   initializedUid: null,
   selectedSupportIds: new Set(),
   selectedTaskId: null,
-  taskView: "ACTIVE",
-  logs: [],
-  filteredJournalTasks: [],
-  filteredJournalLogs: [],
-  activeModule: "TASKS",
-  loadingLogs: false
+  taskView: "ACTIVE"
 };
 
 const googleProvider = new GoogleAuthProvider();
@@ -86,13 +81,17 @@ const roleBadge = $("roleBadge");
 const metricTotal = $("metricTotal");
 const metricCompleted = $("metricCompleted");
 const metricProcessing = $("metricProcessing");
+const metricWaiting = $("metricWaiting");
 const metricOverdue = $("metricOverdue");
+const metricPaused = $("metricPaused");
 
 const searchInput = $("searchInput");
 const statusFilter = $("statusFilter");
 const deadlineFilter = $("deadlineFilter");
 const departmentFilterWrap = $("departmentFilterWrap");
 const departmentFilter = $("departmentFilter");
+const dateFromFilter = $("dateFromFilter");
+const dateToFilter = $("dateToFilter");
 const filterToggleButton = $("filterToggleButton");
 const filterFields = $("filterFields");
 const refreshButton = $("refreshButton");
@@ -114,44 +113,6 @@ const taskListTitle = $("taskListTitle");
 const taskListSubtitle = $("taskListSubtitle");
 const emptyStateTitle = $("emptyStateTitle");
 const emptyStateText = $("emptyStateText");
-
-const tasksModuleButton = $("tasksModuleButton");
-const journalModuleButton = $("journalModuleButton");
-const tasksModuleView = $("tasksModuleView");
-const journalModuleView = $("journalModuleView");
-const journalRefreshButton = $("journalRefreshButton");
-const journalExportButton = $("journalExportButton");
-const journalFilterToggle = $("journalFilterToggle");
-const journalFilterFields = $("journalFilterFields");
-const journalPeriodType = $("journalPeriodType");
-const journalDayWrap = $("journalDayWrap");
-const journalMonthWrap = $("journalMonthWrap");
-const journalQuarterWrap = $("journalQuarterWrap");
-const journalYearWrap = $("journalYearWrap");
-const journalCustomFromWrap = $("journalCustomFromWrap");
-const journalCustomToWrap = $("journalCustomToWrap");
-const journalDay = $("journalDay");
-const journalMonth = $("journalMonth");
-const journalQuarter = $("journalQuarter");
-const journalYear = $("journalYear");
-const journalDateFrom = $("journalDateFrom");
-const journalDateTo = $("journalDateTo");
-const journalDepartment = $("journalDepartment");
-const journalStatus = $("journalStatus");
-const journalPeriodLabel = $("journalPeriodLabel");
-const journalMetricTotal = $("journalMetricTotal");
-const journalMetricCompleted = $("journalMetricCompleted");
-const journalMetricProcessing = $("journalMetricProcessing");
-const journalMetricWaiting = $("journalMetricWaiting");
-const journalMetricOverdue = $("journalMetricOverdue");
-const journalMetricPaused = $("journalMetricPaused");
-const journalTaskSummary = $("journalTaskSummary");
-const journalLogSummary = $("journalLogSummary");
-const journalTaskTableBody = $("journalTaskTableBody");
-const journalTaskCardList = $("journalTaskCardList");
-const journalTimeline = $("journalTimeline");
-const journalTaskEmpty = $("journalTaskEmpty");
-const journalLogEmpty = $("journalLogEmpty");
 
 const taskModal = $("taskModal");
 const closeModalButton = $("closeModalButton");
@@ -344,10 +305,6 @@ function resetSessionState() {
   state.selectedTaskId = null;
   state.selectedSupportIds = new Set();
   state.taskView = "ACTIVE";
-  state.logs = [];
-  state.filteredJournalTasks = [];
-  state.filteredJournalLogs = [];
-  state.activeModule = "TASKS";
 
   /* Đóng giao diện theo cách an toàn khi phiên đã kết thúc. */
   taskModal?.classList.add("hidden");
@@ -519,29 +476,6 @@ function dateKey(dateValue) {
 
 function monthKey(dateValue) {
   return `${dateValue.getFullYear()}-${pad2(dateValue.getMonth() + 1)}`;
-}
-
-function quarterNumber(dateValue) {
-  return Math.floor(dateValue.getMonth() / 3) + 1;
-}
-
-function quarterKey(dateValue) {
-  return `${dateValue.getFullYear()}-Q${quarterNumber(dateValue)}`;
-}
-
-function taskLogTimeFields(dateValue = new Date()) {
-  return {
-    performedAt: serverTimestamp(),
-    performedDateKey: dateKey(dateValue),
-    performedMonthKey: monthKey(dateValue),
-    performedQuarterKey: quarterKey(dateValue),
-    performedYear: dateValue.getFullYear(),
-    performedByDepartmentId: state.profile?.departmentId || "",
-    performedByDepartmentName: departmentName(state.profile?.departmentId),
-    performedByRole: state.profile?.role || "",
-    deviceName: detectDeviceName(),
-    userAgent: String(navigator.userAgent || "").slice(0, 500)
-  };
 }
 
 function isoWeekKey(dateValue) {
@@ -1073,7 +1007,6 @@ async function loadTasks() {
     lastUpdated.textContent = `Cập nhật lúc ${formatDateTime()}`;
     renderMetrics();
     applyFilters();
-    applyJournalFilters();
 
   } catch (error) {
     console.error("Không tải được nhiệm vụ:", error);
@@ -1167,7 +1100,6 @@ function renderAccount() {
   }
 
   fillDepartmentFilter();
-  fillJournalDepartmentFilter();
 }
 
 function fillDepartmentFilter() {
@@ -1190,27 +1122,40 @@ function fillDepartmentFilter() {
     : "ALL";
 }
 
-function renderMetrics() {
-  const completed = state.tasks.filter((task) => task.status === "HOAN_THANH").length;
+function renderMetrics(tasks = state.tasks) {
+  const source = Array.isArray(tasks) ? tasks : [];
 
-  const processing = state.tasks.filter((task) => [
+  const completed = source.filter((task) => task.status === "HOAN_THANH").length;
+
+  const processing = source.filter((task) => [
     "MOI_TIEP_NHAN",
-    "DANG_THUC_HIEN",
-    "CHO_PHOI_HOP"
+    "DANG_THUC_HIEN"
   ].includes(task.status)).length;
 
-  const overdue = state.tasks.filter((task) => (
+  const waiting = source.filter((task) => task.status === "CHO_PHOI_HOP").length;
+  const paused = source.filter((task) => task.status === "TAM_DUNG").length;
+
+  const overdue = source.filter((task) => (
+    task.status !== "HOAN_THANH" &&
+    task.status !== "HUY" &&
     deadlineState(task).code === "OVERDUE"
   )).length;
 
-  metricTotal.textContent = String(state.tasks.length);
+  metricTotal.textContent = String(source.length);
   metricCompleted.textContent = String(completed);
   metricProcessing.textContent = String(processing);
+  metricWaiting.textContent = String(waiting);
   metricOverdue.textContent = String(overdue);
+  metricPaused.textContent = String(paused);
 
   const activeCount = state.tasks.filter((task) => task.status !== "HOAN_THANH").length;
+  const archiveCount = state.tasks.filter((task) => task.status === "HOAN_THANH").length;
   activeTaskCount.textContent = String(activeCount);
-  archiveTaskCount.textContent = String(completed);
+  archiveTaskCount.textContent = String(archiveCount);
+}
+
+function taskAssignedDate(task) {
+  return toDate(task.assignedAt) || toDate(task.sourceDate) || toDate(task.createdAt);
 }
 
 function applyFilters() {
@@ -1218,12 +1163,24 @@ function applyFilters() {
   const selectedStatus = statusFilter.value;
   const selectedDeadline = deadlineFilter.value;
   const selectedDepartment = departmentFilter.value || "ALL";
+  const fromDate = parseDateInput(dateFromFilter?.value || "", false);
+  const toDateValue = parseDateInput(dateToFilter?.value || "", true);
 
-  const filteredTasks = state.tasks.filter((task) => {
-    const matchesView = state.taskView === "ARCHIVE"
-      ? task.status === "HOAN_THANH"
-      : task.status !== "HOAN_THANH";
+  if (fromDate && toDateValue && fromDate.getTime() > toDateValue.getTime()) {
+    showMessage(
+      dashboardMessage,
+      "Ngày bắt đầu không được sau ngày kết thúc.",
+      "warning"
+    );
+    state.filteredTasks = [];
+    renderMetrics([]);
+    renderTasks([]);
+    return;
+  }
 
+  hideMessage(dashboardMessage);
+
+  const scopeTasks = state.tasks.filter((task) => {
     const searchableContent = normalizeText([
       task.taskCode,
       task.title,
@@ -1253,287 +1210,33 @@ function applyFilters() {
       task.primaryDepartmentId === selectedDepartment
     );
 
-    return matchesView && matchesKeyword && matchesStatus && matchesDeadline && matchesDepartment;
+    const assignedDateValue = taskAssignedDate(task);
+    const matchesFromDate = !fromDate || (
+      assignedDateValue && assignedDateValue.getTime() >= fromDate.getTime()
+    );
+    const matchesToDate = !toDateValue || (
+      assignedDateValue && assignedDateValue.getTime() <= toDateValue.getTime()
+    );
+
+    return (
+      matchesKeyword &&
+      matchesStatus &&
+      matchesDeadline &&
+      matchesDepartment &&
+      matchesFromDate &&
+      matchesToDate
+    );
   });
 
+  const filteredTasks = scopeTasks.filter((task) => (
+    state.taskView === "ARCHIVE"
+      ? task.status === "HOAN_THANH"
+      : task.status !== "HOAN_THANH"
+  ));
+
+  renderMetrics(scopeTasks);
   state.filteredTasks = filteredTasks;
   renderTasks(filteredTasks);
-}
-
-
-/* =========================================================
- * NHẬT KÝ & BÁO CÁO ĐIỀU HÀNH V2.0
- * ========================================================= */
-
-function switchModule(moduleName) {
-  const showJournal = moduleName === "JOURNAL";
-  state.activeModule = showJournal ? "JOURNAL" : "TASKS";
-  tasksModuleView.classList.toggle("hidden", showJournal);
-  journalModuleView.classList.toggle("hidden", !showJournal);
-  tasksModuleButton.classList.toggle("active", !showJournal);
-  journalModuleButton.classList.toggle("active", showJournal);
-  tasksModuleButton.setAttribute("aria-selected", String(!showJournal));
-  journalModuleButton.setAttribute("aria-selected", String(showJournal));
-
-  if (showJournal) {
-    applyJournalFilters();
-  }
-}
-
-function fillJournalDepartmentFilter() {
-  const current = journalDepartment.value || "ALL";
-  journalDepartment.innerHTML = '<option value="ALL">Tất cả Phòng/Khu</option>';
-  state.departments.filter((item) => item.id !== "BGD").forEach((item) => {
-    const option = document.createElement("option");
-    option.value = item.id;
-    option.textContent = item.name || item.code || item.id;
-    journalDepartment.appendChild(option);
-  });
-  journalDepartment.value = Array.from(journalDepartment.options)
-    .some((option) => option.value === current) ? current : "ALL";
-
-  if (!canViewAllTasks()) {
-    journalDepartment.value = state.profile?.departmentId || "ALL";
-    journalDepartment.disabled = true;
-  } else {
-    journalDepartment.disabled = false;
-  }
-}
-
-function initializeJournalFilters() {
-  const now = new Date();
-  journalDay.value = toDateInput(now);
-  journalMonth.value = monthKey(now);
-  journalQuarter.value = String(quarterNumber(now));
-  journalYear.value = String(now.getFullYear());
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  journalDateFrom.value = toDateInput(monthStart);
-  journalDateTo.value = toDateInput(now);
-  fillJournalDepartmentFilter();
-  syncJournalPeriodControls();
-}
-
-function syncJournalPeriodControls() {
-  const type = journalPeriodType.value;
-  journalDayWrap.classList.toggle("hidden", type !== "DAY");
-  journalMonthWrap.classList.toggle("hidden", type !== "MONTH");
-  journalQuarterWrap.classList.toggle("hidden", type !== "QUARTER");
-  journalYearWrap.classList.toggle("hidden", !["QUARTER", "YEAR"].includes(type));
-  journalCustomFromWrap.classList.toggle("hidden", type !== "CUSTOM");
-  journalCustomToWrap.classList.toggle("hidden", type !== "CUSTOM");
-  applyJournalFilters();
-}
-
-function journalPeriodRange() {
-  const type = journalPeriodType.value;
-  let start = null;
-  let end = null;
-  let label = "";
-
-  if (type === "DAY") {
-    start = parseDateInput(journalDay.value, false);
-    end = parseDateInput(journalDay.value, true);
-    label = start ? `Ngày ${formatDate(start)}` : "Ngày chưa xác định";
-  } else if (type === "MONTH") {
-    const match = /^(\d{4})-(\d{2})$/.exec(journalMonth.value || "");
-    if (match) {
-      const year = Number(match[1]);
-      const month = Number(match[2]) - 1;
-      start = new Date(year, month, 1, 0, 0, 0, 0);
-      end = new Date(year, month + 1, 0, 23, 59, 59, 999);
-      label = `Tháng ${pad2(month + 1)}/${year}`;
-    }
-  } else if (type === "QUARTER") {
-    const year = Number(journalYear.value) || new Date().getFullYear();
-    const quarter = Math.max(1, Math.min(4, Number(journalQuarter.value) || 1));
-    const firstMonth = (quarter - 1) * 3;
-    start = new Date(year, firstMonth, 1, 0, 0, 0, 0);
-    end = new Date(year, firstMonth + 3, 0, 23, 59, 59, 999);
-    label = `Quý ${["I", "II", "III", "IV"][quarter - 1]}/${year}`;
-  } else if (type === "YEAR") {
-    const year = Number(journalYear.value) || new Date().getFullYear();
-    start = new Date(year, 0, 1, 0, 0, 0, 0);
-    end = new Date(year, 11, 31, 23, 59, 59, 999);
-    label = `Năm ${year}`;
-  } else {
-    start = parseDateInput(journalDateFrom.value, false);
-    end = parseDateInput(journalDateTo.value, true);
-    label = start && end
-      ? `Từ ${formatDate(start)} đến ${formatDate(end)}`
-      : "Khoảng thời gian tùy chọn";
-  }
-
-  return { start, end, label };
-}
-
-function taskAssignedDate(task) {
-  return toDate(task.assignedAt || task.sourceDate || task.createdAt);
-}
-
-function logPerformedDate(log) {
-  return toDate(log.performedAt) || parseDateInput(log.performedDateKey || "", false);
-}
-
-async function loadTaskLogs() {
-  if (state.loadingLogs || !state.profile) return;
-  state.loadingLogs = true;
-  journalRefreshButton.disabled = true;
-  try {
-    const snapshot = await getDocsFromServer(collection(db, "taskLogs"));
-    const visibleTaskIds = new Set(state.tasks.map((task) => task.id));
-    const logs = [];
-    snapshot.forEach((item) => {
-      const log = { id: item.id, ...item.data() };
-      if (canViewAllTasks() || visibleTaskIds.has(log.taskId)) logs.push(log);
-    });
-    logs.sort((a, b) => {
-      const dateA = logPerformedDate(a) || new Date(0);
-      const dateB = logPerformedDate(b) || new Date(0);
-      return dateB.getTime() - dateA.getTime();
-    });
-    state.logs = logs;
-    applyJournalFilters();
-  } catch (error) {
-    console.warn("Không tải được taskLogs:", error);
-    state.logs = [];
-    applyJournalFilters();
-    showMessage(
-      dashboardMessage,
-      "Chưa đọc được nhật ký taskLogs. Hãy kiểm tra Firestore Rules cho quyền đọc collection taskLogs.",
-      "warning"
-    );
-  } finally {
-    state.loadingLogs = false;
-    journalRefreshButton.disabled = false;
-  }
-}
-
-function applyJournalFilters() {
-  if (!journalPeriodType) return;
-  const { start, end, label } = journalPeriodRange();
-  journalPeriodLabel.textContent = label;
-  const departmentId = journalDepartment.value || "ALL";
-  const selectedStatus = journalStatus.value || "ALL";
-
-  state.filteredJournalTasks = state.tasks.filter((task) => {
-    const assigned = taskAssignedDate(task);
-    const inPeriod = assigned && start && end && assigned >= start && assigned <= end;
-    const matchesDepartment = departmentId === "ALL" || task.primaryDepartmentId === departmentId;
-    const matchesStatus = selectedStatus === "ALL" || task.status === selectedStatus;
-    return inPeriod && matchesDepartment && matchesStatus;
-  });
-
-  const taskIds = new Set(state.filteredJournalTasks.map((task) => task.id));
-  state.filteredJournalLogs = state.logs.filter((log) => {
-    const performed = logPerformedDate(log);
-    const inPeriod = performed && start && end && performed >= start && performed <= end;
-    const task = findTaskById(log.taskId);
-    const matchesDepartment = departmentId === "ALL" ||
-      log.performedByDepartmentId === departmentId ||
-      task?.primaryDepartmentId === departmentId;
-    return inPeriod && matchesDepartment && (taskIds.has(log.taskId) || selectedStatus === "ALL");
-  });
-
-  renderJournalModule();
-}
-
-function renderJournalModule() {
-  const tasks = state.filteredJournalTasks;
-  const logs = state.filteredJournalLogs;
-  const completed = tasks.filter((task) => task.status === "HOAN_THANH").length;
-  const processing = tasks.filter((task) => ["MOI_TIEP_NHAN", "DANG_THUC_HIEN"].includes(task.status)).length;
-  const waiting = tasks.filter((task) => task.status === "CHO_PHOI_HOP").length;
-  const paused = tasks.filter((task) => task.status === "TAM_DUNG").length;
-  const overdue = tasks.filter((task) => task.status !== "HOAN_THANH" && deadlineState(task).code === "OVERDUE").length;
-
-  journalMetricTotal.textContent = String(tasks.length);
-  journalMetricCompleted.textContent = String(completed);
-  journalMetricProcessing.textContent = String(processing);
-  journalMetricWaiting.textContent = String(waiting);
-  journalMetricOverdue.textContent = String(overdue);
-  journalMetricPaused.textContent = String(paused);
-  journalTaskSummary.textContent = `${tasks.length} nhiệm vụ`;
-  journalLogSummary.textContent = `${logs.length} sự kiện`;
-
-  journalTaskEmpty.classList.toggle("hidden", tasks.length > 0);
-  journalLogEmpty.classList.toggle("hidden", logs.length > 0);
-
-  journalTaskTableBody.innerHTML = tasks.map((task, index) => `
-    <tr data-task-id="${escapeHtml(task.id)}" tabindex="0">
-      <td>${index + 1}</td>
-      <td>${escapeHtml(formatDate(taskAssignedDate(task)))}</td>
-      <td><strong>${escapeHtml(task.title || "Nhiệm vụ")}</strong><small>${escapeHtml(task.taskCode || "")}</small></td>
-      <td>${escapeHtml(departmentName(task.primaryDepartmentId))}</td>
-      <td><span class="badge ${statusBadgeClass(task.status)}">${escapeHtml(statusName(task.status))}</span></td>
-      <td><strong>${Math.max(0, Math.min(100, Number(task.progress) || 0))}%</strong></td>
-    </tr>
-  `).join("");
-
-  journalTaskCardList.innerHTML = tasks.map((task) => `
-    <article class="journal-task-card" data-task-id="${escapeHtml(task.id)}" tabindex="0">
-      <div><span>${escapeHtml(formatDate(taskAssignedDate(task)))}</span><span class="badge ${statusBadgeClass(task.status)}">${escapeHtml(statusName(task.status))}</span></div>
-      <h4>${escapeHtml(task.title || "Nhiệm vụ")}</h4>
-      <p>${escapeHtml(departmentName(task.primaryDepartmentId))} • ${Math.max(0, Math.min(100, Number(task.progress) || 0))}%</p>
-    </article>
-  `).join("");
-
-  journalTimeline.innerHTML = logs.map((log) => {
-    const performed = logPerformedDate(log);
-    return `
-      <article class="journal-event">
-        <div class="journal-event-time"><strong>${escapeHtml(performed ? new Intl.DateTimeFormat("vi-VN", { hour: "2-digit", minute: "2-digit" }).format(performed) : "—")}</strong><span>${escapeHtml(formatDate(performed))}</span></div>
-        <div class="journal-event-dot"></div>
-        <div class="journal-event-content">
-          <div><strong>${escapeHtml(log.performedByName || "Người dùng")}</strong><span>${escapeHtml(log.performedByDepartmentName || departmentName(log.performedByDepartmentId))}</span></div>
-          <h4>${escapeHtml(taskLogActionName(log.action))}</h4>
-          <p>${escapeHtml(log.description || "Đã cập nhật nhiệm vụ")}</p>
-          ${log.taskCode ? `<button type="button" data-task-id="${escapeHtml(log.taskId)}">${escapeHtml(log.taskCode)}</button>` : ""}
-        </div>
-      </article>
-    `;
-  }).join("");
-}
-
-function taskLogActionName(action) {
-  const map = {
-    SELF_RECORD_TASK: "Ghi nhận nhiệm vụ",
-    DIRECT_ASSIGN_TASK: "Giao nhiệm vụ trực tiếp",
-    ASSIGN_INTERNAL: "Phân công nội bộ",
-    REASSIGN_INTERNAL: "Phân công lại",
-    UPDATE_SUPPORT_DEPARTMENTS: "Cập nhật đơn vị phối hợp",
-    UPDATE_PROGRESS: "Cập nhật tiến độ",
-    COMPLETE_TASK: "Hoàn thành nhiệm vụ",
-    SOFT_DELETE_TASK: "Xóa nhiệm vụ"
-  };
-  return map[action] || action || "Cập nhật nhiệm vụ";
-}
-
-function exportJournalReport() {
-  const tasks = state.filteredJournalTasks;
-  if (!tasks.length) {
-    showMessage(dashboardMessage, "Không có nhiệm vụ trong kỳ đã chọn để xuất báo cáo.", "warning");
-    switchModule("TASKS");
-    return;
-  }
-  const { label } = journalPeriodRange();
-  const completed = tasks.filter((task) => task.status === "HOAN_THANH").length;
-  const processing = tasks.filter((task) => ["MOI_TIEP_NHAN", "DANG_THUC_HIEN"].includes(task.status)).length;
-  const waiting = tasks.filter((task) => task.status === "CHO_PHOI_HOP").length;
-  const overdue = tasks.filter((task) => task.status !== "HOAN_THANH" && deadlineState(task).code === "OVERDUE").length;
-  const paused = tasks.filter((task) => task.status === "TAM_DUNG").length;
-  const reportWindow = window.open("", "_blank", "width=1400,height=900");
-  if (!reportWindow) return;
-
-  const rows = tasks.map((task, index) => `
-    <tr><td>${index + 1}</td><td>${escapeHtml(formatDate(taskAssignedDate(task)))}</td><td><strong>${escapeHtml(task.title || "Nhiệm vụ")}</strong><br><small>${escapeHtml(task.taskCode || "")}</small></td><td>${escapeHtml(departmentName(task.primaryDepartmentId))}</td><td>${escapeHtml(task.ownerName || "Chờ phân công")}</td><td>${escapeHtml(formatDate(task.deadline))}</td><td>${escapeHtml(statusName(task.status))}</td><td>${Math.max(0, Math.min(100, Number(task.progress) || 0))}%</td><td>${escapeHtml(task.resultSummary || task.result || "—")}</td></tr>
-  `).join("");
-
-  reportWindow.document.write(`<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>Báo cáo ${escapeHtml(label)}</title><style>
-    @page{size:A4 landscape;margin:10mm}*{box-sizing:border-box}body{font-family:"Times New Roman",serif;color:#111;font-size:11pt;margin:0}.toolbar{position:sticky;top:0;background:#eef5fa;padding:10px;text-align:center}.toolbar button{padding:10px 18px;margin:0 4px;font-weight:700}.agency{text-align:center;font-weight:700;text-transform:uppercase;margin-top:14px}.line{width:120px;border-top:1px solid #111;margin:5px auto 12px}h1{text-align:center;font-size:18pt;text-transform:uppercase;margin:0}.period{text-align:center;font-style:italic;margin:6px 0 14px}.summary{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin:12px 0}.summary div{border:1px solid #777;padding:7px;text-align:center}.summary strong{font-size:16pt;display:block}table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:9pt}th,td{border:1px solid #555;padding:5px;vertical-align:top}th{background:#dbeaf4;text-transform:uppercase}th:nth-child(1){width:4%}th:nth-child(2){width:8%}th:nth-child(3){width:22%}th:nth-child(4){width:10%}th:nth-child(5){width:11%}th:nth-child(6){width:8%}th:nth-child(7){width:10%}th:nth-child(8){width:6%}th:nth-child(9){width:21%}.footer{margin-top:14px;text-align:right}.signature{display:inline-block;width:280px;text-align:center;font-weight:700;text-transform:uppercase}.space{height:55px}@media print{.toolbar{display:none}.summary div,th{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
-  </style></head><body><div class="toolbar"><button onclick="window.print()">In / Lưu PDF</button><button onclick="window.close()">Đóng</button></div><p class="agency">Trung tâm Bảo trợ xã hội Tân Hiệp</p><div class="line"></div><h1>Báo cáo tình hình thực hiện nhiệm vụ</h1><p class="period">${escapeHtml(label)} — ${escapeHtml(reportScopeText())}</p><section class="summary"><div><span>Tổng giao</span><strong>${tasks.length}</strong></div><div><span>Hoàn thành</span><strong>${completed}</strong></div><div><span>Đang thực hiện</span><strong>${processing}</strong></div><div><span>Chờ phối hợp</span><strong>${waiting}</strong></div><div><span>Quá hạn</span><strong>${overdue}</strong></div><div><span>Tạm dừng</span><strong>${paused}</strong></div></section><table><thead><tr><th>STT</th><th>Ngày giao</th><th>Nhiệm vụ</th><th>Phòng/Khu</th><th>Phụ trách</th><th>Hạn</th><th>Trạng thái</th><th>Tiến độ</th><th>Kết quả</th></tr></thead><tbody>${rows}</tbody></table><div class="footer"><div class="signature">Đơn vị lập báo cáo<div class="space"></div></div></div></body></html>`);
-  reportWindow.document.close();
-  reportWindow.focus();
-  setTimeout(() => reportWindow.print(), 600);
 }
 
 /* =========================================================
@@ -2151,6 +1854,14 @@ function renderTasks(tasks) {
             ${escapeHtml(statusName(task.status))}
           </span>
         </td>
+        <td>
+          <div class="task-progress-cell">
+            <strong>${Math.max(0, Math.min(100, Number(task.progress) || 0))}%</strong>
+            <span class="task-progress-track" aria-hidden="true">
+              <span style="width:${Math.max(0, Math.min(100, Number(task.progress) || 0))}%"></span>
+            </span>
+          </div>
+        </td>
       </tr>
     `;
   }).join("");
@@ -2191,6 +1902,13 @@ function renderTasks(tasks) {
           <div>
             <span>Tình trạng hạn</span>
             <strong class="badge ${due.className}">${escapeHtml(due.text)}</strong>
+          </div>
+          <div class="task-mobile-progress">
+            <span>Tiến độ</span>
+            <strong>${Math.max(0, Math.min(100, Number(task.progress) || 0))}%</strong>
+            <span class="task-progress-track" aria-hidden="true">
+              <span style="width:${Math.max(0, Math.min(100, Number(task.progress) || 0))}%"></span>
+            </span>
           </div>
         </div>
       </article>
@@ -3211,9 +2929,7 @@ async function createTaskLog(taskReference, taskCode, title, mode) {
       newValue: "MOI_TIEP_NHAN",
       performedByUserId: state.user.uid,
       performedByName: state.profile.fullName,
-      departmentId: state.profile.departmentId || "",
-      taskTitle: title,
-      ...taskLogTimeFields()
+      performedAt: serverTimestamp()
     });
 
     return true;
@@ -3541,9 +3257,7 @@ async function createAssignmentLog(task, owner) {
       newValue: owner.id,
       performedByUserId: state.user.uid,
       performedByName: state.profile.fullName || "",
-      departmentId: task.primaryDepartmentId || state.profile.departmentId || "",
-      taskTitle: task.title || "",
-      ...taskLogTimeFields()
+      performedAt: serverTimestamp()
     });
   } catch (error) {
     console.warn("Không ghi được nhật ký phân công:", error);
@@ -3774,9 +3488,7 @@ async function saveTaskSupportDepartments(event) {
       newValue: uniqueIds,
       performedByUserId: state.user.uid,
       performedByName: state.profile.fullName || "",
-      departmentId: task.primaryDepartmentId || state.profile.departmentId || "",
-      taskTitle: task.title || "",
-      ...taskLogTimeFields()
+      performedAt: serverTimestamp()
     });
 
     await sendNotificationEvent(
@@ -3909,9 +3621,7 @@ async function softDeleteTask(event) {
       newValue: false,
       performedByUserId: state.user.uid,
       performedByName: state.profile.fullName || "",
-      departmentId: task.primaryDepartmentId || state.profile.departmentId || "",
-      taskTitle: task.title || "",
-      ...taskLogTimeFields()
+      performedAt: serverTimestamp()
     });
 
     await sendNotificationEvent("TASK_DELETED", task.id);
@@ -4170,9 +3880,7 @@ async function createProgressLog(task, oldStatus, newStatus, oldProgress, newPro
       newProgress: Number(newProgress) || 0,
       performedByUserId: state.user.uid,
       performedByName: state.profile.fullName || "",
-      departmentId: task.primaryDepartmentId || state.profile.departmentId || "",
-      taskTitle: task.title || "",
-      ...taskLogTimeFields()
+      performedAt: serverTimestamp()
     });
   } catch (error) {
     console.warn("Không ghi được nhật ký cập nhật nhiệm vụ:", error);
@@ -4417,8 +4125,6 @@ async function initializeUser(user) {
     }
 
     await loadTasks();
-    initializeJournalFilters();
-    await loadTaskLogs();
   } catch (error) {
     console.error("Không khởi tạo được người dùng:", error);
 
@@ -4587,26 +4293,6 @@ portalButton.addEventListener("click", () => {
   window.location.href = PORTAL_URL;
 });
 
-
-tasksModuleButton.addEventListener("click", () => switchModule("TASKS"));
-journalModuleButton.addEventListener("click", () => switchModule("JOURNAL"));
-journalRefreshButton.addEventListener("click", async () => {
-  await loadTasks();
-  await loadTaskLogs();
-});
-journalExportButton.addEventListener("click", exportJournalReport);
-journalFilterToggle.addEventListener("click", () => {
-  const open = journalFilterFields.classList.toggle("open");
-  journalFilterToggle.setAttribute("aria-expanded", String(open));
-  journalFilterToggle.textContent = open ? "✕ Đóng lọc" : "🔎 Bộ lọc";
-});
-journalPeriodType.addEventListener("change", syncJournalPeriodControls);
-[journalDay, journalMonth, journalQuarter, journalYear, journalDateFrom, journalDateTo, journalDepartment, journalStatus]
-  .forEach((element) => element.addEventListener("change", applyJournalFilters));
-journalTaskTableBody.addEventListener("click", handleTaskOpenEvent);
-journalTaskCardList.addEventListener("click", handleTaskOpenEvent);
-journalTimeline.addEventListener("click", handleTaskOpenEvent);
-
 refreshButton.addEventListener("click", loadTasks);
 exportReportButton?.addEventListener("click", exportTaskReport);
 addTaskButton.addEventListener("click", openTaskModal);
@@ -4645,6 +4331,8 @@ searchInput.addEventListener("input", applyFilters);
 statusFilter.addEventListener("change", applyFilters);
 deadlineFilter.addEventListener("change", applyFilters);
 departmentFilter.addEventListener("change", applyFilters);
+dateFromFilter?.addEventListener("change", applyFilters);
+dateToFilter?.addEventListener("change", applyFilters);
 
 activeTasksTab.addEventListener("click", () => {
   state.taskView = "ACTIVE";
