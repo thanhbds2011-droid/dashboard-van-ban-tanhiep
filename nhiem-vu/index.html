@@ -18,7 +18,7 @@
   <link rel="manifest" href="./manifest.webmanifest?v=20260718.0600">
   <link rel="icon" type="image/png" sizes="64x64" href="./icons/favicon-64.png?v=20260718.0600">
   <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png?v=20260718.0600">
-  <link rel="stylesheet" href="./styles.css?v=20260719.2310">
+  <link rel="stylesheet" href="./styles.css?v=20260719.2400">
   <link rel="stylesheet" href="./ai-assistant.css?v=20260719.2310">
 
   <script
@@ -371,16 +371,17 @@
                 <option value="ALL">Tất cả Phòng/Khu</option>
               </select>
             </div>
-          </div>
 
-          <div class="advanced-filter-footer">
-            <button
-              id="exportReportButton"
-              class="secondary-button export-button hidden"
-              type="button"
-            >
-              📊 Xuất báo cáo
-            </button>
+            <div class="advanced-filter-export-field">
+              <span class="advanced-filter-export-label" aria-hidden="true">&nbsp;</span>
+              <button
+                id="exportReportButton"
+                class="secondary-button export-button hidden"
+                type="button"
+              >
+                📊 Xuất báo cáo
+              </button>
+            </div>
           </div>
         </div>
       </section>
@@ -533,7 +534,7 @@
                 <strong>Thông tin chỉ đạo</strong>
 
                 <small>
-                  Rõ nguồn chỉ đạo, người chỉ đạo và ngày được giao.
+                  Rõ nguồn, người chỉ đạo, thời gian và mức độ ưu tiên.
                 </small>
               </div>
             </div>
@@ -594,6 +595,32 @@
               >
             </div>
 
+
+            <div class="field-block">
+              <label for="priority">
+                Mức độ ưu tiên <span>*</span>
+              </label>
+
+              <select id="priority" required>
+                <option value="THUONG">Thường</option>
+                <option value="QUAN_TRONG">Quan trọng</option>
+                <option value="KHAN">Khẩn</option>
+                <option value="DOT_XUAT">Đột xuất</option>
+              </select>
+            </div>
+
+            <div class="field-block">
+              <label for="deadline">
+                Hạn hoàn thành <span>*</span>
+              </label>
+
+              <input
+                id="deadline"
+                type="date"
+                required
+              >
+            </div>
+
             <div class="form-section-title form-span-2">
               <span>2</span>
 
@@ -601,8 +628,7 @@
                 <strong>Nội dung và trách nhiệm</strong>
 
                 <small>
-                  Rõ Phòng/Khu chịu trách nhiệm, nhiệm vụ
-                  và đơn vị phối hợp.
+                  Rõ nội dung nhiệm vụ và Phòng/Khu phối hợp.
                 </small>
               </div>
             </div>
@@ -635,35 +661,13 @@
               ></textarea>
             </div>
 
-            <div class="field-block form-span-2">
-              <label for="primaryDepartmentId">
-                Phòng/Khu chịu trách nhiệm chính <span>*</span>
-              </label>
-
-              <select
-                id="primaryDepartmentId"
-                required
-              ></select>
-
-              <small
-                id="primaryHelp"
-                class="field-help"
-              ></small>
-
-              <!-- Giữ trường ẩn để tương thích app.js và dữ liệu cũ -->
-              <input
-                id="ownerUserId"
-                type="hidden"
-                value=""
-              >
-
-              <small
-                id="ownerHelp"
-                class="field-help"
-              >
-                Nhiệm vụ được chuyển đến Phòng/Khu;
-                Trưởng/Phó sẽ phân công nội bộ ở bước tiếp theo.
-              </small>
+            <!-- Phòng/Khu chính được xác định tự động theo tài khoản đăng nhập.
+                 Giữ các trường ẩn để bảo toàn logic app.js và dữ liệu Firestore. -->
+            <div class="system-hidden-fields" aria-hidden="true">
+              <select id="primaryDepartmentId" tabindex="-1"></select>
+              <small id="primaryHelp"></small>
+              <input id="ownerUserId" type="hidden" value="">
+              <small id="ownerHelp"></small>
             </div>
 
             <div class="field-block form-span-2">
@@ -724,30 +728,6 @@
               </small>
             </div>
 
-            <div class="field-block">
-              <label for="priority">
-                Mức độ ưu tiên <span>*</span>
-              </label>
-
-              <select id="priority" required>
-                <option value="THUONG">Thường</option>
-                <option value="QUAN_TRONG">Quan trọng</option>
-                <option value="KHAN">Khẩn</option>
-                <option value="DOT_XUAT">Đột xuất</option>
-              </select>
-            </div>
-
-            <div class="field-block">
-              <label for="deadline">
-                Hạn hoàn thành <span>*</span>
-              </label>
-
-              <input
-                id="deadline"
-                type="date"
-                required
-              >
-            </div>
 
             <div class="task-form-note form-span-2">
               <span aria-hidden="true">ℹ️</span>
@@ -1478,7 +1458,7 @@
 
   <script
     type="module"
-    src="./app.js?v=20260719.2310"
+    src="./app.js?v=20260719.2400"
   ></script>
 
   <!-- MÔ-ĐUN AI ĐƯỢC NẠP CUỐI CÙNG; XÓA DÒNG NÀY ĐỂ TẮT AI -->
