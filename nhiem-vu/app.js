@@ -1,11 +1,11 @@
 import {
   auth,
   db
-} from "./firebase-config.js?v=20260721.0100";
+} from "./firebase-config.js?v=20260721.Production";
 
 import {
   NOTIFICATION_WEB_APP_URL
-} from "./notification-config.js?v=20260721.0100";
+} from "./notification-config.js?v=20260721.Production";
 
 import {
   GoogleAuthProvider,
@@ -52,8 +52,7 @@ const state = {
   selectedTaskId: null,
   taskView: "ACTIVE",
   taskRealtimeUnsubscribers: [],
-  taskRealtimeSources: new Map(),
-  realtimeSyncStarted: false
+  taskRealtimeTimer: null
 };
 
 const googleProvider = new GoogleAuthProvider();
@@ -136,7 +135,6 @@ const sourceType = $("sourceType");
 const sourceDetail = $("sourceDetail");
 const assignedByUserId = $("assignedByUserId");
 const priority = $("priority");
-const primaryDepartmentField = $("primaryDepartmentField");
 const primaryDepartmentId = $("primaryDepartmentId");
 const ownerUserId = $("ownerUserId");
 const primaryHelp = $("primaryHelp");
@@ -300,7 +298,6 @@ function isValidHttpUrl(value) {
 }
 
 function resetSessionState() {
-  stopTaskRealtimeSync();
   state.user = null;
   state.profile = null;
   state.tasks = [];
@@ -643,6 +640,113 @@ function currentEntryMode() {
   return "DIRECT_ASSIGNED";
 }
 
+
+const DEPARTMENT_ID_ALIASES = Object.freeze({
+  "BGD": "BGD",
+  "BAN GIAM DOC": "BGD",
+  "BAN GIÁM ĐỐC": "BGD",
+
+  "TCHC": "TCHC",
+  "PHONG TO CHUC HANH CHINH": "TCHC",
+  "PHÒNG TỔ CHỨC HÀNH CHÍNH": "TCHC",
+  "PHONG TO CHUC - HANH CHINH": "TCHC",
+  "PHÒNG TỔ CHỨC - HÀNH CHÍNH": "TCHC",
+  "PHONG TO CHUC – HANH CHINH": "TCHC",
+  "PHÒNG TỔ CHỨC – HÀNH CHÍNH": "TCHC",
+
+  "CTXH": "CTXH",
+  "PHONG CONG TAC XA HOI": "CTXH",
+  "PHÒNG CÔNG TÁC XÃ HỘI": "CTXH",
+
+  "KHTC": "KHTC",
+  "PHONG KE HOACH TAI CHINH": "KHTC",
+  "PHÒNG KẾ HOẠCH TÀI CHÍNH": "KHTC",
+  "PHONG KE HOACH - TAI CHINH": "KHTC",
+  "PHÒNG KẾ HOẠCH - TÀI CHÍNH": "KHTC",
+  "PHONG KE HOACH – TAI CHINH": "KHTC",
+  "PHÒNG KẾ HOẠCH – TÀI CHÍNH": "KHTC",
+
+  "YT": "YT",
+  "PHONG Y TE": "YT",
+  "PHÒNG Y TẾ": "YT",
+
+  "KI": "KI",
+  "KHU I": "KI",
+  "KHU 1": "KI",
+
+  "KII": "KII",
+  "KHU II": "KII",
+  "KHU 2": "KII",
+
+  "KIII": "KIII",
+  "KHU III": "KIII",
+  "KHU 3": "KIII"
+});
+
+function departmentAliasKey(value) {
+  return cleanText(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[–—]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toUpperCase();
+}
+
+function normalizeDepartmentId(value) {
+  const raw = cleanText(value);
+
+  if (!raw) {
+    return "";
+  }
+
+  const direct = DEPARTMENT_ID_ALIASES[raw.toUpperCase()];
+  if (direct) {
+    return direct;
+  }
+
+  const normalized = DEPARTMENT_ID_ALIASES[departmentAliasKey(raw)];
+  if (normalized) {
+    return normalized;
+  }
+
+  const matchingDepartment = state.departments.find((item) => {
+    const candidates = [
+      item.id,
+      item.code,
+      item.name,
+      item.departmentName
+    ].filter(Boolean);
+
+    return candidates.some(
+      (candidate) => departmentAliasKey(candidate) === departmentAliasKey(raw)
+    );
+  });
+
+  return matchingDepartment?.id || raw;
+}
+
+function departmentIdVariants(value) {
+  const canonical = normalizeDepartmentId(value);
+  const variants = new Set([canonical]);
+
+  state.departments.forEach((item) => {
+    if (normalizeDepartmentId(item.id) === canonical) {
+      [item.id, item.code, item.name, item.departmentName]
+        .filter(Boolean)
+        .forEach((candidate) => variants.add(cleanText(candidate)));
+    }
+  });
+
+  Object.entries(DEPARTMENT_ID_ALIASES).forEach(([alias, id]) => {
+    if (id === canonical) {
+      variants.add(alias);
+    }
+  });
+
+  return Array.from(variants).filter(Boolean);
+}
+
 function departmentById(id) {
   return state.departments.find((item) => item.id === id) || null;
 }
@@ -783,6 +887,7 @@ async function loadProfile(user) {
   }
 
   const accessData = accessSnapshot.data();
+  const normalizedDepartmentId = normalizeDepartmentId(accessData.departmentId);
 
   if (accessData.active !== true) {
     const error = new Error(
@@ -794,7 +899,7 @@ async function loadProfile(user) {
 
   if (
     !accessData.fullName ||
-    !accessData.departmentId ||
+    !normalizedDepartmentId ||
     !accessData.role
   ) {
     const error = new Error(
@@ -820,7 +925,7 @@ async function loadProfile(user) {
     employeeCode: accessData.employeeCode || "",
     fullName: accessData.fullName,
     email: normalizedEmail,
-    departmentId: accessData.departmentId,
+    departmentId: normalizedDepartmentId,
     position: accessData.position || "",
     role: accessData.role,
     active: true,
@@ -882,9 +987,11 @@ async function loadReferenceData() {
   state.users = [];
 
   userSnapshot.forEach((item) => {
+    const data = item.data();
     state.users.push({
       id: item.id,
-      ...item.data()
+      ...data,
+      departmentId: normalizeDepartmentId(data.departmentId)
     });
   });
 }
@@ -895,7 +1002,7 @@ async function loadReferenceData() {
 
 function isTchcCoordinationAccount() {
   return (
-    state.profile?.departmentId === "TCHC"
+    normalizeDepartmentId(state.profile?.departmentId) === "TCHC"
     && ["ADMIN", "DEPARTMENT_LEADER"].includes(state.profile?.role)
   );
 }
@@ -912,120 +1019,6 @@ function canExportTaskReport() {
     state.profile?.active === true &&
     ["ADMIN", "DIRECTOR", "DEPARTMENT_LEADER"].includes(state.profile?.role)
   );
-}
-
-
-function stopTaskRealtimeSync() {
-  (state.taskRealtimeUnsubscribers || []).forEach((unsubscribe) => {
-    try {
-      unsubscribe();
-    } catch (error) {
-      console.warn("Không dừng được bộ đồng bộ thời gian thực:", error);
-    }
-  });
-
-  state.taskRealtimeUnsubscribers = [];
-  state.taskRealtimeSources = new Map();
-  state.realtimeSyncStarted = false;
-}
-
-function updateTasksFromRealtimeSources() {
-  const taskMap = new Map();
-
-  state.taskRealtimeSources.forEach((sourceMap) => {
-    sourceMap.forEach((task, taskId) => {
-      if (task.active !== false) {
-        taskMap.set(taskId, task);
-      }
-    });
-  });
-
-  state.tasks = Array.from(taskMap.values());
-  state.tasks.sort((a, b) => {
-    const dateA = toDate(a.updatedAt) || toDate(a.createdAt) || new Date(0);
-    const dateB = toDate(b.updatedAt) || toDate(b.createdAt) || new Date(0);
-    return dateB.getTime() - dateA.getTime();
-  });
-
-  lastUpdated.textContent = `Tự động đồng bộ lúc ${formatDateTime()}`;
-  renderMetrics();
-  applyFilters();
-}
-
-function subscribeTaskQuery(sourceKey, taskQuery) {
-  const unsubscribe = onSnapshot(
-    taskQuery,
-    { includeMetadataChanges: true },
-    (snapshot) => {
-      const sourceMap = new Map();
-
-      snapshot.forEach((item) => {
-        sourceMap.set(item.id, {
-          id: item.id,
-          ...item.data()
-        });
-      });
-
-      state.taskRealtimeSources.set(sourceKey, sourceMap);
-      updateTasksFromRealtimeSources();
-    },
-    (error) => {
-      console.error(`Đồng bộ thời gian thực lỗi tại ${sourceKey}:`, error);
-      showMessage(
-        dashboardMessage,
-        "Mất kết nối đồng bộ thời gian thực. Hệ thống sẽ tự thử lại khi có mạng; bạn vẫn có thể bấm nút ↻.",
-        "warning"
-      );
-    }
-  );
-
-  state.taskRealtimeUnsubscribers.push(unsubscribe);
-}
-
-function startTaskRealtimeSync() {
-  if (!state.profile || !state.user) {
-    return;
-  }
-
-  stopTaskRealtimeSync();
-  const tasksRef = collection(db, "tasks");
-
-  if (canViewAllTasks()) {
-    subscribeTaskQuery("ALL_TASKS", tasksRef);
-  } else if (state.profile.role === "DEPARTMENT_LEADER") {
-    const departmentId = cleanText(state.profile.departmentId);
-
-    if (!departmentId) {
-      throw new Error("Hồ sơ tài khoản chưa có mã Phòng/Khu.");
-    }
-
-    subscribeTaskQuery(
-      "PRIMARY_DEPARTMENT",
-      query(tasksRef, where("primaryDepartmentId", "==", departmentId))
-    );
-
-    subscribeTaskQuery(
-      "VISIBLE_DEPARTMENT",
-      query(tasksRef, where("visibleDepartmentIds", "array-contains", departmentId))
-    );
-
-    subscribeTaskQuery(
-      "SUPPORT_DEPARTMENT_LEGACY",
-      query(tasksRef, where("supportDepartmentIds", "array-contains", departmentId))
-    );
-  } else if (state.profile.role === "STAFF") {
-    subscribeTaskQuery(
-      "OWNER_USER",
-      query(tasksRef, where("ownerUserId", "==", state.user.uid))
-    );
-
-    subscribeTaskQuery(
-      "VISIBLE_USER_LEGACY",
-      query(tasksRef, where("visibleUserIds", "array-contains", state.user.uid))
-    );
-  }
-
-  state.realtimeSyncStarted = state.taskRealtimeUnsubscribers.length > 0;
 }
 
 async function loadTasks() {
@@ -1046,9 +1039,20 @@ async function loadTasks() {
 
     const addSnapshotToMap = (snapshot) => {
       snapshot.forEach((item) => {
+        const rawTask = item.data();
         const task = {
           id: item.id,
-          ...item.data()
+          ...rawTask,
+          primaryDepartmentId: normalizeDepartmentId(rawTask.primaryDepartmentId),
+          visibleDepartmentIds: (rawTask.visibleDepartmentIds || [])
+            .map(normalizeDepartmentId)
+            .filter(Boolean),
+          supportDepartmentIds: (rawTask.supportDepartmentIds || [])
+            .map(normalizeDepartmentId)
+            .filter(Boolean),
+          relatedDepartmentIds: (rawTask.relatedDepartmentIds || [])
+            .map(normalizeDepartmentId)
+            .filter(Boolean)
         };
 
         if (task.active !== false) {
@@ -1064,52 +1068,59 @@ async function loadTasks() {
       addSnapshotToMap(snapshot);
 
     } else if (state.profile.role === "DEPARTMENT_LEADER") {
-      const departmentId = cleanText(state.profile.departmentId);
+      const departmentId = normalizeDepartmentId(state.profile.departmentId);
+      const departmentIds = departmentIdVariants(departmentId);
       const tasksRef = collection(db, "tasks");
 
       if (!departmentId) {
         throw new Error("Hồ sơ tài khoản chưa có mã Phòng/Khu.");
       }
 
-      /* Truy vấn bắt buộc: nhiệm vụ thuộc Phòng/Khu chính. */
-      const primarySnapshot = await getDocsFromServer(
-        query(
-          tasksRef,
-          where("primaryDepartmentId", "==", departmentId)
-        )
-      );
-      addSnapshotToMap(primarySnapshot);
+      for (const queryDepartmentId of departmentIds) {
+        try {
+          const primarySnapshot = await getDocsFromServer(
+            query(
+              tasksRef,
+              where("primaryDepartmentId", "==", queryDepartmentId)
+            )
+          );
+          addSnapshotToMap(primarySnapshot);
+        } catch (primaryError) {
+          console.warn(
+            `Chưa đọc được nhiệm vụ chính theo ${queryDepartmentId}:`,
+            primaryError
+          );
+        }
 
-      /* Truy vấn phụ: nhiệm vụ có Phòng/Khu phối hợp. */
-      try {
-        const visibleSnapshot = await getDocsFromServer(
-          query(
-            tasksRef,
-            where("visibleDepartmentIds", "array-contains", departmentId)
-          )
-        );
-        addSnapshotToMap(visibleSnapshot);
-      } catch (visibleError) {
-        console.warn(
-          "Chưa đọc được nhiệm vụ phối hợp theo visibleDepartmentIds:",
-          visibleError
-        );
-      }
+        try {
+          const visibleSnapshot = await getDocsFromServer(
+            query(
+              tasksRef,
+              where("visibleDepartmentIds", "array-contains", queryDepartmentId)
+            )
+          );
+          addSnapshotToMap(visibleSnapshot);
+        } catch (visibleError) {
+          console.warn(
+            `Chưa đọc được nhiệm vụ phối hợp theo ${queryDepartmentId}:`,
+            visibleError
+          );
+        }
 
-      /* Tương thích dữ liệu cũ. */
-      try {
-        const supportSnapshot = await getDocsFromServer(
-          query(
-            tasksRef,
-            where("supportDepartmentIds", "array-contains", departmentId)
-          )
-        );
-        addSnapshotToMap(supportSnapshot);
-      } catch (supportError) {
-        console.warn(
-          "Chưa đọc được nhiệm vụ phối hợp theo supportDepartmentIds:",
-          supportError
-        );
+        try {
+          const supportSnapshot = await getDocsFromServer(
+            query(
+              tasksRef,
+              where("supportDepartmentIds", "array-contains", queryDepartmentId)
+            )
+          );
+          addSnapshotToMap(supportSnapshot);
+        } catch (supportError) {
+          console.warn(
+            `Chưa đọc được nhiệm vụ cũ theo ${queryDepartmentId}:`,
+            supportError
+          );
+        }
       }
 
 
@@ -1189,6 +1200,95 @@ async function loadTasks() {
     refreshButton.title = "Làm mới dữ liệu";
     refreshButton.innerHTML = '<span class="refresh-icon" aria-hidden="true">↻</span>';
   }
+}
+
+
+function stopTaskRealtimeListeners() {
+  state.taskRealtimeUnsubscribers.forEach((unsubscribe) => {
+    try {
+      unsubscribe();
+    } catch (error) {
+      console.warn("Không thể dừng bộ đồng bộ thời gian thực:", error);
+    }
+  });
+
+  state.taskRealtimeUnsubscribers = [];
+
+  if (state.taskRealtimeTimer) {
+    window.clearTimeout(state.taskRealtimeTimer);
+    state.taskRealtimeTimer = null;
+  }
+}
+
+function scheduleRealtimeTaskRefresh() {
+  if (state.taskRealtimeTimer) {
+    window.clearTimeout(state.taskRealtimeTimer);
+  }
+
+  state.taskRealtimeTimer = window.setTimeout(async () => {
+    state.taskRealtimeTimer = null;
+
+    if (!state.user || !state.profile || state.loadingTasks) {
+      return;
+    }
+
+    await loadTasks();
+  }, 350);
+}
+
+function realtimeTaskQueries() {
+  const tasksRef = collection(db, "tasks");
+
+  if (canViewAllTasks()) {
+    return [tasksRef];
+  }
+
+  if (state.profile?.role === "DEPARTMENT_LEADER") {
+    const departmentIds = departmentIdVariants(state.profile.departmentId);
+    const queries = [];
+
+    departmentIds.forEach((departmentId) => {
+      queries.push(
+        query(tasksRef, where("primaryDepartmentId", "==", departmentId)),
+        query(tasksRef, where("visibleDepartmentIds", "array-contains", departmentId)),
+        query(tasksRef, where("supportDepartmentIds", "array-contains", departmentId))
+      );
+    });
+
+    return queries;
+  }
+
+  if (state.profile?.role === "STAFF") {
+    return [
+      query(tasksRef, where("ownerUserId", "==", state.user.uid)),
+      query(tasksRef, where("visibleUserIds", "array-contains", state.user.uid))
+    ];
+  }
+
+  return [];
+}
+
+function startTaskRealtimeListeners() {
+  stopTaskRealtimeListeners();
+
+  const uniqueQueries = realtimeTaskQueries();
+
+  uniqueQueries.forEach((taskQuery) => {
+    const unsubscribe = onSnapshot(
+      taskQuery,
+      () => {
+        scheduleRealtimeTaskRefresh();
+      },
+      (error) => {
+        console.warn(
+          "Đồng bộ nhiệm vụ thời gian thực tạm thời không hoạt động:",
+          error
+        );
+      }
+    );
+
+    state.taskRealtimeUnsubscribers.push(unsubscribe);
+  });
 }
 
 /* =========================================================
@@ -2081,7 +2181,7 @@ function canAssignTask(task) {
 
   return (
     state.profile.role === "DEPARTMENT_LEADER" &&
-    task.primaryDepartmentId === state.profile.departmentId &&
+    normalizeDepartmentId(task.primaryDepartmentId) === normalizeDepartmentId(state.profile.departmentId) &&
     task.status !== "HOAN_THANH" &&
     task.status !== "HUY"
   );
@@ -2102,7 +2202,7 @@ function canUpdateTask(task) {
    */
   if (
     state.profile.role === "DEPARTMENT_LEADER" &&
-    task.primaryDepartmentId === state.profile.departmentId
+    normalizeDepartmentId(task.primaryDepartmentId) === normalizeDepartmentId(state.profile.departmentId)
   ) {
     return task.ownerUserId === state.user.uid;
   }
@@ -2137,7 +2237,7 @@ function canEditTaskSupport(task) {
 
   return (
     state.profile.role === "DEPARTMENT_LEADER" &&
-    task.primaryDepartmentId === state.profile.departmentId &&
+    normalizeDepartmentId(task.primaryDepartmentId) === normalizeDepartmentId(state.profile.departmentId) &&
     task.status !== "HUY"
   );
 }
@@ -2158,7 +2258,7 @@ function canDeleteTask(task) {
   return (
     task.entryMode === "SELF_RECORDED" &&
     state.profile.role === "DEPARTMENT_LEADER" &&
-    task.primaryDepartmentId === state.profile.departmentId
+    normalizeDepartmentId(task.primaryDepartmentId) === normalizeDepartmentId(state.profile.departmentId)
   );
 }
 
@@ -2372,8 +2472,6 @@ function configureEntryMode() {
 
   const selfRecorded = mode === "SELF_RECORDED";
 
-  primaryDepartmentField?.classList.toggle("hidden", selfRecorded);
-
   taskModalTitle.textContent = selfRecorded
     ? "➕ Ghi nhận nhiệm vụ"
     : "⚡ Giao nhiệm vụ trực tiếp";
@@ -2449,10 +2547,29 @@ function fillPrimaryDepartmentOptions() {
     return;
   }
 
+  const wrapper = primaryDepartmentId.closest(".system-hidden-fields, .field-block");
+  const directAssignment = currentEntryMode() === "DIRECT_ASSIGNED";
+
+  if (wrapper) {
+    wrapper.classList.toggle("system-hidden-fields", !directAssignment);
+    wrapper.classList.toggle("field-block", directAssignment);
+    wrapper.classList.toggle("form-span-2", directAssignment);
+    wrapper.setAttribute("aria-hidden", directAssignment ? "false" : "true");
+
+    let label = wrapper.querySelector('label[for="primaryDepartmentId"]');
+
+    if (directAssignment && !label) {
+      label = document.createElement("label");
+      label.setAttribute("for", "primaryDepartmentId");
+      label.innerHTML = 'Phòng/Khu chịu trách nhiệm chính <span>*</span>';
+      wrapper.insertBefore(label, primaryDepartmentId);
+    }
+  }
+
   primaryDepartmentId.innerHTML = "";
 
   if (currentEntryMode() === "SELF_RECORDED") {
-    const primaryId = cleanText(state.profile?.departmentId);
+    const primaryId = normalizeDepartmentId(state.profile?.departmentId);
     const option = document.createElement("option");
     option.value = primaryId;
     option.textContent = departmentName(primaryId);
@@ -2504,7 +2621,7 @@ function fillOwnerOptions() {
 
 function availableRelatedDepartments() {
   const primaryId = cleanText(
-    primaryDepartmentId?.value || state.profile?.departmentId || ""
+    normalizeDepartmentId(primaryDepartmentId?.value || state.profile?.departmentId || "")
   );
 
   return state.departments
@@ -2694,7 +2811,7 @@ function detectDeviceName() {
 
 const MAX_EVIDENCE_FILE_SIZE = 8 * 1024 * 1024;
 const EVIDENCE_UPLOAD_TIMEOUT_MS = 180000;
-const EVIDENCE_POLL_INTERVAL_MS = 1800;
+const EVIDENCE_UPLOAD_POLL_INTERVAL_MS = 2000;
 
 function readFileAsBase64(file) {
   return new Promise((resolve, reject) => {
@@ -2720,6 +2837,105 @@ function evidenceUploadRequestId() {
     Date.now(),
     Math.random().toString(36).slice(2, 10)
   ].join("_");
+}
+
+function evidenceUploadPollToken() {
+  if (window.crypto?.getRandomValues) {
+    const bytes = new Uint8Array(24);
+    window.crypto.getRandomValues(bytes);
+    return Array.from(bytes)
+      .map((value) => value.toString(16).padStart(2, "0"))
+      .join("");
+  }
+
+  return [
+    Date.now().toString(36),
+    Math.random().toString(36).slice(2),
+    Math.random().toString(36).slice(2)
+  ].join("");
+}
+
+function pollTaskEvidenceUploadResult({
+  requestId,
+  pollToken,
+  onResult,
+  onError
+}) {
+  const callbackName = `taskEvidenceUploadCallback_${requestId.replace(/[^A-Za-z0-9_$]/g, "_")}`;
+  let stopped = false;
+  let timerId = null;
+
+  const cleanupScript = (script) => {
+    if (script?.parentNode) {
+      script.parentNode.removeChild(script);
+    }
+  };
+
+  const stop = () => {
+    stopped = true;
+
+    if (timerId) {
+      window.clearTimeout(timerId);
+      timerId = null;
+    }
+
+    try {
+      delete window[callbackName];
+    } catch (error) {
+      window[callbackName] = undefined;
+    }
+  };
+
+  const run = () => {
+    if (stopped) {
+      return;
+    }
+
+    const script = document.createElement("script");
+    const url = new URL(NOTIFICATION_WEB_APP_URL);
+
+    url.searchParams.set("action", "TASK_EVIDENCE_GET_RESULT");
+    url.searchParams.set("requestId", requestId);
+    url.searchParams.set("pollToken", pollToken);
+    url.searchParams.set("callback", callbackName);
+    url.searchParams.set("_", String(Date.now()));
+
+    window[callbackName] = (data) => {
+      cleanupScript(script);
+
+      if (stopped) {
+        return;
+      }
+
+      if (data?.ready !== true) {
+        timerId = window.setTimeout(run, EVIDENCE_UPLOAD_POLL_INTERVAL_MS);
+        return;
+      }
+
+      stop();
+
+      if (data.ok === true && data.fileUrl) {
+        onResult(data);
+      } else {
+        onError(new Error(data?.error || "Không tải được tệp lên Google Drive."));
+      }
+    };
+
+    script.onerror = () => {
+      cleanupScript(script);
+
+      if (!stopped) {
+        timerId = window.setTimeout(run, EVIDENCE_UPLOAD_POLL_INTERVAL_MS);
+      }
+    };
+
+    script.src = url.toString();
+    document.head.appendChild(script);
+  };
+
+  timerId = window.setTimeout(run, 2500);
+
+  return stop;
 }
 
 function validateEvidenceFile(file) {
@@ -2762,12 +2978,8 @@ async function uploadTaskEvidenceToDrive(file, task) {
   }
 
   const requestId = evidenceUploadRequestId();
-  const pollToken = [
-    requestId,
-    Math.random().toString(36).slice(2),
-    Date.now().toString(36)
-  ].join("_");
-  const idToken = await state.user.getIdToken(true);
+  const pollToken = evidenceUploadPollToken();
+  const idToken = await state.user.getIdToken();
   const base64Data = await readFileAsBase64(file);
 
   return new Promise((resolve, reject) => {
@@ -2775,7 +2987,6 @@ async function uploadTaskEvidenceToDrive(file, task) {
     const iframe = document.createElement("iframe");
     const form = document.createElement("form");
     const input = document.createElement("input");
-    const callbackName = `taskEvidencePoll_${requestId.replace(/[^A-Za-z0-9_$]/g, "_")}`;
 
     iframe.name = iframeName;
     iframe.className = "hidden-upload-frame";
@@ -2803,26 +3014,12 @@ async function uploadTaskEvidenceToDrive(file, task) {
     form.appendChild(input);
 
     let settled = false;
-    let pollTimerId = 0;
-    let activePollScript = null;
-
-    const removePollScript = () => {
-      if (activePollScript) {
-        activePollScript.remove();
-        activePollScript = null;
-      }
-    };
+    let stopPolling = () => {};
 
     const cleanup = () => {
       window.removeEventListener("message", handleMessage);
       window.clearTimeout(timeoutId);
-      window.clearTimeout(pollTimerId);
-      removePollScript();
-      try {
-        delete window[callbackName];
-      } catch (error) {
-        window[callbackName] = undefined;
-      }
+      stopPolling();
       form.remove();
       iframe.remove();
     };
@@ -2837,30 +3034,6 @@ async function uploadTaskEvidenceToDrive(file, task) {
       callback();
     };
 
-    const processResult = (data) => {
-      if (!data || data.requestId !== requestId) {
-        return false;
-      }
-
-      if (data.ready === false) {
-        return false;
-      }
-
-      if (data.ok === true && data.fileUrl) {
-        finish(() => resolve(data));
-        return true;
-      }
-
-      if (data.ok === false) {
-        finish(() => reject(
-          new Error(data.error || "Không tải được tệp lên Google Drive.")
-        ));
-        return true;
-      }
-
-      return false;
-    };
-
     const handleMessage = (event) => {
       const data = event?.data;
 
@@ -2872,46 +3045,26 @@ async function uploadTaskEvidenceToDrive(file, task) {
         return;
       }
 
-      processResult(data);
-    };
-
-    const schedulePoll = () => {
-      if (!settled) {
-        pollTimerId = window.setTimeout(runPoll, EVIDENCE_POLL_INTERVAL_MS);
-      }
-    };
-
-    const runPoll = () => {
-      if (settled) {
+      if (data.ok === true && data.fileUrl) {
+        finish(() => resolve(data));
         return;
       }
 
-      removePollScript();
-      const script = document.createElement("script");
-      activePollScript = script;
-
-      window[callbackName] = (data) => {
-        removePollScript();
-        if (!processResult(data)) {
-          schedulePoll();
-        }
-      };
-
-      const url = new URL(NOTIFICATION_WEB_APP_URL);
-      url.searchParams.set("action", "TASK_EVIDENCE_GET_RESULT");
-      url.searchParams.set("requestId", requestId);
-      url.searchParams.set("pollToken", pollToken);
-      url.searchParams.set("callback", callbackName);
-      url.searchParams.set("_", String(Date.now()));
-
-      script.src = url.toString();
-      script.async = true;
-      script.onerror = () => {
-        removePollScript();
-        schedulePoll();
-      };
-      document.head.appendChild(script);
+      finish(() => reject(
+        new Error(data.error || "Không tải được tệp lên Google Drive.")
+      ));
     };
+
+    stopPolling = pollTaskEvidenceUploadResult({
+      requestId,
+      pollToken,
+      onResult: (data) => {
+        finish(() => resolve(data));
+      },
+      onError: (error) => {
+        finish(() => reject(error));
+      }
+    });
 
     const timeoutId = window.setTimeout(() => {
       finish(() => reject(
@@ -2923,7 +3076,6 @@ async function uploadTaskEvidenceToDrive(file, task) {
     document.body.appendChild(iframe);
     document.body.appendChild(form);
     form.submit();
-    schedulePoll();
   });
 }
 
@@ -2975,7 +3127,7 @@ async function saveTaskPushSubscription(
     module:
       "TASKS",
     departmentId:
-      state.profile.departmentId,
+      normalizeDepartmentId(state.profile.departmentId),
     role:
       state.profile.role,
     active,
@@ -3216,8 +3368,8 @@ async function saveTask(event) {
      * với BGĐ giao trực tiếp vẫn dùng giá trị được app gán vào trường ẩn.
      */
     const primaryId = currentEntryMode() === "SELF_RECORDED"
-      ? cleanText(state.profile?.departmentId)
-      : cleanText(primaryDepartmentId?.value);
+      ? normalizeDepartmentId(state.profile?.departmentId)
+      : normalizeDepartmentId(primaryDepartmentId?.value);
     const assignedDate = parseDateInput(assignedAt.value, false);
     const deadlineDate = parseDateInput(deadline.value, true);
 
@@ -3252,7 +3404,7 @@ async function saveTask(event) {
 
     if (
       mode === "SELF_RECORDED" &&
-      primaryId !== state.profile.departmentId
+      normalizeDepartmentId(primaryId) !== normalizeDepartmentId(state.profile.departmentId)
     ) {
       throw new Error("Phòng/Khu của nhiệm vụ tự ghi nhận không hợp lệ.");
     }
@@ -3439,7 +3591,7 @@ function internalAssigneeOptions(task) {
     .filter((item) => (
       item.active === true &&
       allowedRoles.has(item.role) &&
-      item.departmentId === task.primaryDepartmentId
+      normalizeDepartmentId(item.departmentId) === normalizeDepartmentId(task.primaryDepartmentId)
     ))
     .sort((a, b) => {
       /*
@@ -3574,7 +3726,7 @@ async function saveInternalAssignment(event) {
     !owner ||
     owner.active !== true ||
     !["DEPARTMENT_LEADER", "STAFF"].includes(owner.role) ||
-    owner.departmentId !== task.primaryDepartmentId
+    normalizeDepartmentId(owner.departmentId) !== normalizeDepartmentId(task.primaryDepartmentId)
   ) {
     showMessage(
       assignmentMessage,
@@ -4411,7 +4563,7 @@ async function initializeUser(user) {
     }
 
     await loadTasks();
-    startTaskRealtimeSync();
+    startTaskRealtimeListeners();
   } catch (error) {
     console.error("Không khởi tạo được người dùng:", error);
 
@@ -4596,9 +4748,6 @@ refreshButton.addEventListener("click", async () => {
 
   hideMessage(dashboardMessage);
   await loadTasks();
-  if (!state.realtimeSyncStarted) {
-    startTaskRealtimeSync();
-  }
 });
 exportReportButton?.addEventListener("click", exportTaskReport);
 addTaskButton.addEventListener("click", openTaskModal);
