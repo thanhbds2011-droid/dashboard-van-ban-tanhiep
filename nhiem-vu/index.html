@@ -661,16 +661,11 @@
               ></textarea>
             </div>
 
-            <!-- Chỉ hiển thị khi tài khoản Ban Giám đốc giao nhiệm vụ trực tiếp. -->
-            <div id="primaryDepartmentField" class="field-block form-span-2 hidden">
-              <label for="primaryDepartmentId">
-                Phòng/Khu chịu trách nhiệm chính <span>*</span>
-              </label>
-              <select id="primaryDepartmentId"></select>
-              <small id="primaryHelp" class="field-help"></small>
-            </div>
-
+            <!-- Phòng/Khu chính được xác định tự động theo tài khoản đăng nhập.
+                 Giữ các trường ẩn để bảo toàn logic app.js và dữ liệu Firestore. -->
             <div class="system-hidden-fields" aria-hidden="true">
+              <select id="primaryDepartmentId" tabindex="-1"></select>
+              <small id="primaryHelp"></small>
               <input id="ownerUserId" type="hidden" value="">
               <small id="ownerHelp"></small>
             </div>
@@ -1457,19 +1452,19 @@
   </div>
 
   <script
-    src="./pwa.js?v=20260721.0100"
+    src="./pwa.js?v=20260719.2310"
     defer
   ></script>
 
   <script
     type="module"
-    src="./app.js?v=20260721.0100"
+    src="./app.js?v=20260721.Production"
   ></script>
 
   <!-- MÔ-ĐUN AI ĐƯỢC NẠP CUỐI CÙNG; XÓA DÒNG NÀY ĐỂ TẮT AI -->
   <script
     type="module"
-    src="./ai-assistant.js?v=20260721.0100"
+    src="./ai-assistant.js?v=20260719.2310"
   ></script>
 </body>
 </html>
