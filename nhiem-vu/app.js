@@ -1,11 +1,11 @@
 import {
   auth,
   db
-} from "./firebase-config.js?v=20260719.2400";
+} from "./firebase-config.js?v=20260721.0100";
 
 import {
   NOTIFICATION_WEB_APP_URL
-} from "./notification-config.js?v=20260719.2400";
+} from "./notification-config.js?v=20260721.0100";
 
 import {
   GoogleAuthProvider,
@@ -22,6 +22,7 @@ import {
   getDoc,
   getDocs,
   getDocsFromServer,
+  onSnapshot,
   query,
   serverTimestamp,
   setDoc,
@@ -49,7 +50,10 @@ const state = {
   initializedUid: null,
   selectedSupportIds: new Set(),
   selectedTaskId: null,
-  taskView: "ACTIVE"
+  taskView: "ACTIVE",
+  taskRealtimeUnsubscribers: [],
+  taskRealtimeSources: new Map(),
+  realtimeSyncStarted: false
 };
 
 const googleProvider = new GoogleAuthProvider();
@@ -132,6 +136,7 @@ const sourceType = $("sourceType");
 const sourceDetail = $("sourceDetail");
 const assignedByUserId = $("assignedByUserId");
 const priority = $("priority");
+const primaryDepartmentField = $("primaryDepartmentField");
 const primaryDepartmentId = $("primaryDepartmentId");
 const ownerUserId = $("ownerUserId");
 const primaryHelp = $("primaryHelp");
@@ -295,6 +300,7 @@ function isValidHttpUrl(value) {
 }
 
 function resetSessionState() {
+  stopTaskRealtimeSync();
   state.user = null;
   state.profile = null;
   state.tasks = [];
@@ -906,6 +912,120 @@ function canExportTaskReport() {
     state.profile?.active === true &&
     ["ADMIN", "DIRECTOR", "DEPARTMENT_LEADER"].includes(state.profile?.role)
   );
+}
+
+
+function stopTaskRealtimeSync() {
+  (state.taskRealtimeUnsubscribers || []).forEach((unsubscribe) => {
+    try {
+      unsubscribe();
+    } catch (error) {
+      console.warn("Không dừng được bộ đồng bộ thời gian thực:", error);
+    }
+  });
+
+  state.taskRealtimeUnsubscribers = [];
+  state.taskRealtimeSources = new Map();
+  state.realtimeSyncStarted = false;
+}
+
+function updateTasksFromRealtimeSources() {
+  const taskMap = new Map();
+
+  state.taskRealtimeSources.forEach((sourceMap) => {
+    sourceMap.forEach((task, taskId) => {
+      if (task.active !== false) {
+        taskMap.set(taskId, task);
+      }
+    });
+  });
+
+  state.tasks = Array.from(taskMap.values());
+  state.tasks.sort((a, b) => {
+    const dateA = toDate(a.updatedAt) || toDate(a.createdAt) || new Date(0);
+    const dateB = toDate(b.updatedAt) || toDate(b.createdAt) || new Date(0);
+    return dateB.getTime() - dateA.getTime();
+  });
+
+  lastUpdated.textContent = `Tự động đồng bộ lúc ${formatDateTime()}`;
+  renderMetrics();
+  applyFilters();
+}
+
+function subscribeTaskQuery(sourceKey, taskQuery) {
+  const unsubscribe = onSnapshot(
+    taskQuery,
+    { includeMetadataChanges: true },
+    (snapshot) => {
+      const sourceMap = new Map();
+
+      snapshot.forEach((item) => {
+        sourceMap.set(item.id, {
+          id: item.id,
+          ...item.data()
+        });
+      });
+
+      state.taskRealtimeSources.set(sourceKey, sourceMap);
+      updateTasksFromRealtimeSources();
+    },
+    (error) => {
+      console.error(`Đồng bộ thời gian thực lỗi tại ${sourceKey}:`, error);
+      showMessage(
+        dashboardMessage,
+        "Mất kết nối đồng bộ thời gian thực. Hệ thống sẽ tự thử lại khi có mạng; bạn vẫn có thể bấm nút ↻.",
+        "warning"
+      );
+    }
+  );
+
+  state.taskRealtimeUnsubscribers.push(unsubscribe);
+}
+
+function startTaskRealtimeSync() {
+  if (!state.profile || !state.user) {
+    return;
+  }
+
+  stopTaskRealtimeSync();
+  const tasksRef = collection(db, "tasks");
+
+  if (canViewAllTasks()) {
+    subscribeTaskQuery("ALL_TASKS", tasksRef);
+  } else if (state.profile.role === "DEPARTMENT_LEADER") {
+    const departmentId = cleanText(state.profile.departmentId);
+
+    if (!departmentId) {
+      throw new Error("Hồ sơ tài khoản chưa có mã Phòng/Khu.");
+    }
+
+    subscribeTaskQuery(
+      "PRIMARY_DEPARTMENT",
+      query(tasksRef, where("primaryDepartmentId", "==", departmentId))
+    );
+
+    subscribeTaskQuery(
+      "VISIBLE_DEPARTMENT",
+      query(tasksRef, where("visibleDepartmentIds", "array-contains", departmentId))
+    );
+
+    subscribeTaskQuery(
+      "SUPPORT_DEPARTMENT_LEGACY",
+      query(tasksRef, where("supportDepartmentIds", "array-contains", departmentId))
+    );
+  } else if (state.profile.role === "STAFF") {
+    subscribeTaskQuery(
+      "OWNER_USER",
+      query(tasksRef, where("ownerUserId", "==", state.user.uid))
+    );
+
+    subscribeTaskQuery(
+      "VISIBLE_USER_LEGACY",
+      query(tasksRef, where("visibleUserIds", "array-contains", state.user.uid))
+    );
+  }
+
+  state.realtimeSyncStarted = state.taskRealtimeUnsubscribers.length > 0;
 }
 
 async function loadTasks() {
@@ -2252,6 +2372,8 @@ function configureEntryMode() {
 
   const selfRecorded = mode === "SELF_RECORDED";
 
+  primaryDepartmentField?.classList.toggle("hidden", selfRecorded);
+
   taskModalTitle.textContent = selfRecorded
     ? "➕ Ghi nhận nhiệm vụ"
     : "⚡ Giao nhiệm vụ trực tiếp";
@@ -2571,7 +2693,8 @@ function detectDeviceName() {
 
 
 const MAX_EVIDENCE_FILE_SIZE = 8 * 1024 * 1024;
-const EVIDENCE_UPLOAD_TIMEOUT_MS = 90000;
+const EVIDENCE_UPLOAD_TIMEOUT_MS = 180000;
+const EVIDENCE_POLL_INTERVAL_MS = 1800;
 
 function readFileAsBase64(file) {
   return new Promise((resolve, reject) => {
@@ -2639,7 +2762,12 @@ async function uploadTaskEvidenceToDrive(file, task) {
   }
 
   const requestId = evidenceUploadRequestId();
-  const idToken = await state.user.getIdToken();
+  const pollToken = [
+    requestId,
+    Math.random().toString(36).slice(2),
+    Date.now().toString(36)
+  ].join("_");
+  const idToken = await state.user.getIdToken(true);
   const base64Data = await readFileAsBase64(file);
 
   return new Promise((resolve, reject) => {
@@ -2647,6 +2775,7 @@ async function uploadTaskEvidenceToDrive(file, task) {
     const iframe = document.createElement("iframe");
     const form = document.createElement("form");
     const input = document.createElement("input");
+    const callbackName = `taskEvidencePoll_${requestId.replace(/[^A-Za-z0-9_$]/g, "_")}`;
 
     iframe.name = iframeName;
     iframe.className = "hidden-upload-frame";
@@ -2662,6 +2791,7 @@ async function uploadTaskEvidenceToDrive(file, task) {
     input.value = JSON.stringify({
       action: "UPLOAD_TASK_EVIDENCE",
       requestId,
+      pollToken,
       taskId: task.id,
       taskCode: task.taskCode || "",
       idToken,
@@ -2673,10 +2803,26 @@ async function uploadTaskEvidenceToDrive(file, task) {
     form.appendChild(input);
 
     let settled = false;
+    let pollTimerId = 0;
+    let activePollScript = null;
+
+    const removePollScript = () => {
+      if (activePollScript) {
+        activePollScript.remove();
+        activePollScript = null;
+      }
+    };
 
     const cleanup = () => {
       window.removeEventListener("message", handleMessage);
       window.clearTimeout(timeoutId);
+      window.clearTimeout(pollTimerId);
+      removePollScript();
+      try {
+        delete window[callbackName];
+      } catch (error) {
+        window[callbackName] = undefined;
+      }
       form.remove();
       iframe.remove();
     };
@@ -2691,6 +2837,30 @@ async function uploadTaskEvidenceToDrive(file, task) {
       callback();
     };
 
+    const processResult = (data) => {
+      if (!data || data.requestId !== requestId) {
+        return false;
+      }
+
+      if (data.ready === false) {
+        return false;
+      }
+
+      if (data.ok === true && data.fileUrl) {
+        finish(() => resolve(data));
+        return true;
+      }
+
+      if (data.ok === false) {
+        finish(() => reject(
+          new Error(data.error || "Không tải được tệp lên Google Drive.")
+        ));
+        return true;
+      }
+
+      return false;
+    };
+
     const handleMessage = (event) => {
       const data = event?.data;
 
@@ -2702,14 +2872,45 @@ async function uploadTaskEvidenceToDrive(file, task) {
         return;
       }
 
-      if (data.ok === true && data.fileUrl) {
-        finish(() => resolve(data));
+      processResult(data);
+    };
+
+    const schedulePoll = () => {
+      if (!settled) {
+        pollTimerId = window.setTimeout(runPoll, EVIDENCE_POLL_INTERVAL_MS);
+      }
+    };
+
+    const runPoll = () => {
+      if (settled) {
         return;
       }
 
-      finish(() => reject(
-        new Error(data.error || "Không tải được tệp lên Google Drive.")
-      ));
+      removePollScript();
+      const script = document.createElement("script");
+      activePollScript = script;
+
+      window[callbackName] = (data) => {
+        removePollScript();
+        if (!processResult(data)) {
+          schedulePoll();
+        }
+      };
+
+      const url = new URL(NOTIFICATION_WEB_APP_URL);
+      url.searchParams.set("action", "TASK_EVIDENCE_GET_RESULT");
+      url.searchParams.set("requestId", requestId);
+      url.searchParams.set("pollToken", pollToken);
+      url.searchParams.set("callback", callbackName);
+      url.searchParams.set("_", String(Date.now()));
+
+      script.src = url.toString();
+      script.async = true;
+      script.onerror = () => {
+        removePollScript();
+        schedulePoll();
+      };
+      document.head.appendChild(script);
     };
 
     const timeoutId = window.setTimeout(() => {
@@ -2722,6 +2923,7 @@ async function uploadTaskEvidenceToDrive(file, task) {
     document.body.appendChild(iframe);
     document.body.appendChild(form);
     form.submit();
+    schedulePoll();
   });
 }
 
@@ -4209,6 +4411,7 @@ async function initializeUser(user) {
     }
 
     await loadTasks();
+    startTaskRealtimeSync();
   } catch (error) {
     console.error("Không khởi tạo được người dùng:", error);
 
@@ -4393,6 +4596,9 @@ refreshButton.addEventListener("click", async () => {
 
   hideMessage(dashboardMessage);
   await loadTasks();
+  if (!state.realtimeSyncStarted) {
+    startTaskRealtimeSync();
+  }
 });
 exportReportButton?.addEventListener("click", exportTaskReport);
 addTaskButton.addEventListener("click", openTaskModal);
