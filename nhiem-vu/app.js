@@ -1,11 +1,11 @@
 import {
   auth,
   db
-} from "./firebase-config.js?v=20260721.Production";
+} from "./firebase-config.js?v=20260722.PhA";
 
 import {
   NOTIFICATION_WEB_APP_URL
-} from "./notification-config.js?v=20260721.Production";
+} from "./notification-config.js?v=20260722.PhA";
 
 import {
   GoogleAuthProvider,
@@ -47,6 +47,7 @@ const state = {
   savingAssignment: false,
   savingSupport: false,
   deletingTask: false,
+  editingTaskId: null,
   initializedUid: null,
   selectedSupportIds: new Set(),
   selectedTaskId: null,
@@ -136,6 +137,8 @@ const sourceDetail = $("sourceDetail");
 const assignedByUserId = $("assignedByUserId");
 const priority = $("priority");
 const primaryDepartmentId = $("primaryDepartmentId");
+const teamId = $("teamId");
+const teamHelp = $("teamHelp");
 const ownerUserId = $("ownerUserId");
 const primaryHelp = $("primaryHelp");
 const ownerHelp = $("ownerHelp");
@@ -155,6 +158,7 @@ const closeDetailButton = $("closeDetailButton");
 const detailTaskCode = $("detailTaskCode");
 const detailContent = $("detailContent");
 const detailFooter = $("detailFooter");
+const editTaskButton = $("editTaskButton");
 const updateTaskButton = $("updateTaskButton");
 const assignTaskButton = $("assignTaskButton");
 const supportTaskButton = $("supportTaskButton");
@@ -726,6 +730,44 @@ function normalizeDepartmentId(value) {
   return matchingDepartment?.id || raw;
 }
 
+
+const TEAM_NAME_MAP = Object.freeze({
+  BAO_VE: "Tổ bảo vệ",
+  DIEN_NUOC: "Tổ điện nước",
+  HO_SO: "Tổ hồ sơ",
+  CHAM_SOC: "Tổ chăm sóc",
+  VE_SINH: "Tổ vệ sinh"
+});
+
+function normalizeTeamId(value) {
+  return cleanText(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/gi, "d")
+    .replace(/[^A-Za-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .toUpperCase();
+}
+
+function teamName(value) {
+  const id = normalizeTeamId(value);
+  return TEAM_NAME_MAP[id] || id.replace(/_/g, " ") || "Không xác định";
+}
+
+function availableTeamIdsForDepartment(departmentId) {
+  const department = normalizeDepartmentId(departmentId);
+
+  return Array.from(new Set(
+    state.users
+      .filter((item) => (
+        item.active === true
+        && normalizeDepartmentId(item.departmentId) === department
+        && normalizeTeamId(item.teamId)
+      ))
+      .map((item) => normalizeTeamId(item.teamId))
+  )).sort((a, b) => teamName(a).localeCompare(teamName(b), "vi"));
+}
+
 function departmentIdVariants(value) {
   const canonical = normalizeDepartmentId(value);
   const variants = new Set([canonical]);
@@ -926,6 +968,7 @@ async function loadProfile(user) {
     fullName: accessData.fullName,
     email: normalizedEmail,
     departmentId: normalizedDepartmentId,
+    teamId: normalizeTeamId(accessData.teamId),
     position: accessData.position || "",
     role: accessData.role,
     active: true,
@@ -991,7 +1034,8 @@ async function loadReferenceData() {
     state.users.push({
       id: item.id,
       ...data,
-      departmentId: normalizeDepartmentId(data.departmentId)
+      departmentId: normalizeDepartmentId(data.departmentId),
+      teamId: normalizeTeamId(data.teamId)
     });
   });
 }
@@ -2390,6 +2434,10 @@ function openTaskDetail(taskId) {
         <span>Phòng/Khu</span>
         <strong>${escapeHtml(departmentName(task.primaryDepartmentId))}</strong>
       </div>
+      <div class="detail-item">
+        <span>Tổ/Bộ phận</span>
+        <strong>${escapeHtml(task.teamId ? teamName(task.teamId) : "Không chỉ định")}</strong>
+      </div>
       <div class="detail-item detail-span-2">
         <span>Phòng/Khu phối hợp</span>
         <strong>${escapeHtml(relatedDepartmentsText)}</strong>
@@ -2428,6 +2476,7 @@ function openTaskDetail(taskId) {
     ${task.status === "HOAN_THANH" ? resultEvidenceHtml(task) : ""}
   `;
 
+  const allowEditDefinition = canEditTaskDefinition(task);
   const allowAssign = canAssignTask(task);
   const allowUpdate = canUpdateTask(task);
   const allowSupportEdit = canEditTaskSupport(task);
@@ -2435,9 +2484,10 @@ function openTaskDetail(taskId) {
 
   detailFooter.classList.toggle(
     "hidden",
-    !allowAssign && !allowUpdate && !allowSupportEdit && !allowDelete
+    !allowEditDefinition && !allowAssign && !allowUpdate && !allowSupportEdit && !allowDelete
   );
 
+  editTaskButton.classList.toggle("hidden", !allowEditDefinition);
   assignTaskButton.classList.toggle("hidden", !allowAssign);
   assignTaskButton.textContent = task.ownerUserId
     ? "👤 Phân công lại"
@@ -2470,6 +2520,10 @@ function configureEntryMode() {
   const mode = currentEntryMode();
   entryMode.value = mode;
 
+  if (state.editingTaskId) {
+    return;
+  }
+
   const selfRecorded = mode === "SELF_RECORDED";
 
   taskModalTitle.textContent = selfRecorded
@@ -2478,7 +2532,7 @@ function configureEntryMode() {
 
   taskModalSubtitle.textContent = selfRecorded
     ? "Ghi nhận nhiệm vụ đã được Ban Giám đốc chỉ đạo tại cuộc họp, văn bản hoặc trực tiếp."
-    : "Dùng cho nhiệm vụ đột xuất cần Ban Giám đốc giao trực tiếp trên ứng dụng.";
+    : "Ban Giám đốc giao Phòng/Khu và có thể chỉ định người thực hiện ngay.";
 
   entryModeBanner.className = selfRecorded
     ? "entry-mode-banner entry-mode-self"
@@ -2491,7 +2545,7 @@ function configureEntryMode() {
     `
     : `
       <strong>BGĐ GIAO TRỰC TIẾP</strong>
-      <span>Nhiệm vụ đột xuất được nhập trực tiếp và gửi thông báo tới người nhận.</span>
+      <span>Chọn Phòng/Khu chịu trách nhiệm; có thể chọn thêm Tổ/Bộ phận và người thực hiện.</span>
     `;
 
   saveTaskButton.textContent = selfRecorded
@@ -2604,19 +2658,120 @@ function fillPrimaryDepartmentOptions() {
   }
 }
 
-function fillOwnerOptions() {
-  /*
-   * Bước 1: nhiệm vụ được giao cho Phòng/Khu, chưa giao cá nhân.
-   * Trưởng/Phó của Phòng/Khu sẽ thực hiện phân công nội bộ ở bước sau.
-   */
-  if (ownerUserId) {
-    ownerUserId.value = "";
+function fillTeamOptions(selectedValue = "") {
+  if (!teamId) {
+    return;
   }
 
-  if (ownerHelp) {
-    ownerHelp.textContent =
-      "Nhiệm vụ được chuyển đến Phòng/Khu; chưa phân công cá nhân tại bước tạo.";
+  const directAssignment = currentEntryMode() === "DIRECT_ASSIGNED";
+  const wrapper = teamId.closest(".field-block");
+  if (wrapper) {
+    wrapper.classList.toggle("hidden", !directAssignment);
   }
+
+  const department = normalizeDepartmentId(primaryDepartmentId?.value);
+  const teamIds = availableTeamIdsForDepartment(department);
+  const selected = normalizeTeamId(selectedValue || teamId.value);
+
+  teamId.innerHTML = '<option value="">Không chỉ định Tổ/Bộ phận</option>';
+
+  teamIds.forEach((id) => {
+    const option = document.createElement("option");
+    option.value = id;
+    option.textContent = teamName(id);
+    teamId.appendChild(option);
+  });
+
+  if (selected && teamIds.includes(selected)) {
+    teamId.value = selected;
+  }
+
+  teamId.disabled = currentEntryMode() !== "DIRECT_ASSIGNED" || !department;
+
+  if (teamHelp) {
+    teamHelp.textContent = teamIds.length
+      ? "Có thể chọn Tổ/Bộ phận để lọc danh sách người thực hiện."
+      : "Phòng/Khu này chưa có nhân sự được khai báo teamId trong Google Sheet.";
+  }
+}
+
+function fillOwnerOptions(selectedValue = "") {
+  if (!ownerUserId) {
+    return;
+  }
+
+  const directAssignment = currentEntryMode() === "DIRECT_ASSIGNED";
+  const wrapper = ownerUserId.closest(".field-block");
+  if (wrapper) {
+    wrapper.classList.toggle("hidden", !directAssignment);
+  }
+
+  const department = normalizeDepartmentId(primaryDepartmentId?.value);
+  const selectedTeam = normalizeTeamId(teamId?.value);
+  const selectedOwner = cleanText(selectedValue || ownerUserId.value);
+
+  ownerUserId.innerHTML = '<option value="">Chưa chỉ định — Phòng/Khu phân công sau</option>';
+
+  if (!directAssignment || !department) {
+    ownerUserId.disabled = true;
+
+    if (ownerHelp) {
+      ownerHelp.textContent =
+        "Nhiệm vụ tự ghi nhận không chỉ định cá nhân tại biểu mẫu này.";
+    }
+    return;
+  }
+
+  const assignees = state.users
+    .filter((item) => (
+      item.active === true
+      && ["DEPARTMENT_LEADER", "STAFF"].includes(item.role)
+      && normalizeDepartmentId(item.departmentId) === department
+      && (!selectedTeam || normalizeTeamId(item.teamId) === selectedTeam)
+    ))
+    .sort((a, b) => String(a.fullName || "").localeCompare(String(b.fullName || ""), "vi"));
+
+  assignees.forEach((item) => {
+    const option = document.createElement("option");
+    option.value = item.id;
+    option.textContent = [
+      item.fullName,
+      item.position,
+      item.teamId ? teamName(item.teamId) : ""
+    ].filter(Boolean).join(" — ");
+    ownerUserId.appendChild(option);
+  });
+
+  if (selectedOwner && assignees.some((item) => item.id === selectedOwner)) {
+    ownerUserId.value = selectedOwner;
+  }
+
+  ownerUserId.disabled = false;
+
+  if (ownerHelp) {
+    ownerHelp.textContent = assignees.length
+      ? "Không bắt buộc. Nếu chọn, người này nhận nhiệm vụ ngay; Trưởng/Phó Phòng/Khu vẫn quản lý và có thể phân công lại."
+      : "Không tìm thấy nhân sự phù hợp. Có thể để trống để Phòng/Khu phân công sau.";
+  }
+}
+
+function canEditTaskDefinition(task) {
+  if (!task || !state.user || !state.profile || task.active === false) {
+    return false;
+  }
+
+  if (state.profile.role === "ADMIN") {
+    return true;
+  }
+
+  return (
+    state.profile.role === "DIRECTOR"
+    && task.entryMode === "DIRECT_ASSIGNED"
+    && (
+      task.assignedByUserId === state.user.uid
+      || task.createdByUserId === state.user.uid
+    )
+  );
 }
 
 function availableRelatedDepartments() {
@@ -2736,6 +2891,7 @@ function setDefaultDates() {
 async function openTaskModal() {
   hideMessage(taskMessage);
   taskForm.reset();
+  state.editingTaskId = null;
   state.selectedSupportIds = new Set();
   supportSearchInput.value = "";
 
@@ -2748,6 +2904,7 @@ async function openTaskModal() {
     configureEntryMode();
     fillAssignedByOptions();
     fillPrimaryDepartmentOptions();
+    fillTeamOptions();
     fillOwnerOptions();
     syncSupportDepartmentUI();
     setDefaultDates();
@@ -2764,12 +2921,69 @@ async function openTaskModal() {
   }
 }
 
+async function openEditTaskModal(taskId = state.selectedTaskId) {
+  const task = findTaskById(taskId);
+
+  if (!task || !canEditTaskDefinition(task)) {
+    return;
+  }
+
+  hideMessage(taskMessage);
+  taskForm.reset();
+  state.editingTaskId = task.id;
+  state.selectedSupportIds = new Set(currentTaskSupportIds(task));
+  supportSearchInput.value = "";
+
+  detailModal.classList.add("hidden");
+  taskModal.classList.remove("hidden");
+  setBodyModalState();
+
+  try {
+    await loadReferenceData();
+
+    entryMode.value = task.entryMode || "DIRECT_ASSIGNED";
+    taskModalTitle.textContent = "✏️ Sửa nhiệm vụ đã giao";
+    taskModalSubtitle.textContent =
+      "Điều chỉnh nội dung, Phòng/Khu, Tổ/Bộ phận hoặc người thực hiện mà không xóa nhiệm vụ.";
+    entryModeBanner.className = "entry-mode-banner entry-mode-direct";
+    entryModeBanner.innerHTML = `
+      <strong>CHỈNH SỬA NHIỆM VỤ</strong>
+      <span>Mọi thay đổi được lưu nhật ký. Khi chuyển Phòng/Khu, phân công cũ không phù hợp sẽ được gỡ.</span>
+    `;
+
+    fillAssignedByOptions();
+    fillPrimaryDepartmentOptions();
+
+    taskTitle.value = task.title || "";
+    taskDescription.value = task.description || "";
+    sourceType.value = task.sourceType || "";
+    sourceDetail.value = task.sourceDetail || task.sourceReference || "";
+    priority.value = task.priority || "THUONG";
+    assignedAt.value = task.assignedDateKey || task.sourceDateKey || "";
+    deadline.value = task.deadlineDateKey || "";
+    assignedByUserId.value = task.assignedByUserId || state.user.uid;
+    primaryDepartmentId.value = normalizeDepartmentId(task.primaryDepartmentId);
+
+    fillTeamOptions(task.teamId || "");
+    fillOwnerOptions(task.ownerUserId || "");
+    syncSupportDepartmentUI();
+    toggleSupportDropdown(false);
+
+    saveTaskButton.textContent = "Lưu thay đổi";
+    taskTitle.focus();
+  } catch (error) {
+    console.error("Không mở được biểu mẫu sửa:", error);
+    showMessage(taskMessage, error?.message || "Không mở được biểu mẫu sửa.", "error");
+  }
+}
+
 function closeTaskModal() {
   if (state.savingTask) {
     return;
   }
 
   toggleSupportDropdown(false);
+  state.editingTaskId = null;
   taskModal.classList.add("hidden");
   setBodyModalState();
 }
@@ -3356,222 +3570,234 @@ async function saveTask(event) {
   hideMessage(taskMessage);
 
   try {
-    const mode = currentEntryMode();
+    const editingTask = state.editingTaskId
+      ? findTaskById(state.editingTaskId)
+      : null;
+    const mode = editingTask?.entryMode || currentEntryMode();
     const title = cleanText(taskTitle.value);
     const description = cleanText(taskDescription.value);
     const selectedSource = sourceType.value;
     const sourceInformation = cleanText(sourceDetail.value);
     const assignedBy = userById(assignedByUserId.value);
-    /*
-     * Phòng/Khu chính không còn hiển thị trên biểu mẫu.
-     * Với chế độ tự ghi nhận, luôn lấy theo tài khoản đăng nhập;
-     * với BGĐ giao trực tiếp vẫn dùng giá trị được app gán vào trường ẩn.
-     */
-    const primaryId = currentEntryMode() === "SELF_RECORDED"
+    const primaryId = mode === "SELF_RECORDED"
       ? normalizeDepartmentId(state.profile?.departmentId)
       : normalizeDepartmentId(primaryDepartmentId?.value);
+    const selectedTeamId = mode === "DIRECT_ASSIGNED"
+      ? normalizeTeamId(teamId?.value)
+      : "";
+    const selectedOwner = mode === "DIRECT_ASSIGNED" && ownerUserId?.value
+      ? userById(ownerUserId.value)
+      : null;
     const assignedDate = parseDateInput(assignedAt.value, false);
     const deadlineDate = parseDateInput(deadline.value, true);
-
     const supportDepartmentIds = Array.from(state.selectedSupportIds)
+      .map(normalizeDepartmentId)
       .filter((departmentId) => departmentId && departmentId !== primaryId);
 
-    if (!title) {
-      throw new Error("Vui lòng nhập tên nhiệm vụ.");
+    if (editingTask && !canEditTaskDefinition(editingTask)) {
+      throw new Error("Tài khoản không có quyền sửa nội dung nhiệm vụ này.");
     }
-
-    if (!description) {
-      throw new Error("Vui lòng nhập nội dung thực hiện.");
-    }
-
-    if (!selectedSource) {
-      throw new Error("Vui lòng chọn nguồn nhiệm vụ.");
-    }
-
-    if (!sourceInformation) {
-      throw new Error("Vui lòng nhập căn cứ hoặc nội dung chỉ đạo liên quan.");
-    }
-
-    if (!assignedBy) {
-      throw new Error("Vui lòng chọn người giao/chỉ đạo.");
-    }
-
-    if (!primaryId) {
-      throw new Error("Vui lòng xác định Phòng/Khu chịu trách nhiệm.");
-    }
-
-
+    if (!title) throw new Error("Vui lòng nhập tên nhiệm vụ.");
+    if (!description) throw new Error("Vui lòng nhập nội dung thực hiện.");
+    if (!selectedSource) throw new Error("Vui lòng chọn nguồn nhiệm vụ.");
+    if (!sourceInformation) throw new Error("Vui lòng nhập căn cứ hoặc nội dung chỉ đạo liên quan.");
+    if (!assignedBy) throw new Error("Vui lòng chọn người giao/chỉ đạo.");
+    if (!primaryId) throw new Error("Vui lòng xác định Phòng/Khu chịu trách nhiệm.");
 
     if (
-      mode === "SELF_RECORDED" &&
-      normalizeDepartmentId(primaryId) !== normalizeDepartmentId(state.profile.departmentId)
+      mode === "SELF_RECORDED"
+      && normalizeDepartmentId(primaryId) !== normalizeDepartmentId(state.profile.departmentId)
     ) {
       throw new Error("Phòng/Khu của nhiệm vụ tự ghi nhận không hợp lệ.");
     }
 
-
-    if (!assignedDate) {
-      throw new Error("Ngày được chỉ đạo không hợp lệ.");
+    if (selectedOwner) {
+      if (
+        selectedOwner.active !== true
+        || !["DEPARTMENT_LEADER", "STAFF"].includes(selectedOwner.role)
+        || normalizeDepartmentId(selectedOwner.departmentId) !== primaryId
+        || (
+          selectedTeamId
+          && normalizeTeamId(selectedOwner.teamId) !== selectedTeamId
+        )
+      ) {
+        throw new Error("Người thực hiện không thuộc đúng Phòng/Khu hoặc Tổ/Bộ phận đã chọn.");
+      }
     }
 
-    if (!deadlineDate) {
-      throw new Error("Hạn hoàn thành không hợp lệ.");
-    }
-
+    if (!assignedDate) throw new Error("Ngày được chỉ đạo không hợp lệ.");
+    if (!deadlineDate) throw new Error("Hạn hoàn thành không hợp lệ.");
     if (deadlineDate.getTime() < assignedDate.getTime()) {
       throw new Error("Hạn hoàn thành không được trước ngày được chỉ đạo.");
     }
 
     state.savingTask = true;
     saveTaskButton.disabled = true;
-    saveTaskButton.textContent = "Đang lưu...";
+    saveTaskButton.textContent = editingTask ? "Đang lưu thay đổi..." : "Đang lưu...";
     showMessage(
       taskMessage,
-      mode === "SELF_RECORDED"
-        ? "Đang lưu nội dung ghi nhận..."
-        : "Đang giao nhiệm vụ trực tiếp...",
+      editingTask
+        ? "Đang cập nhật nhiệm vụ..."
+        : (mode === "SELF_RECORDED" ? "Đang lưu nội dung ghi nhận..." : "Đang giao nhiệm vụ trực tiếp..."),
       "info"
     );
 
-    const taskCode = createTaskCode();
-
-    const relatedDepartmentIds = Array.from(
-      new Set(supportDepartmentIds)
-    );
-
-    const visibleDepartmentIds = Array.from(new Set([
-      primaryId,
-      ...relatedDepartmentIds
-    ]));
-
+    const relatedDepartmentIds = Array.from(new Set(supportDepartmentIds));
+    const visibleDepartmentIds = Array.from(new Set([primaryId, ...relatedDepartmentIds]));
     const visibleUserIds = Array.from(new Set([
-      state.user.uid,
-      assignedBy.id
-    ]));
+      editingTask?.createdByUserId || state.user.uid,
+      assignedBy.id,
+      selectedOwner?.id || ""
+    ].filter(Boolean)));
 
-    const taskPayload = {
-      taskCode,
-      entryMode: mode,
-
+    const commonPayload = {
       title,
       description,
-
       sourceType: selectedSource,
       sourceDetail: sourceInformation,
       sourceReference: sourceInformation,
       sourceDate: Timestamp.fromDate(assignedDate),
       sourceDateKey: dateKey(assignedDate),
-
       assignedByUserId: assignedBy.id,
       assignedByName: assignedBy.fullName || "",
       assignedByPosition: assignedBy.position || "",
-
       primaryDepartmentId: primaryId,
-
-      /*
-       * Bước 1: giao cho Phòng/Khu, chưa giao cá nhân.
-       * Các trường owner được giữ để tương thích dữ liệu và dùng cho
-       * chức năng phân công nội bộ ở bước tiếp theo.
-       */
-      ownerUserId: "",
-      ownerName: "",
-      ownerPosition: "",
-      assignmentStatus: "CHO_PHAN_CONG",
-
+      teamId: selectedTeamId,
+      teamName: selectedTeamId ? teamName(selectedTeamId) : "",
+      ownerUserId: selectedOwner?.id || "",
+      ownerName: selectedOwner?.fullName || "",
+      ownerPosition: selectedOwner?.position || "",
+      assignmentStatus: selectedOwner ? "DA_PHAN_CONG" : "CHO_PHAN_CONG",
       relatedDepartmentIds,
       supportDepartmentIds: relatedDepartmentIds,
-      relatedUserIds: [],
-      relatedUserNames: [],
       visibleDepartmentIds,
       visibleUserIds,
-
-      createdByUserId: state.user.uid,
-      createdByName: state.profile.fullName || "",
-      createdByRole: state.profile.role || "",
-
       assignedAt: Timestamp.fromDate(assignedDate),
       assignedDateKey: dateKey(assignedDate),
       assignedMonthKey: monthKey(assignedDate),
       assignedWeekKey: isoWeekKey(assignedDate),
-
       deadline: Timestamp.fromDate(deadlineDate),
       deadlineDateKey: dateKey(deadlineDate),
-
       priority: priority.value,
-
-      outputType: "",
-      outputDescription: "",
-      evidenceType: "",
-      evidenceUrl: "",
-      evidenceText: "",
-      evidenceFileName: "",
-      evidenceStoragePath: "",
-
-      status: "MOI_TIEP_NHAN",
-      progress: 0,
-      result: "",
-      resultSummary: "",
-      evidenceLink: "",
-      difficulties: "",
-      proposal: "",
-      completedAt: null,
-
-      active: true,
-      createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
       updatedByUserId: state.user.uid,
       updatedByName: state.profile.fullName || ""
     };
 
-    const taskReference = await addDoc(collection(db, "tasks"), taskPayload);
-    const logCreated = await createTaskLog(
-      taskReference,
-      taskCode,
-      title,
-      mode
-    );
+    if (editingTask) {
+      const oldPrimaryId = normalizeDepartmentId(editingTask.primaryDepartmentId);
+      const oldOwnerUserId = cleanText(editingTask.ownerUserId);
+      const departmentChanged = oldPrimaryId !== primaryId;
+      const ownerChanged = oldOwnerUserId !== (selectedOwner?.id || "");
 
-    /*
-     * Apps Script sẽ tự xác định người nhận:
-     * - SELF_RECORDED: chỉ người có liên quan;
-     * - DIRECT_ASSIGNED: người chịu trách nhiệm và người có liên quan.
-     */
-    await sendNotificationEvent(
-      "TASK_CREATED",
-      taskReference.id
-    );
+      await updateDoc(doc(db, "tasks", editingTask.id), {
+        ...commonPayload,
+        internalAssignedByUserId: selectedOwner ? state.user.uid : "",
+        internalAssignedByName: selectedOwner ? (state.profile.fullName || "") : "",
+        internalAssignedAt: selectedOwner ? serverTimestamp() : null
+      });
 
-    showMessage(
-      taskMessage,
-      logCreated
-        ? (
-          mode === "SELF_RECORDED"
-            ? `✅ Đã ghi nhận nhiệm vụ ${taskCode}.`
-            : `✅ Đã giao nhiệm vụ ${taskCode}.`
-        )
-        : `✅ Đã lưu nhiệm vụ ${taskCode}, nhưng chưa ghi được nhật ký.`,
-      logCreated ? "success" : "warning"
-    );
+      await addDoc(collection(db, "taskLogs"), {
+        taskId: editingTask.id,
+        taskCode: editingTask.taskCode || "",
+        action: "EDIT_TASK_DEFINITION",
+        description: [
+          departmentChanged
+            ? `Chuyển Phòng/Khu chính từ ${departmentName(oldPrimaryId)} sang ${departmentName(primaryId)}`
+            : "Cập nhật nội dung nhiệm vụ",
+          ownerChanged
+            ? `Người thực hiện: ${selectedOwner?.fullName || "chờ Phòng/Khu phân công"}`
+            : ""
+        ].filter(Boolean).join("; "),
+        oldValue: {
+          primaryDepartmentId: oldPrimaryId,
+          ownerUserId: oldOwnerUserId,
+          teamId: normalizeTeamId(editingTask.teamId)
+        },
+        newValue: {
+          primaryDepartmentId: primaryId,
+          ownerUserId: selectedOwner?.id || "",
+          teamId: selectedTeamId
+        },
+        performedByUserId: state.user.uid,
+        performedByName: state.profile.fullName || "",
+        performedAt: serverTimestamp()
+      });
+
+      await sendNotificationEvent("TASK_EDITED", editingTask.id, {
+        oldPrimaryDepartmentId: oldPrimaryId,
+        newPrimaryDepartmentId: primaryId,
+        oldOwnerUserId,
+        newOwnerUserId: selectedOwner?.id || "",
+        departmentChanged,
+        ownerChanged
+      });
+
+      showMessage(taskMessage, `✅ Đã cập nhật nhiệm vụ ${editingTask.taskCode || ""}.`, "success");
+    } else {
+      const taskCode = createTaskCode();
+      const taskPayload = {
+        taskCode,
+        entryMode: mode,
+        ...commonPayload,
+        relatedUserIds: [],
+        relatedUserNames: [],
+        createdByUserId: state.user.uid,
+        createdByName: state.profile.fullName || "",
+        createdByRole: state.profile.role || "",
+        outputType: "",
+        outputDescription: "",
+        evidenceType: "",
+        evidenceUrl: "",
+        evidenceText: "",
+        evidenceFileName: "",
+        evidenceStoragePath: "",
+        status: "MOI_TIEP_NHAN",
+        progress: 0,
+        result: "",
+        resultSummary: "",
+        evidenceLink: "",
+        difficulties: "",
+        proposal: "",
+        completedAt: null,
+        active: true,
+        createdAt: serverTimestamp()
+      };
+
+      if (selectedOwner) {
+        taskPayload.internalAssignedByUserId = state.user.uid;
+        taskPayload.internalAssignedByName = state.profile.fullName || "";
+        taskPayload.internalAssignedAt = serverTimestamp();
+      }
+
+      const taskReference = await addDoc(collection(db, "tasks"), taskPayload);
+      const logCreated = await createTaskLog(taskReference, taskCode, title, mode);
+      await sendNotificationEvent("TASK_CREATED", taskReference.id);
+
+      showMessage(
+        taskMessage,
+        logCreated
+          ? (mode === "SELF_RECORDED" ? `✅ Đã ghi nhận nhiệm vụ ${taskCode}.` : `✅ Đã giao nhiệm vụ ${taskCode}.`)
+          : `✅ Đã lưu nhiệm vụ ${taskCode}, nhưng chưa ghi được nhật ký.`,
+        logCreated ? "success" : "warning"
+      );
+    }
 
     await loadTasks();
 
-    window.setTimeout(() => {
-      closeTaskModal();
-    }, 900);
+    window.setTimeout(() => closeTaskModal(), 900);
   } catch (error) {
     console.error("Không lưu được nhiệm vụ:", error);
-
     const message = error?.code === "permission-denied"
-      ? "Tài khoản chưa được cấp quyền lưu nhiệm vụ theo phương thức này. Hãy cập nhật Firestore Rules của Bước 9.3."
+      ? "Tài khoản chưa được cấp quyền lưu hoặc sửa nhiệm vụ. Hãy cập nhật và Publish Firestore Rules mới."
       : (error?.message || "Không lưu được nhiệm vụ.");
-
     showMessage(taskMessage, message, "error");
   } finally {
     state.savingTask = false;
     saveTaskButton.disabled = false;
-    saveTaskButton.textContent = currentEntryMode() === "SELF_RECORDED"
-      ? "Lưu ghi nhận"
-      : "Giao nhiệm vụ";
+    saveTaskButton.textContent = state.editingTaskId
+      ? "Lưu thay đổi"
+      : (currentEntryMode() === "SELF_RECORDED" ? "Lưu ghi nhận" : "Giao nhiệm vụ");
   }
 }
 
@@ -4755,6 +4981,7 @@ closeModalButton.addEventListener("click", closeTaskModal);
 cancelTaskButton.addEventListener("click", closeTaskModal);
 closeDetailButton.addEventListener("click", closeTaskDetail);
 assignTaskButton.addEventListener("click", () => openAssignmentModal());
+editTaskButton.addEventListener("click", () => openEditTaskModal());
 updateTaskButton.addEventListener("click", () => openProgressModal());
 supportTaskButton.addEventListener("click", () => openSupportEditModal());
 deleteTaskButton.addEventListener("click", () => openDeleteTaskModal());
@@ -4810,9 +5037,15 @@ archiveTasksTab.addEventListener("click", () => {
   applyFilters();
 });
 
-primaryDepartmentId.addEventListener("change", () => {
+primaryDepartmentId?.addEventListener("change", () => {
+  fillTeamOptions();
   fillOwnerOptions();
+  state.selectedSupportIds.delete(normalizeDepartmentId(primaryDepartmentId.value));
   syncSupportDepartmentUI();
+});
+
+teamId?.addEventListener("change", () => {
+  fillOwnerOptions();
 });
 
 taskForm.addEventListener("submit", saveTask);
