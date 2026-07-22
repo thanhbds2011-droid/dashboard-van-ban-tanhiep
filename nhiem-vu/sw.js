@@ -1,5 +1,5 @@
-const APP_VERSION = "20260721.Production";
-const AI_VERSION = "20260721.Production";
+const APP_VERSION = "20260722.PhA";
+const AI_VERSION = "20260722.PhA";
 const CACHE_NAME = `nhiem-vu-shell-v${APP_VERSION}`;
 const APP_BASE_URL = new URL("./", self.location.href);
 
