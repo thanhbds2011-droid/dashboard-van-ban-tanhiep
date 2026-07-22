@@ -661,13 +661,30 @@
               ></textarea>
             </div>
 
-            <!-- Phòng/Khu chính được xác định tự động theo tài khoản đăng nhập.
-                 Giữ các trường ẩn để bảo toàn logic app.js và dữ liệu Firestore. -->
-            <div class="system-hidden-fields" aria-hidden="true">
-              <select id="primaryDepartmentId" tabindex="-1"></select>
-              <small id="primaryHelp"></small>
-              <input id="ownerUserId" type="hidden" value="">
-              <small id="ownerHelp"></small>
+            <div class="field-block form-span-2">
+              <label for="primaryDepartmentId">
+                Phòng/Khu chịu trách nhiệm chính <span>*</span>
+              </label>
+              <select id="primaryDepartmentId" required></select>
+              <small id="primaryHelp" class="field-help"></small>
+            </div>
+
+            <div class="field-block">
+              <label for="teamId">Tổ/Bộ phận thực hiện</label>
+              <select id="teamId">
+                <option value="">Không chỉ định Tổ/Bộ phận</option>
+              </select>
+              <small id="teamHelp" class="field-help">
+                Dùng để lọc đúng nhóm nhân sự, không tạo thêm cấp phân quyền.
+              </small>
+            </div>
+
+            <div class="field-block">
+              <label for="ownerUserId">Người thực hiện cụ thể</label>
+              <select id="ownerUserId">
+                <option value="">Chưa chỉ định — Phòng/Khu phân công sau</option>
+              </select>
+              <small id="ownerHelp" class="field-help"></small>
             </div>
 
             <div class="field-block form-span-2">
@@ -826,6 +843,14 @@
           type="button"
         >
           🏢 Cập nhật phối hợp
+        </button>
+
+        <button
+          id="editTaskButton"
+          class="secondary-button hidden"
+          type="button"
+        >
+          ✏️ Sửa nhiệm vụ đã giao
         </button>
 
         <button
@@ -1458,7 +1483,7 @@
 
   <script
     type="module"
-    src="./app.js?v=20260721.Production"
+    src="./app.js?v=20260722.PhA"
   ></script>
 
   <!-- MÔ-ĐUN AI ĐƯỢC NẠP CUỐI CÙNG; XÓA DÒNG NÀY ĐỂ TẮT AI -->
