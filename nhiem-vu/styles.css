@@ -3969,3 +3969,26 @@ textarea {
     min-width: 0;
   }
 }
+
+
+/* Phương án A — Phòng/Khu + Tổ/Bộ phận + người thực hiện tùy chọn */
+#teamId:disabled,
+#ownerUserId:disabled {
+  background: #f3f6f9;
+  color: #667085;
+  cursor: not-allowed;
+}
+
+#editTaskButton {
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  #detailFooter {
+    gap: 8px;
+  }
+
+  #detailFooter .button {
+    width: 100%;
+  }
+}
