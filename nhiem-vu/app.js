@@ -115,6 +115,9 @@ const standardTaskDetailModal = $("standardTaskDetailModal");
 const standardTaskDetailCode = $("standardTaskDetailCode");
 const standardTaskDetailTitle = $("standardTaskDetailTitle");
 const standardTaskDetailContent = $("standardTaskDetailContent");
+const standardTaskSelfRegisterButton = $("standardTaskSelfRegisterButton");
+const standardTaskPendingAssignmentButton = $("standardTaskPendingAssignmentButton");
+const standardTaskWorkflowHelp = $("standardTaskWorkflowHelp");
 const closeStandardTaskDetailButton = $("closeStandardTaskDetailButton");
 const closeStandardTaskDetailFooterButton = $("closeStandardTaskDetailFooterButton");
 
@@ -165,6 +168,7 @@ const taskModalTitle = $("taskModalTitle");
 const taskModalSubtitle = $("taskModalSubtitle");
 const entryMode = $("entryMode");
 const entryModeBanner = $("entryModeBanner");
+const standardTaskTemplateBanner = $("standardTaskTemplateBanner");
 
 const taskTitle = $("taskTitle");
 const taskDescription = $("taskDescription");
@@ -1429,6 +1433,146 @@ function findStandardTaskById(taskId) {
   return state.standardTasks.find((item) => item.id === taskId) || null;
 }
 
+
+function standardTaskWorkflowPermission(item, action) {
+  if (!item || !state.user || !state.profile || item.active === false) {
+    return false;
+  }
+
+  const sameDepartment =
+    normalizeDepartmentId(item.departmentId) ===
+    normalizeDepartmentId(state.profile.departmentId);
+
+  if (state.profile.role !== "DEPARTMENT_LEADER" || !sameDepartment) {
+    return false;
+  }
+
+  return ["SELF_REGISTER", "PENDING_ASSIGNMENT"].includes(action);
+}
+
+function currentStandardTaskWorkflowItem() {
+  const context = state.standardTaskWorkflowContext;
+  return context?.standardTaskId
+    ? findStandardTaskById(context.standardTaskId)
+    : null;
+}
+
+function clearStandardTaskWorkflowContext() {
+  state.standardTaskWorkflowContext = null;
+
+  if (standardTaskTemplateBanner) {
+    standardTaskTemplateBanner.classList.add("hidden");
+    standardTaskTemplateBanner.innerHTML = "";
+  }
+}
+
+async function startStandardTaskWorkflow(action) {
+  const item = findStandardTaskById(state.selectedStandardTaskId);
+
+  if (!item || !standardTaskWorkflowPermission(item, action)) {
+    return;
+  }
+
+  state.standardTaskWorkflowContext = {
+    action,
+    standardTaskId: item.id
+  };
+
+  closeStandardTaskDetail();
+  await openTaskModal();
+}
+
+function renderStandardTaskTemplateBanner(item, action) {
+  if (!standardTaskTemplateBanner || !item) {
+    return;
+  }
+
+  const actionText = action === "SELF_REGISTER"
+    ? "Đăng ký thực hiện"
+    : "Tạo nhiệm vụ chờ phân công";
+
+  standardTaskTemplateBanner.classList.remove("hidden");
+  standardTaskTemplateBanner.innerHTML = `
+    <div>
+      <span>Đầu việc chuẩn</span>
+      <strong>${escapeHtml(item.code || item.id)} — ${escapeHtml(item.name || "")}</strong>
+    </div>
+    <div class="standard-task-template-meta">
+      <span>${escapeHtml(actionText)}</span>
+      <span>Điểm chuẩn: <strong>${formatStandardScore(item.baseScore)}</strong></span>
+      <span>Hệ số: <strong>${formatStandardScore(item.difficultyCoefficient)}</strong></span>
+      <span>Điểm tối đa: <strong>${formatStandardScore(item.maximumConvertedScore)}</strong></span>
+    </div>
+  `;
+}
+
+function applyStandardTaskWorkflowContext() {
+  const context = state.standardTaskWorkflowContext;
+  const item = currentStandardTaskWorkflowItem();
+
+  if (!context || !item) {
+    return;
+  }
+
+  sourceType.value = item.workType === "DOT_XUAT" ? "DOT_XUAT" : "DINH_KY";
+  sourceDetail.value = `Đăng ký từ danh mục công việc chuẩn ${item.code || item.id}`;
+  priority.value = item.workType === "DOT_XUAT" ? "DOT_XUAT" : "THUONG";
+  taskTitle.value = item.name || "";
+  taskDescription.value = item.outputRequirement || item.name || "";
+
+  const departmentId = normalizeDepartmentId(item.departmentId);
+  if (departmentId) {
+    primaryDepartmentId.value = departmentId;
+  }
+
+  renderStandardTaskTemplateBanner(item, context.action);
+
+  taskTitle.readOnly = true;
+  taskDescription.readOnly = false;
+  sourceType.disabled = true;
+  sourceDetail.readOnly = true;
+  priority.disabled = item.workType === "DOT_XUAT";
+
+  if (context.action === "SELF_REGISTER") {
+    taskModalTitle.textContent = "✅ Đăng ký thực hiện đầu việc chuẩn";
+    taskModalSubtitle.textContent =
+      "Trưởng/Phó phòng đăng ký trực tiếp thực hiện đầu việc thuộc danh mục chuẩn.";
+    entryModeBanner.className = "entry-mode-banner entry-mode-self";
+    entryModeBanner.innerHTML = `
+      <strong>TỰ ĐĂNG KÝ THỰC HIỆN</strong>
+      <span>Bạn là người thực hiện; sau khi hoàn thành sẽ gửi Ban Giám đốc xác nhận điểm thử nghiệm.</span>
+    `;
+    saveTaskButton.textContent = "Đăng ký thực hiện";
+  } else {
+    taskModalTitle.textContent = "📥 Tạo nhiệm vụ chờ phân công";
+    taskModalSubtitle.textContent =
+      "Tạo trước nhiệm vụ từ danh mục chuẩn. Khi có tài khoản viên chức, Trưởng/Phó phòng mở nhiệm vụ để phân công.";
+    entryModeBanner.className = "entry-mode-banner entry-mode-direct";
+    entryModeBanner.innerHTML = `
+      <strong>CHỜ PHÂN CÔNG NỘI BỘ</strong>
+      <span>Nhiệm vụ được lưu cho Phòng/Khu, chưa chỉ định cá nhân thực hiện.</span>
+    `;
+    saveTaskButton.textContent = "Lưu chờ phân công";
+  }
+}
+
+function currentTemplateOwner() {
+  const context = state.standardTaskWorkflowContext;
+
+  if (context?.action !== "SELF_REGISTER") {
+    return null;
+  }
+
+  return {
+    id: state.user.uid,
+    fullName: state.profile.fullName || "",
+    position: state.profile.position || "",
+    role: state.profile.role || "",
+    departmentId: normalizeDepartmentId(state.profile.departmentId),
+    active: true
+  };
+}
+
 function openStandardTaskDetail(taskId) {
   const item = findStandardTaskById(taskId);
 
@@ -1495,6 +1639,18 @@ function openStandardTaskDetail(taskId) {
       </div>
     ` : ""}
   `;
+
+  const canSelfRegister = standardTaskWorkflowPermission(item, "SELF_REGISTER");
+  const canCreatePending = standardTaskWorkflowPermission(item, "PENDING_ASSIGNMENT");
+
+  standardTaskSelfRegisterButton?.classList.toggle("hidden", !canSelfRegister);
+  standardTaskPendingAssignmentButton?.classList.toggle("hidden", !canCreatePending);
+
+  if (standardTaskWorkflowHelp) {
+    standardTaskWorkflowHelp.textContent = canSelfRegister || canCreatePending
+      ? "Chọn hình thức thử nghiệm. Danh mục chuẩn không bị sửa đổi."
+      : "Chế độ chỉ xem — dữ liệu quản trị tại Google Sheet.";
+  }
 
   standardTaskDetailModal.classList.remove("hidden");
   setBodyModalState();
@@ -2997,7 +3153,7 @@ function configureEntryMode() {
   const mode = currentEntryMode();
   entryMode.value = mode;
 
-  if (state.editingTaskId) {
+  if (state.editingTaskId || state.standardTaskWorkflowContext) {
     return;
   }
 
@@ -3031,6 +3187,22 @@ function configureEntryMode() {
 }
 
 function fillAssignedByOptions() {
+  if (state.standardTaskWorkflowContext && state.user && state.profile) {
+    assignedByUserId.innerHTML = "";
+
+    const option = document.createElement("option");
+    option.value = state.user.uid;
+    option.textContent = [
+      state.profile.fullName,
+      state.profile.position
+    ].filter(Boolean).join(" — ");
+
+    assignedByUserId.appendChild(option);
+    assignedByUserId.value = state.user.uid;
+    assignedByUserId.disabled = true;
+    return;
+  }
+
   const directors = state.users
     .filter((item) => item.active === true && item.role === "DIRECTOR")
     .sort((a, b) => String(a.fullName || "").localeCompare(String(b.fullName || ""), "vi"));
@@ -3369,6 +3541,17 @@ async function openTaskModal() {
   hideMessage(taskMessage);
   taskForm.reset();
   state.editingTaskId = null;
+
+  taskTitle.readOnly = false;
+  taskDescription.readOnly = false;
+  sourceType.disabled = false;
+  sourceDetail.readOnly = false;
+  priority.disabled = false;
+
+  if (!state.standardTaskWorkflowContext && standardTaskTemplateBanner) {
+    standardTaskTemplateBanner.classList.add("hidden");
+    standardTaskTemplateBanner.innerHTML = "";
+  }
   state.selectedSupportIds = new Set();
   supportSearchInput.value = "";
 
@@ -3387,6 +3570,7 @@ async function openTaskModal() {
     setDefaultDates();
     priority.value = "THUONG";
     toggleSupportDropdown(false);
+    applyStandardTaskWorkflowContext();
     taskTitle.focus();
   } catch (error) {
     console.error("Không tải được biểu mẫu:", error);
@@ -3461,6 +3645,13 @@ function closeTaskModal() {
 
   toggleSupportDropdown(false);
   state.editingTaskId = null;
+  clearStandardTaskWorkflowContext();
+  taskTitle.readOnly = false;
+  taskDescription.readOnly = false;
+  sourceType.disabled = false;
+  sourceDetail.readOnly = false;
+  priority.disabled = false;
+  assignedByUserId.disabled = false;
   taskModal.classList.add("hidden");
   setBodyModalState();
 }
@@ -4065,6 +4256,10 @@ async function saveTask(event) {
     const selectedOwner = mode === "DIRECT_ASSIGNED" && ownerUserId?.value
       ? userById(ownerUserId.value)
       : null;
+    const templateOwner = currentTemplateOwner();
+    const effectiveOwner = selectedOwner || templateOwner;
+    const templateItem = currentStandardTaskWorkflowItem();
+    const templateAction = state.standardTaskWorkflowContext?.action || "";
     const assignedDate = parseDateInput(assignedAt.value, false);
     const deadlineDate = parseDateInput(deadline.value, true);
     const supportDepartmentIds = Array.from(state.selectedSupportIds)
@@ -4088,14 +4283,14 @@ async function saveTask(event) {
       throw new Error("Phòng/Khu của nhiệm vụ tự ghi nhận không hợp lệ.");
     }
 
-    if (selectedOwner) {
+    if (effectiveOwner) {
       if (
-        selectedOwner.active !== true
-        || !["DEPARTMENT_LEADER", "STAFF"].includes(selectedOwner.role)
-        || normalizeDepartmentId(selectedOwner.departmentId) !== primaryId
+        effectiveOwner.active !== true
+        || !["DEPARTMENT_LEADER", "STAFF"].includes(effectiveOwner.role)
+        || normalizeDepartmentId(effectiveOwner.departmentId) !== primaryId
         || (
           selectedTeamId
-          && normalizeTeamId(selectedOwner.teamId) !== selectedTeamId
+          && normalizeTeamId(effectiveOwner.teamId) !== selectedTeamId
         )
       ) {
         throw new Error("Người thực hiện không thuộc đúng Phòng/Khu hoặc Tổ/Bộ phận đã chọn.");
@@ -4124,7 +4319,7 @@ async function saveTask(event) {
     const visibleUserIds = Array.from(new Set([
       editingTask?.createdByUserId || state.user.uid,
       assignedBy.id,
-      selectedOwner?.id || ""
+      effectiveOwner?.id || ""
     ].filter(Boolean)));
 
     const commonPayload = {
@@ -4141,10 +4336,10 @@ async function saveTask(event) {
       primaryDepartmentId: primaryId,
       teamId: selectedTeamId,
       teamName: selectedTeamId ? teamName(selectedTeamId) : "",
-      ownerUserId: selectedOwner?.id || "",
-      ownerName: selectedOwner?.fullName || "",
-      ownerPosition: selectedOwner?.position || "",
-      assignmentStatus: selectedOwner ? "DA_PHAN_CONG" : "CHO_PHAN_CONG",
+      ownerUserId: effectiveOwner?.id || "",
+      ownerName: effectiveOwner?.fullName || "",
+      ownerPosition: effectiveOwner?.position || "",
+      assignmentStatus: effectiveOwner ? "DA_PHAN_CONG" : "CHO_PHAN_CONG",
       relatedDepartmentIds,
       supportDepartmentIds: relatedDepartmentIds,
       visibleDepartmentIds,
@@ -4156,6 +4351,29 @@ async function saveTask(event) {
       deadline: Timestamp.fromDate(deadlineDate),
       deadlineDateKey: dateKey(deadlineDate),
       priority: priority.value,
+      standardTaskId: templateItem?.id || editingTask?.standardTaskId || "",
+      standardTaskCode: templateItem?.code || editingTask?.standardTaskCode || "",
+      standardTaskName: templateItem?.name || editingTask?.standardTaskName || "",
+      standardTaskDepartmentId: templateItem
+        ? normalizeDepartmentId(templateItem.departmentId)
+        : (editingTask?.standardTaskDepartmentId || ""),
+      standardTaskWorkType: templateItem?.workType || editingTask?.standardTaskWorkType || "",
+      standardTaskFrequency: templateItem?.frequency || editingTask?.standardTaskFrequency || "",
+      standardTaskOutputRequirement: templateItem?.outputRequirement || editingTask?.standardTaskOutputRequirement || "",
+      standardTaskMandatoryEvidence: templateItem?.mandatoryEvidence || editingTask?.standardTaskMandatoryEvidence || "",
+      standardTaskArisingEvidence: templateItem?.arisingEvidence || editingTask?.standardTaskArisingEvidence || "",
+      standardTaskConfirmer: templateItem?.confirmer || editingTask?.standardTaskConfirmer || "",
+      baseScore: templateItem ? Number(templateItem.baseScore || 0) : Number(editingTask?.baseScore || 0),
+      difficultyCoefficient: templateItem
+        ? Number(templateItem.difficultyCoefficient || 0)
+        : Number(editingTask?.difficultyCoefficient || 0),
+      maximumConvertedScore: templateItem
+        ? Number(templateItem.maximumConvertedScore || 0)
+        : Number(editingTask?.maximumConvertedScore || 0),
+      pilotMode: templateItem ? true : Boolean(editingTask?.pilotMode),
+      scoringEnabled: templateItem ? false : Boolean(editingTask?.scoringEnabled),
+      scoringStatus: editingTask?.scoringStatus || "NOT_ASSESSED",
+      standardTaskWorkflowAction: templateAction || editingTask?.standardTaskWorkflowAction || "",
       updatedAt: serverTimestamp(),
       updatedByUserId: state.user.uid,
       updatedByName: state.profile.fullName || ""
@@ -4216,6 +4434,11 @@ async function saveTask(event) {
       const taskPayload = {
         taskCode,
         entryMode: mode,
+        executionMode: templateAction === "SELF_REGISTER"
+          ? "SELF_REGISTERED_STANDARD_TASK"
+          : (templateAction === "PENDING_ASSIGNMENT"
+            ? "STANDARD_TASK_PENDING_ASSIGNMENT"
+            : mode),
         ...commonPayload,
         relatedUserIds: [],
         relatedUserNames: [],
@@ -4241,7 +4464,7 @@ async function saveTask(event) {
         createdAt: serverTimestamp()
       };
 
-      if (selectedOwner) {
+      if (effectiveOwner) {
         taskPayload.internalAssignedByUserId = state.user.uid;
         taskPayload.internalAssignedByName = state.profile.fullName || "";
         taskPayload.internalAssignedAt = serverTimestamp();
@@ -4251,10 +4474,18 @@ async function saveTask(event) {
       const logCreated = await createTaskLog(taskReference, taskCode, title, mode);
       await sendNotificationEvent("TASK_CREATED", taskReference.id);
 
+      const successText = templateAction === "SELF_REGISTER"
+        ? `✅ Đã đăng ký thực hiện ${taskCode}.`
+        : (templateAction === "PENDING_ASSIGNMENT"
+          ? `✅ Đã tạo ${taskCode} ở trạng thái chờ phân công.`
+          : (mode === "SELF_RECORDED"
+            ? `✅ Đã ghi nhận nhiệm vụ ${taskCode}.`
+            : `✅ Đã giao nhiệm vụ ${taskCode}.`));
+
       showMessage(
         taskMessage,
         logCreated
-          ? (mode === "SELF_RECORDED" ? `✅ Đã ghi nhận nhiệm vụ ${taskCode}.` : `✅ Đã giao nhiệm vụ ${taskCode}.`)
+          ? successText
           : `✅ Đã lưu nhiệm vụ ${taskCode}, nhưng chưa ghi được nhật ký.`,
         logCreated ? "success" : "warning"
       );
@@ -5308,6 +5539,12 @@ refreshStandardTasksButton.addEventListener("click", async () => {
 
 standardTaskSearchInput.addEventListener("input", applyStandardTaskFilters);
 standardTaskWorkTypeFilter.addEventListener("change", applyStandardTaskFilters);
+standardTaskSelfRegisterButton?.addEventListener("click", () => {
+  startStandardTaskWorkflow("SELF_REGISTER");
+});
+standardTaskPendingAssignmentButton?.addEventListener("click", () => {
+  startStandardTaskWorkflow("PENDING_ASSIGNMENT");
+});
 standardTaskDepartmentFilter.addEventListener("change", applyStandardTaskFilters);
 
 resetStandardTaskFiltersButton.addEventListener("click", () => {
