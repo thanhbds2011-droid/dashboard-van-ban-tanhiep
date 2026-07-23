@@ -4561,3 +4561,78 @@ textarea {
     width: 100%;
   }
 }
+
+
+/* ================================================================
+ * PRODUCTION 2A — ĐĂNG KÝ/GIAO VIỆC TỪ DANH MỤC CHUẨN
+ * ================================================================ */
+.standard-task-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.standard-task-template-banner {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid #9fc4e8;
+  border-left: 4px solid #0f6da8;
+  border-radius: 12px;
+  background: #eef7ff;
+  color: #123b5d;
+}
+
+.standard-task-template-banner > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.standard-task-template-banner span {
+  color: #56728a;
+  font-size: 0.84rem;
+}
+
+.standard-task-template-banner strong {
+  color: #0b4f7c;
+}
+
+.standard-task-template-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+
+.standard-task-template-meta span {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #ffffff;
+  border: 1px solid #cfe0ef;
+}
+
+#taskTitle[readonly],
+#sourceDetail[readonly] {
+  background: #f3f6f9;
+  color: #415466;
+}
+
+@media (max-width: 760px) {
+  .standard-task-detail-footer {
+    align-items: stretch;
+  }
+
+  .standard-task-detail-actions {
+    display: grid;
+    width: 100%;
+  }
+
+  .standard-task-detail-actions .primary-button,
+  .standard-task-detail-actions .secondary-button {
+    width: 100%;
+  }
+
+  .standard-task-template-meta {
+    display: grid;
+  }
+}
