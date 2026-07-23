@@ -1,11 +1,11 @@
 import {
   auth,
   db
-} from "./firebase-config.js?v=20260722.PhA";
+} from "./firebase-config.js?v=20260723.StdTasksPilot";
 
 import {
   NOTIFICATION_WEB_APP_URL
-} from "./notification-config.js?v=20260722.PhA";
+} from "./notification-config.js?v=20260723.StdTasksPilot";
 
 import {
   GoogleAuthProvider,
@@ -41,6 +41,12 @@ const state = {
   users: [],
   tasks: [],
   filteredTasks: [],
+  standardTasks: [],
+  filteredStandardTasks: [],
+  loadingStandardTasks: false,
+  standardTasksLoaded: false,
+  selectedStandardTaskId: null,
+  currentModule: "TASKS",
   loadingTasks: false,
   savingTask: false,
   savingProgress: false,
@@ -81,6 +87,36 @@ const portalButton = $("portalButton");
 const welcomeName = $("welcomeName");
 const welcomeDepartment = $("welcomeDepartment");
 const roleBadge = $("roleBadge");
+
+const tasksModuleTab = $("tasksModuleTab");
+const standardTasksModuleTab = $("standardTasksModuleTab");
+const taskModulePanels = Array.from(document.querySelectorAll(".task-module-panel"));
+const standardTasksSection = $("standardTasksSection");
+const standardTaskAccessNotice = $("standardTaskAccessNotice");
+const standardTaskContent = $("standardTaskContent");
+const refreshStandardTasksButton = $("refreshStandardTasksButton");
+const standardTaskSearchInput = $("standardTaskSearchInput");
+const standardTaskWorkTypeFilter = $("standardTaskWorkTypeFilter");
+const standardTaskDepartmentFilterWrap = $("standardTaskDepartmentFilterWrap");
+const standardTaskDepartmentFilter = $("standardTaskDepartmentFilter");
+const resetStandardTaskFiltersButton = $("resetStandardTaskFiltersButton");
+const standardTaskMetricTotal = $("standardTaskMetricTotal");
+const standardTaskMetricRegular = $("standardTaskMetricRegular");
+const standardTaskMetricUnexpected = $("standardTaskMetricUnexpected");
+const standardTaskMetricAverage = $("standardTaskMetricAverage");
+const standardTaskLastUpdated = $("standardTaskLastUpdated");
+const standardTaskCount = $("standardTaskCount");
+const standardTaskMessage = $("standardTaskMessage");
+const standardTaskTableWrap = $("standardTaskTableWrap");
+const standardTaskTableBody = $("standardTaskTableBody");
+const standardTaskCardList = $("standardTaskCardList");
+const standardTaskEmptyState = $("standardTaskEmptyState");
+const standardTaskDetailModal = $("standardTaskDetailModal");
+const standardTaskDetailCode = $("standardTaskDetailCode");
+const standardTaskDetailTitle = $("standardTaskDetailTitle");
+const standardTaskDetailContent = $("standardTaskDetailContent");
+const closeStandardTaskDetailButton = $("closeStandardTaskDetailButton");
+const closeStandardTaskDetailFooterButton = $("closeStandardTaskDetailFooterButton");
 
 const metricTotal = $("metricTotal");
 const metricCompleted = $("metricCompleted");
@@ -246,7 +282,8 @@ function setBodyModalState() {
     !progressModal.classList.contains("hidden") ||
     !assignmentModal.classList.contains("hidden") ||
     !supportEditModal.classList.contains("hidden") ||
-    !deleteTaskModal.classList.contains("hidden");
+    !deleteTaskModal.classList.contains("hidden") ||
+    !standardTaskDetailModal.classList.contains("hidden");
 
   document.body.classList.toggle("modal-open", hasOpenModal);
 }
@@ -306,6 +343,11 @@ function resetSessionState() {
   state.profile = null;
   state.tasks = [];
   state.filteredTasks = [];
+  state.standardTasks = [];
+  state.filteredStandardTasks = [];
+  state.standardTasksLoaded = false;
+  state.selectedStandardTaskId = null;
+  state.currentModule = "TASKS";
   state.departments = [];
   state.users = [];
   state.initializedUid = null;
@@ -320,6 +362,7 @@ function resetSessionState() {
   assignmentModal?.classList.add("hidden");
   supportEditModal?.classList.add("hidden");
   deleteTaskModal?.classList.add("hidden");
+  standardTaskDetailModal?.classList.add("hidden");
   document.body.classList.remove("modal-open");
 
   loginForm.reset();
@@ -1040,6 +1083,439 @@ async function loadReferenceData() {
   });
 }
 
+
+/* =========================================================
+ * DANH MỤC CÔNG VIỆC CHUẨN — THỬ NGHIỆM CHỈ XEM
+ * ========================================================= */
+
+const STANDARD_TASK_PILOT = Object.freeze({
+  enabled: true,
+  mode: "VIEW_ONLY",
+  allowedDepartmentIds: Object.freeze(["TCHC"]),
+  allowedRoles: Object.freeze([
+    "ADMIN",
+    "DIRECTOR",
+    "TCHC_COORDINATOR",
+    "DEPARTMENT_LEADER",
+    "STAFF"
+  ])
+});
+
+function canOpenStandardTaskPilot() {
+  if (
+    !STANDARD_TASK_PILOT.enabled ||
+    state.profile?.active !== true ||
+    !STANDARD_TASK_PILOT.allowedRoles.includes(state.profile?.role)
+  ) {
+    return false;
+  }
+
+  if (["ADMIN", "DIRECTOR"].includes(state.profile.role)) {
+    return true;
+  }
+
+  if (isTchcCoordinationAccount()) {
+    return true;
+  }
+
+  return STANDARD_TASK_PILOT.allowedDepartmentIds.includes(
+    normalizeDepartmentId(state.profile.departmentId)
+  );
+}
+
+function canReadAllPilotStandardTasks() {
+  return (
+    ["ADMIN", "DIRECTOR"].includes(state.profile?.role) ||
+    isTchcCoordinationAccount()
+  );
+}
+
+function standardWorkTypeMeta(value) {
+  const normalized = cleanText(value).toUpperCase();
+
+  if (normalized === "DOT_XUAT") {
+    return {
+      text: "Đột xuất",
+      className: "unexpected"
+    };
+  }
+
+  return {
+    text: "Thường xuyên",
+    className: "regular"
+  };
+}
+
+function formatStandardScore(value) {
+  const numberValue = Number(value);
+
+  if (!Number.isFinite(numberValue)) {
+    return "—";
+  }
+
+  return new Intl.NumberFormat("vi-VN", {
+    minimumFractionDigits: Number.isInteger(numberValue) ? 0 : 1,
+    maximumFractionDigits: 1
+  }).format(numberValue);
+}
+
+function configureStandardTaskPilotUI() {
+  const hasAccess = canOpenStandardTaskPilot();
+  const globalAccess = canReadAllPilotStandardTasks();
+
+  standardTaskAccessNotice.classList.toggle("hidden", hasAccess);
+  standardTaskContent.classList.toggle("hidden", !hasAccess);
+  refreshStandardTasksButton.classList.toggle("hidden", !hasAccess);
+  standardTaskDepartmentFilterWrap.classList.toggle("hidden", !globalAccess);
+
+  fillStandardTaskDepartmentFilter();
+}
+
+function fillStandardTaskDepartmentFilter() {
+  const oldValue = standardTaskDepartmentFilter.value || "ALL";
+  standardTaskDepartmentFilter.innerHTML = '<option value="ALL">Tất cả Phòng/Khu</option>';
+
+  state.departments
+    .filter((item) => STANDARD_TASK_PILOT.allowedDepartmentIds.includes(
+      normalizeDepartmentId(item.id)
+    ))
+    .forEach((item) => {
+      const option = document.createElement("option");
+      option.value = normalizeDepartmentId(item.id);
+      option.textContent = item.name || item.code || item.id;
+      standardTaskDepartmentFilter.appendChild(option);
+    });
+
+  standardTaskDepartmentFilter.value = Array.from(
+    standardTaskDepartmentFilter.options
+  ).some((option) => option.value === oldValue)
+    ? oldValue
+    : "ALL";
+}
+
+async function switchApplicationModule(moduleName) {
+  const normalized = moduleName === "STANDARD_TASKS"
+    ? "STANDARD_TASKS"
+    : "TASKS";
+
+  state.currentModule = normalized;
+  const showTasks = normalized === "TASKS";
+
+  taskModulePanels.forEach((panel) => {
+    panel.classList.toggle("module-hidden", !showTasks);
+  });
+
+  standardTasksSection.classList.toggle("hidden", showTasks);
+  tasksModuleTab.classList.toggle("active", showTasks);
+  standardTasksModuleTab.classList.toggle("active", !showTasks);
+  tasksModuleTab.setAttribute("aria-selected", String(showTasks));
+  standardTasksModuleTab.setAttribute("aria-selected", String(!showTasks));
+
+  if (!showTasks) {
+    configureStandardTaskPilotUI();
+
+    if (canOpenStandardTaskPilot() && !state.standardTasksLoaded) {
+      await loadStandardTasks();
+    }
+  }
+}
+
+async function loadStandardTasks() {
+  if (
+    state.loadingStandardTasks ||
+    !state.profile ||
+    !canOpenStandardTaskPilot()
+  ) {
+    return;
+  }
+
+  state.loadingStandardTasks = true;
+  refreshStandardTasksButton.disabled = true;
+  refreshStandardTasksButton.textContent = "Đang tải...";
+  hideMessage(standardTaskMessage);
+
+  try {
+    const standardTaskReference = collection(db, "standardTasks");
+    let snapshot;
+
+    if (canReadAllPilotStandardTasks()) {
+      snapshot = await getDocsFromServer(standardTaskReference);
+    } else {
+      const departmentId = normalizeDepartmentId(state.profile.departmentId);
+
+      snapshot = await getDocsFromServer(
+        query(
+          standardTaskReference,
+          where("departmentId", "==", departmentId)
+        )
+      );
+    }
+
+    const items = [];
+
+    snapshot.forEach((item) => {
+      const data = item.data();
+      const departmentId = normalizeDepartmentId(data.departmentId);
+
+      if (
+        data.active !== false &&
+        STANDARD_TASK_PILOT.allowedDepartmentIds.includes(departmentId)
+      ) {
+        items.push({
+          id: item.id,
+          ...data,
+          code: cleanText(data.code || item.id).toUpperCase(),
+          departmentId
+        });
+      }
+    });
+
+    items.sort((a, b) => {
+      const orderDifference = Number(a.order || 0) - Number(b.order || 0);
+
+      if (orderDifference !== 0) {
+        return orderDifference;
+      }
+
+      return String(a.code || "").localeCompare(String(b.code || ""), "vi");
+    });
+
+    state.standardTasks = items;
+    state.standardTasksLoaded = true;
+    standardTaskLastUpdated.textContent = `Cập nhật lúc ${formatDateTime()}`;
+    applyStandardTaskFilters();
+  } catch (error) {
+    console.error("Không tải được danh mục công việc chuẩn:", error);
+    state.standardTasks = [];
+    state.filteredStandardTasks = [];
+    renderStandardTasks([]);
+
+    const message = ["permission-denied", "firestore/permission-denied"].includes(error?.code)
+      ? "Firestore chưa cho phép đọc collection standardTasks. Hãy Publish Firestore Rules trong bộ cập nhật."
+      : (error?.message || "Không tải được danh mục công việc chuẩn.");
+
+    showMessage(standardTaskMessage, message, "error");
+  } finally {
+    state.loadingStandardTasks = false;
+    refreshStandardTasksButton.disabled = false;
+    refreshStandardTasksButton.textContent = "↻ Làm mới";
+  }
+}
+
+function applyStandardTaskFilters() {
+  const keyword = normalizeText(standardTaskSearchInput.value);
+  const workType = standardTaskWorkTypeFilter.value;
+  const departmentId = standardTaskDepartmentFilter.value;
+
+  const filtered = state.standardTasks.filter((item) => {
+    if (workType !== "ALL" && item.workType !== workType) {
+      return false;
+    }
+
+    if (
+      departmentId !== "ALL" &&
+      normalizeDepartmentId(item.departmentId) !== departmentId
+    ) {
+      return false;
+    }
+
+    if (!keyword) {
+      return true;
+    }
+
+    const searchable = normalizeText([
+      item.code,
+      item.name,
+      item.outputRequirement,
+      item.frequency,
+      item.mandatoryEvidence,
+      item.arisingEvidence,
+      item.confirmer,
+      departmentName(item.departmentId)
+    ].join(" "));
+
+    return searchable.includes(keyword);
+  });
+
+  state.filteredStandardTasks = filtered;
+  renderStandardTasks(filtered);
+}
+
+function renderStandardTaskMetrics(items = state.standardTasks) {
+  const source = Array.isArray(items) ? items : [];
+  const regular = source.filter((item) => item.workType === "THUONG_XUYEN").length;
+  const unexpected = source.filter((item) => item.workType === "DOT_XUAT").length;
+  const maximumScores = source
+    .map((item) => Number(item.maximumConvertedScore))
+    .filter(Number.isFinite);
+  const average = maximumScores.length
+    ? maximumScores.reduce((sum, value) => sum + value, 0) / maximumScores.length
+    : 0;
+
+  standardTaskMetricTotal.textContent = String(source.length);
+  standardTaskMetricRegular.textContent = String(regular);
+  standardTaskMetricUnexpected.textContent = String(unexpected);
+  standardTaskMetricAverage.textContent = formatStandardScore(average);
+}
+
+function renderStandardTasks(items) {
+  const source = Array.isArray(items) ? items : [];
+  renderStandardTaskMetrics(state.standardTasks);
+  standardTaskCount.textContent = `${source.length} đầu việc`;
+
+  const isEmpty = source.length === 0;
+  standardTaskTableWrap.classList.toggle("hidden", isEmpty);
+  standardTaskCardList.classList.toggle("hidden", isEmpty);
+  standardTaskEmptyState.classList.toggle("hidden", !isEmpty);
+
+  if (isEmpty) {
+    standardTaskTableBody.innerHTML = "";
+    standardTaskCardList.innerHTML = "";
+    return;
+  }
+
+  standardTaskTableBody.innerHTML = source.map((item) => {
+    const type = standardWorkTypeMeta(item.workType);
+
+    return `
+      <tr
+        data-standard-task-id="${escapeHtml(item.id)}"
+        tabindex="0"
+        role="button"
+        aria-label="Xem chi tiết ${escapeHtml(item.code)}"
+      >
+        <td><strong class="standard-task-code">${escapeHtml(item.code)}</strong></td>
+        <td>
+          <strong>${escapeHtml(item.name || "Chưa có tên")}</strong>
+          <small>${escapeHtml(truncate(item.outputRequirement || "", 110))}</small>
+        </td>
+        <td>${escapeHtml(item.frequency || "—")}</td>
+        <td><span class="standard-work-type ${type.className}">${type.text}</span></td>
+        <td>${formatStandardScore(item.baseScore)}</td>
+        <td>${formatStandardScore(item.difficultyCoefficient)}</td>
+        <td><strong>${formatStandardScore(item.maximumConvertedScore)}</strong></td>
+      </tr>
+    `;
+  }).join("");
+
+  standardTaskCardList.innerHTML = source.map((item) => {
+    const type = standardWorkTypeMeta(item.workType);
+
+    return `
+      <article
+        class="standard-task-card"
+        data-standard-task-id="${escapeHtml(item.id)}"
+        tabindex="0"
+        role="button"
+        aria-label="Xem chi tiết ${escapeHtml(item.code)}"
+      >
+        <div class="standard-task-card-head">
+          <strong class="standard-task-code">${escapeHtml(item.code)}</strong>
+          <span class="standard-work-type ${type.className}">${type.text}</span>
+        </div>
+        <h3>${escapeHtml(item.name || "Chưa có tên")}</h3>
+        <p>${escapeHtml(truncate(item.outputRequirement || "", 150))}</p>
+        <div class="standard-task-score-grid">
+          <div><span>Điểm chuẩn</span><strong>${formatStandardScore(item.baseScore)}</strong></div>
+          <div><span>Hệ số</span><strong>${formatStandardScore(item.difficultyCoefficient)}</strong></div>
+          <div><span>Điểm tối đa</span><strong>${formatStandardScore(item.maximumConvertedScore)}</strong></div>
+        </div>
+      </article>
+    `;
+  }).join("");
+}
+
+function findStandardTaskById(taskId) {
+  return state.standardTasks.find((item) => item.id === taskId) || null;
+}
+
+function openStandardTaskDetail(taskId) {
+  const item = findStandardTaskById(taskId);
+
+  if (!item) {
+    return;
+  }
+
+  state.selectedStandardTaskId = item.id;
+  const type = standardWorkTypeMeta(item.workType);
+
+  standardTaskDetailCode.textContent = item.code || item.id;
+  standardTaskDetailTitle.textContent = item.name || "Chi tiết đầu việc";
+  standardTaskDetailContent.innerHTML = `
+    <div class="standard-task-detail-score-panel">
+      <div><span>Điểm chuẩn</span><strong>${formatStandardScore(item.baseScore)}</strong></div>
+      <div><span>Hệ số khó</span><strong>${formatStandardScore(item.difficultyCoefficient)}</strong></div>
+      <div><span>Điểm tối đa</span><strong>${formatStandardScore(item.maximumConvertedScore)}</strong></div>
+      <div><span>Loại công việc</span><strong class="standard-work-type ${type.className}">${type.text}</strong></div>
+    </div>
+
+    <div class="standard-task-detail-grid">
+      <section>
+        <span>Phòng/Khu</span>
+        <strong>${escapeHtml(departmentName(item.departmentId))}</strong>
+      </section>
+      <section>
+        <span>Nhóm mã</span>
+        <strong>${escapeHtml(item.categoryCode || "—")}</strong>
+      </section>
+      <section>
+        <span>Tần suất</span>
+        <strong>${escapeHtml(item.frequency || "—")}</strong>
+      </section>
+      <section>
+        <span>Thứ tự</span>
+        <strong>${escapeHtml(item.order ?? "—")}</strong>
+      </section>
+    </div>
+
+    <div class="standard-task-detail-block">
+      <h3>Kết quả/Sản phẩm đầu ra</h3>
+      <p>${escapeHtml(item.outputRequirement || "Chưa khai báo")}</p>
+    </div>
+
+    <div class="standard-task-detail-block">
+      <h3>Minh chứng bắt buộc</h3>
+      <p>${escapeHtml(item.mandatoryEvidence || "Chưa khai báo")}</p>
+    </div>
+
+    <div class="standard-task-detail-block">
+      <h3>Minh chứng phát sinh</h3>
+      <p>${escapeHtml(item.arisingEvidence || "Không yêu cầu")}</p>
+    </div>
+
+    <div class="standard-task-detail-block">
+      <h3>Người/Cấp xác nhận</h3>
+      <p>${escapeHtml(item.confirmer || "Chưa khai báo")}</p>
+    </div>
+
+    ${item.note ? `
+      <div class="standard-task-detail-block">
+        <h3>Ghi chú</h3>
+        <p>${escapeHtml(item.note)}</p>
+      </div>
+    ` : ""}
+  `;
+
+  standardTaskDetailModal.classList.remove("hidden");
+  setBodyModalState();
+}
+
+function closeStandardTaskDetail() {
+  state.selectedStandardTaskId = null;
+  standardTaskDetailModal.classList.add("hidden");
+  setBodyModalState();
+}
+
+function handleStandardTaskOpenEvent(event) {
+  const target = event.target.closest("[data-standard-task-id]");
+
+  if (!target) {
+    return;
+  }
+
+  openStandardTaskDetail(target.dataset.standardTaskId);
+}
+
 /* =========================================================
  * PHẠM VI THEO DÕI VÀ TỔNG HỢP
  * ========================================================= */
@@ -1047,7 +1523,7 @@ async function loadReferenceData() {
 function isTchcCoordinationAccount() {
   return (
     normalizeDepartmentId(state.profile?.departmentId) === "TCHC"
-    && ["ADMIN", "DEPARTMENT_LEADER"].includes(state.profile?.role)
+    && ["ADMIN", "TCHC_COORDINATOR", "DEPARTMENT_LEADER"].includes(state.profile?.role)
   );
 }
 
@@ -1398,6 +1874,7 @@ function renderAccount() {
   }
 
   fillDepartmentFilter();
+  configureStandardTaskPilotUI();
 }
 
 function fillDepartmentFilter() {
@@ -4773,6 +5250,7 @@ async function initializeUser(user) {
     await loadReferenceData();
     renderAccount();
     showView("app");
+    await switchApplicationModule("TASKS");
 
     try {
       /*
@@ -4813,6 +5291,57 @@ async function initializeUser(user) {
 /* =========================================================
  * SỰ KIỆN
  * ========================================================= */
+
+
+tasksModuleTab.addEventListener("click", () => {
+  switchApplicationModule("TASKS");
+});
+
+standardTasksModuleTab.addEventListener("click", () => {
+  switchApplicationModule("STANDARD_TASKS");
+});
+
+refreshStandardTasksButton.addEventListener("click", async () => {
+  state.standardTasksLoaded = false;
+  await loadStandardTasks();
+});
+
+standardTaskSearchInput.addEventListener("input", applyStandardTaskFilters);
+standardTaskWorkTypeFilter.addEventListener("change", applyStandardTaskFilters);
+standardTaskDepartmentFilter.addEventListener("change", applyStandardTaskFilters);
+
+resetStandardTaskFiltersButton.addEventListener("click", () => {
+  standardTaskSearchInput.value = "";
+  standardTaskWorkTypeFilter.value = "ALL";
+  standardTaskDepartmentFilter.value = "ALL";
+  applyStandardTaskFilters();
+});
+
+standardTaskTableBody.addEventListener("click", handleStandardTaskOpenEvent);
+standardTaskCardList.addEventListener("click", handleStandardTaskOpenEvent);
+
+standardTaskTableBody.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    handleStandardTaskOpenEvent(event);
+  }
+});
+
+standardTaskCardList.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    handleStandardTaskOpenEvent(event);
+  }
+});
+
+closeStandardTaskDetailButton.addEventListener("click", closeStandardTaskDetail);
+closeStandardTaskDetailFooterButton.addEventListener("click", closeStandardTaskDetail);
+
+standardTaskDetailModal.addEventListener("click", (event) => {
+  if (event.target === standardTaskDetailModal) {
+    closeStandardTaskDetail();
+  }
+});
 
 googleLoginButton.addEventListener("click", async () => {
   hideMessage(loginMessage);
@@ -5159,6 +5688,11 @@ document.addEventListener("keydown", (event) => {
 
   if (!supportDropdownPanel.classList.contains("hidden")) {
     toggleSupportDropdown(false);
+    return;
+  }
+
+  if (!standardTaskDetailModal.classList.contains("hidden")) {
+    closeStandardTaskDetail();
     return;
   }
 
