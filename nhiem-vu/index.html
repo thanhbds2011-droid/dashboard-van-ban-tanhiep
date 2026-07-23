@@ -661,14 +661,35 @@
       <div id="standardTaskDetailContent" class="standard-task-detail-content"></div>
 
       <footer class="standard-task-detail-footer">
-        <span>Chế độ chỉ xem — dữ liệu quản trị tại Google Sheet</span>
-        <button
-          id="closeStandardTaskDetailFooterButton"
-          class="primary-button"
-          type="button"
-        >
-          Đóng
-        </button>
+        <span id="standardTaskWorkflowHelp">
+          Chế độ chỉ xem — dữ liệu quản trị tại Google Sheet
+        </span>
+
+        <div class="standard-task-detail-actions">
+          <button
+            id="standardTaskSelfRegisterButton"
+            class="primary-button hidden"
+            type="button"
+          >
+            ✅ Đăng ký thực hiện
+          </button>
+
+          <button
+            id="standardTaskPendingAssignmentButton"
+            class="secondary-button hidden"
+            type="button"
+          >
+            📥 Tạo việc chờ phân công
+          </button>
+
+          <button
+            id="closeStandardTaskDetailFooterButton"
+            class="secondary-button"
+            type="button"
+          >
+            Đóng
+          </button>
+        </div>
       </footer>
     </section>
   </div>
@@ -728,6 +749,11 @@
               mình đã được chỉ đạo.
             </span>
           </div>
+
+          <div
+            id="standardTaskTemplateBanner"
+            class="standard-task-template-banner hidden"
+          ></div>
 
           <div class="form-grid">
             <div class="form-section-title form-span-2">
