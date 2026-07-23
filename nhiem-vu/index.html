@@ -15,10 +15,10 @@
   <meta name="apple-mobile-web-app-title" content="Đánh giá KPI">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
 
-  <link rel="manifest" href="./manifest.webmanifest?v=20260718.0600">
-  <link rel="icon" type="image/png" sizes="64x64" href="./icons/favicon-64.png?v=20260718.0600">
-  <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png?v=20260718.0600">
-  <link rel="stylesheet" href="./styles.css?v=20260719.2400">
+  <link rel="manifest" href="./manifest.webmanifest?v=20260723.StdTasksPilot">
+  <link rel="icon" type="image/png" sizes="64x64" href="./icons/favicon-64.png?v=20260723.StdTasksPilot">
+  <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png?v=20260723.StdTasksPilot">
+  <link rel="stylesheet" href="./styles.css?v=20260723.StdTasksPilot">
   <link rel="stylesheet" href="./ai-assistant.css?v=20260719.2310">
 
   <script
@@ -214,9 +214,32 @@
         </div>
       </section>
 
+      <nav class="module-navigation" aria-label="Phân hệ ứng dụng">
+        <button
+          id="tasksModuleTab"
+          class="module-navigation-button active"
+          type="button"
+          aria-selected="true"
+        >
+          <span aria-hidden="true">📋</span>
+          <span>Nhiệm vụ</span>
+        </button>
+
+        <button
+          id="standardTasksModuleTab"
+          class="module-navigation-button"
+          type="button"
+          aria-selected="false"
+        >
+          <span aria-hidden="true">🗂️</span>
+          <span>Danh mục công việc</span>
+          <small>Thử nghiệm</small>
+        </button>
+      </nav>
+
       <section
         id="pushStatusBox"
-        class="push-status-box hidden"
+        class="push-status-box hidden task-module-panel"
         role="status"
         aria-live="polite"
       >
@@ -240,7 +263,7 @@
       </section>
 
       <section
-        class="metrics-grid"
+        class="metrics-grid task-module-panel"
         aria-label="Thống kê nhiệm vụ"
       >
         <article class="metric-card metric-total">
@@ -280,7 +303,7 @@
         </article>
       </section>
 
-      <section class="filter-card">
+      <section class="filter-card task-module-panel">
         <div class="filter-card-head">
           <div>
             <h2>Bộ lọc nhiệm vụ</h2>
@@ -386,7 +409,7 @@
         </div>
       </section>
 
-      <section class="tasks-section">
+      <section class="tasks-section task-module-panel">
         <div class="task-view-tabs" role="tablist" aria-label="Phân loại nhiệm vụ">
           <button
             id="activeTasksTab"
@@ -468,8 +491,188 @@
           </p>
         </div>
       </section>
+
+      <!-- DANH MỤC CÔNG VIỆC CHUẨN - CHẾ ĐỘ THỬ NGHIỆM CHỈ XEM -->
+      <section id="standardTasksSection" class="standard-tasks-section hidden">
+        <div class="standard-tasks-heading">
+          <div>
+            <div class="standard-tasks-title-row">
+              <h2>Danh mục công việc chuẩn</h2>
+              <span class="pilot-badge">THỬ NGHIỆM</span>
+            </div>
+            <p>
+              Dữ liệu được đồng bộ từ Google Sheet qua Firestore. Ứng dụng chỉ đọc,
+              không sửa trực tiếp danh mục.
+            </p>
+          </div>
+
+          <button
+            id="refreshStandardTasksButton"
+            class="secondary-button standard-task-refresh-button"
+            type="button"
+          >
+            ↻ Làm mới
+          </button>
+        </div>
+
+        <div class="pilot-notice" role="note">
+          <strong>⚠️ Dữ liệu thử nghiệm</strong>
+          <span>Chưa sử dụng để đánh giá, xếp loại hoặc tính điểm chính thức.</span>
+        </div>
+
+        <div id="standardTaskAccessNotice" class="standard-task-access-notice hidden">
+          <div aria-hidden="true">🔒</div>
+          <h3>Đơn vị chưa được mở thử nghiệm</h3>
+          <p>
+            Hiện danh mục công việc chuẩn mới được mở cho Phòng Tổ chức – Hành chính.
+          </p>
+        </div>
+
+        <div id="standardTaskContent">
+          <div class="standard-task-metrics" aria-label="Thống kê danh mục công việc">
+            <article>
+              <span>Tổng đầu việc</span>
+              <strong id="standardTaskMetricTotal">0</strong>
+            </article>
+            <article>
+              <span>Thường xuyên</span>
+              <strong id="standardTaskMetricRegular">0</strong>
+            </article>
+            <article>
+              <span>Đột xuất</span>
+              <strong id="standardTaskMetricUnexpected">0</strong>
+            </article>
+            <article>
+              <span>Điểm tối đa bình quân</span>
+              <strong id="standardTaskMetricAverage">0</strong>
+            </article>
+          </div>
+
+          <div class="standard-task-filter-card">
+            <div class="standard-task-filter-grid">
+              <div class="standard-task-search-field">
+                <label for="standardTaskSearchInput">Tìm kiếm</label>
+                <input
+                  id="standardTaskSearchInput"
+                  type="search"
+                  autocomplete="off"
+                  placeholder="Tìm mã, tên, sản phẩm đầu ra, minh chứng..."
+                >
+              </div>
+
+              <div>
+                <label for="standardTaskWorkTypeFilter">Loại công việc</label>
+                <select id="standardTaskWorkTypeFilter">
+                  <option value="ALL">Tất cả loại</option>
+                  <option value="THUONG_XUYEN">Thường xuyên</option>
+                  <option value="DOT_XUAT">Đột xuất</option>
+                </select>
+              </div>
+
+              <div id="standardTaskDepartmentFilterWrap" class="hidden">
+                <label for="standardTaskDepartmentFilter">Phòng/Khu</label>
+                <select id="standardTaskDepartmentFilter">
+                  <option value="ALL">Tất cả Phòng/Khu</option>
+                </select>
+              </div>
+
+              <button
+                id="resetStandardTaskFiltersButton"
+                class="secondary-button standard-task-reset-button"
+                type="button"
+              >
+                Đặt lại
+              </button>
+            </div>
+          </div>
+
+          <div class="standard-task-list-heading">
+            <div>
+              <h3>Danh sách đầu việc</h3>
+              <p id="standardTaskLastUpdated">Chưa tải dữ liệu</p>
+            </div>
+            <strong id="standardTaskCount">0 đầu việc</strong>
+          </div>
+
+          <div
+            id="standardTaskMessage"
+            class="message"
+            role="status"
+            aria-live="polite"
+          ></div>
+
+          <div id="standardTaskTableWrap" class="standard-task-table-wrap">
+            <table class="standard-task-table">
+              <thead>
+                <tr>
+                  <th>Mã</th>
+                  <th>Tên công việc</th>
+                  <th>Tần suất</th>
+                  <th>Loại</th>
+                  <th>Điểm chuẩn</th>
+                  <th>Hệ số</th>
+                  <th>Điểm tối đa</th>
+                </tr>
+              </thead>
+              <tbody id="standardTaskTableBody"></tbody>
+            </table>
+          </div>
+
+          <div id="standardTaskCardList" class="standard-task-card-list"></div>
+
+          <div id="standardTaskEmptyState" class="empty-state hidden">
+            <div aria-hidden="true">🗂️</div>
+            <h3>Chưa có đầu việc phù hợp</h3>
+            <p>Hãy kiểm tra bộ lọc hoặc đồng bộ thêm dữ liệu từ Google Sheet.</p>
+          </div>
+        </div>
+      </section>
+
     </main>
   </div>
+
+
+
+  <!-- CHI TIẾT DANH MỤC CÔNG VIỆC CHUẨN -->
+  <div
+    id="standardTaskDetailModal"
+    class="modal-backdrop hidden"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="standardTaskDetailTitle"
+  >
+    <section class="standard-task-detail-modal">
+      <header class="modal-header">
+        <div>
+          <p id="standardTaskDetailCode" class="detail-code">—</p>
+          <h2 id="standardTaskDetailTitle">Chi tiết đầu việc</h2>
+        </div>
+
+        <button
+          id="closeStandardTaskDetailButton"
+          class="modal-close"
+          type="button"
+          aria-label="Đóng"
+        >
+          ×
+        </button>
+      </header>
+
+      <div id="standardTaskDetailContent" class="standard-task-detail-content"></div>
+
+      <footer class="standard-task-detail-footer">
+        <span>Chế độ chỉ xem — dữ liệu quản trị tại Google Sheet</span>
+        <button
+          id="closeStandardTaskDetailFooterButton"
+          class="primary-button"
+          type="button"
+        >
+          Đóng
+        </button>
+      </footer>
+    </section>
+  </div>
+
 
   <!-- MODAL GHI NHẬN / GIAO TRỰC TIẾP NHIỆM VỤ -->
   <div
@@ -1477,13 +1680,13 @@
   </div>
 
   <script
-    src="./pwa.js?v=20260719.2310"
+    src="./pwa.js?v=20260723.StdTasksPilot"
     defer
   ></script>
 
   <script
     type="module"
-    src="./app.js?v=20260722.PhA"
+    src="./app.js?v=20260723.StdTasksPilot"
   ></script>
 
   <!-- MÔ-ĐUN AI ĐƯỢC NẠP CUỐI CÙNG; XÓA DÒNG NÀY ĐỂ TẮT AI -->
