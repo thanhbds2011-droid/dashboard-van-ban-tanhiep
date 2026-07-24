@@ -48,3 +48,38 @@
   .field-full { grid-column: auto; }
   .modal-large { width: calc(100vw - 16px); max-height: calc(100vh - 16px); }
 }
+
+
+/* =========================================================
+ * PRODUCTION HOÀN CHỈNH - MODAL NHIỆM VỤ
+ * Đồng bộ class của Task modal với Modal Service.
+ * ========================================================= */
+.modal-backdrop{
+  position:fixed;inset:0;z-index:320;background:rgba(9,31,46,.58);
+  display:flex;align-items:center;justify-content:center;padding:18px;
+  overflow:auto;overscroll-behavior:contain;
+}
+.modal-panel{
+  width:min(620px,100%);max-height:calc(100vh - 36px);overflow:auto;
+  background:#fff;border:1px solid var(--border);border-radius:18px;
+  box-shadow:0 24px 72px rgba(0,0,0,.28);margin:auto;
+}
+.modal-panel.modal-large{width:min(980px,100%)}
+.modal-panel .modal-header{position:sticky;top:0;z-index:2;background:#fff;padding:18px 20px 14px;border-bottom:1px solid var(--border);align-items:flex-start}
+.modal-panel .modal-header h2{margin:3px 0 4px}.modal-panel .modal-header p{margin:0;color:var(--muted)}
+.modal-panel .modal-body{padding:18px 20px;color:var(--text)}
+.modal-panel .modal-footer{position:sticky;bottom:0;z-index:2;display:flex;justify-content:flex-end;gap:10px;padding:14px 20px;background:#fff;border-top:1px solid var(--border)}
+.icon-button{border:0;background:#eef4f7;border-radius:9px;width:38px;height:38px;cursor:pointer;font-size:18px;flex:0 0 auto}
+.task-form-grid input,.task-form-grid select,.task-form-grid textarea{width:100%;border:1px solid var(--border);border-radius:9px;padding:10px 11px;background:#fff;color:var(--text);font:inherit}
+.task-form-grid select:disabled,.task-form-grid input:disabled{background:#f1f5f7;color:#6f7f89}
+.checkbox-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.check-row{display:flex!important;align-items:center;gap:8px;padding:9px;border:1px solid var(--border);border-radius:9px}.check-row input{width:auto!important}
+body.modal-open{overflow:hidden}
+@media(max-width:720px){.modal-backdrop{padding:8px;align-items:flex-start}.modal-panel,.modal-panel.modal-large{width:100%;max-height:calc(100vh - 16px)}.checkbox-grid{grid-template-columns:1fr}.modal-panel .modal-header,.modal-panel .modal-body,.modal-panel .modal-footer{padding-left:14px;padding-right:14px}}
+
+/* Báo cáo Mẫu 01 */
+.kpi-report .report-title{text-align:center}.kpi-report .report-meta{display:grid;grid-template-columns:1fr 1fr;gap:8px 20px}.kpi-report .report-note{font-size:12px;line-height:1.5}.kpi-report .signature-grid{display:grid;grid-template-columns:1fr 1fr;gap:40px;text-align:center;margin-top:32px;min-height:130px}
+@media print{
+  body *{visibility:hidden!important}.kpi-modal-backdrop,.kpi-modal-backdrop *,.kpi-report-print,.kpi-report-print *{visibility:visible!important}
+  .kpi-modal-backdrop{position:absolute!important;inset:0!important;background:#fff!important;padding:0!important}.kpi-modal{width:100%!important;max-width:none!important;box-shadow:none!important;border:0!important}.kpi-modal-head,.kpi-modal-foot,.kpi-preview-tabs,.kpi-no-print{display:none!important}.kpi-modal-body{padding:0!important}.kpi-report-print{position:absolute;left:0;top:0;width:100%;font-size:11pt;color:#000}.kpi-report-table{font-size:9pt}.kpi-report-table th,.kpi-report-table td{border:1px solid #000!important}.kpi-report .signature-grid{page-break-inside:avoid}
+  @page{size:A4 portrait;margin:12mm}
+}
