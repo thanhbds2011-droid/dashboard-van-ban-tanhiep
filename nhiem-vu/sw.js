@@ -1,5 +1,5 @@
-const APP_VERSION = "20260723.StdTasksPilot";
-const AI_VERSION = "20260723.StdTasksPilot";
+const APP_VERSION = "20260724.Prod2C";
+const AI_VERSION = "20260724.Prod2C";
 const CACHE_NAME = `nhiem-vu-shell-v${APP_VERSION}`;
 const APP_BASE_URL = new URL("./", self.location.href);
 
@@ -7,8 +7,11 @@ const APP_SHELL = [
   "./",
   "./index.html",
   `./styles.css?v=${APP_VERSION}`,
+  `./kpi.css?v=${APP_VERSION}`,
   `./ai-assistant.css?v=${AI_VERSION}`,
   `./app.js?v=${APP_VERSION}`,
+  `./kpi-engine.js?v=${APP_VERSION}`,
+  `./kpi-module.js?v=${APP_VERSION}`,
   `./ai-assistant.js?v=${AI_VERSION}`,
   `./pwa.js?v=${APP_VERSION}`,
   `./firebase-config.js?v=${APP_VERSION}`,
