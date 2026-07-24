@@ -39,7 +39,7 @@ export const Permissions = Object.freeze({
   },
 
   canRegisterTask() {
-    return UserContext.isAuthenticated();
+    return this.isAdmin() || this.isDirector() || this.isDepartmentLeader();
   },
 
   canAssignTask() {
