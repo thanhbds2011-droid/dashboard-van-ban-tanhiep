@@ -4228,7 +4228,7 @@ async function createTaskLog(taskReference, taskCode, title, mode) {
     await addDoc(collection(db, "taskLogs"), {
       taskId: taskReference.id,
       taskCode,
-      periodId: window.KPI2B?.getActivePeriodSnapshot()?.id || "",
+      periodId: (window.KPI2C || window.KPI2B)?.getActivePeriodSnapshot()?.id || "",
       action: selfRecorded ? "SELF_RECORD_TASK" : "DIRECT_ASSIGN_TASK",
       description: selfRecorded
         ? `Tự ghi nhận nhiệm vụ: ${title}`
@@ -4389,8 +4389,8 @@ async function saveTask(event) {
       maximumConvertedScore: templateItem
         ? Number(templateItem.maximumConvertedScore || 0)
         : Number(editingTask?.maximumConvertedScore || 0),
-      ...(templateItem && window.KPI2B
-        ? window.KPI2B.classifyNewTask(templateItem, state.profile)
+      ...(templateItem && (window.KPI2C || window.KPI2B)
+        ? (window.KPI2C || window.KPI2B).classifyNewTask(templateItem, state.profile)
         : {}),
       pilotMode: templateItem ? true : Boolean(editingTask?.pilotMode),
       scoringEnabled: templateItem ? true : Boolean(editingTask?.scoringEnabled),
