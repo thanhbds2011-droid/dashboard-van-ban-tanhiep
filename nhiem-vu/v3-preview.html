@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1"
+  >
+
+  <title>Nhiệm vụ và đánh giá KPI – Production 3.0A</title>
+
+  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./v3.css">
+</head>
+
+<body class="v3-body">
+
+  <header class="v3-header">
+    <div class="v3-header-inner">
+      <div>
+        <h1>Nhiệm vụ và đánh giá KPI</h1>
+        <p>Production 3.0A – Khung module thử nghiệm</p>
+      </div>
+
+      <div class="v3-user-area">
+        <div id="currentUserInfo" class="v3-user-info">
+          Đang tải tài khoản…
+        </div>
+
+        <button id="btnLogout" type="button">
+          Đăng xuất
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <nav class="v3-navigation">
+    <a href="#/dashboard">Trang chủ</a>
+    <a href="#/tasks">Nhiệm vụ</a>
+    <a href="#/standard-tasks">Danh mục công việc</a>
+    <a href="#/kpi">Kế hoạch KPI</a>
+    <a href="#/kpi/evaluations">Đánh giá</a>
+    <a href="#/reports">Báo cáo</a>
+
+    <a
+      id="adminMenuItem"
+      href="#/admin"
+      hidden
+    >
+      Quản trị
+    </a>
+  </nav>
+
+  <main id="appOutlet" class="v3-main">
+    <section class="page-card">
+      Đang khởi động Production 3.0A…
+    </section>
+  </main>
+
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+
+  <script src="./firebase-config.js"></script>
+  <script type="module" src="./app-v3.js"></script>
+</body>
+</html>
