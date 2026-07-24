@@ -37,7 +37,7 @@ export async function openTaskCreateModal({ onSaved }) {
   overlay.className = "modal-backdrop";
   overlay.innerHTML = `
     <section class="modal-panel modal-large" role="dialog" aria-modal="true" aria-labelledby="createTaskTitle">
-      <div class="modal-header"><div><span class="page-eyebrow">PRODUCTION 3D</span><h2 id="createTaskTitle">Ghi nhận nhiệm vụ</h2><p>Chọn đầu việc chuẩn hoặc ghi nhận nhiệm vụ ngoài danh mục.</p></div><button class="icon-button" type="button" data-close>✕</button></div>
+      <div class="modal-header"><div><span class="page-eyebrow">PRODUCTION 3D</span><h2 id="createTaskTitle">Giao nhiệm vụ đột xuất</h2><p>Chỉ ghi nhận nhiệm vụ phát sinh, ngoài kế hoạch hoặc đột xuất.</p></div><button class="icon-button" type="button" data-close>✕</button></div>
       <form id="taskCreateForm" class="modal-body task-form-grid">
         <label class="field-full"><span>Đầu việc chuẩn</span><select id="standardTaskCode"><option value="">— Nhiệm vụ ngoài danh mục —</option>${visibleStandardTasks.map(x => option(x.code || x.id, `${x.code || x.id} — ${x.name || ""}`)).join("")}</select></label>
         <label class="field-full"><span>Tên nhiệm vụ *</span><input id="taskTitle" maxlength="300" required></label>
@@ -46,8 +46,8 @@ export async function openTaskCreateModal({ onSaved }) {
         <label><span>Người phụ trách</span><select id="ownerUserId" ${isStaffSelf ? "disabled" : ""}><option value="">— Giao cấp Phòng/Khu —</option></select></label>
         <label><span>Tổ/Nhóm</span><input id="teamId" placeholder="Ví dụ: BAO_VE"></label>
         <label><span>Hạn xử lý *</span><input id="deadline" type="date" value="${dateInputValue(tomorrow)}" required></label>
-        <label><span>Mức độ ưu tiên *</span><select id="priority"><option value="THUONG">Thường</option><option value="QUAN_TRONG">Quan trọng</option><option value="KHAN">Khẩn</option><option value="DOT_XUAT">Đột xuất</option></select></label>
-        <label><span>Loại công việc</span><select id="workType"><option value="THUONG_XUYEN">Thường xuyên</option><option value="DOT_XUAT">Đột xuất</option></select></label>
+        <label><span>Mức độ ưu tiên *</span><select id="priority"><option value="DOT_XUAT" selected>Đột xuất</option><option value="KHAN">Khẩn</option><option value="QUAN_TRONG">Quan trọng</option><option value="QUAN_TRONG">Quan trọng</option><option value="KHAN">Khẩn</option><option value="DOT_XUAT">Đột xuất</option></select></label>
+        <label><span>Loại công việc</span><select id="workType"><option value="DOT_XUAT" selected>Đột xuất / ngoài kế hoạch</option></select></label>
         <label class="field-full"><span>Phòng/Khu phối hợp</span><div id="supportDepartments" class="checkbox-grid">${departments.map(d => `<label class="check-row"><input type="checkbox" value="${escapeHtml(d.id || d.code)}"><span>${escapeHtml(d.name || d.id)}</span></label>`).join("")}</div></label>
         <label class="field-full"><span>Nguồn/Yêu cầu giao việc</span><input id="sourceReference" maxlength="500" placeholder="Ví dụ: Chỉ đạo tại giao ban, kế hoạch, văn bản..."></label>
         <div id="standardTaskSnapshot" class="field-full info-banner hidden"></div>
