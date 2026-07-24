@@ -18,7 +18,8 @@
   <link rel="manifest" href="./manifest.webmanifest?v=20260723.StdTasksPilot">
   <link rel="icon" type="image/png" sizes="64x64" href="./icons/favicon-64.png?v=20260723.StdTasksPilot">
   <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png?v=20260723.StdTasksPilot">
-  <link rel="stylesheet" href="./styles.css?v=20260723.StdTasksPilot">
+  <link rel="stylesheet" href="./styles.css?v=20260724.Prod2B">
+  <link rel="stylesheet" href="./kpi.css?v=20260724.Prod2B">
   <link rel="stylesheet" href="./ai-assistant.css?v=20260719.2310">
 
   <script
@@ -225,6 +226,16 @@
           <span>Nhiệm vụ</span>
         </button>
 
+        <button
+          id="kpiModuleTab"
+          class="module-navigation-button"
+          type="button"
+          aria-selected="false"
+        >
+          <span aria-hidden="true">📈</span>
+          <span>Đánh giá KPI</span>
+          <small>Thí điểm</small>
+        </button>
         <button
           id="standardTasksModuleTab"
           class="module-navigation-button"
@@ -491,6 +502,8 @@
           </p>
         </div>
       </section>
+
+      <section id="kpiSection" class="kpi-section hidden"></section>
 
       <!-- DANH MỤC CÔNG VIỆC CHUẨN - CHẾ ĐỘ THỬ NGHIỆM CHỈ XEM -->
       <section id="standardTasksSection" class="standard-tasks-section hidden">
@@ -1706,14 +1719,17 @@
   </div>
 
   <script
-    src="./pwa.js?v=20260723.StdTasksPilot"
+    src="./pwa.js?v=20260724.Prod2B"
     defer
   ></script>
 
   <script
     type="module"
-    src="./app.js?v=20260723.StdTasksPilot"
+    src="./app.js?v=20260724.Prod2B"
   ></script>
+
+
+  <script type="module" src="./kpi-module.js?v=20260724.Prod2B"></script>
 
   <!-- MÔ-ĐUN AI ĐƯỢC NẠP CUỐI CÙNG; XÓA DÒNG NÀY ĐỂ TẮT AI -->
   <script
