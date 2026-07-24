@@ -1,5 +1,9 @@
+/**
+ * Production 3B.1 - App bootstrap
+ */
+
 import { Router } from "./core/router.js";
-import { initializeUserContext } from "./core/auth-service.js";
+import { AuthService } from "./core/auth-service.js";
 import { UserContext } from "./core/user-context.js";
 import { Permissions } from "./core/permissions.js";
 
@@ -14,32 +18,17 @@ import { renderAdminView } from "./modules/admin/admin-view.js";
 
 async function bootstrap() {
   const outlet = document.getElementById("appOutlet");
-  const userInfo = document.getElementById("currentUserInfo");
-  const adminMenu = document.getElementById("adminMenuItem");
 
   if (!outlet) {
     throw new Error("Không tìm thấy vùng hiển thị appOutlet.");
   }
 
-  const user = await initializeUserContext();
+  const user = await AuthService.initializeUserContext();
+  if (!user) return;
 
-  if (!user) {
-    return;
-  }
-
-  if (userInfo) {
-    userInfo.innerHTML = `
-      <strong>${escapeHtml(user.fullName || "Người dùng")}</strong>
-      <span>
-        ${escapeHtml(user.position || "")}
-        ${user.departmentId ? " • " + escapeHtml(user.departmentId) : ""}
-      </span>
-    `;
-  }
-
-  if (adminMenu) {
-    adminMenu.hidden = !Permissions.isAdmin();
-  }
+  renderCurrentUser(user);
+  applyRoleBasedNavigation();
+  bindLogout();
 
   const router = new Router({
     outlet,
@@ -56,29 +45,41 @@ async function bootstrap() {
   });
 
   router.start();
-
-  setupLogout();
 }
 
-function setupLogout() {
-  const logoutButton = document.getElementById("btnLogout");
+function renderCurrentUser(user) {
+  const userInfo = document.getElementById("currentUserInfo");
+  if (!userInfo) return;
 
-  if (!logoutButton) {
-    return;
+  userInfo.innerHTML = `
+    <strong>${escapeHtml(user.fullName || "Người dùng")}</strong>
+    <span>
+      ${escapeHtml(user.position || user.role || "")}
+      ${user.departmentId ? ` • ${escapeHtml(user.departmentId)}` : ""}
+    </span>
+  `;
+}
+
+function applyRoleBasedNavigation() {
+  const adminMenu = document.getElementById("adminMenuItem");
+  if (adminMenu) {
+    adminMenu.hidden = !Permissions.canAccessAdmin();
   }
+}
+
+function bindLogout() {
+  const logoutButton = document.getElementById("btnLogout");
+  if (!logoutButton) return;
 
   logoutButton.addEventListener("click", async () => {
+    logoutButton.disabled = true;
+
     try {
-      UserContext.clear();
-
-      if (window.firebaseAuth) {
-        await window.firebaseAuth.signOut();
-      }
-
-      window.location.href = "./login.html";
+      await AuthService.logout();
     } catch (error) {
-      console.error(error);
+      console.error("Logout error:", error);
       window.alert("Không thể đăng xuất. Vui lòng thử lại.");
+      logoutButton.disabled = false;
     }
   });
 }
@@ -93,15 +94,15 @@ function escapeHtml(value) {
 }
 
 bootstrap().catch(error => {
-  console.error("Production 3.0A bootstrap error:", error);
+  console.error("Production 3B.1 bootstrap error:", error);
 
   const outlet = document.getElementById("appOutlet");
 
   if (outlet) {
     outlet.innerHTML = `
       <section class="page-card error-card">
-        <h2>Không thể khởi động Production 3.0A</h2>
-        <p>${escapeHtml(error.message || "Lỗi không xác định.")}</p>
+        <h2>Không thể khởi động Production 3B.1</h2>
+        <p>${escapeHtml(error?.message || "Lỗi không xác định.")}</p>
       </section>
     `;
   }
