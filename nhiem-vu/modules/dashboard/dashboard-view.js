@@ -14,7 +14,7 @@ export async function renderDashboardView(outlet) {
 
     outlet.innerHTML = `
       <section class="page-card">
-        <div class="page-header"><div><span class="page-eyebrow">PRODUCTION 3C • READ ONLY</span><h2>Trang chủ</h2><p>Tổng quan dữ liệu thật theo phạm vi tài khoản đang đăng nhập.</p></div><button id="btnDashboardRefresh" class="secondary-button" type="button">↻ Làm mới</button></div>
+        <div class="page-header"><div><span class="page-eyebrow">PRODUCTION 3D • TASK LIFECYCLE</span><h2>Trang chủ</h2><p>Tổng quan dữ liệu thật theo phạm vi tài khoản đang đăng nhập.</p></div><button id="btnDashboardRefresh" class="secondary-button" type="button">↻ Làm mới</button></div>
         <section class="welcome-panel"><div><span class="welcome-label">Xin chào</span><h3>${escapeHtml(user.fullName || "Người dùng")}</h3><p>${escapeHtml(user.position || "Chưa cập nhật chức danh")} ${user.departmentId ? `• ${escapeHtml(user.departmentId)}` : ""}</p></div><span class="role-badge">${escapeHtml(formatRole(user.role))}</span></section>
         <div class="summary-grid">
           ${metric("Nhiệm vụ đang xử lý", summary.inProgress, "Dữ liệu thật từ tasks", "blue")}
@@ -31,14 +31,14 @@ export async function renderDashboardView(outlet) {
             ${quick("#/reports", "📄", "Báo cáo", "Khung báo cáo chưa ghi dữ liệu")}
             ${Permissions.isAdmin() ? quick("#/admin", "⚙️", "Quản trị", "Xem thống kê dữ liệu nền") : ""}
           </div></article>
-          <article class="dashboard-section"><div class="section-heading"><div><h3>Trạng thái kết nối</h3><p>Kiểm tra các collection trong Production 3C.</p></div></div><dl class="system-status-list">
+          <article class="dashboard-section"><div class="section-heading"><div><h3>Trạng thái kết nối</h3><p>Kiểm tra các collection và chức năng Production 3D.</p></div></div><dl class="system-status-list">
             ${status("tasks", `${data.tasks.length} bản ghi`, "success")}
             ${status("standardTasks", `${data.standardTasks.length} bản ghi`, "success")}
             ${status("evaluationPeriods", `${data.periods.length} kỳ`, "success")}
             ${status("Chế độ ghi dữ liệu", "Đã khóa ở UI", "pending")}
           </dl></article>
         </section>
-        ${data.warnings.length ? `<div class="warning-banner"><strong>Cảnh báo đọc dữ liệu:</strong><br>${data.warnings.map(escapeHtml).join("<br>")}</div>` : `<div class="success-banner">Đã đọc dữ liệu Firestore thành công theo quyền hiện tại. Production 3C không ghi, sửa hoặc xóa dữ liệu.</div>`}
+        ${data.warnings.length ? `<div class="warning-banner"><strong>Cảnh báo đọc dữ liệu:</strong><br>${data.warnings.map(escapeHtml).join("<br>")}</div>` : `<div class="success-banner">Đã đọc dữ liệu Firestore thành công theo quyền hiện tại. Production 3D đã sẵn sàng ghi nhận và cập nhật nhiệm vụ theo phân quyền.</div>`}
       </section>`;
 
     document.getElementById("btnDashboardRefresh")?.addEventListener("click", () => {
