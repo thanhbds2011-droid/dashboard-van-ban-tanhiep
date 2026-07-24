@@ -4,7 +4,7 @@ import {
   serverTimestamp, setDoc, updateDoc, where
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
 import {
-  KPI2C, COMMON_CRITERIA, calculateTaskScore, calculateKpiSummary,
+  KPI2B as KPI2C, COMMON_CRITERIA, calculateTaskScore, calculateKpiSummary,
   proposedRating, ratingName, round2
 } from '../../kpi-engine.js';
 
