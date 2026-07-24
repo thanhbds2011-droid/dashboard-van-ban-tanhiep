@@ -17,10 +17,12 @@ async function bootstrap() {
   const outlet = document.getElementById("appOutlet");
   if (!outlet) throw new Error("Không tìm thấy vùng hiển thị appOutlet.");
 
+  setLoadingStatus("Đang xác thực tài khoản…");
   const user = await AuthService.initializeUserContext();
   if (!user) return;
 
   renderCurrentUser(user);
+  setLoadingStatus("");
   applyRoleBasedNavigation();
   bindLogout();
   bindMobileNavigation();
@@ -40,6 +42,11 @@ async function bootstrap() {
   });
   router.start();
   ToastService.success("Production hoàn chỉnh đã khởi động thành công.", 2200);
+}
+
+function setLoadingStatus(text) {
+  const userInfo = document.getElementById("currentUserInfo");
+  if (userInfo && text) userInfo.textContent = text;
 }
 
 function renderCurrentUser(user) {
@@ -102,7 +109,22 @@ function escapeHtml(value) {
 }
 
 bootstrap().catch(error => {
-  console.error("Production hoàn chỉnh bootstrap error:", error);
+  console.error("Production Final bootstrap error:", error);
+  const userInfo = document.getElementById("currentUserInfo");
+  if (userInfo) userInfo.innerHTML = `<strong>Không tải được tài khoản</strong><span>Vui lòng xem thông báo bên dưới</span>`;
   const outlet = document.getElementById("appOutlet");
-  if (outlet) outlet.innerHTML = `<section class="page-card error-card"><h2>Không thể khởi động Production hoàn chỉnh</h2><p>${escapeHtml(error?.message || "Lỗi không xác định.")}</p></section>`;
+  if (outlet) outlet.innerHTML = `
+    <section class="page-card error-card auth-error-card">
+      <h2>Không thể tải tài khoản</h2>
+      <p>${escapeHtml(error?.message || "Lỗi không xác định.")}</p>
+      <div class="page-actions">
+        <button id="btnRetryBootstrap" type="button" class="primary-button">↻ Thử lại</button>
+        <button id="btnForceLogout" type="button" class="secondary-button">Đăng xuất và đăng nhập lại</button>
+      </div>
+      <p class="helper-text">Nếu lỗi lặp lại, kiểm tra email trong <strong>accessAccounts</strong>, hồ sơ <strong>users/{uid}</strong> và Firestore Rules.</p>
+    </section>`;
+  document.getElementById("btnRetryBootstrap")?.addEventListener("click", () => window.location.reload());
+  document.getElementById("btnForceLogout")?.addEventListener("click", async () => {
+    try { await AuthService.logout(); } catch (_) { window.location.replace("./login.html"); }
+  });
 });
