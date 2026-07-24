@@ -1,11 +1,11 @@
 import {
   auth,
   db
-} from "./firebase-config.js?v=20260723.StdTasksPilot";
+} from "./firebase-config.js?v=20260724.Prod2B";
 
 import {
   NOTIFICATION_WEB_APP_URL
-} from "./notification-config.js?v=20260723.StdTasksPilot";
+} from "./notification-config.js?v=20260724.Prod2B";
 
 import {
   GoogleAuthProvider,
@@ -90,6 +90,8 @@ const roleBadge = $("roleBadge");
 
 const tasksModuleTab = $("tasksModuleTab");
 const standardTasksModuleTab = $("standardTasksModuleTab");
+const kpiModuleTab = $("kpiModuleTab");
+const kpiSection = $("kpiSection");
 const taskModulePanels = Array.from(document.querySelectorAll(".task-module-panel"));
 const standardTasksSection = $("standardTasksSection");
 const standardTaskAccessNotice = $("standardTaskAccessNotice");
@@ -1018,6 +1020,7 @@ async function loadProfile(user) {
     teamId: normalizeTeamId(accessData.teamId),
     position: accessData.position || "",
     role: accessData.role,
+    kpiReviewerEmail: cleanText(accessData.kpiReviewerEmail).toLowerCase(),
     active: true,
     authProvider: providerIds || "unknown",
     updatedAt: serverTimestamp()
@@ -1198,24 +1201,31 @@ function fillStandardTaskDepartmentFilter() {
 }
 
 async function switchApplicationModule(moduleName) {
-  const normalized = moduleName === "STANDARD_TASKS"
-    ? "STANDARD_TASKS"
+  const normalized = ["STANDARD_TASKS", "KPI"].includes(moduleName)
+    ? moduleName
     : "TASKS";
 
   state.currentModule = normalized;
   const showTasks = normalized === "TASKS";
+  const showStandardTasks = normalized === "STANDARD_TASKS";
+  const showKpi = normalized === "KPI";
 
   taskModulePanels.forEach((panel) => {
     panel.classList.toggle("module-hidden", !showTasks);
   });
 
-  standardTasksSection.classList.toggle("hidden", showTasks);
+  standardTasksSection.classList.toggle("hidden", !showStandardTasks);
+  kpiSection?.classList.toggle("hidden", !showKpi);
   tasksModuleTab.classList.toggle("active", showTasks);
-  standardTasksModuleTab.classList.toggle("active", !showTasks);
+  standardTasksModuleTab.classList.toggle("active", showStandardTasks);
+  kpiModuleTab?.classList.toggle("active", showKpi);
   tasksModuleTab.setAttribute("aria-selected", String(showTasks));
-  standardTasksModuleTab.setAttribute("aria-selected", String(!showTasks));
+  standardTasksModuleTab.setAttribute("aria-selected", String(showStandardTasks));
+  kpiModuleTab?.setAttribute("aria-selected", String(showKpi));
 
-  if (!showTasks) {
+  window.dispatchEvent(new CustomEvent(showKpi ? "kpi:open" : "kpi:hide"));
+
+  if (showStandardTasks) {
     configureStandardTaskPilotUI();
 
     if (canOpenStandardTaskPilot() && !state.standardTasksLoaded) {
@@ -1443,11 +1453,19 @@ function standardTaskWorkflowPermission(item, action) {
     normalizeDepartmentId(item.departmentId) ===
     normalizeDepartmentId(state.profile.departmentId);
 
-  if (state.profile.role !== "DEPARTMENT_LEADER" || !sameDepartment) {
+  if (!sameDepartment) {
     return false;
   }
 
-  return ["SELF_REGISTER", "PENDING_ASSIGNMENT"].includes(action);
+  if (state.profile.role === "STAFF") {
+    return action === "SELF_REGISTER";
+  }
+
+  if (state.profile.role === "DEPARTMENT_LEADER") {
+    return ["SELF_REGISTER", "PENDING_ASSIGNMENT"].includes(action);
+  }
+
+  return false;
 }
 
 function currentStandardTaskWorkflowItem() {
@@ -1536,11 +1554,11 @@ function applyStandardTaskWorkflowContext() {
   if (context.action === "SELF_REGISTER") {
     taskModalTitle.textContent = "✅ Đăng ký thực hiện đầu việc chuẩn";
     taskModalSubtitle.textContent =
-      "Trưởng/Phó phòng đăng ký trực tiếp thực hiện đầu việc thuộc danh mục chuẩn.";
+      "Cá nhân đăng ký trực tiếp thực hiện đầu việc thuộc danh mục chuẩn; nhiệm vụ chỉ vào A sau khi được Trưởng/Phó phòng duyệt.";
     entryModeBanner.className = "entry-mode-banner entry-mode-self";
     entryModeBanner.innerHTML = `
       <strong>TỰ ĐĂNG KÝ THỰC HIỆN</strong>
-      <span>Bạn là người thực hiện; sau khi hoàn thành sẽ gửi Ban Giám đốc xác nhận điểm thử nghiệm.</span>
+      <span>Bạn là người thực hiện; sau khi hoàn thành sẽ gửi người có thẩm quyền xác nhận điểm thử nghiệm.</span>
     `;
     saveTaskButton.textContent = "Đăng ký thực hiện";
   } else {
@@ -4210,6 +4228,7 @@ async function createTaskLog(taskReference, taskCode, title, mode) {
     await addDoc(collection(db, "taskLogs"), {
       taskId: taskReference.id,
       taskCode,
+      periodId: window.KPI2B?.getActivePeriodSnapshot()?.id || "",
       action: selfRecorded ? "SELF_RECORD_TASK" : "DIRECT_ASSIGN_TASK",
       description: selfRecorded
         ? `Tự ghi nhận nhiệm vụ: ${title}`
@@ -4370,8 +4389,11 @@ async function saveTask(event) {
       maximumConvertedScore: templateItem
         ? Number(templateItem.maximumConvertedScore || 0)
         : Number(editingTask?.maximumConvertedScore || 0),
+      ...(templateItem && window.KPI2B
+        ? window.KPI2B.classifyNewTask(templateItem, state.profile)
+        : {}),
       pilotMode: templateItem ? true : Boolean(editingTask?.pilotMode),
-      scoringEnabled: templateItem ? false : Boolean(editingTask?.scoringEnabled),
+      scoringEnabled: templateItem ? true : Boolean(editingTask?.scoringEnabled),
       scoringStatus: editingTask?.scoringStatus || "NOT_ASSESSED",
       standardTaskWorkflowAction: templateAction || editingTask?.standardTaskWorkflowAction || "",
       updatedAt: serverTimestamp(),
@@ -5530,6 +5552,10 @@ tasksModuleTab.addEventListener("click", () => {
 
 standardTasksModuleTab.addEventListener("click", () => {
   switchApplicationModule("STANDARD_TASKS");
+});
+
+kpiModuleTab?.addEventListener("click", () => {
+  switchApplicationModule("KPI");
 });
 
 refreshStandardTasksButton.addEventListener("click", async () => {
