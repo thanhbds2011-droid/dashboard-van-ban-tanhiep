@@ -1,4 +1,4 @@
-/** Production 3C - Firestore Read Only */
+/** Production 3D - Vòng đời nhiệm vụ và minh chứng Google Drive */
 import { Router } from "./core/router.js";
 import { AuthService } from "./core/auth-service.js";
 import { Permissions } from "./core/permissions.js";
@@ -39,7 +39,7 @@ async function bootstrap() {
     }
   });
   router.start();
-  ToastService.success("Production 3C đã khởi động thành công ở chế độ chỉ đọc.", 2200);
+  ToastService.success("Production 3D đã khởi động thành công.", 2200);
 }
 
 function renderCurrentUser(user) {
@@ -102,7 +102,7 @@ function escapeHtml(value) {
 }
 
 bootstrap().catch(error => {
-  console.error("Production 3C bootstrap error:", error);
+  console.error("Production 3D bootstrap error:", error);
   const outlet = document.getElementById("appOutlet");
-  if (outlet) outlet.innerHTML = `<section class="page-card error-card"><h2>Không thể khởi động Production 3C</h2><p>${escapeHtml(error?.message || "Lỗi không xác định.")}</p></section>`;
+  if (outlet) outlet.innerHTML = `<section class="page-card error-card"><h2>Không thể khởi động Production 3D</h2><p>${escapeHtml(error?.message || "Lỗi không xác định.")}</p></section>`;
 });
