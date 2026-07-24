@@ -1,11 +1,11 @@
 import { Permissions } from "../../core/permissions.js";
 import { ToastService } from "../../core/toast-service.js";
+import { PeriodReadService } from "../../services/period-read-service.js";
 export async function renderPeriodsView(outlet){
- const canCreate=Permissions.canCreatePeriod();
- outlet.innerHTML=`<section class="page-card"><div class="page-header"><div><span class="page-eyebrow">QUẢN LÝ KỲ</span><h2>Kỳ đánh giá KPI</h2><p>Tạo, mở, chuyển giai đoạn và kết thúc kỳ đánh giá.</p></div>${canCreate?'<button id="btnCreatePeriodPreview" class="primary-button" type="button">＋ Tạo kỳ đánh giá</button>':""}</div>
- ${canCreate?'<div class="success-banner">Tài khoản hiện tại có quyền quản lý kỳ đánh giá.</div>':'<div class="warning-banner">Bạn không có quyền tạo hoặc quản lý kỳ đánh giá.</div>'}
- <div class="period-timeline">${step("01","Dự thảo")}${step("02","Đang mở")}${step("03","Đánh giá")}${step("04","Báo cáo")}${step("05","Hoàn tất")}</div>
- <div class="empty-state"><div class="empty-icon">🗓️</div><strong>Chưa có kỳ đánh giá được tải</strong><p>Collection evaluationPeriods chưa được kết nối trong Production 3B.2.</p></div></section>`;
- document.getElementById("btnCreatePeriodPreview")?.addEventListener("click",()=>ToastService.info("Nút tạo kỳ đang ở chế độ giao diện thử nghiệm; chưa ghi Firestore."));
-}
-function step(no,label){return `<div class="timeline-step"><b>${no}</b><span>${label}</span></div>`;}
+ outlet.innerHTML=loadingCard("Đang tải các kỳ đánh giá…");
+ try{const periods=await PeriodReadService.list();const active=PeriodReadService.active(periods);const canCreate=Permissions.canCreatePeriod();outlet.innerHTML=`<section class="page-card"><div class="page-header"><div><span class="page-eyebrow">QUẢN LÝ KỲ • READ ONLY</span><h2>Kỳ đánh giá KPI</h2><p>Danh sách kỳ đánh giá thật từ Firestore.</p></div>${canCreate?'<button id="btnCreatePeriodPreview" class="primary-button" type="button">＋ Tạo kỳ đánh giá</button>':""}</div>${active?`<div class="success-banner">Kỳ đang hoạt động: <strong>${escapeHtml(active.name||active.code||active.id)}</strong> — ${escapeHtml(formatStatus(active._status))}</div>`:'<div class="warning-banner">Hiện chưa có kỳ đánh giá đang hoạt động.</div>'}${renderPeriods(periods)}</section>`;document.getElementById("btnCreatePeriodPreview")?.addEventListener("click",()=>ToastService.info("Production 3C chỉ đọc dữ liệu. Tạo kỳ sẽ được mở ở phiên bản tiếp theo."));}catch(error){outlet.innerHTML=errorCard("Không thể tải kỳ đánh giá",error);}}
+function renderPeriods(periods){if(!periods.length)return `<div class="empty-state"><div class="empty-icon">🗓️</div><strong>Chưa có dữ liệu evaluationPeriods</strong></div>`;return `<div class="data-list">${periods.map(period=>`<article class="data-row"><div class="data-row-main"><strong>${escapeHtml(period.name||period.code||period.id)}</strong><small>${escapeHtml(period.startDateKey||"")} → ${escapeHtml(period.endDateKey||"")}</small></div><div class="data-row-meta"><span class="status-pill ${period.active?"success":"neutral"}">${escapeHtml(formatStatus(period._status))}</span><small>${period.active?"Đang hoạt động":"Không hoạt động"}</small></div></article>`).join("")}</div>`;}
+function formatStatus(status){return ({DRAFT:"Dự thảo",OPEN:"Đang mở",IN_PROGRESS:"Đang thực hiện",ASSESSMENT:"Đang đánh giá",REPORTING:"Đang báo cáo",COMPLETED:"Hoàn tất",DELETED:"Đã xóa"})[status]||status||"Chưa xác định";}
+function loadingCard(message){return `<section class="page-card"><div class="empty-state"><div class="empty-icon">⏳</div><strong>${escapeHtml(message)}</strong></div></section>`;}
+function errorCard(title,error){return `<section class="page-card error-card"><h2>${escapeHtml(title)}</h2><p>${escapeHtml(error?.message||"Lỗi không xác định")}</p></section>`;}
+function escapeHtml(value){return String(value??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");}
