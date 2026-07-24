@@ -3,6 +3,7 @@ import {
   addDoc, collection, deleteDoc, doc, getDoc, getDocs, onSnapshot, query,
   serverTimestamp, setDoc, updateDoc, where
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
+import { TaskRegistrationService } from '../../services/task-registration-service.js';
 import {
   KPI2B as KPI2C, COMMON_CRITERIA, calculateTaskScore, calculateKpiSummary,
   proposedRating, ratingName, round2
@@ -15,6 +16,7 @@ export const KpiWorkflowState = {
   periods: [],
   users: [],
   tasks: [],
+  registrations: [],
   evaluations: [],
   common: null,
   commonAll: [],
@@ -217,15 +219,17 @@ async function loadAll() {
       message(activeRole('ADMIN') ? 'Chưa có kỳ đánh giá đang hoạt động. Admin hãy tạo kỳ thí điểm.' : 'Chưa có kỳ đánh giá đang hoạt động.');
       return;
     }
-    const [usersSnap, tasksSnap, evalSnap, commonAllSnap, planSnap] = await Promise.all([
+    const [usersSnap, tasksSnap, registrationsSnap, evalSnap, commonAllSnap, planSnap] = await Promise.all([
       getDocs(collection(db,'users')),
       getDocs(query(collection(db,'tasks'), where('periodId','==',KpiWorkflowState.period.id))),
+      getDocs(query(collection(db,'taskRegistrations'), where('periodId','==',KpiWorkflowState.period.id))),
       getDocs(query(collection(db,'taskEvaluations'), where('periodId','==',KpiWorkflowState.period.id))),
       getDocs(query(collection(db,'commonCriteriaAssessments'), where('periodId','==',KpiWorkflowState.period.id))),
       getDoc(doc(db,'kpiPlans', `${KpiWorkflowState.period.id}_${normalizeDepartment(KpiWorkflowState.profile.departmentId)}`))
     ]);
     KpiWorkflowState.users = usersSnap.docs.map(d => ({ id:d.id, ...d.data() }));
     KpiWorkflowState.tasks = tasksSnap.docs.map(d => ({ id:d.id, ...d.data() }));
+    KpiWorkflowState.registrations = registrationsSnap.docs.map(d => ({ id:d.id, ...d.data() }));
     KpiWorkflowState.evaluations = evalSnap.docs.map(d => ({ id:d.id, ...d.data() }));
     KpiWorkflowState.commonAll = commonAllSnap.docs.map(d => ({ id:d.id, ...d.data() }));
     KpiWorkflowState.common = KpiWorkflowState.commonAll.find(item => item.userId === KpiWorkflowState.user.uid) || null;
@@ -290,8 +294,10 @@ function renderTasks() {
   if (!target) return;
   if (!KpiWorkflowState.period) { target.innerHTML = '<div class="kpi-empty">Chưa có kỳ đánh giá.</div>'; return; }
   const rows = KpiWorkflowState.tasks.filter(taskForCurrentUser).sort((a,b) => clean(a.taskCode).localeCompare(clean(b.taskCode)));
-  if (!rows.length) { target.innerHTML = '<div class="kpi-empty">Chưa có nhiệm vụ gắn với kỳ này. Hãy chọn đầu việc tại “Danh mục công việc” để đăng ký hoặc giao việc.</div>'; return; }
-  target.innerHTML = `<div class="kpi-table-wrap"><table class="kpi-table"><thead><tr><th>Mã/Nhiệm vụ</th><th>Kế hoạch</th><th>Điểm tối đa</th><th>Đánh giá</th><th>Thao tác</th></tr></thead><tbody>${rows.map(task => {
+  const myRegistrations = KpiWorkflowState.registrations.filter(r => globalRole() || (isLeader() ? sameDepartment(r) : r.userId === KpiWorkflowState.user.uid));
+  if (!rows.length && !myRegistrations.length) { target.innerHTML = '<div class="kpi-empty">Chưa có đầu việc trong kỳ. Viên chức vào “Danh mục công việc”, tick chọn và đăng ký kế hoạch.</div>'; return; }
+  const registrationRows = myRegistrations.filter(r => !r.taskId).map(r => `<tr><td><strong>${esc(r.standardTaskCode || r.id)}</strong><br>${esc(r.standardTaskName || r.title)}<br><span class="kpi-small">${esc(r.userName || '')}</span></td><td><span class="kpi-status">${r.status === 'PENDING' ? 'Chờ Trưởng/Phó phòng duyệt' : r.status === 'REJECTED' ? 'Đã trả lại' : 'Đã duyệt'}</span></td><td>${fmt(r.maximumConvertedScore)}</td><td>Chưa hình thành nhiệm vụ</td><td>${isLeader() && r.status === 'PENDING' ? `<div class="kpi-actions"><button class="kpi-button secondary" data-registration-approve="${r.id}">Duyệt</button><button class="kpi-button danger" data-registration-reject="${r.id}">Trả lại</button></div>` : ''}</td></tr>`).join('');
+  target.innerHTML = `<div class="kpi-table-wrap"><table class="kpi-table"><thead><tr><th>Mã/Nhiệm vụ</th><th>Kế hoạch</th><th>Điểm tối đa</th><th>Đánh giá</th><th>Thao tác</th></tr></thead><tbody>${registrationRows}${rows.map(task => {
     const ev = evaluationFor(task.id);
     const canApprove = isLeader() && sameDepartment(task) && task.planApprovalStatus === 'PENDING_APPROVAL' && KpiWorkflowState.plan?.locked !== true;
     const canSelf = task.ownerUserId === KpiWorkflowState.user.uid && task.planApprovalStatus === 'APPROVED' && KpiWorkflowState.period.status !== 'COMPLETED';
@@ -316,12 +322,33 @@ function renderReviews() {
   if (!target) return;
   const pending = KpiWorkflowState.evaluations.filter(ev => ['PENDING_REVIEW','NEEDS_REVISION'].includes(ev.status)).map(ev => ({ ev, task:KpiWorkflowState.tasks.find(t=>t.id===ev.taskId) })).filter(x => canReviewEvaluation(x.ev,x.task));
   const pendingPlans = isLeader() ? KpiWorkflowState.tasks.filter(t => sameDepartment(t) && t.planApprovalStatus === 'PENDING_APPROVAL') : [];
+  const pendingRegistrations = isLeader() ? KpiWorkflowState.registrations.filter(r => sameDepartment(r) && r.status === 'PENDING') : [];
   const pendingCommon = KpiWorkflowState.commonAll.filter(item => item.userId !== KpiWorkflowState.user.uid && item.status === 'SELF_COMPLETED' && ((isLeader() && normalizeDepartment(item.departmentId) === normalizeDepartment(KpiWorkflowState.profile.departmentId)) || globalRole()));
-  if (!pending.length && !pendingPlans.length && !pendingCommon.length) { target.innerHTML = '<div class="kpi-empty">Không có hồ sơ chờ xử lý.</div>'; return; }
-  target.innerHTML = `${pendingPlans.map(t=>`<div class="kpi-alert"><strong>Chờ duyệt kế hoạch</strong><br>${esc(t.ownerName || 'Chưa có người')} · ${esc(t.title)}<div class="kpi-actions"><button class="kpi-button secondary" data-kpi-approve-plan="${t.id}">Duyệt</button><button class="kpi-button danger" data-kpi-reject-plan="${t.id}">Trả lại</button></div></div>`).join('')}${pendingCommon.map(item=>`<div class="kpi-alert"><strong>Chờ xác nhận Mẫu 01 · 30 điểm</strong><br>${esc(item.fullName)} · Tự chấm ${fmt(item.selfTotal)}/30<div class="kpi-actions"><button class="kpi-button" data-kpi-review-common="${item.id}">Mở xác nhận</button></div></div>`).join('')}${pending.map(({ev,task})=>`<div class="kpi-alert ${ev.status==='NEEDS_REVISION'?'':'kpi-ok'}"><strong>${ev.status==='NEEDS_REVISION'?'Đang yêu cầu bổ sung':'Chờ xác nhận điểm'}</strong><br>${esc(task?.ownerName)} · ${esc(task?.title)}<br><span class="kpi-small">Tự chấm ${fmt(ev.selfActualScore)}/${fmt(task?.maximumConvertedScore)}</span><div class="kpi-actions"><button class="kpi-button" data-kpi-review="${ev.id}">Mở xác nhận</button></div></div>`).join('')}`;
+  if (!pending.length && !pendingPlans.length && !pendingRegistrations.length && !pendingCommon.length) { target.innerHTML = '<div class="kpi-empty">Không có hồ sơ chờ xử lý.</div>'; return; }
+  target.innerHTML = `${pendingRegistrations.map(r=>`<div class="kpi-alert"><strong>Viên chức đăng ký kế hoạch</strong><br>${esc(r.userName)} · ${esc(r.standardTaskName || r.title)}<div class="kpi-actions"><button class="kpi-button secondary" data-registration-approve="${r.id}">Duyệt</button><button class="kpi-button danger" data-registration-reject="${r.id}">Trả lại</button></div></div>`).join('')}${pendingPlans.map(t=>`<div class="kpi-alert"><strong>Chờ duyệt kế hoạch</strong><br>${esc(t.ownerName || 'Chưa có người')} · ${esc(t.title)}<div class="kpi-actions"><button class="kpi-button secondary" data-kpi-approve-plan="${t.id}">Duyệt</button><button class="kpi-button danger" data-kpi-reject-plan="${t.id}">Trả lại</button></div></div>`).join('')}${pendingCommon.map(item=>`<div class="kpi-alert"><strong>Chờ xác nhận Mẫu 01 · 30 điểm</strong><br>${esc(item.fullName)} · Tự chấm ${fmt(item.selfTotal)}/30<div class="kpi-actions"><button class="kpi-button" data-kpi-review-common="${item.id}">Mở xác nhận</button></div></div>`).join('')}${pending.map(({ev,task})=>`<div class="kpi-alert ${ev.status==='NEEDS_REVISION'?'':'kpi-ok'}"><strong>${ev.status==='NEEDS_REVISION'?'Đang yêu cầu bổ sung':'Chờ xác nhận điểm'}</strong><br>${esc(task?.ownerName)} · ${esc(task?.title)}<br><span class="kpi-small">Tự chấm ${fmt(ev.selfActualScore)}/${fmt(task?.maximumConvertedScore)}</span><div class="kpi-actions"><button class="kpi-button" data-kpi-review="${ev.id}">Mở xác nhận</button></div></div>`).join('')}`;
+}
+
+async function handleRegistrationAction(event) {
+  const approve = event.target.closest('[data-registration-approve]');
+  const reject = event.target.closest('[data-registration-reject]');
+  if (!approve && !reject) return false;
+  const id = (approve || reject).dataset.registrationApprove || (approve || reject).dataset.registrationReject;
+  const registration = KpiWorkflowState.registrations.find(r => r.id === id);
+  if (!registration) return true;
+  if (approve) {
+    const core = window.confirm('Chọn OK nếu đây là đầu việc cốt lõi của cá nhân; chọn Cancel nếu không phải.');
+    await TaskRegistrationService.approve(registration, { isCoreTask: core });
+  } else {
+    const reason = prompt('Nhập lý do trả lại đăng ký:');
+    if (!clean(reason)) return true;
+    await TaskRegistrationService.reject(registration, reason);
+  }
+  await loadAll();
+  return true;
 }
 
 async function taskAction(event) {
+  if (await handleRegistrationAction(event)) return;
   const approve = event.target.closest('[data-kpi-approve-plan]');
   const reject = event.target.closest('[data-kpi-reject-plan]');
   const self = event.target.closest('[data-kpi-self]');
@@ -332,6 +359,7 @@ async function taskAction(event) {
   if (view) return openTaskInfo(view.dataset.kpiView);
 }
 async function reviewAction(event) {
+  if (await handleRegistrationAction(event)) return;
   const approve = event.target.closest('[data-kpi-approve-plan]');
   const reject = event.target.closest('[data-kpi-reject-plan]');
   const review = event.target.closest('[data-kpi-review]');
