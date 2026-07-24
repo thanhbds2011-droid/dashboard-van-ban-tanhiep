@@ -14,3 +14,37 @@
 .status-pill.success { background: #e9f7ed; color: #166534; }
 .status-pill.danger { background: #fbe9e9; color: #991b1b; }
 @media (max-width: 720px) { .data-row { align-items: flex-start; flex-direction: column; } .data-row-meta { justify-items: start; text-align: left; } }
+
+/* =========================================================
+ * PRODUCTION 3D - TASK LIFECYCLE
+ * ========================================================= */
+.hidden { display: none !important; }
+.hidden-upload-frame { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.modal-large { width: min(920px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow: auto; }
+.task-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.task-form-grid label, .task-form-grid .field-full { min-width: 0; }
+.task-form-grid label > span { display: block; margin-bottom: 6px; font-weight: 700; color: var(--text-strong); }
+.task-form-grid input, .task-form-grid select, .task-form-grid textarea,
+.inline-form input, .inline-form select { width: 100%; box-sizing: border-box; border: 1px solid var(--border); border-radius: 10px; background: #fff; padding: 11px 12px; color: var(--text); font: inherit; }
+.task-form-grid textarea { resize: vertical; }
+.field-full { grid-column: 1 / -1; }
+.checkbox-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; border: 1px solid var(--border); border-radius: 12px; padding: 12px; }
+.check-row { display: flex !important; align-items: center; gap: 8px; font-weight: 500 !important; }
+.check-row input { width: auto !important; }
+.task-row-button { width: 100%; text-align: left; border: 0; font: inherit; cursor: pointer; }
+.task-row-button:hover { background: #f3f9fd; }
+.progress-track { height: 8px; border-radius: 999px; background: #e7eef3; overflow: hidden; margin-top: 9px; }
+.progress-track span { display: block; height: 100%; background: var(--primary); border-radius: inherit; }
+.detail-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.detail-item { border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: #f8fbfd; }
+.detail-item span { display: block; color: var(--muted); font-size: .86rem; margin-bottom: 5px; }
+.detail-section { margin-top: 18px; border-top: 1px solid var(--border); padding-top: 16px; }
+.detail-section h3 { margin: 0 0 8px; }
+.inline-form { display: grid; grid-template-columns: 2fr 1fr auto; gap: 10px; align-items: end; }
+.primary-link { display: inline-flex; margin-top: 8px; color: var(--primary); font-weight: 700; }
+.status-pill.warning { background: #fff5d8; color: #8a5900; }
+@media (max-width: 760px) {
+  .task-form-grid, .detail-grid, .checkbox-grid, .inline-form { grid-template-columns: 1fr; }
+  .field-full { grid-column: auto; }
+  .modal-large { width: calc(100vw - 16px); max-height: calc(100vh - 16px); }
+}
