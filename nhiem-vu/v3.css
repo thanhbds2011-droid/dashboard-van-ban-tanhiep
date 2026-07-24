@@ -83,3 +83,11 @@ body.modal-open{overflow:hidden}
   .kpi-modal-backdrop{position:absolute!important;inset:0!important;background:#fff!important;padding:0!important}.kpi-modal{width:100%!important;max-width:none!important;box-shadow:none!important;border:0!important}.kpi-modal-head,.kpi-modal-foot,.kpi-preview-tabs,.kpi-no-print{display:none!important}.kpi-modal-body{padding:0!important}.kpi-report-print{position:absolute;left:0;top:0;width:100%;font-size:11pt;color:#000}.kpi-report-table{font-size:9pt}.kpi-report-table th,.kpi-report-table td{border:1px solid #000!important}.kpi-report .signature-grid{page-break-inside:avoid}
   @page{size:A4 portrait;margin:12mm}
 }
+
+/* Production Final - trạng thái lỗi xác thực */
+.auth-error-card { max-width: 760px; margin: 0 auto; }
+.page-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.primary-button, .secondary-button { border: 1px solid #0f5f8f; border-radius: 10px; padding: 10px 16px; font: inherit; font-weight: 700; cursor: pointer; }
+.primary-button { background: #0f5f8f; color: #fff; }
+.secondary-button { background: #fff; color: #0f5f8f; }
+.helper-text { margin-top: 14px; color: #526779; }
