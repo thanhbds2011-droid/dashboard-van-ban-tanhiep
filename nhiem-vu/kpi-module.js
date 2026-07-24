@@ -1,4 +1,4 @@
-import { auth, db } from './firebase-config.js?v=20260724.Prod2B';
+import { auth, db } from './firebase-config.js?v=20260724.Prod2c';
 import {
   addDoc, collection, deleteDoc, doc, getDoc, getDocs, onSnapshot, query,
   serverTimestamp, setDoc, updateDoc, where
@@ -163,7 +163,7 @@ async function loadAll() {
     message('Dữ liệu đã được cập nhật.', 'ok');
   } catch (error) {
     console.error(error);
-    message(error?.code === 'permission-denied' ? 'Firestore Rules chưa cho phép đọc dữ liệu KPI. Hãy Publish file firestore.rules Production 2B.' : (error.message || 'Không tải được dữ liệu KPI.'));
+    message(error?.code === 'permission-denied' ? 'Firestore Rules chưa cho phép đọc dữ liệu KPI. Hãy Publish file firestore.rules Production 2c.' : (error.message || 'Không tải được dữ liệu KPI.'));
   }
 }
 
@@ -469,7 +469,7 @@ window.KPI2C = {
   })
 };
 
-window.KPI2B = window.KPI2C;
+window.KPI2c = window.KPI2C;
 
 mount();
 window.addEventListener('kpi:open',()=>{el('kpiSection')?.classList.remove('hidden');loadAll();});
