@@ -4,48 +4,46 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0f5f8f">
-
-  <title>Nhiệm vụ và đánh giá KPI – Production 3B.1</title>
-
-  <link rel="stylesheet" href="./styles.css?v=20260724.3B1">
-  <link rel="stylesheet" href="./v3.css?v=20260724.3B1">
+  <meta name="description" content="Nhiệm vụ và đánh giá KPI - Production 3B.2">
+  <title>Nhiệm vụ và đánh giá KPI – Production 3B.2</title>
+  <link rel="icon" type="image/png" href="./icons/favicon-64.png">
+  <link rel="stylesheet" href="./v3.css?v=20260724.3B2">
 </head>
 <body class="v3-body">
   <header class="v3-header">
     <div class="v3-header-inner">
-      <div>
-        <h1>Nhiệm vụ và đánh giá KPI</h1>
-        <p>Production 3B.1 – Firebase Core và Router module</p>
-      </div>
-
-      <div class="v3-user-area">
-        <div id="currentUserInfo" class="v3-user-info">
-          Đang tải tài khoản…
+      <div class="brand-block">
+        <div class="brand-mark" aria-hidden="true">📋</div>
+        <div>
+          <h1>Nhiệm vụ và đánh giá KPI</h1>
+          <p>Trung tâm Bảo trợ xã hội Tân Hiệp • Production 3B.2</p>
         </div>
-
-        <button id="btnLogout" type="button">
-          Đăng xuất
-        </button>
+      </div>
+      <div class="v3-user-area">
+        <div id="currentUserAvatar" class="user-avatar" aria-hidden="true">ND</div>
+        <div id="currentUserInfo" class="v3-user-info">Đang tải tài khoản…</div>
+        <button id="btnLogout" type="button" class="header-button">Đăng xuất</button>
+        <button id="btnMobileMenu" type="button" class="mobile-menu-button" aria-label="Mở menu" aria-expanded="false">☰</button>
       </div>
     </div>
   </header>
 
-  <nav class="v3-navigation" aria-label="Điều hướng chính">
-    <a href="#/dashboard" data-route="#/dashboard">Trang chủ</a>
-    <a href="#/tasks" data-route="#/tasks">Nhiệm vụ</a>
-    <a href="#/standard-tasks" data-route="#/standard-tasks">Danh mục công việc</a>
-    <a href="#/kpi" data-route="#/kpi">Kế hoạch KPI</a>
-    <a href="#/kpi/evaluations" data-route="#/kpi/evaluations">Đánh giá</a>
-    <a href="#/reports" data-route="#/reports">Báo cáo</a>
-    <a id="adminMenuItem" href="#/admin" data-route="#/admin" hidden>Quản trị</a>
+  <nav id="v3Navigation" class="v3-navigation" aria-label="Điều hướng chính">
+    <a href="#/dashboard" data-route="#/dashboard"><span>🏠</span>Trang chủ</a>
+    <a href="#/tasks" data-route="#/tasks"><span>📋</span>Nhiệm vụ</a>
+    <a href="#/standard-tasks" data-route="#/standard-tasks"><span>📁</span>Danh mục công việc</a>
+    <a href="#/kpi" data-route="#/kpi"><span>📊</span>Kế hoạch KPI</a>
+    <a href="#/kpi/evaluations" data-route="#/kpi/evaluations"><span>🧭</span>Đánh giá</a>
+    <a href="#/reports" data-route="#/reports"><span>📄</span>Báo cáo</a>
+    <a id="adminMenuItem" href="#/admin" data-route="#/admin" hidden><span>⚙️</span>Quản trị</a>
   </nav>
+  <div id="navOverlay" class="nav-overlay" hidden></div>
 
   <main id="appOutlet" class="v3-main" aria-live="polite">
-    <section class="page-card">
-      Đang khởi động Production 3B.1…
-    </section>
+    <section class="page-card"><div class="skeleton skeleton-title"></div><div class="skeleton skeleton-line"></div></section>
   </main>
 
-  <script type="module" src="./app-v3.js?v=20260724.3B1"></script>
+  <footer class="v3-footer">Production 3B.2 • Khung giao diện module • Chưa ghi dữ liệu nghiệp vụ mới</footer>
+  <script type="module" src="./app-v3.js?v=20260724.3B2"></script>
 </body>
 </html>
