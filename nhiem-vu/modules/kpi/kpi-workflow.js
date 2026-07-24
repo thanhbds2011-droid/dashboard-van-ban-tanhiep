@@ -41,7 +41,7 @@ function mount() {
   section.innerHTML = `
     <div class="kpi-header">
       <div>
-        <div><span class="kpi-pilot">PRODUCTION 2C · VẬN HÀNH THỬ</span></div>
+        <div><span class="kpi-pilot">PRODUCTION FINAL · VẬN HÀNH</span></div>
         <h2>Đánh giá nhiệm vụ và chấm điểm KPI</h2>
         <p>Quản lý kế hoạch quý, tự đánh giá, xác nhận điểm, Mẫu 01 và báo cáo trình ký.</p>
         <div id="kpiPeriodLine" class="kpi-period-line"></div>
@@ -77,10 +77,10 @@ function mount() {
       </section>
     </div>
     <section id="kpiAdminBox" class="kpi-card kpi-admin-danger kpi-hidden kpi-no-print">
-      <h3>Quản trị kỳ thí điểm</h3>
+      <h3>Quản trị kỳ đánh giá</h3>
       <p>Chỉ xóa dữ liệu phát sinh theo kỳ sau khi báo cáo giấy đã được in, ký và lưu. Không xóa tài khoản, phòng/khu hoặc danh mục chuẩn.</p>
       <div class="kpi-actions">
-        <button id="kpiInitPilot" class="kpi-button secondary" type="button">Tạo kỳ đánh giá</button>
+        <button id="kpiInitPilot" class="kpi-button secondary" type="button">Tạo kỳ mới</button>
         <button id="kpiCompletePeriod" class="kpi-button secondary" type="button">Kết thúc kỳ</button>
         <button id="kpiDeletePeriod" class="kpi-button danger" type="button">Xóa dữ liệu kỳ</button>
       </div>
@@ -118,12 +118,84 @@ function wireEvents() {
   el('kpiOpenReport')?.addEventListener('click', openReport);
   el('kpiCommonButton')?.addEventListener('click', openCommonCriteria);
   el('kpiLockPlan')?.addEventListener('click', lockDepartmentPlan);
-  el('kpiPeriodAdmin')?.addEventListener('click', () => el('kpiAdminBox')?.classList.toggle('kpi-hidden'));
+  el('kpiPeriodAdmin')?.addEventListener('click', openPeriodManager);
   el('kpiInitPilot')?.addEventListener('click', initializePilotPeriod);
   el('kpiCompletePeriod')?.addEventListener('click', completePeriod);
   el('kpiDeletePeriod')?.addEventListener('click', deletePeriodData);
   el('kpiTaskList')?.addEventListener('click', taskAction);
   el('kpiReviewList')?.addEventListener('click', reviewAction);
+}
+
+
+function periodStatusLabel(period) {
+  if (period?.active === true) return 'Đang hoạt động';
+  if (period?.status === 'COMPLETED') return 'Đã kết thúc';
+  if (period?.status === 'DRAFT') return 'Bản nháp';
+  return period?.status || 'Không xác định';
+}
+
+function openPeriodManager() {
+  if (!activeRole('ADMIN')) return;
+  const rows = [...KpiWorkflowState.periods]
+    .sort((a,b) => clean(b.startDate).localeCompare(clean(a.startDate)))
+    .map(period => `<tr>
+      <td><strong>${esc(period.id)}</strong><br><span class="kpi-small">${esc(period.name || '')}</span></td>
+      <td>${dateVi(period.startDate)}<br>${dateVi(period.endDate)}</td>
+      <td><span class="kpi-status">${esc(periodStatusLabel(period))}</span></td>
+      <td><div class="kpi-actions">
+        <button class="kpi-button secondary" type="button" data-period-edit="${esc(period.id)}">Sửa</button>
+        ${period.active === true ? `<button class="kpi-button danger" type="button" data-period-complete="${esc(period.id)}">Kết thúc</button>` : period.status !== 'COMPLETED' ? `<button class="kpi-button" type="button" data-period-activate="${esc(period.id)}">Kích hoạt</button>` : ''}
+      </div></td>
+    </tr>`).join('');
+  const root = modal('Quản lý kỳ đánh giá', `
+    <div class="period-manager-head"><div><p class="kpi-small">Chỉ một kỳ được hoạt động tại một thời điểm.</p></div><button id="periodCreateNew" class="kpi-button" type="button">＋ Tạo kỳ mới</button></div>
+    ${rows ? `<div class="kpi-table-wrap"><table class="kpi-table period-table"><thead><tr><th>Kỳ</th><th>Thời gian</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<div class="kpi-empty">Chưa có kỳ đánh giá.</div>'}
+  `);
+  root.querySelector('#periodCreateNew')?.addEventListener('click', () => { closeModal(); initializePilotPeriod(); });
+  root.addEventListener('click', async event => {
+    const edit = event.target.closest('[data-period-edit]');
+    const activate = event.target.closest('[data-period-activate]');
+    const complete = event.target.closest('[data-period-complete]');
+    if (edit) return openEditPeriod(edit.dataset.periodEdit);
+    if (activate) return activatePeriod(activate.dataset.periodActivate);
+    if (complete) return completePeriodById(complete.dataset.periodComplete);
+  });
+}
+
+function openEditPeriod(periodId) {
+  const period = KpiWorkflowState.periods.find(item => item.id === periodId);
+  if (!period || !activeRole('ADMIN')) return;
+  modal('Sửa kỳ đánh giá', `<form class="kpi-form-grid">
+    <div class="kpi-field"><label>Mã kỳ</label><input value="${esc(period.id)}" disabled></div>
+    <div class="kpi-field"><label>Tên kỳ</label><input id="editPeriodName" value="${esc(period.name || '')}" required></div>
+    <div class="kpi-field"><label>Từ ngày</label><input id="editPeriodStart" type="date" value="${esc(period.startDate || '')}" required></div>
+    <div class="kpi-field"><label>Đến ngày</label><input id="editPeriodEnd" type="date" value="${esc(period.endDate || '')}" required></div>
+  </form>`, '<button class="kpi-button secondary" data-kpi-close type="button">Hủy</button><button id="savePeriodEdit" class="kpi-button" type="button">Lưu thay đổi</button>');
+  el('savePeriodEdit')?.addEventListener('click', async () => {
+    const name = clean(el('editPeriodName').value);
+    const startDate = clean(el('editPeriodStart').value);
+    const endDate = clean(el('editPeriodEnd').value);
+    if (!name || !startDate || !endDate || startDate > endDate) return alert('Thông tin kỳ chưa hợp lệ.');
+    await updateDoc(doc(db,'evaluationPeriods',periodId), { name, startDate, endDate, updatedAt:serverTimestamp(), updatedByUserId:KpiWorkflowState.user.uid });
+    await audit('UPDATE_PERIOD',{periodId,startDate,endDate});
+    closeModal(); await loadAll(); openPeriodManager();
+  });
+}
+
+async function activatePeriod(periodId) {
+  if (!activeRole('ADMIN')) return;
+  if (KpiWorkflowState.periods.some(period => period.active === true && period.id !== periodId)) return alert('Đang có một kỳ hoạt động. Hãy kết thúc kỳ đó trước.');
+  await updateDoc(doc(db,'evaluationPeriods',periodId), { active:true, status:'ACTIVE', activatedAt:serverTimestamp(), activatedByUserId:KpiWorkflowState.user.uid, updatedAt:serverTimestamp() });
+  await audit('ACTIVATE_PERIOD',{periodId});
+  closeModal(); await loadAll(); openPeriodManager();
+}
+
+async function completePeriodById(periodId) {
+  if (!activeRole('ADMIN')) return;
+  if (!confirm(`Kết thúc kỳ ${periodId}? Sau khi kết thúc, nhiệm vụ mới sẽ không được gắn vào kỳ này.`)) return;
+  await updateDoc(doc(db,'evaluationPeriods',periodId), { active:false, status:'COMPLETED', completedAt:serverTimestamp(), completedByUserId:KpiWorkflowState.user.uid, updatedAt:serverTimestamp() });
+  await audit('COMPLETE_PERIOD',{periodId});
+  closeModal(); await loadAll(); openPeriodManager();
 }
 
 async function readProfile(uid) {
