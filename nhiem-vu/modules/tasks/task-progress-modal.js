@@ -7,9 +7,7 @@ import { validateProgressInput, cleanText } from "./task-form-validator.js";
 
 function mayUpdate(task) {
   const user = UserContext.requireUser();
-  return Permissions.isAdmin() || Permissions.isDirector() ||
-    (Permissions.isDepartmentLeader() && task.primaryDepartmentId === user.departmentId) ||
-    task.ownerUserId === user.uid || task.createdByUserId === user.uid;
+  return Boolean(task && task.ownerUserId === user.uid && task.active !== false);
 }
 
 export async function openTaskProgressModal(task, { onSaved }) {
