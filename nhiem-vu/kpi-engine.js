@@ -1,5 +1,5 @@
 export const KPI2B = Object.freeze({
-  VERSION: '2.0.0',
+  VERSION: 'FINAL-2026.07',
   PILOT_PERIOD_ID: '2026-Q3',
   PILOT_PERIOD_NAME: 'Quý III năm 2026',
   PILOT_START: '2026-07-01',
@@ -51,13 +51,50 @@ export function calculateTaskScore(baseScore, coefficient, progressRate, resultR
 }
 
 export function calculateKpiSummary(tasks, commonScore) {
-  const recognized = (tasks || []).filter((item) => item.recognized === true);
-  const plan = recognized.filter((item) => item.includedInA === true);
-  const A = round2(plan.reduce((sum, item) => sum + Number(item.maximumConvertedScore || 0), 0));
+  const all = (tasks || []).filter((item) => item.active !== false && item.status !== 'HUY' && item.status !== 'CANCELLED');
+  const plan = all.filter((item) => item.includedInA === true && item.planApprovalStatus === 'APPROVED');
+  const recognized = all.filter((item) => item.recognized === true);
+  const A = round2(plan.reduce((sum, item) => sum + Number(item.maximumConvertedScore || item.maximumScore || 0), 0));
   const B = round2(recognized.reduce((sum, item) => sum + Number(item.confirmedActualScore || 0), 0));
   const kpi70 = A > 0 ? round2(Math.min((B / A) * 70, 70)) : 0;
   const common30 = round2(Math.max(0, Math.min(Number(commonScore || 0), 30)));
   return { A, B, kpi70, common30, total100: round2(Math.min(kpi70 + common30, 100)) };
+}
+
+export function parseDate(value) {
+  if (!value) return null;
+  if (typeof value.toDate === 'function') return value.toDate();
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+export function countWorkingDaysLate(deadlineValue, completedValue, holidayKeys = []) {
+  const deadline = parseDate(deadlineValue);
+  const completed = parseDate(completedValue);
+  if (!deadline || !completed || completed <= deadline) return 0;
+  const holidays = new Set((holidayKeys || []).map(String));
+  let count = 0;
+  const cursor = new Date(deadline);
+  cursor.setHours(12, 0, 0, 0);
+  const end = new Date(completed);
+  end.setHours(12, 0, 0, 0);
+  cursor.setDate(cursor.getDate() + 1);
+  while (cursor <= end) {
+    const day = cursor.getDay();
+    const key = cursor.toISOString().slice(0, 10);
+    if (day !== 0 && day !== 6 && !holidays.has(key)) count += 1;
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return count;
+}
+
+export function progressRateFromDates(deadlineValue, completedValue, isCompleted = true, holidayKeys = []) {
+  if (!isCompleted) return 0;
+  const late = countWorkingDaysLate(deadlineValue, completedValue, holidayKeys);
+  if (late <= 0) return 100;
+  if (late <= 3) return 80;
+  if (late <= 5) return 60;
+  return 0;
 }
 
 export function proposedRating(total) {
