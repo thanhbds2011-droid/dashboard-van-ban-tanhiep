@@ -13,7 +13,7 @@ export async function renderTasksView(outlet) {
     if (sequence !== renderSequence) return;
     const summary = TaskReadService.summarize(tasks);
     outlet.innerHTML = `<section class="page-card">
-      <div class="page-header"><div><span class="page-eyebrow">PRODUCTION 3D • TASK LIFECYCLE</span><h2>Quản lý nhiệm vụ</h2><p>Ghi nhận, phân công, tiếp nhận, cập nhật tiến độ, minh chứng và hoàn thành.</p></div>${Permissions.canRegisterTask()?'<button id="btnCreateTask" class="primary-button" type="button">＋ Ghi nhận nhiệm vụ</button>':""}</div>
+      <div class="page-header"><div><span class="page-eyebrow">PRODUCTION FINAL • THEO DÕI NHIỆM VỤ</span><h2>Nhiệm vụ của tôi</h2><p>Theo dõi đầu việc kế hoạch đã được duyệt và nhiệm vụ đột xuất được giao.</p></div>${Permissions.canCreateUnexpectedTask()?'<button id="btnCreateTask" class="primary-button" type="button">＋ Giao nhiệm vụ đột xuất</button>':""}</div>
       <div class="summary-grid compact-grid">${card("Tất cả",summary.total)}${card("Đang xử lý",summary.inProgress)}${card("Chờ phân công",summary.waitingAssignment)}${card("Trễ hạn",summary.overdue)}${card("Hoàn thành",summary.completed)}</div>
       <div class="toolbar"><label class="field-grow"><span>Tìm kiếm</span><input id="taskSearch" type="search" placeholder="Tìm mã, tiêu đề, người thực hiện…"></label><label><span>Trạng thái</span><select id="taskStatusFilter"><option value="ALL">Tất cả trạng thái</option><option value="IN_PROGRESS">Đang xử lý</option><option value="WAITING">Chờ phân công</option><option value="OVERDUE">Trễ hạn</option><option value="COMPLETED">Hoàn thành</option></select></label><button id="refreshTasks" class="secondary-button" type="button">↻ Làm mới</button></div>
       <div id="taskListContainer">${renderTaskList(tasks)}</div>
@@ -58,7 +58,7 @@ function bindRows(tasks, rerender) {
 }
 
 function renderTaskList(tasks) {
-  if (!tasks.length) return `<div class="empty-state"><div class="empty-icon">📋</div><strong>Không có nhiệm vụ trong phạm vi hiển thị</strong><p>Bấm “Ghi nhận nhiệm vụ” để tạo đầu việc mới.</p></div>`;
+  if (!tasks.length) return `<div class="empty-state"><div class="empty-icon">📋</div><strong>Không có nhiệm vụ trong phạm vi hiển thị</strong><p>Các đầu việc được duyệt hoặc nhiệm vụ đột xuất sẽ xuất hiện tại đây.</p></div>`;
   return `<div class="data-list">${tasks.slice(0,300).map(task => `<button type="button" class="data-row task-row-button" data-task-id="${escapeHtml(task.id)}"><div class="data-row-main"><strong>${escapeHtml(task.title || task.taskCode || "Nhiệm vụ không có tiêu đề")}</strong><small>${escapeHtml(task.taskCode || task.id)} • ${escapeHtml(task.primaryDepartmentId || "-")} • ${escapeHtml(task.ownerName || "Chưa phân công")}</small><div class="progress-track"><span style="width:${Math.min(100,Math.max(0,Number(task.progress || 0)))}%"></span></div></div><div class="data-row-meta"><span class="status-pill ${task._overdue?"danger":task._completed?"success":["CHO_PHAN_CONG","PENDING_ASSIGNMENT"].includes(task._status)?"warning":"neutral"}">${task._overdue?"Trễ hạn":task._completed?"Hoàn thành":["CHO_PHAN_CONG","PENDING_ASSIGNMENT"].includes(task._status)?"Chờ phân công":"Đang xử lý"}</span><small>${formatDate(task._deadline)}</small><strong>${Number(task.progress || 0)}%</strong></div></button>`).join("")}</div>`;
 }
 function formatDate(date){return date instanceof Date ? new Intl.DateTimeFormat("vi-VN").format(date) : "Không có hạn";}
