@@ -18,6 +18,16 @@ function taskCode() {
   return `NV-${stamp}-${time}-${Math.random().toString(36).slice(2,5).toUpperCase()}`;
 }
 
+
+async function getActivePeriod() {
+  const snap = await FirebaseService.getDocs(FirebaseService.query(
+    FirebaseService.collection(FirebaseService.db, "evaluationPeriods"),
+    FirebaseService.where("active", "==", true)
+  ));
+  const docs = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => String(p.status || "").toUpperCase() !== "DELETED");
+  return docs[0] || null;
+}
+
 function taskRef(taskId) {
   return FirebaseService.doc(FirebaseService.db, "tasks", taskId);
 }
@@ -34,6 +44,7 @@ function snapshotTask(task) {
 export const TaskWriteService = Object.freeze({
   async create(data) {
     const user = UserContext.requireUser();
+    const activePeriod = await getActivePeriod();
     const reference = FirebaseService.doc(FirebaseService.collection(FirebaseService.db, "tasks"));
     const code = taskCode();
     const ownerUserId = data.ownerUserId || "";
@@ -41,7 +52,10 @@ export const TaskWriteService = Object.freeze({
     const visibleDepartments = [...new Set([data.primaryDepartmentId, ...supportIds])];
     const visibleUsers = [...new Set([ownerUserId].filter(Boolean))];
     const isStaffSelf = Permissions.isStaff();
-    const entryMode = isStaffSelf ? "SELF_REGISTERED" : (Permissions.isDirector() || Permissions.isAdmin() ? "DIRECT_ASSIGNED" : "DEPARTMENT_CREATED");
+    const isSelfRegistration = Boolean(ownerUserId && ownerUserId === user.uid);
+    const entryMode = isStaffSelf || isSelfRegistration ? "SELF_RECORDED" : (Permissions.isDirector() || Permissions.isAdmin() ? "DIRECT_ASSIGNED" : "DEPARTMENT_ASSIGNED");
+    const isUnexpected = data.workType === "DOT_XUAT" || data.priority === "DOT_XUAT";
+    const needsApproval = isStaffSelf || isSelfRegistration;
     const assignmentStatus = ownerUserId ? "DA_PHAN_CONG" : "CHO_PHAN_CONG";
     const status = ownerUserId ? "MOI_TIEP_NHAN" : "CHO_PHAN_CONG";
 
@@ -83,9 +97,14 @@ export const TaskWriteService = Object.freeze({
       maximumConvertedScore: Number(data.maximumConvertedScore || 0),
       mandatoryEvidence: data.mandatoryEvidence || "",
       confirmer: data.confirmer || "",
-      scoringVersion: "PRODUCTION_3D",
-      planApprovalStatus: isStaffSelf ? "PENDING_APPROVAL" : "APPROVED",
-      includedInA: false,
+      scoringVersion: "PRODUCTION_COMPLETE_V1",
+      periodId: activePeriod?.id || "",
+      periodName: activePeriod?.name || "",
+      planType: isUnexpected ? "DOT_XUAT" : "KE_HOACH",
+      planApprovalStatus: needsApproval ? "PENDING_APPROVAL" : "APPROVED",
+      includedInA: Boolean(activePeriod && !isUnexpected && !needsApproval && data.standardTaskCode),
+      scoringEnabled: Boolean(activePeriod && data.standardTaskCode),
+      scoringStatus: "NOT_ASSESSED",
       result: "",
       resultSummary: "",
       difficulties: "",
@@ -113,7 +132,7 @@ export const TaskWriteService = Object.freeze({
       taskCode: code,
       action: "TASK_CREATED",
       after: { ...payload, createdAt: null, updatedAt: null, assignedAt: null },
-      note: isStaffSelf ? "Cá nhân đăng ký thực hiện, chờ duyệt." : "Tạo nhiệm vụ mới."
+      note: needsApproval ? "Cá nhân đăng ký thực hiện, chờ duyệt." : (isUnexpected ? "Giao nhiệm vụ đột xuất." : "Tạo/giao nhiệm vụ mới.")
     }));
     await batch.commit();
     return { id: reference.id, ...payload };
@@ -147,6 +166,7 @@ export const TaskWriteService = Object.freeze({
 
   async accept(task) {
     const user = UserContext.requireUser();
+    if (task.ownerUserId !== user.uid) throw new Error("Chỉ người được giao mới được tiếp nhận nhiệm vụ.");
     const payload = {
       assignmentStatus: "DA_TIEP_NHAN",
       status: "DANG_XU_LY",
@@ -165,6 +185,7 @@ export const TaskWriteService = Object.freeze({
 
   async updateProgress(task, changes) {
     const user = UserContext.requireUser();
+    if (task.ownerUserId !== user.uid) throw new Error("Chỉ người thực hiện mới được cập nhật tiến độ và hoàn thành nhiệm vụ.");
     const payload = {
       status: changes.status,
       progress: Number(changes.progress),
