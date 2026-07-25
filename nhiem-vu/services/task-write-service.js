@@ -166,6 +166,7 @@ export const TaskWriteService = Object.freeze({
 
   async accept(task) {
     const user = UserContext.requireUser();
+    if (task.ownerUserId !== user.uid) throw new Error("Chỉ người được giao mới được tiếp nhận nhiệm vụ.");
     const payload = {
       assignmentStatus: "DA_TIEP_NHAN",
       status: "DANG_XU_LY",
@@ -184,6 +185,7 @@ export const TaskWriteService = Object.freeze({
 
   async updateProgress(task, changes) {
     const user = UserContext.requireUser();
+    if (task.ownerUserId !== user.uid) throw new Error("Chỉ người thực hiện mới được cập nhật tiến độ và hoàn thành nhiệm vụ.");
     const payload = {
       status: changes.status,
       progress: Number(changes.progress),
