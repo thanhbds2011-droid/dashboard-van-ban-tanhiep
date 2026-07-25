@@ -21,7 +21,7 @@ export async function renderStandardTasksView(outlet) {
       <div class="summary-grid compact-grid">${metric("Tổng đầu việc",summary.total)}${metric("Đã đăng ký",registrations.filter(r=>r.status!=="REJECTED").length)}${metric("Chờ duyệt",registrations.filter(r=>r.status==="PENDING").length)}${metric("Đã duyệt",registrations.filter(r=>r.status==="APPROVED").length)}</div>
       <div class="toolbar"><label class="field-grow"><span>Tìm kiếm</span><input id="standardTaskSearch" type="search" placeholder="Tìm mã, tên, sản phẩm đầu ra…"></label></div>
       <div id="standardTaskListContainer">${renderList(regularItems, registeredMap, staffMode, Boolean(period))}</div>
-      ${staffMode ? `<div class="registration-sticky"><div><strong>Đã chọn: <span id="registrationSelectedCount">0</span> đầu việc</strong><small>Chỉ các đầu việc chưa đăng ký mới được chọn.</small></div><button id="btnRegisterSelected" class="primary-button" type="button" ${period ? "" : "disabled"}>Đăng ký kế hoạch</button></div>` : ""}
+      ${staffMode ? `<div class="registration-sticky"><div><strong>Đã chọn: <span id="registrationSelectedCount">0</span> đầu việc · Tổng điểm: <span id="registrationSelectedScore">0</span></strong><small>Điểm = Điểm chuẩn × Hệ số khó. Đầu việc đã hủy/trả lại có thể đăng ký lại.</small></div><button id="btnRegisterSelected" class="primary-button" type="button" ${period ? "" : "disabled"}>Đăng ký kế hoạch</button></div>` : ""}
     </section>`;
 
     let visible = regularItems;
@@ -40,6 +40,9 @@ export async function renderStandardTasksView(outlet) {
       const count = document.querySelectorAll("[data-registration-check]:checked").length;
       const target = document.getElementById("registrationSelectedCount");
       if (target) target.textContent = String(count);
+      const ids=[...document.querySelectorAll("[data-registration-check]:checked")].map(x=>x.value);
+      const score=regularItems.filter(x=>ids.includes(String(x.id||x.code))).reduce((a,x)=>a+Number(x.maximumConvertedScore||x.baseScore||0),0);
+      const scoreTarget=document.getElementById("registrationSelectedScore"); if(scoreTarget) scoreTarget.textContent=formatNumber(score);
     };
     search?.addEventListener("input", apply);
     document.getElementById("btnStandardRefresh")?.addEventListener("click", () => window.dispatchEvent(new HashChangeEvent("hashchange")));
