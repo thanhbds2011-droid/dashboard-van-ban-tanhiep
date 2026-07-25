@@ -65,7 +65,7 @@ export const Permissions = Object.freeze({
   },
 
   canApproveLeaderRegistrations() {
-    return this.isAdmin() || this.isDirector();
+    return this.isAdmin() || this.isDirector() || this.isDepartmentHead();
   },
 
   canApprovePlan() {
@@ -73,6 +73,10 @@ export const Permissions = Object.freeze({
   },
 
   canLockDepartmentPlan() {
+    return this.isAdmin() || this.isDepartmentHead();
+  },
+
+  canManageTestData() {
     return this.isAdmin() || this.isDepartmentHead();
   },
 
