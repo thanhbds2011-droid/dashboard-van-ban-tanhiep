@@ -41,9 +41,12 @@ const isDepartmentHead = () => isLeader() && !isDeputyLeader();
 const reviewerEmailMatches = (registration) => !clean(registration?.reviewerEmail) || clean(registration.reviewerEmail).toLowerCase() === clean(KpiWorkflowState.profile?.email).toLowerCase();
 const canApproveRegistration = (registration) => {
   if (!registration || registration.status !== 'PENDING') return false;
-  if (registration.userId === KpiWorkflowState.user.uid) return false;
   if (activeRole('ADMIN')) return true;
-  if (registration.userRole === 'DEPARTMENT_LEADER') return activeRole('DIRECTOR') && reviewerEmailMatches(registration);
+  if (registration.userRole === 'DEPARTMENT_LEADER') {
+    const deputy=/ph[oó]\s*(trưởng|phòng|khu)/i.test(clean(registration.userPosition));
+    if(deputy) return isDepartmentHead() && sameDepartment(registration) && registration.userId!==KpiWorkflowState.user.uid;
+    return activeRole('DIRECTOR') && reviewerEmailMatches(registration);
+  }
   return isDepartmentHead() && sameDepartment(registration);
 };
 const sameDepartment = (data) => normalizeDepartment(data?.departmentId || data?.primaryDepartmentId) === normalizeDepartment(KpiWorkflowState.profile?.departmentId);
@@ -81,16 +84,13 @@ function mount() {
       <button id="kpiPeriodAdmin" class="kpi-button secondary" type="button">⚙️ Quản lý kỳ</button>
       <span class="kpi-small">Kế hoạch chỉ hình thành A sau khi được duyệt. Trưởng phòng chủ động khóa, hệ thống không tự khóa theo ngày.</span>
     </div>
-    <div class="kpi-grid" data-mode-grid>
+    <div class="kpi-grid kpi-grid-single" data-mode-grid>
       <section class="kpi-card">
-        <h3>Nhiệm vụ trong kỳ</h3>
-        <p class="kpi-small">Nhiệm vụ thường xuyên được duyệt vào A; nhiệm vụ đột xuất hợp lệ cộng vào B nhưng không mặc nhiên làm tăng A.</p>
+        <h3 id="kpiMainCardTitle">Nhiệm vụ trong kỳ</h3>
+        <p id="kpiMainCardHint" class="kpi-small">Tổng hợp theo từng người; bấm Chi tiết để xem đầu việc, hệ số và duyệt.</p>
         <div id="kpiTaskList"></div>
       </section>
-      <section class="kpi-card">
-        <h3>Chờ xử lý</h3>
-        <div id="kpiReviewList"></div>
-      </section>
+      <div id="kpiReviewList" class="kpi-hidden"></div>
     </div>
     <section id="kpiAdminBox" class="kpi-card kpi-admin-danger kpi-hidden kpi-no-print">
       <h3>Quản trị kỳ đánh giá</h3>
@@ -106,7 +106,6 @@ function mount() {
   if (mode === 'reports') {
     el('kpiCommonButton')?.classList.add('kpi-hidden');
     el('kpiLockPlan')?.classList.add('kpi-hidden');
-    section.querySelector('[data-mode-grid]')?.classList.add('kpi-hidden');
   } else if (mode === 'evaluations') {
     el('kpiLockPlan')?.classList.add('kpi-hidden');
   } else {
@@ -301,10 +300,42 @@ function render() {
   el('kpiMetric100').textContent = `${fmt(s.total100)}/100`;
   el('kpiPeriodAdmin')?.classList.toggle('kpi-hidden', !activeRole('ADMIN'));
   el('kpiLockPlan')?.classList.toggle('kpi-hidden', !(isDepartmentHead() || activeRole('ADMIN')));
-  renderTasks();
-  renderReviews();
+  if(KpiWorkflowState.mode==='plans') renderPlanDashboard();
+  else if(KpiWorkflowState.mode==='evaluations') renderEvaluationDashboard();
+  else renderReportDashboard();
 }
 
+function visiblePeople(){
+  const all=[...KpiWorkflowState.users].filter(u=>u.active===true);
+  if(globalRole()) return all;
+  if(isLeader()) return all.filter(u=>normalizeDepartment(u.departmentId)===normalizeDepartment(KpiWorkflowState.profile.departmentId));
+  return all.filter(u=>u.id===KpiWorkflowState.user.uid);
+}
+function rowsForPerson(uid){return KpiWorkflowState.tasks.filter(t=>t.ownerUserId===uid&&t.active!==false);}
+function regsForPerson(uid){return KpiWorkflowState.registrations.filter(r=>r.userId===uid&&r.active!==false);}
+function renderPlanDashboard(){
+  const target=el('kpiTaskList'); if(!target)return;
+  const people=visiblePeople().filter(u=>rowsForPerson(u.id).length||regsForPerson(u.id).length||u.id===KpiWorkflowState.user.uid);
+  if(!people.length){target.innerHTML='<div class="kpi-empty">Chưa có đăng ký hoặc nhiệm vụ trong kỳ.</div>';return;}
+  target.innerHTML=`<div class="kpi-table-wrap"><table class="kpi-table"><thead><tr><th>STT</th><th>Họ và tên</th><th>Đầu việc đăng ký</th><th>Tổng điểm</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>${people.map((u,i)=>{const regs=regsForPerson(u.id),tasks=rowsForPerson(u.id),approved=tasks.filter(t=>t.includedInA===true),score=approved.reduce((a,t)=>a+Number(t.maximumConvertedScore||0),0),pending=regs.filter(r=>r.status==='PENDING').length;return `<tr><td>${i+1}</td><td><strong>${esc(u.fullName||u.email||u.id)}</strong><br><span class="kpi-small">${esc(u.position||'')}</span></td><td>${regs.length||tasks.length}</td><td>${fmt(score)}</td><td><span class="kpi-status">${pending?`${pending} chờ duyệt`:'Đã cập nhật'}</span></td><td><button class="kpi-button secondary" data-person-detail="${esc(u.id)}">Chi tiết</button></td></tr>`;}).join('')}</tbody></table></div>`;
+  target.querySelectorAll('[data-person-detail]').forEach(b=>b.addEventListener('click',()=>openPersonPlanDetail(b.dataset.personDetail)));
+}
+function openPersonPlanDetail(uid){
+  const user=KpiWorkflowState.users.find(u=>u.id===uid)||{id:uid,fullName:'Cá nhân'};
+  const regs=regsForPerson(uid), tasks=rowsForPerson(uid), pending=regs.filter(r=>r.status==='PENDING');
+  const can=pending.some(canApproveRegistration);
+  const rows=[...regs.map(r=>({kind:'reg',...r})),...tasks.filter(t=>!regs.some(r=>r.taskId===t.id)).map(t=>({kind:'task',...t}))];
+  const root=modal(`Kế hoạch của ${user.fullName||''}`,`<div class="registration-modal-tools">${can?'<button id="regSelectAll" class="kpi-button secondary">Chọn tất cả</button><button id="regClearAll" class="kpi-button secondary">Bỏ chọn tất cả</button>':''}</div><div class="kpi-table-wrap"><table class="kpi-table"><thead><tr><th>Duyệt</th><th>Mã/Đầu việc</th><th>Điểm chuẩn</th><th>Hệ số</th><th>Điểm tối đa</th><th>Trạng thái</th></tr></thead><tbody>${rows.map(x=>`<tr><td>${x.kind==='reg'&&x.status==='PENDING'?`<input type="checkbox" data-reg-review value="${esc(x.id)}" ${canApproveRegistration(x)?'checked':'disabled'}>`:'—'}</td><td><strong>${esc(x.standardTaskCode||x.taskCode||'')}</strong><br>${esc(x.standardTaskName||x.title||'')}</td><td>${fmt(x.baseScore)}</td><td>${fmt(x.difficultyCoefficient)}</td><td>${fmt(x.maximumConvertedScore)}</td><td>${esc(x.status==='PENDING'?'Chờ duyệt':x.status==='REJECTED'?'Trả lại':x.planApprovalStatus==='APPROVED'||x.status==='APPROVED'?'Đã duyệt':x.status||'')}</td></tr>`).join('')}</tbody></table></div>`,can?'<button class="kpi-button secondary" data-kpi-close>Đóng</button><button id="regApproveSelected" class="kpi-button">Duyệt mục đã chọn</button>':'<button class="kpi-button secondary" data-kpi-close>Đóng</button>');
+  root.querySelector('#regSelectAll')?.addEventListener('click',()=>root.querySelectorAll('[data-reg-review]:not(:disabled)').forEach(x=>x.checked=true));root.querySelector('#regClearAll')?.addEventListener('click',()=>root.querySelectorAll('[data-reg-review]').forEach(x=>x.checked=false));
+  root.querySelector('#regApproveSelected')?.addEventListener('click',async()=>{const ids=[...root.querySelectorAll('[data-reg-review]:checked')].map(x=>x.value),selected=pending.filter(r=>ids.includes(r.id)),unselected=pending.filter(r=>!ids.includes(r.id));if(!selected.length&&!unselected.length)return; if(selected.length)await TaskRegistrationService.approveMany(selected,{periodEndDate:KpiWorkflowState.period?.endDate});if(unselected.length)await TaskRegistrationService.rejectMany(unselected,'Không được duyệt trong đợt xét kế hoạch này.');closeModal();await loadAll();});
+}
+function renderEvaluationDashboard(){
+  const target=el('kpiTaskList');if(!target)return;el('kpiMainCardTitle').textContent='Đánh giá nhiệm vụ đã hoàn thành';el('kpiMainCardHint').textContent='Cá nhân tự đánh giá nhiệm vụ của chính mình; cấp có thẩm quyền chỉ xác nhận điểm.';
+  const rows=KpiWorkflowState.tasks.filter(taskForCurrentUser).filter(t=>t.status==='HOAN_THANH');if(!rows.length){target.innerHTML='<div class="kpi-empty">Chưa có nhiệm vụ hoàn thành để đánh giá.</div>';return;}target.innerHTML=`<div class="kpi-table-wrap"><table class="kpi-table"><thead><tr><th>Nhiệm vụ</th><th>Người thực hiện</th><th>Điểm tối đa</th><th>Trạng thái đánh giá</th><th>Thao tác</th></tr></thead><tbody>${rows.map(t=>{const ev=evaluationFor(t.id),own=t.ownerUserId===KpiWorkflowState.user.uid;return `<tr><td><strong>${esc(t.taskCode||'')}</strong><br>${esc(t.title||'')}</td><td>${esc(t.ownerName||'')}</td><td>${fmt(t.maximumConvertedScore)}</td><td>${esc(taskStatus(t,ev))}</td><td>${own?`<button class="kpi-button" data-kpi-self="${t.id}">${ev?'Cập nhật tự đánh giá':'Tự đánh giá'}</button>`:canReviewEvaluation(ev,t)?`<button class="kpi-button" data-kpi-review="${ev?.id||''}">Xác nhận</button>`:'Chỉ xem'}</td></tr>`;}).join('')}</tbody></table></div>`;target.addEventListener('click',taskAction);target.addEventListener('click',reviewAction);
+}
+function renderReportDashboard(){
+  const target=el('kpiTaskList');if(!target)return;el('kpiMainCardTitle').textContent='Báo cáo và tổng hợp KPI';el('kpiMainCardHint').textContent='Xem báo cáo cá nhân; Trưởng phòng/ADMIN có thể tổng hợp theo Phòng/Khu.';const s=summary();target.innerHTML=`<div class="kpi-metrics"><div class="kpi-metric"><span>A · Kế hoạch</span><strong>${fmt(s.A)}</strong></div><div class="kpi-metric"><span>B · Thực tế</span><strong>${fmt(s.B)}</strong></div><div class="kpi-metric"><span>KPI công việc</span><strong>${fmt(s.kpi70)}/70</strong></div><div class="kpi-metric"><span>Tiêu chí chung</span><strong>${fmt(s.common30)}/30</strong></div><div class="kpi-metric"><span>Tổng điểm</span><strong>${fmt(s.total100)}/100</strong></div></div><div class="kpi-actions" style="margin-top:16px"><button id="reportPersonal" class="kpi-button">Xem báo cáo cá nhân</button>${isLeader()||globalRole()?'<button id="reportDepartment" class="kpi-button secondary">Tổng hợp Phòng/Khu</button>':''}</div>`;el('reportPersonal')?.addEventListener('click',openReport);el('reportDepartment')?.addEventListener('click',()=>alert('Bảng tổng hợp Phòng/Khu dùng dữ liệu theo từng cá nhân trong kỳ; chức năng in tổng hợp sẽ được kiểm thử trên dữ liệu thật.'));
+}
 function taskStatus(task, ev) {
   if (ev?.status === 'CONFIRMED') return 'Đã xác nhận điểm';
   if (ev?.status === 'PENDING_REVIEW') return 'Chờ xác nhận';
