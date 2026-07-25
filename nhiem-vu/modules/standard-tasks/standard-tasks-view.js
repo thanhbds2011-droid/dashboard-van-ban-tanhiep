@@ -10,12 +10,13 @@ export async function renderStandardTasksView(outlet) {
   try {
     const [items, period] = await Promise.all([StandardTaskReadService.list(), TaskRegistrationService.getActivePeriod()]);
     const regularItems = items.filter(item => String(item.workType || "THUONG_XUYEN").toUpperCase() !== "DOT_XUAT");
-    const registrations = Permissions.isStaff() && period ? await TaskRegistrationService.listForCurrentUser(period.id) : [];
+    const registrationMode = Permissions.canRegisterStandardTasks();
+    const registrations = registrationMode && period ? await TaskRegistrationService.listForCurrentUser(period.id) : [];
     const registeredMap = new Map(registrations.map(item => [String(item.standardTaskId || item.standardTaskCode), item]));
     const summary = StandardTaskReadService.summarize(regularItems);
-    const staffMode = Permissions.isStaff();
+    const staffMode = registrationMode;
     outlet.innerHTML = `<section class="page-card">
-      <div class="page-header"><div><span class="page-eyebrow">DANH MỤC CÔNG VIỆC THEO VỊ TRÍ VIỆC LÀM</span><h2>${staffMode ? "Đăng ký kế hoạch công việc" : "Danh mục công việc"}</h2><p>${staffMode ? "Tick chọn các đầu việc dự kiến thực hiện trong kỳ và gửi Trưởng/Phó phòng duyệt." : "Danh mục chỉ để tra cứu; Trưởng/Phó phòng không giao việc thường xuyên tại đây."}</p></div><button id="btnStandardRefresh" class="secondary-button" type="button">↻ Làm mới</button></div>
+      <div class="page-header"><div><span class="page-eyebrow">DANH MỤC CÔNG VIỆC THEO VỊ TRÍ VIỆC LÀM</span><h2>${staffMode ? "Đăng ký kế hoạch công việc" : "Danh mục công việc"}</h2><p>${staffMode ? "Tick chọn các đầu việc dự kiến thực hiện trong kỳ và gửi cấp có thẩm quyền duyệt." : "Danh mục chỉ để tra cứu; Trưởng/Phó phòng không giao việc thường xuyên tại đây."}</p></div><button id="btnStandardRefresh" class="secondary-button" type="button">↻ Làm mới</button></div>
       <div class="info-banner">Phạm vi: <strong>${escapeHtml(user.departmentId || "Toàn hệ thống")}</strong>. ${period ? `Kỳ hiện tại: <strong>${escapeHtml(period.name || period.id)}</strong>.` : '<strong>Chưa có kỳ hoạt động.</strong>'}</div>
       <div class="summary-grid compact-grid">${metric("Tổng đầu việc",summary.total)}${metric("Đã đăng ký",registrations.filter(r=>r.status!=="REJECTED").length)}${metric("Chờ duyệt",registrations.filter(r=>r.status==="PENDING").length)}${metric("Đã duyệt",registrations.filter(r=>r.status==="APPROVED").length)}</div>
       <div class="toolbar"><label class="field-grow"><span>Tìm kiếm</span><input id="standardTaskSearch" type="search" placeholder="Tìm mã, tên, sản phẩm đầu ra…"></label></div>
