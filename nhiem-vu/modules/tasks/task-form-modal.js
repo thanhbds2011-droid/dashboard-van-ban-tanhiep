@@ -6,6 +6,7 @@ import { UserReadService } from "../../services/user-read-service.js";
 import { DepartmentReadService } from "../../services/department-read-service.js";
 import { StandardTaskReadService } from "../../services/standard-task-read-service.js";
 import { validateTaskCreateInput, cleanText } from "./task-form-validator.js";
+import { ToastService } from "../../core/toast-service.js";
 
 function option(value, label, selected = false) {
   return `<option value="${escapeHtml(value)}" ${selected ? "selected" : ""}>${escapeHtml(label)}</option>`;
@@ -24,26 +25,29 @@ export async function openTaskCreateModal({ onSaved }) {
     UserReadService.listActive(), DepartmentReadService.listActive(), StandardTaskReadService.list()
   ]);
   const canChooseDepartment = Permissions.isAdmin() || Permissions.isDirector();
-  const isStaffSelf = Permissions.isStaff();
+  const isStaffSelf = false;
+  const isLeader = Permissions.isDepartmentLeader();
   const defaultDepartment = canChooseDepartment ? (current.departmentId || "TCHC") : current.departmentId;
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 7);
+
+  const visibleStandardTasks = standardTasks.filter(item => item.active !== false && (Permissions.canViewAllDepartments() || String(item.departmentId || "") === String(defaultDepartment || "")));
 
   const overlay = document.createElement("div");
   overlay.className = "modal-backdrop";
   overlay.innerHTML = `
     <section class="modal-panel modal-large" role="dialog" aria-modal="true" aria-labelledby="createTaskTitle">
-      <div class="modal-header"><div><span class="page-eyebrow">PRODUCTION 3D</span><h2 id="createTaskTitle">Ghi nhận nhiệm vụ</h2><p>Chọn đầu việc chuẩn hoặc ghi nhận nhiệm vụ ngoài danh mục.</p></div><button class="icon-button" type="button" data-close>✕</button></div>
+      <div class="modal-header"><div><span class="page-eyebrow">PRODUCTION 3D</span><h2 id="createTaskTitle">Giao nhiệm vụ đột xuất</h2><p>Chỉ ghi nhận nhiệm vụ phát sinh, ngoài kế hoạch hoặc đột xuất.</p></div><button class="icon-button" type="button" data-close>✕</button></div>
       <form id="taskCreateForm" class="modal-body task-form-grid">
-        <label class="field-full"><span>Đầu việc chuẩn</span><select id="standardTaskCode"><option value="">— Nhiệm vụ ngoài danh mục —</option>${standardTasks.filter(x => x.active !== false).map(x => option(x.code || x.id, `${x.code || x.id} — ${x.name || ""}`)).join("")}</select></label>
+        <input id="standardTaskCode" type="hidden" value="">
         <label class="field-full"><span>Tên nhiệm vụ *</span><input id="taskTitle" maxlength="300" required></label>
         <label class="field-full"><span>Nội dung/Yêu cầu thực hiện</span><textarea id="taskDescription" rows="4" maxlength="5000"></textarea></label>
         <label><span>Phòng/Khu chính *</span><select id="primaryDepartmentId" ${canChooseDepartment ? "" : "disabled"}>${departments.map(d => option(d.id || d.code, d.name || d.id, (d.id || d.code) === defaultDepartment)).join("")}</select></label>
         <label><span>Người phụ trách</span><select id="ownerUserId" ${isStaffSelf ? "disabled" : ""}><option value="">— Giao cấp Phòng/Khu —</option></select></label>
         <label><span>Tổ/Nhóm</span><input id="teamId" placeholder="Ví dụ: BAO_VE"></label>
         <label><span>Hạn xử lý *</span><input id="deadline" type="date" value="${dateInputValue(tomorrow)}" required></label>
-        <label><span>Mức độ ưu tiên *</span><select id="priority"><option value="THUONG">Thường</option><option value="QUAN_TRONG">Quan trọng</option><option value="KHAN">Khẩn</option><option value="DOT_XUAT">Đột xuất</option></select></label>
-        <label><span>Loại công việc</span><select id="workType"><option value="THUONG_XUYEN">Thường xuyên</option><option value="DOT_XUAT">Đột xuất</option></select></label>
+        <label><span>Mức độ ưu tiên *</span><select id="priority"><option value="DOT_XUAT" selected>Đột xuất</option><option value="KHAN">Khẩn</option><option value="QUAN_TRONG">Quan trọng</option><option value="QUAN_TRONG">Quan trọng</option><option value="KHAN">Khẩn</option><option value="DOT_XUAT">Đột xuất</option></select></label>
+        <label><span>Loại công việc</span><select id="workType"><option value="DOT_XUAT" selected>Đột xuất / ngoài kế hoạch</option></select></label>
         <label class="field-full"><span>Phòng/Khu phối hợp</span><div id="supportDepartments" class="checkbox-grid">${departments.map(d => `<label class="check-row"><input type="checkbox" value="${escapeHtml(d.id || d.code)}"><span>${escapeHtml(d.name || d.id)}</span></label>`).join("")}</div></label>
         <label class="field-full"><span>Nguồn/Yêu cầu giao việc</span><input id="sourceReference" maxlength="500" placeholder="Ví dụ: Chỉ đạo tại giao ban, kế hoạch, văn bản..."></label>
         <div id="standardTaskSnapshot" class="field-full info-banner hidden"></div>
@@ -51,6 +55,7 @@ export async function openTaskCreateModal({ onSaved }) {
       <div class="modal-footer"><button class="secondary-button" type="button" data-close>Hủy</button><button id="saveTaskButton" class="primary-button" type="button">Lưu nhiệm vụ</button></div>
     </section>`;
   document.body.appendChild(overlay);
+  document.body.classList.add("modal-open");
 
   const $ = id => overlay.querySelector(`#${id}`);
   const departmentSelect = $("primaryDepartmentId");
@@ -75,12 +80,12 @@ export async function openTaskCreateModal({ onSaved }) {
     }
     $("taskTitle").value = item.name || "";
     $("taskDescription").value = item.outputRequirement || "";
-    $("workType").value = item.workType || "THUONG_XUYEN";
+    $("workType").value = "DOT_XUAT";
     box.classList.remove("hidden");
     box.innerHTML = `<strong>${escapeHtml(item.code || item.id)}</strong> • Điểm chuẩn ${Number(item.baseScore || 0)} • Hệ số ${Number(item.difficultyCoefficient || 1)} • Điểm tối đa ${Number(item.maximumConvertedScore || 0)}<br><small>Minh chứng: ${escapeHtml(item.mandatoryEvidence || "Không quy định")}</small>`;
   });
 
-  const close = () => overlay.remove();
+  const close = () => { overlay.remove(); document.body.classList.remove("modal-open"); };
   overlay.querySelectorAll("[data-close]").forEach(button => button.addEventListener("click", close));
   overlay.addEventListener("click", event => { if (event.target === overlay) close(); });
 
@@ -90,7 +95,8 @@ export async function openTaskCreateModal({ onSaved }) {
       button.disabled = true;
       button.textContent = "Đang lưu...";
       const selectedOwner = users.find(user => user.id === ownerSelect.value);
-      const standard = standardTasks.find(item => (item.code || item.id) === standardSelect.value);
+      const standard = visibleStandardTasks.find(item => (item.code || item.id) === standardSelect.value);
+
       const supportDepartmentIds = [...overlay.querySelectorAll("#supportDepartments input:checked")].map(input => input.value);
       const deadline = new Date(`${$("deadline").value}T23:59:59`);
       const data = {
@@ -103,7 +109,7 @@ export async function openTaskCreateModal({ onSaved }) {
         teamId: cleanText($("teamId").value, 80).toUpperCase(),
         deadline,
         priority: $("priority").value,
-        workType: $("workType").value,
+        workType: "DOT_XUAT",
         supportDepartmentIds,
         sourceReference: cleanText($("sourceReference").value, 500),
         standardTaskCode: standard?.code || standard?.id || "",
@@ -116,10 +122,11 @@ export async function openTaskCreateModal({ onSaved }) {
       };
       validateTaskCreateInput(data);
       await TaskWriteService.create(data);
+      ToastService.success("Đã giao nhiệm vụ đột xuất thành công.");
       close();
       await onSaved?.();
     } catch (error) {
-      window.alert(error?.message || "Không lưu được nhiệm vụ.");
+      ToastService.error(error?.message || "Không lưu được nhiệm vụ.");
       button.disabled = false;
       button.textContent = "Lưu nhiệm vụ";
     }
