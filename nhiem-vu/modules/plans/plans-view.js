@@ -1,2 +1,4 @@
-import { renderKpiWorkflow } from "../kpi/kpi-workflow.js?v=20260724.FINAL2";
-export async function renderPlansView(outlet){ await renderKpiWorkflow(outlet); }
+import { renderKpiWorkflow } from "../kpi/kpi-workflow.js?v=20260725.COMPLETE1";
+export async function renderPlansView(outlet) {
+  await renderKpiWorkflow(outlet, { mode: "plans" });
+}
