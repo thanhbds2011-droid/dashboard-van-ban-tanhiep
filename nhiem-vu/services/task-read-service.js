@@ -42,11 +42,9 @@ async function loadScopedTasks() {
     return uniqueById(resultSets.flat());
   }
 
-  const resultSets = await Promise.all([
-    runQuery([FirebaseService.where("ownerUserId", "==", user.uid)]),
-    runQuery([FirebaseService.where("visibleUserIds", "array-contains", user.uid)])
-  ]);
-  return uniqueById(resultSets.flat());
+  // Viên chức chỉ truy vấn nhiệm vụ được giao trực tiếp cho mình.
+  // Tránh truy vấn rộng visibleUserIds gây permission-denied khi dữ liệu cũ thiếu trường.
+  return runQuery([FirebaseService.where("ownerUserId", "==", user.uid)]);
 }
 
 function timestampToDate(value) {
