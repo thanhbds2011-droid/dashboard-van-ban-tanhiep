@@ -25,7 +25,7 @@ export async function openTaskCreateModal({ onSaved }) {
     UserReadService.listActive(), DepartmentReadService.listActive(), StandardTaskReadService.list()
   ]);
   const canChooseDepartment = Permissions.isAdmin() || Permissions.isDirector();
-  const isStaffSelf = Permissions.isStaff();
+  const isStaffSelf = false;
   const isLeader = Permissions.isDepartmentLeader();
   const defaultDepartment = canChooseDepartment ? (current.departmentId || "TCHC") : current.departmentId;
   const tomorrow = new Date();
@@ -39,7 +39,7 @@ export async function openTaskCreateModal({ onSaved }) {
     <section class="modal-panel modal-large" role="dialog" aria-modal="true" aria-labelledby="createTaskTitle">
       <div class="modal-header"><div><span class="page-eyebrow">PRODUCTION 3D</span><h2 id="createTaskTitle">Giao nhiệm vụ đột xuất</h2><p>Chỉ ghi nhận nhiệm vụ phát sinh, ngoài kế hoạch hoặc đột xuất.</p></div><button class="icon-button" type="button" data-close>✕</button></div>
       <form id="taskCreateForm" class="modal-body task-form-grid">
-        <label class="field-full"><span>Đầu việc chuẩn</span><select id="standardTaskCode"><option value="">— Nhiệm vụ ngoài danh mục —</option>${visibleStandardTasks.map(x => option(x.code || x.id, `${x.code || x.id} — ${x.name || ""}`)).join("")}</select></label>
+        <input id="standardTaskCode" type="hidden" value="">
         <label class="field-full"><span>Tên nhiệm vụ *</span><input id="taskTitle" maxlength="300" required></label>
         <label class="field-full"><span>Nội dung/Yêu cầu thực hiện</span><textarea id="taskDescription" rows="4" maxlength="5000"></textarea></label>
         <label><span>Phòng/Khu chính *</span><select id="primaryDepartmentId" ${canChooseDepartment ? "" : "disabled"}>${departments.map(d => option(d.id || d.code, d.name || d.id, (d.id || d.code) === defaultDepartment)).join("")}</select></label>
@@ -80,7 +80,7 @@ export async function openTaskCreateModal({ onSaved }) {
     }
     $("taskTitle").value = item.name || "";
     $("taskDescription").value = item.outputRequirement || "";
-    $("workType").value = item.workType || "THUONG_XUYEN";
+    $("workType").value = "DOT_XUAT";
     box.classList.remove("hidden");
     box.innerHTML = `<strong>${escapeHtml(item.code || item.id)}</strong> • Điểm chuẩn ${Number(item.baseScore || 0)} • Hệ số ${Number(item.difficultyCoefficient || 1)} • Điểm tối đa ${Number(item.maximumConvertedScore || 0)}<br><small>Minh chứng: ${escapeHtml(item.mandatoryEvidence || "Không quy định")}</small>`;
   });
@@ -96,7 +96,7 @@ export async function openTaskCreateModal({ onSaved }) {
       button.textContent = "Đang lưu...";
       const selectedOwner = users.find(user => user.id === ownerSelect.value);
       const standard = visibleStandardTasks.find(item => (item.code || item.id) === standardSelect.value);
-      if (isStaffSelf && !standard) throw new Error("Viên chức phải chọn một đầu việc có sẵn để đăng ký và chờ xét duyệt.");
+
       const supportDepartmentIds = [...overlay.querySelectorAll("#supportDepartments input:checked")].map(input => input.value);
       const deadline = new Date(`${$("deadline").value}T23:59:59`);
       const data = {
@@ -109,7 +109,7 @@ export async function openTaskCreateModal({ onSaved }) {
         teamId: cleanText($("teamId").value, 80).toUpperCase(),
         deadline,
         priority: $("priority").value,
-        workType: $("workType").value,
+        workType: "DOT_XUAT",
         supportDepartmentIds,
         sourceReference: cleanText($("sourceReference").value, 500),
         standardTaskCode: standard?.code || standard?.id || "",
@@ -122,7 +122,7 @@ export async function openTaskCreateModal({ onSaved }) {
       };
       validateTaskCreateInput(data);
       await TaskWriteService.create(data);
-      ToastService.success(isStaffSelf ? "Đã đăng ký nhiệm vụ và chuyển chờ xét duyệt." : "Đã ghi nhận nhiệm vụ thành công.");
+      ToastService.success("Đã giao nhiệm vụ đột xuất thành công.");
       close();
       await onSaved?.();
     } catch (error) {
