@@ -208,21 +208,3 @@ button,input,select,textarea{font-size:16px}
 .kpi-subsection{margin-top:24px;padding-top:20px;border-top:1px solid #d7e4ed}
 .kpi-subsection h3{margin:0 0 6px;color:#083b5c}
 @media (max-width:720px){.kpi-subsection .kpi-table{min-width:760px}}
-
-/* =========================================================
- * PRODUCTION 6 — TIMES NEW ROMAN + DASHBOARD CÂN HÀNG
- * ========================================================= */
-:root{--app-font:"Times New Roman",Times,serif}
-html,body,.v3-body,input,button,select,textarea,table,a{font-family:"Times New Roman",Times,serif!important}
-.v3-body{font-size:16px}
-.v3-header h1{font-size:25px}.v3-header p{font-size:13px}
-.v3-navigation a{font-size:16px}
-.page-header h2{font-size:29px}
-.page-header p,.toolbar label{font-size:16px}
-.summary-grid,.summary-grid.compact-grid{grid-template-columns:repeat(5,minmax(0,1fr))!important;align-items:stretch}
-.summary-card{min-width:0;min-height:118px;display:flex;flex-direction:column;justify-content:center}
-.summary-card span{font-size:16px}.summary-card strong{font-size:30px}
-.toolbar input,.toolbar select,.primary-button,.secondary-button,.tab-button{font-size:16px}
-@media(max-width:960px){.summary-grid,.summary-grid.compact-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
-@media(max-width:680px){.summary-grid,.summary-grid.compact-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}.v3-navigation a{font-size:15px}.page-header h2{font-size:24px}}
-@media(max-width:390px){.summary-grid,.summary-grid.compact-grid{grid-template-columns:1fr!important}}
