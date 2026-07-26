@@ -1,5 +1,5 @@
 /**
- * Production Final - Auth Service ổn định.
+ * Production - Auth Service ổn định.
  * - Không để màn hình "Đang tải tài khoản" treo vô thời hạn.
  * - Tự tạo/đồng bộ users/{uid} từ accessAccounts/{email} khi cần.
  * - Hiển thị lỗi rõ ràng để người dùng thử lại hoặc đăng xuất.
@@ -25,17 +25,6 @@ function normalizeEmail(value) {
 }
 
 async function loadOrCreateProfile(firebaseUser) {
-  const profileRef = FirebaseService.doc(FirebaseService.db, "users", firebaseUser.uid);
-  let profileSnapshot = await withTimeout(
-    FirebaseService.getDoc(profileRef),
-    PROFILE_TIMEOUT_MS,
-    "Quá thời gian đọc hồ sơ người dùng. Hãy kiểm tra mạng hoặc Firestore Rules."
-  );
-
-  if (profileSnapshot.exists()) {
-    return profileSnapshot.data() || {};
-  }
-
   const email = normalizeEmail(firebaseUser.email);
   if (!email) {
     throw new Error("Tài khoản Google không cung cấp email để kiểm tra quyền truy cập.");
@@ -56,34 +45,43 @@ async function loadOrCreateProfile(firebaseUser) {
   if (access.active !== true) {
     throw new Error("Tài khoản hiện đã ngừng hoạt động.");
   }
+  if (!access.departmentId || !access.role) {
+    throw new Error("Dữ liệu accessAccounts thiếu departmentId hoặc role.");
+  }
 
+  const profileRef = FirebaseService.doc(FirebaseService.db, "users", firebaseUser.uid);
+  const currentSnapshot = await withTimeout(
+    FirebaseService.getDoc(profileRef),
+    PROFILE_TIMEOUT_MS,
+    "Quá thời gian đọc hồ sơ người dùng. Hãy kiểm tra mạng hoặc Firestore Rules."
+  );
+  const current = currentSnapshot.exists() ? (currentSnapshot.data() || {}) : {};
+
+  // accessAccounts là nguồn thẩm quyền duy nhất cho role/phòng/chức danh.
+  // Mỗi lần đăng nhập đều đồng bộ lại để tránh hồ sơ users bị cũ.
   const profile = {
     email,
-    fullName: access.fullName || firebaseUser.displayName || email,
-    departmentId: access.departmentId || "",
-    role: access.role || "STAFF",
+    fullName: access.fullName || firebaseUser.displayName || current.fullName || email,
+    departmentId: access.departmentId,
+    role: access.role,
     position: access.position || "",
     teamId: access.teamId || "",
     employeeCode: access.employeeCode || "",
     kpiReviewerEmail: access.kpiReviewerEmail || "",
     taskNotificationCoordinator: access.taskNotificationCoordinator === true,
     active: true,
-    createdAt: FirebaseService.serverTimestamp(),
+    authProvider: "google.com",
     updatedAt: FirebaseService.serverTimestamp()
   };
-
-  if (!profile.departmentId || !profile.role) {
-    throw new Error("Dữ liệu accessAccounts thiếu departmentId hoặc role.");
-  }
+  if (!currentSnapshot.exists()) profile.createdAt = FirebaseService.serverTimestamp();
 
   await withTimeout(
     FirebaseService.setDoc(profileRef, profile, { merge: true }),
     PROFILE_TIMEOUT_MS,
-    "Không thể khởi tạo hồ sơ người dùng từ accessAccounts. Hãy kiểm tra Firestore Rules."
+    "Không thể đồng bộ hồ sơ người dùng từ accessAccounts. Hãy kiểm tra Firestore Rules."
   );
 
-  profileSnapshot = await FirebaseService.getDoc(profileRef);
-  return profileSnapshot.exists() ? profileSnapshot.data() : profile;
+  return { ...current, ...profile, updatedAt: current.updatedAt || null };
 }
 
 export const AuthService = Object.freeze({
