@@ -229,8 +229,7 @@ function openEditPeriod(periodId) {
   });
 }
 
-async 
-function activatePeriod(periodId) {
+async function activatePeriod(periodId) {
   return activatePeriodInternal(periodId);
 }
 async function activatePeriodInternal(periodId) {
