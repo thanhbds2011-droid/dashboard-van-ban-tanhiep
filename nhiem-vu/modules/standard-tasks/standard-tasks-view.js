@@ -18,7 +18,7 @@ export async function renderStandardTasksView(outlet) {
     outlet.innerHTML = `<section class="page-card">
       <div class="page-header"><div><span class="page-eyebrow">DANH MỤC CÔNG VIỆC THEO VỊ TRÍ VIỆC LÀM</span><h2>${staffMode ? "Đăng ký kế hoạch công việc" : "Danh mục công việc"}</h2><p>${staffMode ? "Tick chọn các đầu việc dự kiến thực hiện trong kỳ và gửi cấp có thẩm quyền duyệt." : "Danh mục chỉ để tra cứu; Trưởng/Phó phòng không giao việc thường xuyên tại đây."}</p></div><button id="btnStandardRefresh" class="secondary-button" type="button">↻ Làm mới</button></div>
       <div class="info-banner">Phạm vi: <strong>${escapeHtml(user.departmentId || "Toàn hệ thống")}</strong>. ${period ? `Kỳ hiện tại: <strong>${escapeHtml(period.name || period.id)}</strong>.` : '<strong>Chưa có kỳ hoạt động.</strong>'}</div>
-      <div class="summary-grid compact-grid">${metric("Tổng đầu việc",summary.total)}${metric("Đã đăng ký",registrations.filter(r=>r.status!=="REJECTED").length)}${metric("Chờ duyệt",registrations.filter(r=>r.status==="PENDING").length)}${metric("Đã duyệt",registrations.filter(r=>r.status==="APPROVED").length)}</div>
+      <div class="summary-grid compact-grid">${metric("Tổng đầu việc",summary.total)}${metric("Đã đăng ký",registrations.filter(r=>r.status!=="REJECTED").length)}${metric("Chờ duyệt",registrations.filter(r=>r.status==="PENDING").length)}${metric("Đã duyệt",registrations.filter(r=>r.status==="APPROVED").length)}${metric("Đã trả lại",registrations.filter(r=>r.status==="REJECTED").length)}</div>
       <div class="toolbar"><label class="field-grow"><span>Tìm kiếm</span><input id="standardTaskSearch" type="search" placeholder="Tìm mã, tên, sản phẩm đầu ra…"></label></div>
       <div id="standardTaskListContainer">${renderList(regularItems, registeredMap, staffMode, Boolean(period))}</div>
       ${staffMode ? `<div class="registration-sticky"><div><strong>Đã chọn: <span id="registrationSelectedCount">0</span> đầu việc · Tổng điểm: <span id="registrationSelectedScore">0</span></strong><small>Điểm = Điểm chuẩn × Hệ số khó. Đầu việc đã hủy/trả lại có thể đăng ký lại.</small></div><button id="btnRegisterSelected" class="primary-button" type="button" ${period ? "" : "disabled"}>Đăng ký kế hoạch</button></div>` : ""}
@@ -76,7 +76,7 @@ function renderList(items, registeredMap, staffMode, hasPeriod) {
     </article>`;
   }).join("")}</div>`;
 }
-function metric(label,value){return `<article class="summary-card"><span>${label}</span><strong>${value}</strong><small>Dữ liệu thật</small></article>`;}
+function metric(label,value){return `<article class="summary-card"><span>${label}</span><strong>${value}</strong></article>`;}
 function formatNumber(value){return new Intl.NumberFormat("vi-VN",{maximumFractionDigits:1}).format(Number(value||0));}
 function loadingCard(message){return `<section class="page-card"><div class="empty-state"><div class="empty-icon">⏳</div><strong>${escapeHtml(message)}</strong></div></section>`;}
 function errorCard(title,error){return `<section class="page-card error-card"><h2>${escapeHtml(title)}</h2><p>${escapeHtml(error?.message||"Lỗi không xác định")}</p></section>`;}
