@@ -208,3 +208,12 @@ button,input,select,textarea{font-size:16px}
 .kpi-subsection{margin-top:24px;padding-top:20px;border-top:1px solid #d7e4ed}
 .kpi-subsection h3{margin:0 0 6px;color:#083b5c}
 @media (max-width:720px){.kpi-subsection .kpi-table{min-width:760px}}
+
+/* Production 9 - Dashboard 5 ô ngang đều */
+@media (min-width: 961px){
+  .summary-grid,
+  .summary-grid.compact-grid{
+    grid-template-columns:repeat(5,minmax(0,1fr))!important;
+  }
+  .summary-card{min-width:0}
+}
