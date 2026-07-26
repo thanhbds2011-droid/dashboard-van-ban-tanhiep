@@ -35,7 +35,7 @@ async function bootstrap() {
       "#/standard-tasks": renderStandardTasksView,
       "#/kpi": renderPlansView,
       "#/kpi/periods": renderPeriodsView,
-      "#/kpi/evaluations": renderEvaluationsView,
+      "#/kpi/evaluations": renderPlansView,
       "#/reports": renderReportsView,
       "#/admin": renderAdminView
     }
