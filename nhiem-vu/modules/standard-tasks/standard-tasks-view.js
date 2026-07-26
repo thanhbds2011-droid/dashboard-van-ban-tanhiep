@@ -21,7 +21,7 @@ export async function renderStandardTasksView(outlet) {
       <div class="summary-grid compact-grid">${metric("Tổng đầu việc",summary.total)}${metric("Đã đăng ký",registrations.filter(r=>r.status!=="REJECTED").length)}${metric("Chờ duyệt",registrations.filter(r=>r.status==="PENDING").length)}${metric("Đã duyệt",registrations.filter(r=>r.status==="APPROVED").length)}${metric("Đã trả lại",registrations.filter(r=>r.status==="REJECTED").length)}</div>
       <div class="toolbar"><label class="field-grow"><span>Tìm kiếm</span><input id="standardTaskSearch" type="search" placeholder="Tìm mã, tên, sản phẩm đầu ra…"></label></div>
       <div id="standardTaskListContainer">${renderList(regularItems, registeredMap, staffMode, Boolean(period))}</div>
-      ${staffMode ? `<div class="registration-sticky"><div><strong>Đã chọn: <span id="registrationSelectedCount">0</span> đầu việc · Tổng điểm: <span id="registrationSelectedScore">0</span></strong><small>Điểm = Điểm chuẩn × Hệ số khó. Đầu việc đã hủy/trả lại có thể đăng ký lại.</small></div><button id="btnRegisterSelected" class="primary-button" type="button" ${period ? "" : "disabled"}>Đăng ký kế hoạch</button></div>` : ""}
+      ${staffMode ? `<div class="registration-sticky"><div><strong>Đã chọn: <span id="registrationSelectedCount">0</span> đầu việc · Tổng điểm: <span id="registrationSelectedScore">0</span></strong><small>Điểm = Điểm chuẩn × Hệ số khó. Đầu việc bị trả lại cần được “Xóa đăng ký để chọn lại” trong Kế hoạch KPI trước khi đăng ký lại.</small></div><button id="btnRegisterSelected" class="primary-button" type="button" ${period ? "" : "disabled"}>Đăng ký kế hoạch</button></div>` : ""}
     </section>`;
 
     let visible = regularItems;
@@ -67,7 +67,7 @@ function renderList(items, registeredMap, staffMode, hasPeriod) {
   return `<div class="registration-list">${items.map(item => {
     const key = String(item.id || item.code);
     const reg = registeredMap.get(key) || registeredMap.get(String(item.code));
-    const disabled = !staffMode || !hasPeriod || Boolean(reg && reg.status !== "REJECTED");
+    const disabled = !staffMode || !hasPeriod || Boolean(reg);
     const status = reg ? ({PENDING:"Chờ duyệt",APPROVED:"Đã duyệt",REJECTED:"Đã trả lại"}[reg.status] || reg.status) : "Chưa đăng ký";
     return `<article class="registration-row">
       ${staffMode ? `<label class="registration-check"><input type="checkbox" data-registration-check value="${escapeHtml(key)}" ${disabled ? "disabled" : ""}><span></span></label>` : ""}
