@@ -4,7 +4,7 @@ import { AuthService } from "./core/auth-service.js";
 import { Permissions } from "./core/permissions.js";
 import { ToastService } from "./core/toast-service.js";
 
-const BUILD_VERSION = "20260726.PRODUCTION5_STABLE";
+const BUILD_VERSION = "20260726.PRODUCTION6_FONT_LAYOUT_CACHEFIX";
 
 function lazyRoute(modulePath, exportName) {
   return async (outlet, options = {}) => {
@@ -20,7 +20,7 @@ function lazyRoute(modulePath, exportName) {
       outlet.innerHTML = `
         <section class="page-card error-card">
           <h2>Không thể mở chức năng</h2>
-          <p>${escapeHtml(error?.message || "Không tải được dữ liệu chức năng.")}</p>
+          <p>${escapeHtml(error?.message || "Không tải được dữ liệu chức năng.")}</p><p class="helper-text">Mã phiên bản: ${BUILD_VERSION}</p>
           <div class="page-actions">
             <button type="button" class="primary-button" data-retry-route>↻ Thử lại</button>
             <a class="secondary-button" href="#/dashboard">Về Trang chủ</a>
