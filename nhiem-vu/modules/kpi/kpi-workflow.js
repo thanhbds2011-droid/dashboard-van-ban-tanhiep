@@ -1033,7 +1033,7 @@ function openReport() {
   }).join('');
   const reportHtml = `<div id="kpiPdfPreview" class="kpi-report kpi-report-print">
     <section class="mau01-page">
-      <div class="mau01-top"><div><strong>ĐẢNG ỦY/CƠ QUAN, ĐƠN VỊ…</strong><div>*</div></div><div><strong>ĐẢNG CỘNG SẢN VIỆT NAM</strong><div class="mau01-underline"></div><em>……, ngày ${String(now.getDate()).padStart(2,'0')} tháng ${String(now.getMonth()+1).padStart(2,'0')} năm ${now.getFullYear()}</em></div></div>
+      <div class="mau01-top"><div><strong>TRUNG TÂM<br>BẢO TRỢ XÃ HỘI TÂN HIỆP</strong><div>*</div></div><div><strong>ĐẢNG CỘNG SẢN VIỆT NAM</strong><div class="mau01-underline"></div><em>Đồng Nai, ngày ${String(now.getDate()).padStart(2,'0')} tháng ${String(now.getMonth()+1).padStart(2,'0')} năm ${now.getFullYear()}</em></div></div>
       <div class="mau01-code">Mẫu 01</div>
       <h1>BẢN TỰ ĐÁNH GIÁ, XẾP LOẠI CỦA CÁ NHÂN</h1><h2>Quý ${esc(quarter)}, Năm ${esc(year)}</h2>
       <div class="mau01-info"><p><strong>Họ và tên:</strong> ${esc(profile.fullName||'')} &nbsp;&nbsp; <strong>Ngày sinh:</strong> ${esc(profile.birthDate||profile.dateOfBirth||'')}</p><p><strong>Chức vụ Đảng:</strong> ${esc(profile.partyPosition||'')}</p><p><strong>Chức vụ chính quyền:</strong> ${esc(profile.governmentPosition||profile.position||'')}</p><p><strong>Chức vụ đoàn thể:</strong> ${esc(profile.unionPosition||'')}</p><p><strong>Đơn vị công tác:</strong> ${esc(profile.departmentName||profile.departmentId||'')}</p></div>
