@@ -20,7 +20,7 @@ export function validateProgressInput(data, task) {
     throw new Error("Tiến độ phải từ 0 đến 100%.");
   }
   if (data.status === "HOAN_THANH") {
-    if (progress !== 100) throw new Error("Nhiệm vụ hoàn thành phải có tiến độ 100%.");
+    if (progress !== 100) throw new Error("Khi chọn trạng thái Hoàn thành, khối lượng thực hiện công việc phải là 100%. Tỷ lệ tiến độ KPI được tính riêng theo thời hạn.");
     if (!cleanText(data.resultSummary, 5000)) throw new Error("Vui lòng nhập kết quả thực hiện.");
     const evidenceRequired = Boolean(task?.mandatoryEvidence) || task?.evidenceRequired === true;
     const hasEvidence = Boolean(data.evidenceUrl || data.evidenceText || task?.evidenceUrl || task?.evidenceText);

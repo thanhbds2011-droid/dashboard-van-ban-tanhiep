@@ -19,7 +19,7 @@ export async function openTaskProgressModal(task, { onSaved }) {
       <div class="modal-header"><div><span class="page-eyebrow">${escapeHtml(task.taskCode || task.id)}</span><h2>Cập nhật nhiệm vụ</h2><p>${escapeHtml(task.title || "")}</p></div><button class="icon-button" type="button" data-close>✕</button></div>
       <div class="modal-body task-form-grid">
         <label><span>Trạng thái</span><select id="progressStatus"><option value="DANG_XU_LY">Đang xử lý</option><option value="TAM_DUNG">Tạm dừng</option><option value="HOAN_THANH">Hoàn thành</option></select></label>
-        <label><span>Tiến độ (%)</span><input id="progressValue" type="number" min="0" max="100" step="10" value="${Number(task.progress || 0)}"></label>
+        <label><span>Tiến độ thực hiện công việc (%)</span><input id="progressValue" type="number" min="0" max="100" step="10" value="${Number(task.progress || 0)}"><small>Khi chọn Hoàn thành, khối lượng thực hiện được ghi nhận 100%. Tỷ lệ tiến độ KPI 100/80/60/0 được tính riêng theo hạn và ngày hoàn thành.</small></label>
         <label class="field-full"><span>Nội dung cập nhật</span><textarea id="progressNote" rows="3" maxlength="3000"></textarea></label>
         <label class="field-full"><span>Kết quả thực hiện</span><textarea id="resultSummary" rows="3" maxlength="5000">${escapeHtml(task.resultSummary || task.result || "")}</textarea></label>
         <label class="field-full"><span>Khó khăn, vướng mắc</span><textarea id="difficulties" rows="2" maxlength="3000">${escapeHtml(task.difficulties || "")}</textarea></label>
@@ -42,7 +42,9 @@ export async function openTaskProgressModal(task, { onSaved }) {
   });
 
   $("progressStatus").addEventListener("change", () => {
-    if ($("progressStatus").value === "HOAN_THANH") $("progressValue").value = "100";
+    const completed = $("progressStatus").value === "HOAN_THANH";
+    if (completed) $("progressValue").value = "100";
+    $("progressValue").readOnly = completed;
   });
 
   $("saveProgressButton").addEventListener("click", async () => {
