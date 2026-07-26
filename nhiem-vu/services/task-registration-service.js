@@ -39,10 +39,14 @@ export const TaskRegistrationService=Object.freeze({
   async rejectMany(regs,reason){const r=UserContext.requireUser(),selected=(regs||[]).filter(x=>x?.status==="PENDING");if(!selected.length)throw new Error("Không có đăng ký để trả lại.");for(const x of selected)if(!canApprove(x,r))throw new Error("Bạn không có quyền trả lại đăng ký này.");const b=FirebaseService.writeBatch(FirebaseService.db);for(const x of selected)b.update(FirebaseService.doc(FirebaseService.db,"taskRegistrations",x.id),{status:"REJECTED",rejectionReason:clean(reason),rejectedAt:FirebaseService.serverTimestamp(),rejectedByUserId:r.uid,rejectedByName:r.fullName||"",updatedAt:FirebaseService.serverTimestamp()});await b.commit();return selected.length;},
   async cancelRegistration(reg){
     const u=UserContext.requireUser();
-    if(!reg?.id) throw new Error("Không xác định được đăng ký cần hủy.");
-    if(reg.userId!==u.uid) throw new Error("Chỉ người đăng ký mới được hủy đầu việc này.");
-    if(reg.taskId || reg.status==="APPROVED") throw new Error("Đầu việc đã được duyệt và hình thành nhiệm vụ, không thể tự hủy.");
-    if(!["PENDING","REJECTED"].includes(reg.status)) throw new Error("Chỉ được hủy đăng ký đang chờ duyệt hoặc đã bị trả lại.");
+    if(!reg?.id) throw new Error("Không xác định được đăng ký cần xử lý.");
+    const owner=reg.userId===u.uid;
+    const sameDepartment=upper(reg.departmentId)===upper(u.departmentId);
+    const manager=u.role==="ADMIN" || (u.role==="DEPARTMENT_LEADER" && sameDepartment);
+    if(reg.taskId || reg.status==="APPROVED") throw new Error("Đầu việc đã được duyệt và hình thành nhiệm vụ, không thể xóa đăng ký.");
+    if(!["PENDING","REJECTED"].includes(reg.status)) throw new Error("Chỉ xử lý được đăng ký đang chờ duyệt hoặc đã bị trả lại.");
+    if(reg.status==="PENDING"&&!owner) throw new Error("Chỉ người đăng ký mới được hủy đăng ký đang chờ duyệt.");
+    if(reg.status==="REJECTED"&&!owner&&!manager) throw new Error("Chỉ người đăng ký hoặc Trưởng/Phó phòng cùng đơn vị mới được cho phép đăng ký lại.");
     await FirebaseService.deleteDoc(FirebaseService.doc(FirebaseService.db,"taskRegistrations",reg.id));
     return true;
   },
