@@ -1,1240 +1,1740 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-  <title>Hệ thống nhắc việc văn bản</title>
-<script>
-  const DA_DANG_KY = localStorage.getItem("nhac_viec_da_dang_ky_nhan_su");
-
-  if (!DA_DANG_KY) {
-    window.location.replace("/dashboard-van-ban-tanhiep/login.html?v=20260709.6");
-  }
-</script>
-  <link rel="manifest" href="/dashboard-van-ban-tanhiep/manifest.json?v=20260709.6" />
-  <link rel="apple-touch-icon" href="/dashboard-van-ban-tanhiep/icon-192.png" />
-
-  <meta name="theme-color" content="#1f5f99" />
-  <meta name="mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-title" content="Nhắc việc" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-
-  <style>
-    :root{
-      --main:#1f5f99;
-      --main2:#2f80c0;
-      --bg:#f3f7fb;
-      --card:#fff;
-      --text:#1f2937;
-      --muted:#6b7280;
-      --border:#d7dce2;
-      --red:#e76f51;
-      --orange:#f4a261;
-      --blue:#5dade2;
-      --green:#4f8a6d;
-      --gray:#7b8490;
-      --shadow:0 6px 18px rgba(15,23,42,.08);
-    }
-
-    *{box-sizing:border-box}
-
-    body{
-      margin:0;
-      min-height:100vh;
-      font-family:"Segoe UI",Roboto,Arial,sans-serif;
-      background:radial-gradient(circle at top right,rgba(47,128,192,.12),transparent 32%),var(--bg);
-      color:var(--text);
-    }
-
-    header{
-      background:linear-gradient(135deg,#174b7b,var(--main2));
-      color:#fff;
-      text-align:center;
-      padding:22px 14px 19px;
-      box-shadow:0 8px 24px rgba(23,75,123,.22);
-    }
-
-    header h1{
-      margin:0;
-      font-size:22px;
-      line-height:1.35;
-      font-weight:800;
-    }
-
-    header p{
-      margin:8px auto 0;
-      max-width:720px;
-      font-size:14px;
-      line-height:1.45;
-      opacity:.95;
-    }
-
-    .header-actions{
-      margin:16px auto 0;
-      display:flex;
-      justify-content:center;
-      align-items:center;
-      gap:10px;
-      flex-wrap:wrap;
-    }
-
-    .header-action{
-      min-height:42px;
-      padding:10px 15px;
-      border:1px solid rgba(255,255,255,.38);
-      border-radius:12px;
-      background:rgba(255,255,255,.14);
-      color:#fff;
-      font:inherit;
-      font-size:14px;
-      font-weight:800;
-      text-decoration:none;
-      cursor:pointer;
-      display:inline-flex;
-      align-items:center;
-      justify-content:center;
-      gap:7px;
-      box-shadow:0 6px 14px rgba(0,0,0,.10);
-      transition:transform .15s ease, background .15s ease;
-    }
-
-    .header-action:hover{
-      background:rgba(255,255,255,.23);
-      transform:translateY(-1px);
-    }
-
-    .header-action.logout{
-      background:rgba(117,25,25,.28);
-    }
-
-    .sync-bar{
-      text-align:center;
-      background:#eaf4ff;
-      color:var(--main);
-      font-weight:700;
-      font-size:13px;
-      padding:8px 12px;
-      border-bottom:1px solid #d7e8f8;
-    }
-
-    .sync-bar.error{
-      background:#fff1ed;
-      color:var(--red);
-      border-bottom-color:#f5c2b5;
-    }
-
-    .container{
-      max-width:1180px;
-      margin:auto;
-      padding:14px;
-    }
-
-    .tabs{
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:10px;
-      margin-bottom:14px;
-    }
-
-    .tab-btn{
-      border:0;
-      padding:13px 10px;
-      border-radius:16px;
-      background:#fff;
-      color:var(--main);
-      font-weight:800;
-      font-size:15px;
-      cursor:pointer;
-      box-shadow:var(--shadow);
-      font-family:inherit;
-    }
-
-    .tab-btn.active{
-      background:var(--main);
-      color:#fff;
-    }
-
-    .cards{
-      display:grid;
-      grid-template-columns:repeat(4,1fr);
-      gap:12px;
-      margin-bottom:14px;
-    }
-
-    .card{
-      background:var(--card);
-      border-radius:18px;
-      padding:16px 10px;
-      text-align:center;
-      box-shadow:var(--shadow);
-      border-left:5px solid var(--main);
-      min-height:98px;
-      display:flex;
-      flex-direction:column;
-      justify-content:center;
-    }
-
-    .card.full{grid-column:span 4}
-
-    .number{
-      font-size:31px;
-      font-weight:850;
-      margin-bottom:5px;
-    }
-
-    .label{
-      font-size:13.5px;
-      color:#555;
-      font-weight:800;
-      line-height:1.35;
-    }
-
-    .red{color:var(--red)}
-    .orange{color:var(--orange)}
-    .blue{color:var(--blue)}
-    .green{color:var(--green)}
-    .gray{color:var(--gray)}
-
-    .filters{
-      background:#fff;
-      padding:14px;
-      border-radius:18px;
-      margin-bottom:14px;
-      box-shadow:var(--shadow);
-      display:grid;
-      grid-template-columns:1fr 240px 220px;
-      gap:10px;
-    }
-
-    input,select{
-      width:100%;
-      padding:12px;
-      min-height:46px;
-      border:1px solid var(--border);
-      border-radius:13px;
-      font-size:14px;
-      outline:0;
-      background:#fff;
-      font-family:inherit;
-      font-weight:650;
-      color:#334155;
-    }
-
-    input:focus,select:focus{
-      border-color:var(--main2);
-      box-shadow:0 0 0 3px rgba(47,128,192,.12);
-    }
-
-    .section-title{
-      font-size:18px;
-      font-weight:850;
-      margin:18px 0 10px;
-      color:var(--main);
-    }
-
-    .table-wrap{
-      background:#fff;
-      border-radius:18px;
-      overflow-x:auto;
-      box-shadow:var(--shadow);
-    }
-
-    table{
-      width:100%;
-      border-collapse:collapse;
-      min-width:900px;
-    }
-
-    th{
-      background:var(--main);
-      color:#fff;
-      padding:12px;
-      text-align:left;
-      font-size:14px;
-      font-weight:850;
-    }
-
-    td{
-      padding:12px;
-      border-bottom:1px solid #eee;
-      vertical-align:top;
-      font-size:14px;
-      line-height:1.45;
-      color:#334155;
-    }
-
-    tr:hover{
-      background:#eef6ff;
-      cursor:pointer;
-    }
-
-    .badge{
-      display:inline-block;
-      padding:6px 10px;
-      border-radius:999px;
-      color:#fff;
-      font-weight:850;
-      font-size:12px;
-      white-space:nowrap;
-    }
-
-    .badge-red{background:var(--red)}
-    .badge-orange{background:var(--orange)}
-    .badge-blue{background:var(--blue)}
-    .badge-green{background:var(--green)}
-    .badge-gray{background:var(--gray)}
-
-    .btn{
-      display:inline-block;
-      text-decoration:none;
-      background:var(--main2);
-      color:#fff;
-      padding:8px 12px;
-      border-radius:10px;
-      font-size:13px;
-      font-weight:800;
-    }
-
-    .mobile-list{display:none}
-
-    .mobile-card{
-      background:#fff;
-      border-radius:18px;
-      padding:15px;
-      margin-bottom:13px;
-      box-shadow:var(--shadow);
-      border-left:5px solid var(--main);
-    }
-
-    .mobile-card h3{
-      margin:0 0 8px;
-      font-size:17px;
-      color:var(--main);
-      line-height:1.35;
-    }
-
-    .mobile-card p{
-      margin:7px 0;
-      font-size:14.5px;
-      line-height:1.45;
-    }
-
-    .mobile-meta{
-      color:var(--muted);
-      font-size:13px;
-    }
-
-    .pagination{
-      display:flex;
-      justify-content:center;
-      flex-wrap:wrap;
-      gap:8px;
-      margin:18px 0;
-    }
-
-    .pagination button{
-      border:0;
-      background:#fff;
-      color:var(--main);
-      padding:9px 13px;
-      border-radius:10px;
-      font-weight:800;
-      box-shadow:0 3px 10px rgba(0,0,0,.08);
-      cursor:pointer;
-    }
-
-    .pagination button.active{
-      background:var(--main);
-      color:#fff;
-    }
-
-    .pagination button:disabled{
-      opacity:.45;
-      cursor:not-allowed;
-    }
-
-    .modal{
-      display:none;
-      position:fixed;
-      z-index:99;
-      inset:0;
-      background:rgba(0,0,0,.55);
-      padding:14px;
-    }
-
-    .modal-content{
-      background:#fff;
-      max-width:760px;
-      margin:30px auto;
-      border-radius:18px;
-      padding:18px;
-      max-height:86vh;
-      overflow-y:auto;
-      box-shadow:0 8px 30px rgba(0,0,0,.25);
-    }
-
-    .modal-header{
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      gap:12px;
-      border-bottom:1px solid #eee;
-      padding-bottom:10px;
-      margin-bottom:12px;
-    }
-
-    .modal-header h2{
-      margin:0;
-      color:var(--main);
-      font-size:19px;
-    }
-
-    .close{
-      font-size:28px;
-      cursor:pointer;
-      color:#555;
-      font-weight:850;
-    }
-
-    .detail-row{
-      margin:10px 0;
-      line-height:1.5;
-    }
-
-    .detail-row strong{color:var(--main)}
-
-    .ai-detail{
-      white-space:pre-wrap;
-      background:#f7f9fc;
-      padding:12px;
-      border-radius:12px;
-      border-left:4px solid var(--main2);
-      line-height:1.55;
-    }
-
-    .loading{
-      text-align:center;
-      padding:26px;
-      font-weight:800;
-      color:var(--main);
-    }
-
-    .footer{
-      text-align:center;
-      color:#777;
-      padding:24px;
-      font-size:13px;
-    }
-
-    .setup-modal{
-      display:none;
-      position:fixed;
-      inset:0;
-      z-index:9998;
-      background:rgba(15,23,42,.45);
-      padding:16px;
-      align-items:center;
-      justify-content:center;
-    }
-
-    .setup-modal.show{display:flex}
-
-    .setup-card{
-      width:100%;
-      max-width:420px;
-      background:#fff;
-      border-radius:22px;
-      padding:20px;
-      box-shadow:0 18px 50px rgba(0,0,0,.25);
-    }
-
-    .setup-icon{
-      width:52px;
-      height:52px;
-      border-radius:16px;
-      background:linear-gradient(135deg,var(--main),var(--main2));
-      color:#fff;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      font-size:26px;
-      margin-bottom:12px;
-    }
-
-    .setup-title{
-      color:var(--main);
-      font-size:19px;
-      font-weight:850;
-      margin-bottom:8px;
-      line-height:1.35;
-    }
-
-    .setup-text{
-      color:#4b5563;
-      font-size:14.5px;
-      line-height:1.55;
-      margin-bottom:14px;
-    }
-
-    .setup-note{
-      background:#f3f7fb;
-      border-left:4px solid var(--main2);
-      border-radius:12px;
-      padding:11px 12px;
-      color:#374151;
-      font-size:13.5px;
-      line-height:1.45;
-      margin-bottom:14px;
-    }
-
-    .setup-actions{
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:10px;
-    }
-
-    .setup-primary,.setup-secondary{
-      border:0;
-      border-radius:13px;
-      padding:12px 10px;
-      font-weight:850;
-      font-size:14px;
-      cursor:pointer;
-      font-family:inherit;
-    }
-
-    .setup-primary{
-      background:var(--main);
-      color:#fff;
-    }
-
-    .setup-secondary{
-      background:#eef2f7;
-      color:#4b5563;
-    }
-
-    @media(max-width:850px){
-      header{padding:17px 14px}
-      header h1{font-size:19px}
-      header p{font-size:13.5px}
-      .container{padding:12px}
-      .cards{grid-template-columns:1fr 1fr;gap:12px}
-      .card{padding:14px 8px;min-height:96px}
-      .card.full{grid-column:span 2}
-      .number{font-size:30px}
-      .filters{grid-template-columns:1fr}
-      .table-wrap{display:none}
-      .mobile-list{display:block}
-      .modal-content{margin:20px auto;padding:16px}
-    }
-  </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Nhiệm vụ và đánh giá KPI | Trung tâm Bảo trợ xã hội Tân Hiệp</title>
+
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <meta name="theme-color" content="#17639a">
+  <meta name="application-name" content="Nhiệm vụ và đánh giá KPI Tân Hiệp">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Đánh giá KPI">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+
+  <link rel="manifest" href="./manifest.webmanifest?v=20260723.StdTasksPilot">
+  <link rel="icon" type="image/png" sizes="64x64" href="./icons/favicon-64.png?v=20260723.StdTasksPilot">
+  <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png?v=20260723.StdTasksPilot">
+  <link rel="stylesheet" href="./styles.css?v=20260724.Prod2C">
+  <link rel="stylesheet" href="./kpi.css?v=20260724.Prod2C">
+  <link rel="stylesheet" href="./ai-assistant.css?v=20260719.2310">
+
+  <script
+    src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js"
+    defer
+  ></script>
+
+  <script
+    src="./onesignal.js?v=20260718.0600"
+    defer
+  ></script>
 </head>
 
 <body>
-
-<header>
-  <h1>📑 HỆ THỐNG NHẮC VIỆC VĂN BẢN</h1>
-  <p>Dashboard giám sát, nhắc việc và lưu trữ kết quả thực hiện nhiệm vụ</p>
-
-  <div class="header-actions" aria-label="Điều hướng hệ thống">
-    <a
-      class="header-action"
-      href="/dashboard-van-ban-tanhiep/nhiem-vu/"
-      title="Mở nhiệm vụ và đánh giá KPI"
-    >
-      <span aria-hidden="true">📊</span>
-      <span>Đánh giá KPI</span>
-    </a>
-
-    <button
-      class="header-action logout"
-      type="button"
-      onclick="dangXuatDashboardVanBan()"
-      title="Đăng xuất khỏi Dashboard Văn bản"
-    >
-      <span aria-hidden="true">🚪</span>
-      <span>Đăng xuất</span>
-    </button>
-  </div>
-</header>
-
-<div id="syncBar" class="sync-bar">
-  <span id="syncText">Đang đồng bộ dữ liệu...</span>
-</div>
-
-<div class="container">
-  <div class="tabs">
-    <button class="tab-btn active" id="btnTheoDoi" onclick="doiTab('theoDoi')">📌 Đang theo dõi</button>
-    <button class="tab-btn" id="btnLuuTru" onclick="doiTab('luuTru')">📁 Lưu trữ</button>
+  <div
+    id="offlineBanner"
+    class="pwa-system-banner offline-banner hidden"
+    role="status"
+  >
+    <span>
+      📡 Thiết bị đang ngoại tuyến. Dữ liệu Firebase sẽ được tải lại khi có Internet.
+    </span>
   </div>
 
-  <div class="cards" id="khuThongKe"></div>
+  <!-- MÀN HÌNH KHỞI TẠO -->
+  <section id="loadingView" class="view loading-view">
+    <div class="loading-card">
+      <div class="loading-logo" aria-hidden="true">📋</div>
 
-  <div class="filters">
-    <input type="text" id="tuKhoa" placeholder="🔍 Tìm số hiệu, trích yếu..." oninput="hienThiDuLieu()">
-
-    <select id="locPhong" onchange="hienThiDuLieu()">
-      <option value="">Tất cả phòng ban</option>
-      <option value="PHÒNG TỔ CHỨC - HÀNH CHÍNH">Phòng Tổ chức - Hành chính</option>
-      <option value="PHÒNG KẾ HOẠCH TÀI CHÍNH">Phòng Kế hoạch tài chính</option>
-      <option value="PHÒNG CÔNG TÁC XÃ HỘI">Phòng Công tác xã hội</option>
-      <option value="PHÒNG Y TẾ">Phòng Y tế</option>
-      <option value="KHU I">Khu I</option>
-      <option value="KHU II">Khu II</option>
-      <option value="KHU III">Khu III</option>
-    </select>
-
-    <select id="locTrangThai" onchange="hienThiDuLieu()">
-      <option value="">Tất cả trạng thái</option>
-      <option value="QUÁ HẠN">Quá hạn</option>
-      <option value="ĐẾN HẠN HÔM NAY">Đến hạn hôm nay</option>
-      <option value="SẮP ĐẾN HẠN">Sắp đến hạn</option>
-      <option value="CÒN HẠN">Còn hạn</option>
-    </select>
-  </div>
-
-  <div class="section-title" id="tieuDeBang">📌 Danh sách văn bản đang theo dõi</div>
-
-  <div class="table-wrap">
-    <table>
-      <thead id="theadBang"></thead>
-      <tbody id="bangDuLieu">
-        <tr><td colspan="8" class="loading">Đang tải dữ liệu...</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <div class="mobile-list" id="mobileList">
-    <div class="loading">Đang tải dữ liệu...</div>
-  </div>
-
-  <div id="phanTrang" class="pagination"></div>
-</div>
-
-<div class="footer">
-  Trung tâm Bảo trợ xã hội Tân Hiệp - Dashboard chỉ xem dành cho Ban Giám đốc
-</div>
-
-<div id="modalChiTiet" class="modal">
-  <div class="modal-content">
-    <div class="modal-header">
-      <h2>📄 Chi tiết văn bản</h2>
-      <span class="close" onclick="dongChiTiet()">&times;</span>
+      <div>
+        <h1>Nhiệm vụ và đánh giá KPI</h1>
+        <p>Đang kiểm tra tài khoản và tải dữ liệu...</p>
+      </div>
     </div>
-    <div id="noiDungChiTiet"></div>
+  </section>
+
+  <!-- ĐĂNG NHẬP -->
+  <section id="loginView" class="view login-view hidden">
+    <div class="login-card">
+      <div class="login-brand">
+        <div class="login-logo" aria-hidden="true">📋</div>
+
+        <div>
+          <h1>Nhiệm vụ và đánh giá KPI</h1>
+          <p>Trung tâm Bảo trợ xã hội Tân Hiệp</p>
+        </div>
+      </div>
+
+      <p class="login-description">
+        Đăng nhập bằng tài khoản Google đã được quản trị cấp quyền.
+        Email và mật khẩu được giữ lại làm phương án dự phòng.
+      </p>
+
+      <button
+        id="googleLoginButton"
+        class="google-login-button"
+        type="button"
+      >
+        <span class="google-mark" aria-hidden="true">G</span>
+        <span>Đăng nhập bằng Google</span>
+      </button>
+
+      <button
+        id="loginInstallButton"
+        class="secondary-button full-width pwa-login-install hidden"
+        type="button"
+      >
+        📲 Cài ứng dụng trên thiết bị
+      </button>
+
+      <div class="login-divider" aria-hidden="true">
+        <span>hoặc đăng nhập dự phòng</span>
+      </div>
+
+      <form id="loginForm" novalidate>
+        <div class="field-block">
+          <label for="loginEmail">Email</label>
+
+          <input
+            id="loginEmail"
+            type="email"
+            inputmode="email"
+            autocomplete="username"
+            placeholder="Nhập email đăng nhập"
+            required
+          >
+        </div>
+
+        <div class="field-block">
+          <label for="loginPassword">Mật khẩu</label>
+
+          <div class="password-field">
+            <input
+              id="loginPassword"
+              type="password"
+              autocomplete="current-password"
+              placeholder="Nhập mật khẩu"
+              required
+            >
+
+            <button
+              id="togglePasswordButton"
+              class="icon-button"
+              type="button"
+              aria-label="Hiện mật khẩu"
+            >
+              👁
+            </button>
+          </div>
+        </div>
+
+        <button
+          id="loginButton"
+          class="primary-button full-width"
+          type="submit"
+        >
+          Đăng nhập
+        </button>
+      </form>
+
+      <div
+        id="loginMessage"
+        class="message"
+        role="status"
+        aria-live="polite"
+      ></div>
+
+      <div class="security-note">
+        Chỉ tài khoản có trong danh sách được cấp quyền mới sử dụng được hệ thống.
+        Không dùng chung một tài khoản cho nhiều người.
+      </div>
+    </div>
+  </section>
+
+  <!-- ỨNG DỤNG -->
+  <div id="appView" class="app-shell hidden">
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="brand">
+          <div class="brand-logo" aria-hidden="true">📋</div>
+
+          <div class="brand-copy">
+            <h1>Nhiệm vụ và đánh giá KPI</h1>
+            <p>Trung tâm Bảo trợ xã hội Tân Hiệp</p>
+          </div>
+        </div>
+
+        <div class="top-actions">
+          <button
+            id="installAppButton"
+            class="top-button hidden"
+            type="button"
+            title="Cài ứng dụng"
+          >
+            <span aria-hidden="true">📲</span>
+            <span class="top-button-text">Cài ứng dụng</span>
+          </button>
+
+          <button
+            id="portalButton"
+            class="top-button"
+            type="button"
+            title="Trở về Dashboard Văn bản"
+          >
+            <span aria-hidden="true">🏠</span>
+            <span class="top-button-text">Dashboard Văn bản</span>
+          </button>
+
+          <button
+            id="logoutButton"
+            class="top-button"
+            type="button"
+          >
+            <span aria-hidden="true">🚪</span>
+            <span class="top-button-text">Đăng xuất</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="page-container">
+      <section class="welcome-card">
+        <div>
+          <h2 id="welcomeName">Xin chào</h2>
+          <p id="welcomeDepartment">
+            Đang tải thông tin đơn vị...
+          </p>
+        </div>
+
+        <div id="roleBadge" class="role-badge">
+          —
+          <span>—</span>
+        </div>
+      </section>
+
+      <nav class="module-navigation" aria-label="Phân hệ ứng dụng">
+        <button
+          id="tasksModuleTab"
+          class="module-navigation-button active"
+          type="button"
+          aria-selected="true"
+        >
+          <span aria-hidden="true">📋</span>
+          <span>Nhiệm vụ</span>
+        </button>
+
+        <button
+          id="kpiModuleTab"
+          class="module-navigation-button"
+          type="button"
+          aria-selected="false"
+        >
+          <span aria-hidden="true">📈</span>
+          <span>Đánh giá KPI</span>
+          <small>Thí điểm</small>
+        </button>
+        <button
+          id="standardTasksModuleTab"
+          class="module-navigation-button"
+          type="button"
+          aria-selected="false"
+        >
+          <span aria-hidden="true">🗂️</span>
+          <span>Danh mục công việc</span>
+          <small>Thử nghiệm</small>
+        </button>
+      </nav>
+
+      <section
+        id="pushStatusBox"
+        class="push-status-box hidden task-module-panel"
+        role="status"
+        aria-live="polite"
+      >
+        <div>
+          <strong id="pushStatusTitle">
+            Thông báo nhiệm vụ
+          </strong>
+
+          <span id="pushStatusText">
+            Đang kiểm tra trạng thái thông báo...
+          </span>
+        </div>
+
+        <button
+          id="pushStatusAction"
+          class="secondary-button hidden"
+          type="button"
+        >
+          Bật thông báo
+        </button>
+      </section>
+
+      <section
+        class="metrics-grid task-module-panel"
+        aria-label="Thống kê nhiệm vụ"
+      >
+        <article class="metric-card metric-total">
+          <span class="metric-icon" aria-hidden="true">📌</span>
+          <strong id="metricTotal">0</strong>
+          <span>Tổng nhiệm vụ</span>
+        </article>
+
+        <article class="metric-card metric-completed">
+          <span class="metric-icon" aria-hidden="true">✅</span>
+          <strong id="metricCompleted">0</strong>
+          <span>Đã hoàn thành</span>
+        </article>
+
+        <article class="metric-card metric-processing">
+          <span class="metric-icon" aria-hidden="true">🔄</span>
+          <strong id="metricProcessing">0</strong>
+          <span>Đang thực hiện</span>
+        </article>
+
+        <article class="metric-card metric-waiting">
+          <span class="metric-icon" aria-hidden="true">🤝</span>
+          <strong id="metricWaiting">0</strong>
+          <span>Chờ phối hợp</span>
+        </article>
+
+        <article class="metric-card metric-overdue">
+          <span class="metric-icon" aria-hidden="true">⚠️</span>
+          <strong id="metricOverdue">0</strong>
+          <span>Quá hạn</span>
+        </article>
+
+        <article class="metric-card metric-paused">
+          <span class="metric-icon" aria-hidden="true">⏸️</span>
+          <strong id="metricPaused">0</strong>
+          <span>Tạm dừng</span>
+        </article>
+      </section>
+
+      <section class="filter-card task-module-panel">
+        <div class="filter-card-head">
+          <div>
+            <h2>Bộ lọc nhiệm vụ</h2>
+            <p id="lastUpdated">Chưa tải dữ liệu</p>
+          </div>
+
+          <button
+            id="addTaskButton"
+            class="primary-button filter-create-button hidden"
+            type="button"
+          >
+            ➕ Ghi nhận
+          </button>
+        </div>
+
+        <div class="filter-search-row">
+          <div class="filter-search">
+            <label class="sr-only" for="searchInput">Tìm kiếm</label>
+
+            <input
+              id="searchInput"
+              type="search"
+              autocomplete="off"
+              placeholder="Tìm mã, tiêu đề, nội dung, người phụ trách..."
+            >
+          </div>
+
+          <button
+            id="refreshButton"
+            class="secondary-button filter-reset-button"
+            type="button"
+            aria-label="Đặt lại bộ lọc và làm mới dữ liệu"
+            title="Đặt lại bộ lọc và làm mới dữ liệu"
+          >
+            ↻ Đặt lại
+          </button>
+        </div>
+
+        <button
+          id="filterToggleButton"
+          class="secondary-button advanced-filter-toggle"
+          type="button"
+          aria-expanded="false"
+          aria-controls="filterFields"
+        >
+          🔎 Bộ lọc nâng cao
+        </button>
+
+        <div id="filterFields" class="advanced-filter-panel">
+          <div class="advanced-filter-grid">
+            <div class="date-filter-field">
+              <label for="dateFromFilter">Từ ngày</label>
+              <input id="dateFromFilter" type="date">
+            </div>
+
+            <div class="date-filter-field">
+              <label for="dateToFilter">Đến ngày</label>
+              <input id="dateToFilter" type="date">
+            </div>
+
+            <div>
+              <label for="statusFilter">Trạng thái</label>
+              <select id="statusFilter">
+                <option value="ALL">Tất cả trạng thái</option>
+                <option value="MOI_TIEP_NHAN">Mới ghi nhận</option>
+                <option value="DANG_THUC_HIEN">Đang thực hiện</option>
+                <option value="CHO_PHOI_HOP">Chờ phối hợp</option>
+                <option value="HOAN_THANH">Hoàn thành</option>
+                <option value="TAM_DUNG">Tạm dừng</option>
+                <option value="HUY">Hủy</option>
+              </select>
+            </div>
+
+            <div>
+              <label for="deadlineFilter">Thời hạn</label>
+              <select id="deadlineFilter">
+                <option value="ALL">Tất cả thời hạn</option>
+                <option value="OVERDUE">Quá hạn</option>
+                <option value="DUE_TODAY">Đến hạn hôm nay</option>
+                <option value="UPCOMING">Sắp đến hạn ≤ 5 ngày</option>
+                <option value="COMPLETED">Đã hoàn thành</option>
+              </select>
+            </div>
+
+            <div id="departmentFilterWrap" class="hidden">
+              <label for="departmentFilter">Phòng/Khu</label>
+              <select id="departmentFilter">
+                <option value="ALL">Tất cả Phòng/Khu</option>
+              </select>
+            </div>
+
+            <div class="advanced-filter-export-field">
+              <span class="advanced-filter-export-label" aria-hidden="true">&nbsp;</span>
+              <button
+                id="exportReportButton"
+                class="secondary-button export-button hidden"
+                type="button"
+              >
+                📊 Xuất báo cáo
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="tasks-section task-module-panel">
+        <div class="task-view-tabs" role="tablist" aria-label="Phân loại nhiệm vụ">
+          <button
+            id="activeTasksTab"
+            class="task-view-tab active"
+            type="button"
+            role="tab"
+            aria-selected="true"
+          >
+            <span>📋 Công việc đang xử lý</span>
+            <strong id="activeTaskCount">0</strong>
+          </button>
+
+          <button
+            id="archiveTasksTab"
+            class="task-view-tab"
+            type="button"
+            role="tab"
+            aria-selected="false"
+          >
+            <span>🗄️ Lưu trữ hoàn thành</span>
+            <strong id="archiveTaskCount">0</strong>
+          </button>
+        </div>
+
+        <div class="section-heading">
+          <div>
+            <h2 id="taskListTitle">Danh sách nhiệm vụ</h2>
+            <p id="taskListSubtitle">
+              Danh sách các nhiệm vụ đang được giao, theo dõi hoặc chờ xử lý.
+            </p>
+          </div>
+
+          <strong id="taskCount">
+            0 nhiệm vụ
+          </strong>
+        </div>
+
+        <div
+          id="dashboardMessage"
+          class="message"
+          role="status"
+          aria-live="polite"
+        ></div>
+
+        <!-- BẢNG DESKTOP -->
+        <div id="taskTableWrap" class="task-table-wrap">
+          <table class="task-table">
+            <thead>
+              <tr>
+                <th>Mã</th>
+                <th>Nội dung nhiệm vụ</th>
+                <th>Phòng/Khu chính</th>
+                <th>Người phụ trách</th>
+                <th>Hạn hoàn thành</th>
+                <th>Trạng thái</th>
+                <th>Tiến độ</th>
+              </tr>
+            </thead>
+
+            <tbody id="taskTableBody"></tbody>
+          </table>
+        </div>
+
+        <!-- THẺ MOBILE -->
+        <div
+          id="taskCardList"
+          class="task-card-list"
+        ></div>
+
+        <div
+          id="emptyState"
+          class="empty-state hidden"
+        >
+          <div aria-hidden="true">📭</div>
+          <h3 id="emptyStateTitle">Chưa có nhiệm vụ đang xử lý</h3>
+
+          <p id="emptyStateText">
+            Những nhiệm vụ mới được giao hoặc đang thực hiện sẽ hiển thị tại đây.
+          </p>
+        </div>
+      </section>
+
+      <section id="kpiSection" class="kpi-section hidden"></section>
+
+      <!-- DANH MỤC CÔNG VIỆC CHUẨN - CHẾ ĐỘ THỬ NGHIỆM CHỈ XEM -->
+      <section id="standardTasksSection" class="standard-tasks-section hidden">
+        <div class="standard-tasks-heading">
+          <div>
+            <div class="standard-tasks-title-row">
+              <h2>Danh mục công việc chuẩn</h2>
+              <span class="pilot-badge">THỬ NGHIỆM</span>
+            </div>
+            <p>
+              Dữ liệu được đồng bộ từ Google Sheet qua Firestore. Ứng dụng chỉ đọc,
+              không sửa trực tiếp danh mục.
+            </p>
+          </div>
+
+          <button
+            id="refreshStandardTasksButton"
+            class="secondary-button standard-task-refresh-button"
+            type="button"
+          >
+            ↻ Làm mới
+          </button>
+        </div>
+
+        <div class="pilot-notice" role="note">
+          <strong>⚠️ Dữ liệu thử nghiệm</strong>
+          <span>Chưa sử dụng để đánh giá, xếp loại hoặc tính điểm chính thức.</span>
+        </div>
+
+        <div id="standardTaskAccessNotice" class="standard-task-access-notice hidden">
+          <div aria-hidden="true">🔒</div>
+          <h3>Đơn vị chưa được mở thử nghiệm</h3>
+          <p>
+            Hiện danh mục công việc chuẩn mới được mở cho Phòng Tổ chức – Hành chính.
+          </p>
+        </div>
+
+        <div id="standardTaskContent">
+          <div class="standard-task-metrics" aria-label="Thống kê danh mục công việc">
+            <article>
+              <span>Tổng đầu việc</span>
+              <strong id="standardTaskMetricTotal">0</strong>
+            </article>
+            <article>
+              <span>Thường xuyên</span>
+              <strong id="standardTaskMetricRegular">0</strong>
+            </article>
+            <article>
+              <span>Đột xuất</span>
+              <strong id="standardTaskMetricUnexpected">0</strong>
+            </article>
+            <article>
+              <span>Điểm tối đa bình quân</span>
+              <strong id="standardTaskMetricAverage">0</strong>
+            </article>
+          </div>
+
+          <div class="standard-task-filter-card">
+            <div class="standard-task-filter-grid">
+              <div class="standard-task-search-field">
+                <label for="standardTaskSearchInput">Tìm kiếm</label>
+                <input
+                  id="standardTaskSearchInput"
+                  type="search"
+                  autocomplete="off"
+                  placeholder="Tìm mã, tên, sản phẩm đầu ra, minh chứng..."
+                >
+              </div>
+
+              <div>
+                <label for="standardTaskWorkTypeFilter">Loại công việc</label>
+                <select id="standardTaskWorkTypeFilter">
+                  <option value="ALL">Tất cả loại</option>
+                  <option value="THUONG_XUYEN">Thường xuyên</option>
+                  <option value="DOT_XUAT">Đột xuất</option>
+                </select>
+              </div>
+
+              <div id="standardTaskDepartmentFilterWrap" class="hidden">
+                <label for="standardTaskDepartmentFilter">Phòng/Khu</label>
+                <select id="standardTaskDepartmentFilter">
+                  <option value="ALL">Tất cả Phòng/Khu</option>
+                </select>
+              </div>
+
+              <button
+                id="resetStandardTaskFiltersButton"
+                class="secondary-button standard-task-reset-button"
+                type="button"
+              >
+                Đặt lại
+              </button>
+            </div>
+          </div>
+
+          <div class="standard-task-list-heading">
+            <div>
+              <h3>Danh sách đầu việc</h3>
+              <p id="standardTaskLastUpdated">Chưa tải dữ liệu</p>
+            </div>
+            <strong id="standardTaskCount">0 đầu việc</strong>
+          </div>
+
+          <div
+            id="standardTaskMessage"
+            class="message"
+            role="status"
+            aria-live="polite"
+          ></div>
+
+          <div id="standardTaskTableWrap" class="standard-task-table-wrap">
+            <table class="standard-task-table">
+              <thead>
+                <tr>
+                  <th>Mã</th>
+                  <th>Tên công việc</th>
+                  <th>Tần suất</th>
+                  <th>Loại</th>
+                  <th>Điểm chuẩn</th>
+                  <th>Hệ số</th>
+                  <th>Điểm tối đa</th>
+                </tr>
+              </thead>
+              <tbody id="standardTaskTableBody"></tbody>
+            </table>
+          </div>
+
+          <div id="standardTaskCardList" class="standard-task-card-list"></div>
+
+          <div id="standardTaskEmptyState" class="empty-state hidden">
+            <div aria-hidden="true">🗂️</div>
+            <h3>Chưa có đầu việc phù hợp</h3>
+            <p>Hãy kiểm tra bộ lọc hoặc đồng bộ thêm dữ liệu từ Google Sheet.</p>
+          </div>
+        </div>
+      </section>
+
+    </main>
   </div>
-</div>
 
-<div id="notificationSetupModal" class="setup-modal">
-  <div class="setup-card">
-    <div class="setup-icon">🔔</div>
-    <div class="setup-title">Thiết lập thông báo nhắc việc</div>
-    <div class="setup-text" id="notificationSetupText">
-      Hệ thống sẽ gửi thông báo khi có văn bản mới, văn bản khẩn, văn bản sắp đến hạn hoặc quá hạn.
+
+
+  <!-- CHI TIẾT DANH MỤC CÔNG VIỆC CHUẨN -->
+  <div
+    id="standardTaskDetailModal"
+    class="modal-backdrop hidden"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="standardTaskDetailTitle"
+  >
+    <section class="standard-task-detail-modal">
+      <header class="modal-header">
+        <div>
+          <p id="standardTaskDetailCode" class="detail-code">—</p>
+          <h2 id="standardTaskDetailTitle">Chi tiết đầu việc</h2>
+        </div>
+
+        <button
+          id="closeStandardTaskDetailButton"
+          class="modal-close"
+          type="button"
+          aria-label="Đóng"
+        >
+          ×
+        </button>
+      </header>
+
+      <div id="standardTaskDetailContent" class="standard-task-detail-content"></div>
+
+      <footer class="standard-task-detail-footer">
+        <span id="standardTaskWorkflowHelp">
+          Chế độ chỉ xem — dữ liệu quản trị tại Google Sheet
+        </span>
+
+        <div class="standard-task-detail-actions">
+          <button
+            id="standardTaskSelfRegisterButton"
+            class="primary-button hidden"
+            type="button"
+          >
+            ✅ Đăng ký thực hiện
+          </button>
+
+          <button
+            id="standardTaskPendingAssignmentButton"
+            class="secondary-button hidden"
+            type="button"
+          >
+            📥 Tạo việc chờ phân công
+          </button>
+
+          <button
+            id="closeStandardTaskDetailFooterButton"
+            class="secondary-button"
+            type="button"
+          >
+            Đóng
+          </button>
+        </div>
+      </footer>
+    </section>
+  </div>
+
+
+  <!-- MODAL GHI NHẬN / GIAO TRỰC TIẾP NHIỆM VỤ -->
+  <div
+    id="taskModal"
+    class="modal-backdrop hidden"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="taskModalTitle"
+  >
+    <section class="task-modal">
+      <header class="modal-header">
+        <div>
+          <h2 id="taskModalTitle">
+            ➕ Ghi nhận nhiệm vụ
+          </h2>
+
+          <p id="taskModalSubtitle">
+            Ghi nhận nhiệm vụ đã được Ban Giám đốc chỉ đạo
+            tại cuộc họp, văn bản hoặc trực tiếp.
+          </p>
+        </div>
+
+        <button
+          id="closeModalButton"
+          class="modal-close"
+          type="button"
+          aria-label="Đóng"
+        >
+          ×
+        </button>
+      </header>
+
+      <form
+        id="taskForm"
+        class="task-form"
+        novalidate
+      >
+        <input
+          id="entryMode"
+          type="hidden"
+          value="SELF_RECORDED"
+        >
+
+        <div class="modal-body">
+          <div
+            id="entryModeBanner"
+            class="entry-mode-banner entry-mode-self"
+          >
+            <strong>TỰ GHI NHẬN</strong>
+
+            <span>
+              Người đang đăng nhập tự báo cáo nhiệm vụ
+              mình đã được chỉ đạo.
+            </span>
+          </div>
+
+          <div
+            id="standardTaskTemplateBanner"
+            class="standard-task-template-banner hidden"
+          ></div>
+
+          <div class="form-grid">
+            <div class="form-section-title form-span-2">
+              <span>1</span>
+
+              <div>
+                <strong>Thông tin chỉ đạo</strong>
+
+                <small>
+                  Rõ nguồn, người chỉ đạo, thời gian và mức độ ưu tiên.
+                </small>
+              </div>
+            </div>
+
+            <div class="field-block">
+              <label for="sourceType">
+                Nguồn nhiệm vụ <span>*</span>
+              </label>
+
+              <select id="sourceType" required>
+                <option value="">Chọn nguồn</option>
+                <option value="HOP_GIAO_BAN">Cuộc họp giao ban</option>
+                <option value="HOP_CHUYEN_DE">Cuộc họp chuyên đề</option>
+                <option value="VAN_BAN_CHI_DAO">Văn bản chỉ đạo</option>
+                <option value="CHI_DAO_TRUC_TIEP">Chỉ đạo trực tiếp</option>
+                <option value="DOT_XUAT">Nhiệm vụ đột xuất</option>
+                <option value="KE_HOACH_CONG_TAC">Kế hoạch công tác</option>
+                <option value="DINH_KY">Nhiệm vụ định kỳ</option>
+                <option value="KHAC">Nguồn khác</option>
+              </select>
+            </div>
+
+            <div class="field-block">
+              <label for="assignedAt">
+                Ngày được chỉ đạo <span>*</span>
+              </label>
+
+              <input
+                id="assignedAt"
+                type="date"
+                required
+              >
+            </div>
+
+            <div class="field-block">
+              <label for="assignedByUserId">
+                Người giao/chỉ đạo <span>*</span>
+              </label>
+
+              <select id="assignedByUserId" required>
+                <option value="">
+                  Chọn người giao/chỉ đạo
+                </option>
+              </select>
+            </div>
+
+            <div class="field-block">
+              <label for="sourceDetail">
+                Căn cứ hoặc nội dung liên quan <span>*</span>
+              </label>
+
+              <input
+                id="sourceDetail"
+                type="text"
+                maxlength="700"
+                placeholder="Ví dụ: Kết luận cuộc họp giao ban ngày 14/7/2026 hoặc số, ký hiệu văn bản"
+                required
+              >
+            </div>
+
+
+            <div class="field-block">
+              <label for="priority">
+                Mức độ ưu tiên <span>*</span>
+              </label>
+
+              <select id="priority" required>
+                <option value="THUONG">Thường</option>
+                <option value="QUAN_TRONG">Quan trọng</option>
+                <option value="KHAN">Khẩn</option>
+                <option value="DOT_XUAT">Đột xuất</option>
+              </select>
+            </div>
+
+            <div class="field-block">
+              <label for="deadline">
+                Hạn hoàn thành <span>*</span>
+              </label>
+
+              <input
+                id="deadline"
+                type="date"
+                required
+              >
+            </div>
+
+            <div class="form-section-title form-span-2">
+              <span>2</span>
+
+              <div>
+                <strong>Nội dung và trách nhiệm</strong>
+
+                <small>
+                  Rõ nội dung nhiệm vụ và Phòng/Khu phối hợp.
+                </small>
+              </div>
+            </div>
+
+            <div class="field-block form-span-2">
+              <label for="taskTitle">
+                Tên nhiệm vụ <span>*</span>
+              </label>
+
+              <input
+                id="taskTitle"
+                type="text"
+                maxlength="250"
+                placeholder="Nhập tên nhiệm vụ ngắn gọn, rõ việc"
+                required
+              >
+            </div>
+
+            <div class="field-block form-span-2">
+              <label for="taskDescription">
+                Nội dung thực hiện <span>*</span>
+              </label>
+
+              <textarea
+                id="taskDescription"
+                rows="4"
+                maxlength="3000"
+                placeholder="Mô tả phạm vi, yêu cầu và nội dung cần thực hiện"
+                required
+              ></textarea>
+            </div>
+
+            <div class="field-block form-span-2">
+              <label for="primaryDepartmentId">
+                Phòng/Khu chịu trách nhiệm chính <span>*</span>
+              </label>
+              <select id="primaryDepartmentId" required></select>
+              <small id="primaryHelp" class="field-help"></small>
+            </div>
+
+            <div class="field-block">
+              <label for="teamId">Tổ/Bộ phận thực hiện</label>
+              <select id="teamId">
+                <option value="">Không chỉ định Tổ/Bộ phận</option>
+              </select>
+              <small id="teamHelp" class="field-help">
+                Dùng để lọc đúng nhóm nhân sự, không tạo thêm cấp phân quyền.
+              </small>
+            </div>
+
+            <div class="field-block">
+              <label for="ownerUserId">Người thực hiện cụ thể</label>
+              <select id="ownerUserId">
+                <option value="">Chưa chỉ định — Phòng/Khu phân công sau</option>
+              </select>
+              <small id="ownerHelp" class="field-help"></small>
+            </div>
+
+            <div class="field-block form-span-2">
+              <label>
+                Phòng/Khu phối hợp
+              </label>
+
+              <div
+                id="supportDropdown"
+                class="multi-select"
+              >
+                <button
+                  id="supportDropdownButton"
+                  class="multi-select-button"
+                  type="button"
+                  aria-haspopup="listbox"
+                  aria-expanded="false"
+                >
+                  <span id="supportSummary">
+                    Chọn Phòng/Khu phối hợp
+                  </span>
+
+                  <span aria-hidden="true">▾</span>
+                </button>
+
+                <div
+                  id="supportDropdownPanel"
+                  class="multi-select-panel hidden"
+                >
+                  <div class="multi-select-search">
+                    <input
+                      id="supportSearchInput"
+                      type="search"
+                      placeholder="Tìm tên Phòng/Khu..."
+                      autocomplete="off"
+                    >
+                  </div>
+
+                  <div
+                    id="supportOptions"
+                    class="multi-select-options"
+                    role="listbox"
+                    aria-multiselectable="true"
+                  ></div>
+                </div>
+              </div>
+
+              <div
+                id="supportSelectedChips"
+                class="selected-chips"
+              ></div>
+
+              <small class="field-help">
+                Khi chọn một Phòng/Khu phối hợp,
+                toàn bộ tài khoản Trưởng/Phó đang hoạt động
+                của Phòng/Khu đó sẽ nhìn thấy nhiệm vụ
+                và nhận thông báo.
+              </small>
+            </div>
+
+
+            <div class="task-form-note form-span-2">
+              <span aria-hidden="true">ℹ️</span>
+
+              <div>
+                <strong>
+                  Sản phẩm và minh chứng được bổ sung
+                  khi kết thúc nhiệm vụ.
+                </strong>
+
+                <small>
+                  Người chịu trách nhiệm cập nhật kết quả
+                  và minh chứng tại bước “Cập nhật/Kết thúc”.
+                </small>
+              </div>
+            </div>
+          </div>
+
+          <div
+            id="taskMessage"
+            class="message"
+            role="status"
+            aria-live="polite"
+          ></div>
+        </div>
+
+        <footer class="modal-footer">
+          <button
+            id="cancelTaskButton"
+            class="secondary-button"
+            type="button"
+          >
+            Hủy
+          </button>
+
+          <button
+            id="saveTaskButton"
+            class="primary-button"
+            type="submit"
+          >
+            Lưu ghi nhận
+          </button>
+        </footer>
+      </form>
+    </section>
+  </div>
+
+  <!-- MODAL XEM CHI TIẾT -->
+  <div
+    id="detailModal"
+    class="modal-backdrop hidden"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="detailModalTitle"
+  >
+    <section class="detail-modal">
+      <header class="modal-header">
+        <div>
+          <h2 id="detailModalTitle">
+            Chi tiết nhiệm vụ
+          </h2>
+
+          <p id="detailTaskCode">—</p>
+        </div>
+
+        <button
+          id="closeDetailButton"
+          class="modal-close"
+          type="button"
+          aria-label="Đóng"
+        >
+          ×
+        </button>
+      </header>
+
+      <div
+        id="detailContent"
+        class="detail-content"
+      ></div>
+
+      <footer
+        id="detailFooter"
+        class="modal-footer detail-footer hidden"
+      >
+        <button
+          id="assignTaskButton"
+          class="secondary-button"
+          type="button"
+        >
+          👤 Phân công nội bộ
+        </button>
+
+        <button
+          id="supportTaskButton"
+          class="secondary-button"
+          type="button"
+        >
+          🏢 Cập nhật phối hợp
+        </button>
+
+        <button
+          id="editTaskButton"
+          class="secondary-button hidden"
+          type="button"
+        >
+          ✏️ Sửa nhiệm vụ đã giao
+        </button>
+
+        <button
+          id="updateTaskButton"
+          class="primary-button"
+          type="button"
+        >
+          ✏️ Cập nhật / Kết thúc nhiệm vụ
+        </button>
+
+        <button
+          id="deleteTaskButton"
+          class="danger-button"
+          type="button"
+        >
+          🗑️ Xóa nhiệm vụ
+        </button>
+      </footer>
+    </section>
+  </div>
+
+  <!-- MODAL PHÂN CÔNG NỘI BỘ -->
+  <div
+    id="assignmentModal"
+    class="modal-backdrop hidden"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="assignmentModalTitle"
+  >
+    <section class="progress-modal">
+      <header class="modal-header progress-modal-header">
+        <div>
+          <h2 id="assignmentModalTitle">
+            👤 Phân công nội bộ
+          </h2>
+
+          <p id="assignmentTaskCode">—</p>
+        </div>
+
+        <button
+          id="closeAssignmentButton"
+          class="modal-close"
+          type="button"
+          aria-label="Đóng"
+        >
+          ×
+        </button>
+      </header>
+
+      <form id="assignmentForm" novalidate>
+        <div class="modal-body">
+          <div
+            id="assignmentTaskSummary"
+            class="progress-task-summary"
+          ></div>
+
+          <div class="form-grid progress-form-grid">
+            <div class="form-section-title form-span-2">
+              <span>1</span>
+
+              <div>
+                <strong>
+                  Chọn người phụ trách thực hiện
+                </strong>
+
+                <small>
+                  Trưởng/Phó của Phòng/Khu tiếp nhận phân công
+                  lãnh đạo hoặc nhân viên trực tiếp chịu trách nhiệm.
+                </small>
+              </div>
+            </div>
+
+            <div class="field-block form-span-2">
+              <label for="internalOwnerUserId">
+                Người phụ trách thực hiện <span>*</span>
+              </label>
+
+              <select
+                id="internalOwnerUserId"
+                required
+              >
+                <option value="">
+                  Chọn người phụ trách thực hiện
+                </option>
+              </select>
+
+              <small
+                id="assignmentHelp"
+                class="field-help"
+              ></small>
+            </div>
+          </div>
+
+          <div
+            id="assignmentMessage"
+            class="message"
+            role="status"
+            aria-live="polite"
+          ></div>
+        </div>
+
+        <footer class="modal-footer">
+          <button
+            id="cancelAssignmentButton"
+            class="secondary-button"
+            type="button"
+          >
+            Hủy
+          </button>
+
+          <button
+            id="saveAssignmentButton"
+            class="primary-button"
+            type="submit"
+          >
+            Xác nhận phân công
+          </button>
+        </footer>
+      </form>
+    </section>
+  </div>
+
+
+  <!-- MODAL CẬP NHẬT PHÒNG/KHU PHỐI HỢP -->
+  <div
+    id="supportEditModal"
+    class="modal-backdrop hidden"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="supportEditModalTitle"
+  >
+    <section class="progress-modal operation-modal">
+      <header class="modal-header progress-modal-header">
+        <div>
+          <h2 id="supportEditModalTitle">
+            🏢 Cập nhật Phòng/Khu phối hợp
+          </h2>
+          <p id="supportEditTaskCode">—</p>
+        </div>
+
+        <button
+          id="closeSupportEditButton"
+          class="modal-close"
+          type="button"
+          aria-label="Đóng"
+        >
+          ×
+        </button>
+      </header>
+
+      <form id="supportEditForm" novalidate>
+        <div class="modal-body">
+          <div
+            id="supportEditSummary"
+            class="progress-task-summary"
+          ></div>
+
+          <div class="form-section-title">
+            <span>1</span>
+            <div>
+              <strong>Chọn Phòng/Khu cần phối hợp</strong>
+              <small>
+                Có thể bổ sung hoặc bỏ đơn vị phối hợp trong quá trình thực hiện nhiệm vụ.
+              </small>
+            </div>
+          </div>
+
+          <div
+            id="supportEditOptions"
+            class="support-edit-options"
+          ></div>
+
+          <div
+            id="supportEditMessage"
+            class="message"
+            role="status"
+            aria-live="polite"
+          ></div>
+        </div>
+
+        <footer class="modal-footer">
+          <button
+            id="cancelSupportEditButton"
+            class="secondary-button"
+            type="button"
+          >
+            Hủy
+          </button>
+
+          <button
+            id="saveSupportEditButton"
+            class="primary-button"
+            type="submit"
+          >
+            Lưu Phòng/Khu phối hợp
+          </button>
+        </footer>
+      </form>
+    </section>
+  </div>
+
+  <!-- MODAL XÓA NHIỆM VỤ -->
+  <div
+    id="deleteTaskModal"
+    class="modal-backdrop hidden"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="deleteTaskModalTitle"
+  >
+    <section class="progress-modal operation-modal delete-task-modal">
+      <header class="modal-header progress-modal-header danger-header">
+        <div>
+          <h2 id="deleteTaskModalTitle">
+            🗑️ Xóa nhiệm vụ
+          </h2>
+          <p id="deleteTaskCode">—</p>
+        </div>
+
+        <button
+          id="closeDeleteTaskButton"
+          class="modal-close"
+          type="button"
+          aria-label="Đóng"
+        >
+          ×
+        </button>
+      </header>
+
+      <form id="deleteTaskForm" novalidate>
+        <div class="modal-body">
+          <div
+            id="deleteTaskSummary"
+            class="progress-task-summary"
+          ></div>
+
+          <div class="delete-warning">
+            <strong>Lưu ý:</strong>
+            Nhiệm vụ sẽ được ẩn khỏi danh sách theo dõi nhưng vẫn lưu nhật ký phục vụ kiểm tra.
+          </div>
+
+          <div class="field-block">
+            <label for="deleteReason">
+              Lý do xóa <span>*</span>
+            </label>
+
+            <textarea
+              id="deleteReason"
+              rows="4"
+              maxlength="500"
+              placeholder="Ví dụ: Nhập sai nội dung nhiệm vụ, tạo trùng nhiệm vụ..."
+              required
+            ></textarea>
+          </div>
+
+          <div
+            id="deleteTaskMessage"
+            class="message"
+            role="status"
+            aria-live="polite"
+          ></div>
+        </div>
+
+        <footer class="modal-footer">
+          <button
+            id="cancelDeleteTaskButton"
+            class="secondary-button"
+            type="button"
+          >
+            Hủy
+          </button>
+
+          <button
+            id="confirmDeleteTaskButton"
+            class="danger-button"
+            type="submit"
+          >
+            Xác nhận xóa
+          </button>
+        </footer>
+      </form>
+    </section>
+  </div>
+
+  <!-- MODAL CẬP NHẬT / KẾT THÚC NHIỆM VỤ -->
+  <div
+    id="progressModal"
+    class="modal-backdrop hidden"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="progressModalTitle"
+  >
+    <section class="progress-modal">
+      <header class="modal-header progress-modal-header">
+        <div>
+          <h2 id="progressModalTitle">
+            ✏️ Cập nhật nhiệm vụ
+          </h2>
+
+          <p id="progressTaskCode">—</p>
+        </div>
+
+        <button
+          id="closeProgressButton"
+          class="modal-close"
+          type="button"
+          aria-label="Đóng"
+        >
+          ×
+        </button>
+      </header>
+
+      <form id="progressForm" novalidate>
+        <div class="modal-body">
+          <div
+            id="progressTaskSummary"
+            class="progress-task-summary"
+          ></div>
+
+          <div class="form-grid progress-form-grid">
+            <div class="form-section-title form-span-2">
+              <span>1</span>
+
+              <div>
+                <strong>
+                  Tình trạng thực hiện
+                </strong>
+
+                <small>
+                  Cập nhật đúng trạng thái và mức độ hoàn thành
+                  tại thời điểm báo cáo.
+                </small>
+              </div>
+            </div>
+
+            <div class="field-block">
+              <label for="progressStatus">
+                Trạng thái <span>*</span>
+              </label>
+
+              <select id="progressStatus" required>
+                <option value="DANG_THUC_HIEN">
+                  Đang thực hiện
+                </option>
+
+                <option value="CHO_PHOI_HOP">
+                  Chờ phối hợp
+                </option>
+
+                <option value="HOAN_THANH">
+                  Hoàn thành / Kết thúc
+                </option>
+
+                <option value="TAM_DUNG">
+                  Tạm dừng
+                </option>
+              </select>
+            </div>
+
+            <div class="field-block progress-milestone-field">
+              <label for="progressPercent">
+                Mức độ hoàn thành <span>*</span>
+              </label>
+
+              <select id="progressPercent" required>
+                <option value="0">0% — Chưa triển khai</option>
+                <option value="25">25% — Đã tiếp nhận, bắt đầu thực hiện</option>
+                <option value="50">50% — Đang thực hiện, hoàn thành khoảng một nửa</option>
+                <option value="75">75% — Đã hoàn thành phần chính, đang hoàn thiện/phối hợp</option>
+                <option value="90">90% — Đã hoàn tất nội dung, chờ ban hành/bàn giao</option>
+                <option value="100">100% — Hoàn thành / Kết thúc nhiệm vụ</option>
+              </select>
+
+              <div
+                id="progressMilestoneHelp"
+                class="progress-milestone-help"
+                aria-live="polite"
+              ></div>
+            </div>
+
+            <div
+              id="completionSection"
+              class="completion-section form-span-2 hidden"
+            >
+              <div class="form-section-title">
+                <span>2</span>
+
+                <div>
+                  <strong>
+                    Kết quả và minh chứng
+                  </strong>
+
+                  <small>
+                    Chỉ hiển thị khi chọn
+                    “Hoàn thành / Kết thúc”.
+                  </small>
+                </div>
+              </div>
+
+              <div class="completion-grid">
+                <div class="field-block">
+                  <label for="completedDate">
+                    Ngày hoàn thành thực tế <span>*</span>
+                  </label>
+
+                  <input
+                    id="completedDate"
+                    type="date"
+                  >
+
+                  <small
+                    id="completionTimingPreview"
+                    class="field-help completion-preview"
+                  ></small>
+                </div>
+
+                <div class="field-block">
+                  <label for="completionProductType">
+                    Loại minh chứng <span>*</span>
+                  </label>
+
+                  <select id="completionProductType">
+                    <option value="">
+                      Chọn loại minh chứng
+                    </option>
+
+                    <option value="NONE">
+                      Không có minh chứng
+                    </option>
+
+                    <option value="FILE">
+                      Tải tệp/hình ảnh lên
+                    </option>
+
+                    <option value="OTHER">
+                      Minh chứng khác
+                    </option>
+                  </select>
+
+                  <small class="field-help evidence-type-help">
+                    Minh chứng khác: nhập kết quả thực hiện. Tệp/hình ảnh: chỉ đính kèm tệp. Không có minh chứng: không cần nhập thêm.
+                  </small>
+                </div>
+
+                <div
+                  id="resultSummaryWrap"
+                  class="field-block form-span-2 hidden"
+                >
+                  <label for="resultSummary">
+                    Kết quả thực hiện <span>*</span>
+                  </label>
+
+                  <textarea
+                    id="resultSummary"
+                    rows="4"
+                    maxlength="4000"
+                    placeholder="Ví dụ: Đã hoàn thành công việc theo yêu cầu, tổng hợp kết quả và báo cáo đúng thời hạn."
+                  ></textarea>
+                </div>
+
+                <div
+                  id="evidenceFileWrap"
+                  class="field-block form-span-2 hidden"
+                >
+                  <label for="evidenceFileInput">
+                    Tệp hoặc hình ảnh minh chứng <span>*</span>
+                  </label>
+
+                  <label
+                    class="evidence-upload-box"
+                    for="evidenceFileInput"
+                  >
+                    <span
+                      class="evidence-upload-icon"
+                      aria-hidden="true"
+                    >
+                      ⬆
+                    </span>
+
+                    <span>
+                      <strong>
+                        Chọn tệp từ thiết bị
+                      </strong>
+
+                      <small>
+                        Hỗ trợ PDF, hình ảnh, Word, Excel,
+                        PowerPoint hoặc TXT; tối đa 8 MB.
+                      </small>
+                    </span>
+                  </label>
+
+                  <input
+                    id="evidenceFileInput"
+                    class="visually-hidden-file"
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
+                  >
+
+                  <div
+                    id="evidenceFileName"
+                    class="evidence-file-name"
+                  >
+                    Chưa chọn tệp
+                  </div>
+
+                  <a
+                    id="existingEvidenceLink"
+                    class="existing-evidence-link hidden"
+                    href="#"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Mở tệp minh chứng hiện tại
+                  </a>
+
+                  <small class="field-help">
+                    Tệp được tải tự động lên thư mục Google Drive
+                    của hệ thống; không cần tự tải lên rồi dán đường dẫn.
+                  </small>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div
+            id="progressMessage"
+            class="message"
+            role="status"
+            aria-live="polite"
+          ></div>
+        </div>
+
+        <footer class="modal-footer">
+          <button
+            id="cancelProgressButton"
+            class="secondary-button"
+            type="button"
+          >
+            Hủy
+          </button>
+
+          <button
+            id="saveProgressButton"
+            class="primary-button"
+            type="submit"
+          >
+            Lưu cập nhật
+          </button>
+        </footer>
+      </form>
+    </section>
+  </div>
+
+  <!-- HƯỚNG DẪN CÀI ỨNG DỤNG -->
+  <div
+    id="installHelpModal"
+    class="modal-backdrop hidden"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="installHelpTitle"
+  >
+    <section class="install-help-modal">
+      <header class="modal-header">
+        <div>
+          <h2 id="installHelpTitle">
+            Cài ứng dụng
+          </h2>
+
+          <p>
+            Mở hệ thống từ màn hình chính
+            mà không hiển thị thanh địa chỉ.
+          </p>
+        </div>
+
+        <button
+          id="closeInstallHelpButton"
+          class="modal-close"
+          type="button"
+          aria-label="Đóng"
+        >
+          ×
+        </button>
+      </header>
+
+      <div
+        id="installHelpContent"
+        class="install-help-content"
+      ></div>
+    </section>
+  </div>
+
+  <!-- THÔNG BÁO CÓ PHIÊN BẢN MỚI -->
+  <div
+    id="updateBanner"
+    class="pwa-update-banner hidden"
+    role="status"
+  >
+    <div>
+      <strong>
+        Có phiên bản mới của ứng dụng
+      </strong>
+
+      <span>
+        Cập nhật để sử dụng giao diện và chức năng mới nhất.
+      </span>
     </div>
-    <div class="setup-note" id="notificationSetupNote">
-      Sau khi bật, bạn có thể tắt trong phần Cài đặt thông báo của điện thoại hoặc trình duyệt.
-    </div>
-    <div class="setup-actions">
-      <button id="btnChoPhepThongBao" class="setup-primary" type="button">Cho phép</button>
-      <button id="btnBoQuaThongBao" class="setup-secondary" type="button">Để sau</button>
+
+    <div class="pwa-update-actions">
+      <button
+        id="dismissUpdateButton"
+        class="secondary-button"
+        type="button"
+      >
+        Để sau
+      </button>
+
+      <button
+        id="updateNowButton"
+        class="primary-button"
+        type="button"
+      >
+        Cập nhật
+      </button>
     </div>
   </div>
-</div>
 
-<script>
-const APP_VERSION = "20260709.6";
-const API_URL = "https://script.google.com/macros/s/AKfycbyMINgn39Y_zlvdG9nqMpDH9KeoBKXnR_ueWr_wpVLPu82QxZVPSH4tnkVR9oa7eTJ2KQ/exec";
-const ONESIGNAL_APP_ID = "1a1d8e66-d523-4a9a-84be-1d3c248bad61";
-const ONESIGNAL_SAFARI_WEB_ID = "web.onesignal.auto.12e0c5f3-6b76-47bb-8015-fa3026009bd5";
-const ONESIGNAL_EXTERNAL_ID_KEY = "nhac_viec_van_ban_external_id";
-const NOTIFICATION_DISMISSED_KEY = "nhac_viec_thong_bao_de_sau";
+  <script
+    src="./pwa.js?v=20260724.Prod2C"
+    defer
+  ></script>
 
-let duLieuTheoDoi = [];
-let duLieuLuuTru = [];
-let tabHienTai = "theoDoi";
-let trangHienTai = 1;
-let dangTaiDuLieu = false;
-let daMoTuThongBao = false;
-let oneSignalReady = false;
-let oneSignalInstance = null;
+  <script
+    type="module"
+    src="./app.js?v=20260724.Prod2C"
+  ></script>
 
-const SO_DONG_MOI_TRANG = 10;
-const TU_DONG_DONG_BO_MS = 10000;
 
-function dangXuatDashboardVanBan(){
-  const storageKeys = [
-    "nhac_viec_da_dang_ky_nhan_su",
-    "nhac_viec_ma_nhan_su",
-    "nhac_viec_ho_ten",
-    "nhac_viec_nam_sinh",
-    "nhac_viec_phong",
-    "nhac_viec_chuc_vu",
-    "nhac_viec_vai_tro",
-    "nhac_viec_subscription_id",
-    "nhac_viec_ngay_dang_ky",
-    "nhac_viec_thong_bao_de_sau"
-  ];
+  <script type="module" src="./kpi-module.js?v=20260724.Prod2C"></script>
 
-  storageKeys.forEach(function(key){
-    localStorage.removeItem(key);
-  });
-
-  window.location.replace(
-    "/dashboard-van-ban-tanhiep/login.html?v=" + encodeURIComponent(APP_VERSION)
-  );
-}
-
-const notificationSetupModal = document.getElementById("notificationSetupModal");
-const notificationSetupText = document.getElementById("notificationSetupText");
-const notificationSetupNote = document.getElementById("notificationSetupNote");
-const btnChoPhepThongBao = document.getElementById("btnChoPhepThongBao");
-const btnBoQuaThongBao = document.getElementById("btnBoQuaThongBao");
-
-function napOneSignal(){
-  const s = document.createElement("script");
-  s.src = "https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js";
-  s.defer = true;
-  document.head.appendChild(s);
-}
-
-function laIPhoneHoacIPad(){
-  const ua = navigator.userAgent || "";
-  return /iPad|iPhone|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-}
-
-function daMoTuManHinhChinh(){
-  return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
-}
-
-function taoExternalId(){
-  let id = localStorage.getItem(ONESIGNAL_EXTERNAL_ID_KEY);
-  if(!id){
-    id = "vanban_" + Date.now() + "_" + Math.random().toString(36).slice(2,12);
-    localStorage.setItem(ONESIGNAL_EXTERNAL_ID_KEY,id);
-  }
-  return id;
-}
-
-function hienThiThietLapThongBao(text,note){
-  if(!notificationSetupModal) return;
-  if(text && notificationSetupText) notificationSetupText.textContent = text;
-  if(note && notificationSetupNote) notificationSetupNote.textContent = note;
-  notificationSetupModal.classList.add("show");
-}
-
-function anThietLapThongBao(){
-  if(notificationSetupModal) notificationSetupModal.classList.remove("show");
-}
-
-function capNhatNutThongBao(daBat){
-  if(daBat){
-    anThietLapThongBao();
-    localStorage.removeItem(NOTIFICATION_DISMISSED_KEY);
-    return;
-  }
-
-  if(localStorage.getItem(NOTIFICATION_DISMISSED_KEY) === "1") return;
-
-  if(laIPhoneHoacIPad() && !daMoTuManHinhChinh()){
-    hienThiThietLapThongBao(
-      "Để nhận thông báo trên iPhone/iPad, hãy thêm hệ thống vào Màn hình chính trước.",
-      "Mở bằng Safari → Chia sẻ → Thêm vào Màn hình chính → mở lại từ biểu tượng mới → chọn Cho phép."
-    );
-    return;
-  }
-
-  hienThiThietLapThongBao(
-    "Bật thông báo để nhận văn bản mới, văn bản khẩn và các nhắc việc đến hạn.",
-    "Sau khi bật, nếu muốn tắt bạn vào Cài đặt thông báo của điện thoại hoặc trình duyệt."
-  );
-}
-
-function layTrangThaiSubscription(OneSignal){
-  return {
-    id: OneSignal.User.PushSubscription.id || "",
-    token: OneSignal.User.PushSubscription.token || "",
-    optedIn: OneSignal.User.PushSubscription.optedIn === true,
-    permission: typeof Notification !== "undefined" ? Notification.permission : "unknown"
-  };
-}
-
-function choDenKhiSubscriptionSanSang(OneSignal){
-  return new Promise(function(resolve){
-    const hienTai = layTrangThaiSubscription(OneSignal);
-    if(hienTai.id && hienTai.optedIn){
-      resolve(hienTai);
-      return;
-    }
-
-    const handler = function(){
-      const moi = layTrangThaiSubscription(OneSignal);
-      if(moi.id && moi.optedIn){
-        try{ OneSignal.User.PushSubscription.removeEventListener("change",handler); }catch(e){}
-        resolve(moi);
-      }
-    };
-
-    OneSignal.User.PushSubscription.addEventListener("change",handler);
-  });
-}
-
-function khoiTaoOneSignal(){
-  window.OneSignalDeferred = window.OneSignalDeferred || [];
-
-  window.OneSignalDeferred.push(async function(OneSignal){
-    try{
-      oneSignalInstance = OneSignal;
-
-      await OneSignal.init({
-        appId: ONESIGNAL_APP_ID,
-        safari_web_id: ONESIGNAL_SAFARI_WEB_ID,
-        serviceWorkerPath: "/dashboard-van-ban-tanhiep/OneSignalSDKWorker.js",
-        serviceWorkerUpdaterPath: "/dashboard-van-ban-tanhiep/OneSignalSDKWorker.js",
-        serviceWorkerParam:{scope:"/dashboard-van-ban-tanhiep/"},
-        notifyButton:{enable:false},
-        welcomeNotification:{disable:true}
-      });
-
-      oneSignalReady = true;
-
-      const trangThai = layTrangThaiSubscription(OneSignal);
-      capNhatNutThongBao(trangThai.id && trangThai.optedIn);
-
-      OneSignal.User.PushSubscription.addEventListener("change",function(){
-        const tt = layTrangThaiSubscription(OneSignal);
-        capNhatNutThongBao(tt.id && tt.optedIn);
-      });
-
-    }catch(error){
-      console.error("Lỗi OneSignal:",error);
-      capNhatNutThongBao(false);
-    }
-  });
-}
-
-async function batThongBaoOneSignal(){
-  try{
-    const OneSignal = oneSignalInstance;
-
-    if(!oneSignalReady || !OneSignal){
-      alert("Hệ thống thông báo chưa sẵn sàng. Vui lòng tải lại trang.");
-      return;
-    }
-
-    if(!OneSignal.Notifications.isPushSupported()){
-      alert("Thiết bị hoặc trình duyệt này chưa hỗ trợ nhận thông báo.");
-      return;
-    }
-
-    if(laIPhoneHoacIPad() && !daMoTuManHinhChinh()){
-      alert("Trên iPhone/iPad: mở bằng Safari → Chia sẻ → Thêm vào Màn hình chính → mở lại từ biểu tượng ngoài màn hình.");
-      return;
-    }
-
-    btnChoPhepThongBao.disabled = true;
-    btnChoPhepThongBao.textContent = "Đang thiết lập...";
-
-    await OneSignal.Notifications.requestPermission(true);
-
-    if(typeof Notification !== "undefined" && Notification.permission !== "granted"){
-      alert("Trình duyệt chưa cho phép nhận thông báo.");
-      btnChoPhepThongBao.disabled = false;
-      btnChoPhepThongBao.textContent = "Cho phép";
-      return;
-    }
-
-    await OneSignal.User.PushSubscription.optIn();
-
-    const sub = await choDenKhiSubscriptionSanSang(OneSignal);
-    const externalId = taoExternalId();
-    await OneSignal.login(externalId);
-
-    console.log("External ID:", externalId);
-    console.log("Subscription ID:", sub.id);
-
-    capNhatNutThongBao(true);
-    alert("✅ Đã bật thông báo thành công.");
-
-  }catch(error){
-    console.error(error);
-    alert("Chưa bật được thông báo. Hãy kiểm tra quyền thông báo của thiết bị.");
-  }finally{
-    btnChoPhepThongBao.disabled = false;
-    btnChoPhepThongBao.textContent = "Cho phép";
-  }
-}
-
-btnChoPhepThongBao.addEventListener("click",batThongBaoOneSignal);
-btnBoQuaThongBao.addEventListener("click",function(){
-  localStorage.setItem(NOTIFICATION_DISMISSED_KEY,"1");
-  anThietLapThongBao();
-});
-
-async function taiDuLieu(tuDong){
-  if(dangTaiDuLieu) return;
-  dangTaiDuLieu = true;
-
-  try{
-    if(!tuDong) capNhatTrangThaiDongBo("Đang đồng bộ dữ liệu...",false);
-
-    const response = await fetch(API_URL + "?t=" + Date.now(),{cache:"no-store"});
-    const data = await response.json();
-
-    duLieuTheoDoi = data.dangTheoDoi || [];
-    duLieuLuuTru = data.luuTru || [];
-
-    hienThiDuLieu();
-    moVanBanTuThongBaoNeuCo();
-    capNhatTrangThaiDongBo(null,false);
-
-  }catch(error){
-    capNhatTrangThaiDongBo("Không đồng bộ được dữ liệu. Kiểm tra kết nối hoặc API.",true);
-    document.getElementById("bangDuLieu").innerHTML = '<tr><td colspan="8" class="loading red">Không tải được dữ liệu.</td></tr>';
-    document.getElementById("mobileList").innerHTML = '<div class="loading red">Không tải được dữ liệu.</div>';
-    console.error(error);
-  }finally{
-    dangTaiDuLieu = false;
-  }
-}
-
-function capNhatTrangThaiDongBo(message,isError){
-  const syncBar = document.getElementById("syncBar");
-  const syncText = document.getElementById("syncText");
-  syncBar.classList.toggle("error",!!isError);
-
-  if(message){
-    syncText.textContent = message;
-    return;
-  }
-
-  const now = new Date();
-  syncText.textContent = "✅ Đã đồng bộ dữ liệu lúc " + now.toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit",second:"2-digit"}) + " • Tự cập nhật mỗi 10 giây";
-}
-
-function doiTab(tab){
-  tabHienTai = tab;
-  trangHienTai = 1;
-  document.getElementById("btnTheoDoi").classList.toggle("active",tab==="theoDoi");
-  document.getElementById("btnLuuTru").classList.toggle("active",tab==="luuTru");
-  document.getElementById("tieuDeBang").textContent = tab==="theoDoi" ? "📌 Danh sách văn bản đang theo dõi" : "📁 Danh sách văn bản đã lưu trữ";
-  document.getElementById("locTrangThai").style.display = tab==="theoDoi" ? "block" : "none";
-  hienThiDuLieu();
-}
-
-function layDuLieuHienTai(){
-  return tabHienTai === "theoDoi" ? duLieuTheoDoi : duLieuLuuTru;
-}
-
-function hienThiDuLieu(){
-  const dataHienTai = layDuLieuHienTai();
-  const tuKhoa = document.getElementById("tuKhoa").value.toLowerCase().trim();
-  const locPhong = document.getElementById("locPhong").value;
-  const locTrangThai = document.getElementById("locTrangThai").value;
-
-  const duLieuLoc = dataHienTai.filter(function(item){
-    const trangThai = tabHienTai==="theoDoi" ? tinhTrangThai(item.hanXuLy) : tinhTrangThaiLuuTru(item.hanXuLy,item.ngayHoanThanh);
-    const textSearch = [item.soHieu,item.trichYeu,item.phongBan,item.goiYAI].join(" ").toLowerCase();
-
-    return (!tuKhoa || textSearch.includes(tuKhoa)) &&
-           (!locPhong || phongBanCoChua(item.phongBan,locPhong)) &&
-           (tabHienTai==="luuTru" || !locTrangThai || trangThai===locTrangThai);
-  });
-
-  capNhatThongKe();
-  veDuLieuTheoTrang(duLieuLoc);
-}
-
-function capNhatThongKe(){
-  const data = layDuLieuHienTai();
-
-  if(tabHienTai==="luuTru"){
-    document.getElementById("khuThongKe").innerHTML = `
-      <div class="card full">
-        <div class="number green">${data.length}</div>
-        <div class="label">Tổng văn bản lưu trữ</div>
-      </div>`;
-    return;
-  }
-
-  let tong=0,quaHan=0,denHan=0,sapHan=0,conHan=0;
-
-  data.forEach(function(item){
-    const tt = tinhTrangThai(item.hanXuLy);
-    tong++;
-    if(tt==="QUÁ HẠN") quaHan++;
-    else if(tt==="ĐẾN HẠN HÔM NAY") denHan++;
-    else if(tt==="SẮP ĐẾN HẠN") sapHan++;
-    else if(tt==="CÒN HẠN") conHan++;
-  });
-
-  document.getElementById("khuThongKe").innerHTML = `
-    <div class="card"><div class="number gray">${tong}</div><div class="label">Tổng văn bản</div></div>
-    <div class="card"><div class="number orange">${denHan}</div><div class="label">Đến hạn hôm nay</div></div>
-    <div class="card"><div class="number blue">${sapHan}</div><div class="label">Sắp đến hạn ≤ 5 ngày</div></div>
-    <div class="card"><div class="number green">${conHan}</div><div class="label">Còn hạn</div></div>
-    <div class="card full"><div class="number red">${quaHan}</div><div class="label">Quá hạn cần xử lý ngay</div></div>`;
-}
-
-function veDuLieuTheoTrang(data){
-  const tongTrang = Math.ceil(data.length / SO_DONG_MOI_TRANG);
-  if(trangHienTai > tongTrang) trangHienTai = tongTrang || 1;
-
-  const batDau = (trangHienTai - 1) * SO_DONG_MOI_TRANG;
-  const dataTrang = data.slice(batDau,batDau + SO_DONG_MOI_TRANG);
-
-  veBang(dataTrang,batDau);
-  veMobile(dataTrang);
-  vePhanTrang(data);
-}
-
-function veBang(data,batDau){
-  const thead = document.getElementById("theadBang");
-  const tbody = document.getElementById("bangDuLieu");
-
-  thead.innerHTML = tabHienTai==="theoDoi" ? `
-    <tr><th>STT</th><th>Số hiệu</th><th>Trích yếu</th><th>Phòng ban</th><th>Hạn xử lý</th><th>Trạng thái</th><th>File</th></tr>` :
-    `<tr><th>STT</th><th>Dấu thời gian</th><th>Số hiệu</th><th>Trích yếu</th><th>Phòng ban</th><th>Hạn xử lý</th><th>Ngày hoàn thành</th><th>Kết quả</th></tr>`;
-
-  if(data.length===0){
-    tbody.innerHTML = '<tr><td colspan="8" class="loading">Không có dữ liệu phù hợp.</td></tr>';
-    return;
-  }
-
-  let html = "";
-
-  data.forEach(function(item,index){
-    if(tabHienTai==="theoDoi"){
-      const trangThai = tinhTrangThai(item.hanXuLy);
-      html += `
-        <tr onclick="moChiTiet(${duLieuTheoDoi.indexOf(item)})">
-          <td>${batDau+index+1}</td>
-          <td><strong>${safe(item.soHieu)}</strong></td>
-          <td>${safe(item.trichYeu)}</td>
-          <td>${safe(item.phongBan)}</td>
-          <td>${dinhDangNgay(item.hanXuLy)}</td>
-          <td><span class="badge ${layMauTrangThai(trangThai)}">${trangThai}</span></td>
-          <td onclick="event.stopPropagation()">${taoNutFile(item.file)}</td>
-        </tr>`;
-    }else{
-      const ketQua = tinhTrangThaiLuuTru(item.hanXuLy,item.ngayHoanThanh);
-      html += `
-        <tr>
-          <td>${batDau+index+1}</td>
-          <td>${dinhDangNgayGio(item.dauThoiGian)}</td>
-          <td><strong>${safe(item.soHieu)}</strong></td>
-          <td>${safe(item.trichYeu)}</td>
-          <td>${safe(item.phongBan)}</td>
-          <td>${dinhDangNgay(item.hanXuLy)}</td>
-          <td>${dinhDangNgayGio(item.ngayHoanThanh)}</td>
-          <td><span class="badge ${layMauTrangThai(ketQua)}">${ketQua}</span></td>
-        </tr>`;
-    }
-  });
-
-  tbody.innerHTML = html;
-}
-
-function veMobile(data){
-  const box = document.getElementById("mobileList");
-
-  if(data.length===0){
-    box.innerHTML = '<div class="loading">Không có dữ liệu phù hợp.</div>';
-    return;
-  }
-
-  let html = "";
-
-  data.forEach(function(item){
-    if(tabHienTai==="theoDoi"){
-      const trangThai = tinhTrangThai(item.hanXuLy);
-      html += `
-        <div class="mobile-card" onclick="moChiTiet(${duLieuTheoDoi.indexOf(item)})">
-          <h3>${safe(item.soHieu)}</h3>
-          <p class="mobile-meta">${safe(item.phongBan)}</p>
-          <p><strong>📅 Hạn xử lý:</strong> ${dinhDangNgay(item.hanXuLy)}</p>
-          <p><span class="badge ${layMauTrangThai(trangThai)}">${trangThai}</span></p>
-          <p><strong>Trích yếu:</strong> ${safe(item.trichYeu)}</p>
-          <p onclick="event.stopPropagation()">${taoNutFile(item.file)}</p>
-        </div>`;
-    }else{
-      const ketQua = tinhTrangThaiLuuTru(item.hanXuLy,item.ngayHoanThanh);
-      html += `
-        <div class="mobile-card">
-          <h3>${safe(item.soHieu)}</h3>
-          <p class="mobile-meta">${safe(item.phongBan)}</p>
-          <p><strong>Trích yếu:</strong> ${safe(item.trichYeu)}</p>
-          <p><strong>📅 Hạn xử lý:</strong> ${dinhDangNgay(item.hanXuLy)}</p>
-          <p><strong>✅ Ngày hoàn thành:</strong> ${dinhDangNgayGio(item.ngayHoanThanh)}</p>
-          <p><span class="badge ${layMauTrangThai(ketQua)}">${ketQua}</span></p>
-        </div>`;
-    }
-  });
-
-  box.innerHTML = html;
-}
-
-function vePhanTrang(data){
-  const tongTrang = Math.ceil(data.length / SO_DONG_MOI_TRANG);
-  const box = document.getElementById("phanTrang");
-
-  if(tongTrang<=1){
-    box.innerHTML = "";
-    return;
-  }
-
-  let html = `<button onclick="doiTrang(${trangHienTai-1})" ${trangHienTai===1 ? "disabled" : ""}>‹ Trước</button>`;
-
-  for(let i=1;i<=tongTrang;i++){
-    html += `<button onclick="doiTrang(${i})" class="${i===trangHienTai ? "active" : ""}">${i}</button>`;
-  }
-
-  html += `<button onclick="doiTrang(${trangHienTai+1})" ${trangHienTai===tongTrang ? "disabled" : ""}>Sau ›</button>`;
-  box.innerHTML = html;
-}
-
-function doiTrang(trang){
-  trangHienTai = trang;
-  hienThiDuLieu();
-}
-
-function moChiTiet(index){
-  const item = duLieuTheoDoi[index];
-  if(!item) return;
-
-  const trangThai = tinhTrangThai(item.hanXuLy);
-
-  document.getElementById("noiDungChiTiet").innerHTML = `
-    <div class="detail-row"><strong>Số hiệu:</strong> ${safe(item.soHieu)}</div>
-    <div class="detail-row"><strong>Trích yếu:</strong> ${safe(item.trichYeu)}</div>
-    <div class="detail-row"><strong>Phòng ban:</strong> ${safe(item.phongBan)}</div>
-    <div class="detail-row"><strong>Hạn xử lý:</strong> ${dinhDangNgay(item.hanXuLy)}</div>
-    <div class="detail-row"><strong>Trạng thái:</strong> <span class="badge ${layMauTrangThai(trangThai)}">${trangThai}</span></div>
-    <div class="detail-row"><strong>File đính kèm:</strong> ${taoNutFile(item.file)}</div>
-    <div class="detail-row"><strong>Tóm tắt và gợi ý xử lý:</strong></div>
-    <div class="ai-detail">${safe(item.goiYAI || "Chưa có nội dung tổng hợp.")}</div>`;
-
-  document.getElementById("modalChiTiet").style.display = "block";
-}
-
-function dongChiTiet(){
-  document.getElementById("modalChiTiet").style.display = "none";
-}
-
-window.onclick = function(event){
-  const modal = document.getElementById("modalChiTiet");
-  if(event.target === modal) dongChiTiet();
-};
-
-function moVanBanTuThongBaoNeuCo(){
-  if(daMoTuThongBao) return;
-
-  const params = new URLSearchParams(window.location.search);
-  const soHieuCanMo = params.get("soHieu");
-  if(!soHieuCanMo) return;
-
-  const index = duLieuTheoDoi.findIndex(function(item){
-    return chuanHoaSoHieuClient_(item.soHieu) === chuanHoaSoHieuClient_(soHieuCanMo);
-  });
-
-  if(index>=0){
-    daMoTuThongBao = true;
-    doiTab("theoDoi");
-    moChiTiet(index);
-  }
-}
-
-function chuanHoaSoHieuClient_(text){
-  return String(text || "").toUpperCase().replace(/\s+/g,"").trim();
-}
-
-function phongBanCoChua(giaTri,phongCanTim){
-  if(!giaTri || !phongCanTim) return false;
-  return chuanHoa(giaTri).includes(chuanHoa(phongCanTim));
-}
-
-function chuanHoa(text){
-  return String(text || "").toUpperCase().replace(/\s+/g," ").trim();
-}
-
-function tinhTrangThai(hanXuLy){
-  if(!hanXuLy) return "CHƯA CÓ HẠN";
-
-  const today = new Date();
-  today.setHours(0,0,0,0);
-
-  const han = new Date(hanXuLy);
-  if(isNaN(han)) return "CHƯA CÓ HẠN";
-  han.setHours(0,0,0,0);
-
-  const diff = Math.round((han - today) / (1000*60*60*24));
-
-  if(diff < 0) return "QUÁ HẠN";
-  if(diff === 0) return "ĐẾN HẠN HÔM NAY";
-  if(diff > 0 && diff <= 5) return "SẮP ĐẾN HẠN";
-  return "CÒN HẠN";
-}
-
-function tinhTrangThaiLuuTru(hanXuLy,ngayHoanThanh){
-  const han = new Date(hanXuLy);
-  const ht = new Date(ngayHoanThanh);
-
-  if(isNaN(han) || isNaN(ht)) return "ĐÃ LƯU TRỮ";
-
-  han.setHours(0,0,0,0);
-  ht.setHours(0,0,0,0);
-
-  return ht.getTime() <= han.getTime() ? "HOÀN THÀNH ĐÚNG HẠN" : "HOÀN THÀNH TRỄ HẠN";
-}
-
-function layMauTrangThai(trangThai){
-  if(trangThai==="QUÁ HẠN" || trangThai==="HOÀN THÀNH TRỄ HẠN") return "badge-red";
-  if(trangThai==="ĐẾN HẠN HÔM NAY") return "badge-orange";
-  if(trangThai==="SẮP ĐẾN HẠN") return "badge-blue";
-  if(trangThai==="CÒN HẠN" || trangThai==="HOÀN THÀNH ĐÚNG HẠN") return "badge-green";
-  return "badge-gray";
-}
-
-function dinhDangNgay(value){
-  if(!value) return "";
-  const d = new Date(value);
-  if(isNaN(d)) return value;
-  return d.toLocaleDateString("vi-VN");
-}
-
-function dinhDangNgayGio(value){
-  if(!value) return "";
-  const d = new Date(value);
-  if(isNaN(d)) return value;
-  return d.toLocaleString("vi-VN");
-}
-
-function taoNutFile(link){
-  if(!link) return "";
-  const url = String(link).replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-  return `<a class="btn" href="${url}" target="_blank" rel="noopener noreferrer">📎 Mở file</a>`;
-}
-
-function safe(value){
-  if(!value) return "";
-  return String(value)
-    .replace(/&/g,"&amp;")
-    .replace(/</g,"&lt;")
-    .replace(/>/g,"&gt;")
-    .replace(/"/g,"&quot;")
-    .replace(/'/g,"&#039;");
-}
-
-napOneSignal();
-khoiTaoOneSignal();
-taiDuLieu();
-
-setInterval(function(){
-  taiDuLieu(true);
-},TU_DONG_DONG_BO_MS);
-</script>
-
+  <!-- MÔ-ĐUN AI ĐƯỢC NẠP CUỐI CÙNG; XÓA DÒNG NÀY ĐỂ TẮT AI -->
+  <script
+    type="module"
+    src="./ai-assistant.js?v=20260719.2310"
+  ></script>
 </body>
 </html>

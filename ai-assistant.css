@@ -1,0 +1,253 @@
+/* =========================================================
+ * TRỢ LÝ AI GỢI Ý THEO TINH THẦN 6 RÕ
+ * Mô-đun độc lập được nạp cuối cùng.
+ * ========================================================= */
+
+.task-ai-assistant {
+  grid-column: 1 / -1;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid #c9dff1;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #f7fbff 0%, #eef7ff 100%);
+  box-shadow: 0 8px 22px rgba(28, 92, 139, 0.08);
+  overflow: hidden;
+}
+
+.task-ai-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-width: 0;
+}
+
+.task-ai-header > div {
+  min-width: 0;
+}
+
+.task-ai-header strong,
+.task-ai-header small,
+.task-ai-suggestion-block p,
+.task-ai-missing li,
+.task-ai-message {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.task-ai-header strong {
+  display: block;
+  color: #174f78;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.task-ai-header small {
+  display: block;
+  margin-top: 3px;
+  color: #5d7282;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.task-ai-button {
+  flex: 0 0 auto;
+  min-height: 40px;
+  padding: 9px 14px;
+  border: 1px solid #1c6ca5;
+  border-radius: 10px;
+  background: #fff;
+  color: #175f91;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.task-ai-button:hover {
+  background: #e8f4fd;
+}
+
+.task-ai-button:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.task-ai-message {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.task-ai-message.info {
+  background: #eaf4fb;
+  color: #185678;
+}
+
+.task-ai-message.success {
+  background: #e9f8ef;
+  color: #17633a;
+}
+
+.task-ai-message.error {
+  background: #fff0f0;
+  color: #a12828;
+}
+
+.task-ai-result {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #d8e8f4;
+}
+
+.task-ai-result-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.task-ai-result-heading strong {
+  color: #173f5d;
+}
+
+.task-ai-result-heading span {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #fff4d8;
+  color: #7a5900;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.task-ai-suggestion-block {
+  min-width: 0;
+  margin-top: 10px;
+  padding: 11px 12px;
+  border: 1px solid #d7e6f0;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.task-ai-suggestion-block small,
+.task-ai-missing small {
+  display: block;
+  margin-bottom: 5px;
+  color: #607786;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.task-ai-suggestion-block p {
+  margin: 0;
+  color: #213b4d;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.task-ai-missing {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fff8e5;
+}
+
+.task-ai-missing ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.task-ai-missing li {
+  margin: 3px 0;
+  color: #72560b;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.task-ai-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 11px;
+}
+
+.task-ai-check {
+  max-width: 100%;
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.task-ai-check.passed {
+  background: #e4f6eb;
+  color: #1c6a3e;
+}
+
+.task-ai-check.missing {
+  background: #fff0df;
+  color: #8b4c00;
+}
+
+.task-ai-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 13px;
+}
+
+.task-ai-actions button {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.task-ai-hidden-frame {
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.task-ai-result-assistant {
+  margin-top: 10px;
+}
+
+@media (max-width: 720px) {
+  .task-ai-assistant {
+    padding: 12px;
+    border-radius: 12px;
+  }
+
+  .task-ai-header,
+  .task-ai-header.compact {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .task-ai-button {
+    width: 100%;
+  }
+
+  .task-ai-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .task-ai-actions button {
+    width: 100%;
+  }
+
+  .task-ai-result-heading {
+    align-items: flex-start;
+  }
+}
