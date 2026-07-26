@@ -29,7 +29,7 @@ async function loadOrCreateProfile(firebaseUser) {
   let profileSnapshot = await withTimeout(
     FirebaseService.getDoc(profileRef),
     PROFILE_TIMEOUT_MS,
-    "Quá thời gian đọc hồ sơ người dùng. Hãy kiểm tra mạng hoặc Firestore Rules."
+    "Không tải được hồ sơ người dùng. Vui lòng kiểm tra kết nối hoặc liên hệ quản trị."
   );
 
   if (profileSnapshot.exists()) {
@@ -79,7 +79,7 @@ async function loadOrCreateProfile(firebaseUser) {
   await withTimeout(
     FirebaseService.setDoc(profileRef, profile, { merge: true }),
     PROFILE_TIMEOUT_MS,
-    "Không thể khởi tạo hồ sơ người dùng từ accessAccounts. Hãy kiểm tra Firestore Rules."
+    "Không thể khởi tạo hồ sơ người dùng. Vui lòng liên hệ quản trị."
   );
 
   profileSnapshot = await FirebaseService.getDoc(profileRef);
