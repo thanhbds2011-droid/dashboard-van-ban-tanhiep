@@ -14,7 +14,7 @@ export async function renderDashboardView(outlet) {
 
     outlet.innerHTML = `
       <section class="page-card">
-        <div class="page-header"><div><span class="page-eyebrow">PRODUCTION 3D • TASK LIFECYCLE</span><h2>Trang chủ</h2><p>Tổng quan dữ liệu thật theo phạm vi tài khoản đang đăng nhập.</p></div><button id="btnDashboardRefresh" class="secondary-button" type="button">↻ Làm mới</button></div>
+        <div class="page-header"><div><span class="page-eyebrow">TỔNG QUAN CÔNG VIỆC</span><h2>Trang chủ</h2><p>Theo dõi nhiệm vụ, kế hoạch và kết quả đánh giá theo phạm vi tài khoản.</p></div><button id="btnDashboardRefresh" class="secondary-button" type="button">↻ Làm mới</button></div>
         <section class="welcome-panel"><div><span class="welcome-label">Xin chào</span><h3>${escapeHtml(user.fullName || "Người dùng")}</h3><p>${escapeHtml(user.position || "Chưa cập nhật chức danh")} ${user.departmentId ? `• ${escapeHtml(user.departmentId)}` : ""}</p></div><span class="role-badge">${escapeHtml(formatRole(user.role))}</span></section>
         <div class="summary-grid">
           ${metric("Nhiệm vụ đang xử lý", summary.inProgress, "Nhiệm vụ trong phạm vi phụ trách", "blue")}
@@ -26,7 +26,7 @@ export async function renderDashboardView(outlet) {
         <section class="dashboard-grid">
           <article class="dashboard-section"><div class="section-heading"><div><h3>Truy cập nhanh</h3><p>Mở nhanh các phân hệ đã kết nối dữ liệu đọc.</p></div></div><div class="quick-grid">
             ${quick("#/tasks", "📋", "Nhiệm vụ", `${summary.total} nhiệm vụ trong phạm vi`)}
-            ${quick("#/standard-tasks", "📁", "Danh mục công việc", `${data.standardTaskSummary.total} đầu việc đang hoạt động`)}
+            ${quick("#/standard-tasks", "📁", "Danh mục công việc", `${data.standardTaskSummary.total} đầu việc`)}
             ${quick("#/kpi", "📊", "Kế hoạch KPI", period ? "Đã nhận diện kỳ hoạt động" : "Chưa có kỳ hoạt động")}
             ${quick("#/reports", "📄", "Báo cáo", "Khung báo cáo chưa ghi dữ liệu")}
             ${Permissions.isAdmin() ? quick("#/admin", "⚙️", "Quản trị", "Xem thống kê dữ liệu nền") : ""}
