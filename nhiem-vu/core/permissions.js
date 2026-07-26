@@ -1,6 +1,6 @@
 /**
- * Production Final Complete - UI permissions.
- * Firestore Rules remains the authoritative security layer.
+ * PRODUCTION 2026.07.26 - Phân quyền giao diện V3.
+ * Firestore Rules vẫn là lớp bảo mật có thẩm quyền cuối cùng.
  */
 import { UserContext } from "./user-context.js";
 
@@ -8,31 +8,68 @@ function normalize(value) {
   return String(value ?? "").trim().toLowerCase();
 }
 
+function normalizeDepartment(value) {
+  return String(value ?? "").trim().toUpperCase();
+}
+
 function isDeputyPosition(position) {
   const text = normalize(position);
-  return text.includes("phó trưởng") || text.includes("pho truong") || text.startsWith("phó ") || text.startsWith("pho ");
+  return (
+    text.includes("phó trưởng") ||
+    text.includes("pho truong") ||
+    text.startsWith("phó ") ||
+    text.startsWith("pho ")
+  );
 }
 
 export const Permissions = Object.freeze({
-  isAdmin() { return UserContext.hasRole("ADMIN"); },
-  isDirector() { return UserContext.hasRole("DIRECTOR"); },
-  isDepartmentLeader() { return UserContext.hasRole("DEPARTMENT_LEADER"); },
-  isStaff() { return UserContext.hasRole("STAFF"); },
+  isAdmin() {
+    return UserContext.hasRole("ADMIN");
+  },
+
+  isDirector() {
+    return UserContext.hasRole("DIRECTOR");
+  },
+
+  isDepartmentLeader() {
+    return UserContext.hasRole("DEPARTMENT_LEADER");
+  },
+
+  isStaff() {
+    return UserContext.hasRole("STAFF");
+  },
 
   isDepartmentHead() {
     const user = UserContext.getUser();
-    return Boolean(user?.role === "DEPARTMENT_LEADER" && !isDeputyPosition(user.position));
+    return Boolean(
+      user?.role === "DEPARTMENT_LEADER" &&
+      !isDeputyPosition(user.position)
+    );
   },
 
   isDepartmentDeputy() {
     const user = UserContext.getUser();
-    return Boolean(user?.role === "DEPARTMENT_LEADER" && isDeputyPosition(user.position));
+    return Boolean(
+      user?.role === "DEPARTMENT_LEADER" &&
+      isDeputyPosition(user.position)
+    );
   },
 
   isTchcCoordinator() {
+    const user = UserContext.getUser();
+    return Boolean(
+      normalizeDepartment(user?.departmentId) === "TCHC" &&
+      user?.role === "TCHC_COORDINATOR"
+    );
+  },
 
-  canAccessAdmin() { return this.isAdmin(); },
-  canCreatePeriod() { return this.isAdmin(); },
+  canAccessAdmin() {
+    return this.isAdmin();
+  },
+
+  canCreatePeriod() {
+    return this.isAdmin();
+  },
 
   canRegisterStandardTasks() {
     return this.isStaff() || this.isDepartmentLeader();
@@ -63,7 +100,10 @@ export const Permissions = Object.freeze({
   },
 
   canApprovePlan() {
-    return this.canApproveStaffRegistrations() || this.canApproveLeaderRegistrations();
+    return (
+      this.canApproveStaffRegistrations() ||
+      this.canApproveLeaderRegistrations()
+    );
   },
 
   canLockDepartmentPlan() {
@@ -79,6 +119,10 @@ export const Permissions = Object.freeze({
   },
 
   canViewAllDepartments() {
-    return this.isAdmin() || this.isDirector() || this.isTchcCoordinator();
+    return (
+      this.isAdmin() ||
+      this.isDirector() ||
+      this.isTchcCoordinator()
+    );
   }
 });
