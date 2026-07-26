@@ -30,12 +30,6 @@ export const Permissions = Object.freeze({
   },
 
   isTchcCoordinator() {
-    const user = UserContext.getUser();
-    return Boolean(
-      user?.departmentId === "TCHC" &&
-      ["ADMIN", "TCHC_COORDINATOR", "DEPARTMENT_LEADER"].includes(user.role)
-    );
-  },
 
   canAccessAdmin() { return this.isAdmin(); },
   canCreatePeriod() { return this.isAdmin(); },
