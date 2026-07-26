@@ -4,7 +4,7 @@ import { AuthService } from "./core/auth-service.js";
 import { Permissions } from "./core/permissions.js";
 import { ToastService } from "./core/toast-service.js";
 
-const BUILD_VERSION = "20260726.PRODUCTION10_HOTFIX_ASYNC";
+const BUILD_VERSION = "20260726.PRODUCTION11_FINAL_STABLE";
 
 function lazyRoute(modulePath, exportName) {
   return async (outlet, options = {}) => {

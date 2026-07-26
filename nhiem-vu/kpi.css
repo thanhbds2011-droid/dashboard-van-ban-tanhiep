@@ -47,3 +47,10 @@
 @media(max-width:900px){.kpi-person-summary-row{grid-template-columns:38px 1fr auto}.kpi-person-summary-metrics{grid-column:2/-1}.kpi-report-actions{grid-template-columns:1fr}}
 @media(max-width:640px){.kpi-person-summary-row{grid-template-columns:34px 1fr}.kpi-person-summary-row>.kpi-button{grid-column:1/-1;width:100%}.kpi-person-summary-metrics{grid-column:1/-1}.kpi-table.compact-table{min-width:760px}}
 @media print{@page{size:A4 portrait;margin:10mm}.meeting-report{@page{size:A4 landscape;margin:10mm}}.appendix-page{display:none!important}.mau01-page:first-child{page-break-after:auto!important}}
+
+/* Production 11 - bố cục thao tác cân bằng và báo cáo chính thức */
+.kpi-overview-grid.compact{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.kpi-overview-grid.compact .kpi-action-panel{min-height:96px}
+.kpi-overview-grid.compact .kpi-action-panel:nth-child(3){grid-column:1/-1}
+.mau01-b th:nth-child(1){width:6%}.mau01-b th:nth-child(2){width:46%}.mau01-b th:nth-child(n+3){width:12%}
+@media(max-width:760px){.kpi-overview-grid.compact{grid-template-columns:1fr}.kpi-overview-grid.compact .kpi-action-panel:nth-child(3){grid-column:auto}}
