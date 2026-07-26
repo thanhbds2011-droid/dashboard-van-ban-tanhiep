@@ -5,7 +5,7 @@ import { DashboardReadService } from "../../services/dashboard-read-service.js";
 
 export async function renderDashboardView(outlet) {
   const user = UserContext.requireUser();
-  outlet.innerHTML = loadingCard("Đang tải dữ liệu Dashboard từ Firestore…");
+  outlet.innerHTML = loadingCard("Đang tải thông tin tổng hợp…");
 
   try {
     const data = await DashboardReadService.load();
@@ -17,7 +17,7 @@ export async function renderDashboardView(outlet) {
         <div class="page-header"><div><span class="page-eyebrow">PRODUCTION 3D • TASK LIFECYCLE</span><h2>Trang chủ</h2><p>Tổng quan dữ liệu thật theo phạm vi tài khoản đang đăng nhập.</p></div><button id="btnDashboardRefresh" class="secondary-button" type="button">↻ Làm mới</button></div>
         <section class="welcome-panel"><div><span class="welcome-label">Xin chào</span><h3>${escapeHtml(user.fullName || "Người dùng")}</h3><p>${escapeHtml(user.position || "Chưa cập nhật chức danh")} ${user.departmentId ? `• ${escapeHtml(user.departmentId)}` : ""}</p></div><span class="role-badge">${escapeHtml(formatRole(user.role))}</span></section>
         <div class="summary-grid">
-          ${metric("Nhiệm vụ đang xử lý", summary.inProgress, "Dữ liệu thật từ tasks", "blue")}
+          ${metric("Nhiệm vụ đang xử lý", summary.inProgress, "Nhiệm vụ trong phạm vi phụ trách", "blue")}
           ${metric("Sắp đến hạn", summary.dueSoon, "Trong 72 giờ tới", "amber")}
           ${metric("Trễ hạn", summary.overdue, "Chưa hoàn thành và quá hạn", "red")}
           ${metric("Hoàn thành", summary.completed, "Theo phạm vi được phép xem", "green")}
@@ -31,14 +31,14 @@ export async function renderDashboardView(outlet) {
             ${quick("#/reports", "📄", "Báo cáo", "Khung báo cáo chưa ghi dữ liệu")}
             ${Permissions.isAdmin() ? quick("#/admin", "⚙️", "Quản trị", "Xem thống kê dữ liệu nền") : ""}
           </div></article>
-          <article class="dashboard-section"><div class="section-heading"><div><h3>Trạng thái kết nối</h3><p>Kiểm tra các collection và chức năng Production 3D.</p></div></div><dl class="system-status-list">
-            ${status("tasks", `${data.tasks.length} bản ghi`, "success")}
-            ${status("standardTasks", `${data.standardTasks.length} bản ghi`, "success")}
-            ${status("evaluationPeriods", `${data.periods.length} kỳ`, "success")}
+          <article class="dashboard-section"><div class="section-heading"><div><h3>Tổng quan dữ liệu</h3><p>Các thông tin phục vụ quản lý nhiệm vụ và đánh giá trong kỳ.</p></div></div><dl class="system-status-list">
+            ${status("Nhiệm vụ", `${data.tasks.length} nhiệm vụ`, "success")}
+            ${status("Danh mục công việc", `${data.standardTasks.length} đầu việc`, "success")}
+            ${status("Kỳ đánh giá", `${data.periods.length} kỳ`, "success")}
             ${status("Chế độ ghi dữ liệu", "Đã khóa ở UI", "pending")}
           </dl></article>
         </section>
-        ${data.warnings.length ? `<div class="warning-banner"><strong>Cảnh báo đọc dữ liệu:</strong><br>${data.warnings.map(escapeHtml).join("<br>")}</div>` : `<div class="success-banner">Đã đọc dữ liệu Firestore thành công theo quyền hiện tại. Production 3D đã sẵn sàng ghi nhận và cập nhật nhiệm vụ theo phân quyền.</div>`}
+        ${data.warnings.length ? `<div class="warning-banner"><strong>Một số thông tin chưa tải được:</strong><br>Vui lòng liên hệ người quản trị để kiểm tra quyền truy cập.</div>` : `<div class="success-banner">Thông tin đã được cập nhật theo đúng phạm vi phụ trách.</div>`}
       </section>`;
 
     document.getElementById("btnDashboardRefresh")?.addEventListener("click", () => {
