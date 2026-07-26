@@ -33,14 +33,14 @@ async function loadScopedTasks() {
   }
 
   if (Permissions.isDepartmentLeader()) {
-    const departmentId = user.departmentId;
-    const resultSets = await Promise.all([
-      runQuery([FirebaseService.where("primaryDepartmentId", "==", departmentId)]),
-      runQuery([FirebaseService.where("visibleDepartmentIds", "array-contains", departmentId)]),
-      runQuery([FirebaseService.where("supportDepartmentIds", "array-contains", departmentId)])
-    ]);
-    return uniqueById(resultSets.flat());
-  }
+  return runQuery([
+    FirebaseService.where(
+      "primaryDepartmentId",
+      "==",
+      user.departmentId
+    )
+  ]);
+}
 
   // Viên chức chỉ truy vấn nhiệm vụ được giao trực tiếp cho mình.
   // Tránh truy vấn rộng visibleUserIds gây permission-denied khi dữ liệu cũ thiếu trường.
