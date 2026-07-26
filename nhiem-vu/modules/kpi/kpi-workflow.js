@@ -154,9 +154,11 @@ function wireEvents() {
 
 
 function periodStatusLabel(period) {
-  if (period?.active === true) return 'Đang hoạt động';
-  if (period?.status === 'COMPLETED') return 'Đã kết thúc';
-  if (period?.status === 'DRAFT') return 'Bản nháp';
+  if (period?.active === true || clean(period?.status).toUpperCase() === 'ACTIVE') {
+    return 'Đang hoạt động';
+  }
+  if (clean(period?.status).toUpperCase() === 'COMPLETED') return 'Đã kết thúc';
+  if (clean(period?.status).toUpperCase() === 'DRAFT') return 'Bản nháp';
   return period?.status || 'Không xác định';
 }
 
@@ -229,40 +231,202 @@ async function readProfile(uid) {
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
+function activePeriod(period) {
+  return (
+    period?.active === true ||
+    clean(period?.status).toUpperCase() === 'ACTIVE'
+  ) && clean(period?.status).toUpperCase() !== 'DELETED';
+}
+
+function scopedQueryFor(collectionName, periodId) {
+  const reference = collection(db, collectionName);
+  const uid = KpiWorkflowState.user?.uid || '';
+  const departmentId = normalizeDepartment(
+    KpiWorkflowState.profile?.departmentId
+  );
+
+  if (globalRole()) {
+    return query(
+      reference,
+      where('periodId', '==', periodId)
+    );
+  }
+
+  if (isLeader()) {
+    const departmentField = {
+      tasks: 'primaryDepartmentId',
+      taskRegistrations: 'departmentId',
+      taskEvaluations: 'departmentId',
+      commonCriteriaAssessments: 'departmentId'
+    }[collectionName];
+
+    if (!departmentField || !departmentId) {
+      throw new Error(
+        `Không xác định được phạm vi Phòng/Khu cho collection ${collectionName}.`
+      );
+    }
+
+    return query(
+      reference,
+      where('periodId', '==', periodId),
+      where(departmentField, '==', departmentId)
+    );
+  }
+
+  const ownerField = {
+    tasks: 'ownerUserId',
+    taskRegistrations: 'userId',
+    taskEvaluations: 'ownerUserId',
+    commonCriteriaAssessments: 'userId'
+  }[collectionName];
+
+  if (!ownerField || !uid) {
+    throw new Error(
+      `Không xác định được phạm vi cá nhân cho collection ${collectionName}.`
+    );
+  }
+
+  return query(
+    reference,
+    where('periodId', '==', periodId),
+    where(ownerField, '==', uid)
+  );
+}
+
+function kpiLoadErrorMessage(error) {
+  const code = clean(error?.code);
+  const detail = clean(error?.message);
+
+  if (code === 'permission-denied') {
+    return 'Tài khoản hiện tại chưa được phép đọc một phần dữ liệu KPI theo phạm vi được phân quyền.';
+  }
+
+  if (code === 'failed-precondition' && /index/i.test(detail)) {
+    return 'Firestore đang thiếu Composite Index cho truy vấn KPI. Hãy mở Console để lấy liên kết tạo Index chính xác.';
+  }
+
+  return detail || 'Không tải được dữ liệu KPI.';
+}
+
 async function loadAll() {
   if (!KpiWorkflowState.user || !KpiWorkflowState.profile) return;
+
   try {
     message('Đang tải dữ liệu kỳ đánh giá...');
+
     const periodSnap = await getDocs(collection(db, 'evaluationPeriods'));
-    KpiWorkflowState.periods = periodSnap.docs.map(d => ({ id:d.id, ...d.data() }));
-    KpiWorkflowState.period = KpiWorkflowState.periods.find(p => p.active === true && p.status !== 'DELETED')
-      || (activeRole('ADMIN') ? KpiWorkflowState.periods.filter(p => p.status === 'COMPLETED').sort((a,b) => clean(b.endDate).localeCompare(clean(a.endDate)))[0] : null)
-      || null;
+    KpiWorkflowState.periods = periodSnap.docs.map(periodDoc => ({
+      id: periodDoc.id,
+      ...periodDoc.data()
+    }));
+
+    KpiWorkflowState.period =
+      KpiWorkflowState.periods.find(activePeriod) ||
+      (
+        activeRole('ADMIN')
+          ? KpiWorkflowState.periods
+              .filter(period => clean(period.status).toUpperCase() === 'COMPLETED')
+              .sort((a, b) =>
+                clean(b.endDate).localeCompare(clean(a.endDate))
+              )[0]
+          : null
+      ) ||
+      null;
+
     if (!KpiWorkflowState.period) {
+      KpiWorkflowState.users = [];
+      KpiWorkflowState.tasks = [];
+      KpiWorkflowState.registrations = [];
+      KpiWorkflowState.evaluations = [];
+      KpiWorkflowState.commonAll = [];
+      KpiWorkflowState.common = null;
+      KpiWorkflowState.plan = null;
+
       render();
-      message(activeRole('ADMIN') ? 'Chưa có kỳ đánh giá đang hoạt động. Admin hãy tạo kỳ thí điểm.' : 'Chưa có kỳ đánh giá đang hoạt động.');
+
+      message(
+        activeRole('ADMIN')
+          ? 'Chưa có kỳ đánh giá đang hoạt động. Admin hãy tạo hoặc kích hoạt một kỳ.'
+          : 'Chưa có kỳ đánh giá đang hoạt động.'
+      );
       return;
     }
-    const [usersSnap, tasksSnap, registrationsSnap, evalSnap, commonAllSnap, planSnap] = await Promise.all([
-      getDocs(collection(db,'users')),
-      getDocs(query(collection(db,'tasks'), where('periodId','==',KpiWorkflowState.period.id))),
-      getDocs(query(collection(db,'taskRegistrations'), where('periodId','==',KpiWorkflowState.period.id))),
-      getDocs(query(collection(db,'taskEvaluations'), where('periodId','==',KpiWorkflowState.period.id))),
-      getDocs(query(collection(db,'commonCriteriaAssessments'), where('periodId','==',KpiWorkflowState.period.id))),
-      getDoc(doc(db,'kpiPlans', `${KpiWorkflowState.period.id}_${normalizeDepartment(KpiWorkflowState.profile.departmentId)}`))
+
+    const periodId = KpiWorkflowState.period.id;
+    const departmentId = normalizeDepartment(
+      KpiWorkflowState.profile.departmentId
+    );
+
+    const [
+      usersSnap,
+      tasksSnap,
+      registrationsSnap,
+      evaluationsSnap,
+      commonAllSnap,
+      planSnap
+    ] = await Promise.all([
+      getDocs(collection(db, 'users')),
+      getDocs(scopedQueryFor('tasks', periodId)),
+      getDocs(scopedQueryFor('taskRegistrations', periodId)),
+      getDocs(scopedQueryFor('taskEvaluations', periodId)),
+      getDocs(scopedQueryFor('commonCriteriaAssessments', periodId)),
+      getDoc(doc(db, 'kpiPlans', `${periodId}_${departmentId}`))
     ]);
-    KpiWorkflowState.users = usersSnap.docs.map(d => ({ id:d.id, ...d.data() }));
-    KpiWorkflowState.tasks = tasksSnap.docs.map(d => ({ id:d.id, ...d.data() }));
-    KpiWorkflowState.registrations = registrationsSnap.docs.map(d => ({ id:d.id, ...d.data() }));
-    KpiWorkflowState.evaluations = evalSnap.docs.map(d => ({ id:d.id, ...d.data() }));
-    KpiWorkflowState.commonAll = commonAllSnap.docs.map(d => ({ id:d.id, ...d.data() }));
-    KpiWorkflowState.common = KpiWorkflowState.commonAll.find(item => item.userId === KpiWorkflowState.user.uid) || null;
-    KpiWorkflowState.plan = planSnap.exists() ? { id:planSnap.id, ...planSnap.data() } : null;
+
+    KpiWorkflowState.users = usersSnap.docs.map(userDoc => ({
+      id: userDoc.id,
+      ...userDoc.data()
+    }));
+
+    KpiWorkflowState.tasks = tasksSnap.docs.map(taskDoc => ({
+      id: taskDoc.id,
+      ...taskDoc.data()
+    }));
+
+    KpiWorkflowState.registrations = registrationsSnap.docs.map(
+      registrationDoc => ({
+        id: registrationDoc.id,
+        ...registrationDoc.data()
+      })
+    );
+
+    KpiWorkflowState.evaluations = evaluationsSnap.docs.map(
+      evaluationDoc => ({
+        id: evaluationDoc.id,
+        ...evaluationDoc.data()
+      })
+    );
+
+    KpiWorkflowState.commonAll = commonAllSnap.docs.map(commonDoc => ({
+      id: commonDoc.id,
+      ...commonDoc.data()
+    }));
+
+    KpiWorkflowState.common =
+      KpiWorkflowState.commonAll.find(
+        item => item.userId === KpiWorkflowState.user.uid
+      ) || null;
+
+    KpiWorkflowState.plan = planSnap.exists()
+      ? { id: planSnap.id, ...planSnap.data() }
+      : null;
+
     render();
-    message('Dữ liệu đã được cập nhật.', 'ok');
+    message('Dữ liệu KPI đã được cập nhật theo đúng phạm vi tài khoản.', 'ok');
   } catch (error) {
-    console.error(error);
-    message(error?.code === 'permission-denied' ? 'Firestore Rules chưa cho phép đọc dữ liệu KPI. Hãy Publish file firestore.rules Production 2c.' : (error.message || 'Không tải được dữ liệu KPI.'));
+    console.error('KPI loadAll error:', {
+      code: error?.code,
+      message: error?.message,
+      stack: error?.stack,
+      profile: {
+        uid: KpiWorkflowState.user?.uid || '',
+        role: KpiWorkflowState.profile?.role || '',
+        departmentId: KpiWorkflowState.profile?.departmentId || ''
+      },
+      periodId: KpiWorkflowState.period?.id || ''
+    });
+
+    message(kpiLoadErrorMessage(error));
   }
 }
 
