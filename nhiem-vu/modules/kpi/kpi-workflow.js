@@ -1,13 +1,13 @@
-import { auth, db } from '../../firebase-config.js';
+import { auth, db } from '../../firebase-config.js?v=20260726.PRODUCTION6_FONT_LAYOUT_CACHEFIX';
 import {
   addDoc, collection, deleteDoc, doc, getDoc, getDocs, onSnapshot, query,
   serverTimestamp, setDoc, updateDoc, where
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
-import { TaskRegistrationService } from '../../services/task-registration-service.js';
+import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260726.PRODUCTION6_FONT_LAYOUT_CACHEFIX';
 import {
   KPI2B as KPI2C, COMMON_CRITERIA, calculateTaskScore, calculateKpiSummary,
   proposedRating, ratingName, round2, progressRateFromDates
-} from '../../kpi-engine.js';
+} from '../../kpi-engine.js?v=20260726.PRODUCTION6_FONT_LAYOUT_CACHEFIX';
 
 export const KpiWorkflowState = {
   user: null,
