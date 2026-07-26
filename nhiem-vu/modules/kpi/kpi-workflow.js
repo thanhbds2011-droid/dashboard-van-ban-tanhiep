@@ -87,7 +87,6 @@ function mount() {
       <div class="kpi-metric"><span>Tổng điểm</span><strong id="kpiMetric100">0/100</strong></div>
     </div>
     <div class="kpi-toolbar kpi-no-print" data-mode-toolbar>
-      <button id="kpiCommonButton" class="kpi-button secondary" type="button">✍️ Tự chấm tiêu chí chung · 30 điểm</button>
       <button id="kpiLockPlan" class="kpi-button secondary" type="button">🔒 Khóa kế hoạch Phòng/Khu</button>
       <button id="kpiPeriodAdmin" class="kpi-button secondary" type="button">⚙️ Quản lý kỳ</button>
       <span class="kpi-small">A là điểm kế hoạch đã duyệt; B tạm tính hình thành sau khi cá nhân tự đánh giá và trở thành chính thức sau khi cấp có thẩm quyền xác nhận.</span>
@@ -112,7 +111,6 @@ function mount() {
   wireEvents();
   section.dataset.kpiMode = mode;
   if (mode === 'reports') {
-    el('kpiCommonButton')?.classList.add('kpi-hidden');
     el('kpiLockPlan')?.classList.add('kpi-hidden');
   } else if (mode === 'evaluations') {
     el('kpiLockPlan')?.classList.add('kpi-hidden');
@@ -149,7 +147,6 @@ function closeModal(){ el('kpiModalRoot')?.remove(); }
 function wireEvents() {
   el('kpiRefresh')?.addEventListener('click', loadAll);
   el('kpiOpenReport')?.addEventListener('click', openReport);
-  el('kpiCommonButton')?.addEventListener('click', openCommonCriteria);
   el('kpiLockPlan')?.addEventListener('click', lockDepartmentPlan);
   el('kpiPeriodAdmin')?.addEventListener('click', openPeriodManager);
   el('kpiInitPilot')?.addEventListener('click', initializePilotPeriod);
@@ -627,20 +624,33 @@ function openPlanTaskDetail(taskId){
   return openTaskInfo(task.id);
 }
 
-async function cancelRegistrationFromPlan(regId, root){
+async function cancelRegistrationFromPlan(regId, detailUid){
   const reg=KpiWorkflowState.registrations.find(r=>r.id===regId);
   if(!reg)return;
-  const title=reg.status==='REJECTED'?'Hủy đăng ký để chọn lại':'Hủy đăng ký đang chờ duyệt';
-  const message=reg.status==='REJECTED'
-    ? 'Đăng ký bị trả lại sẽ được xóa. Đầu việc chuẩn không bị xóa và sẽ xuất hiện lại trong Danh mục công việc để bạn chọn, đăng ký lại.'
-    : 'Đăng ký đang chờ duyệt sẽ được xóa. Đầu việc chuẩn không bị xóa và bạn có thể chọn đầu việc khác.';
-  if(!confirm(`${title}?\n\n${message}`))return;
+  const owner=reg.userId===KpiWorkflowState.user.uid;
+  const manager=(isLeader()&&sameDepartment(reg))||activeRole('ADMIN');
+  if(!owner&&!manager){alert('Bạn không có quyền xử lý đăng ký này.');return;}
+  const isRejected=reg.status==='REJECTED';
+  const title=isRejected
+    ? (owner?'Xóa đăng ký để chọn lại':'Cho phép nhân viên đăng ký lại')
+    : 'Hủy đăng ký đang chờ duyệt';
+  const detail=isRejected
+    ? 'Bản đăng ký bị trả lại sẽ được xóa. Đầu việc chuẩn vẫn giữ nguyên và xuất hiện lại trong Danh mục công việc để đăng ký lại.'
+    : 'Bản đăng ký đang chờ duyệt sẽ được xóa. Đầu việc chuẩn vẫn giữ nguyên.';
+  if(!confirm(`${title}?
+
+${detail}`))return;
   try{
     await TaskRegistrationService.cancelRegistration(reg);
     closeModal();
     await loadAll();
-    openPersonPlanDetail(KpiWorkflowState.user.uid);
-  }catch(error){alert(error.message||'Không hủy được đăng ký.');}
+    openPersonPlanDetail(detailUid||reg.userId||KpiWorkflowState.user.uid);
+  }catch(error){
+    const msg=error?.code==='permission-denied'
+      ? 'Tài khoản chưa được cấp quyền xóa đăng ký. Admin cần Publish file firestore.rules đi kèm bộ Production 11.'
+      : (error.message||'Không xử lý được đăng ký.');
+    alert(msg);
+  }
 }
 
 function openPersonPlanDetail(uid){
@@ -680,7 +690,11 @@ function openPersonPlanDetail(uid){
     <td><strong>${esc(reg.standardTaskCode||'')}</strong><br>${esc(reg.standardTaskName||reg.title||'')}</td>
     <td>${esc(reg.rejectionReason||'Không có lý do.')}</td>
     <td>${esc(reg.rejectedByName||'')}</td>
-    <td>${owner?`<button class="kpi-button danger ghost" type="button" data-cancel-registration="${esc(reg.id)}">Hủy đăng ký để chọn lại</button>`:'<span class="kpi-status danger">Đã trả lại</span>'}</td>
+    <td>${owner
+      ? `<button class="kpi-button danger ghost" type="button" data-cancel-registration="${esc(reg.id)}">Xóa đăng ký để chọn lại</button>`
+      : ((isLeader()&&sameDepartment(reg))||activeRole('ADMIN'))
+        ? `<button class="kpi-button secondary" type="button" data-cancel-registration="${esc(reg.id)}">Cho phép đăng ký lại</button>`
+        : '<span class="kpi-status danger">Đã trả lại</span>'}</td>
   </tr>`).join('');
 
   const root=modal(`Kế hoạch của ${user.fullName||''}`,`
@@ -693,7 +707,7 @@ function openPersonPlanDetail(uid){
       ${currentRows?`<div class="kpi-table-wrap"><table class="kpi-table compact-table"><thead><tr><th>STT</th><th>Đầu việc</th><th>Điểm A</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>${currentRows}</tbody></table></div>`:'<div class="kpi-empty">Chưa có đầu việc hiện tại.</div>'}
     </div>
     <div class="kpi-hidden" data-plan-panel="rejected">
-      <div class="kpi-note">Hủy đăng ký chỉ xóa bản đăng ký bị trả lại; đầu việc chuẩn vẫn được giữ nguyên để đăng ký lại.</div>
+      <div class="kpi-note">Xóa bản đăng ký bị trả lại chỉ giải phóng lựa chọn; đầu việc chuẩn vẫn được giữ nguyên để đăng ký lại.</div>
       ${rejectedRows?`<div class="kpi-table-wrap"><table class="kpi-table compact-table"><thead><tr><th>STT</th><th>Đầu việc</th><th>Lý do trả lại</th><th>Người trả lại</th><th>Thao tác</th></tr></thead><tbody>${rejectedRows}</tbody></table></div>`:'<div class="kpi-empty">Không có đầu việc đã trả lại.</div>'}
     </div>`,
     can?'<button class="kpi-button secondary" data-kpi-close>Đóng</button><button id="regRejectSelected" class="kpi-button danger">Trả lại mục đã chọn</button><button id="regApproveSelected" class="kpi-button">Duyệt mục đã chọn</button>':'<button class="kpi-button secondary" data-kpi-close>Đóng</button>');
@@ -703,7 +717,7 @@ function openPersonPlanDetail(uid){
     root.querySelectorAll('[data-plan-panel]').forEach(x=>x.classList.toggle('kpi-hidden',x.dataset.planPanel!==btn.dataset.planTab));
   }));
   root.querySelectorAll('[data-task-score]').forEach(btn=>btn.addEventListener('click',()=>openPlanTaskDetail(btn.dataset.taskScore)));
-  root.querySelectorAll('[data-cancel-registration]').forEach(btn=>btn.addEventListener('click',()=>cancelRegistrationFromPlan(btn.dataset.cancelRegistration,root)));
+  root.querySelectorAll('[data-cancel-registration]').forEach(btn=>btn.addEventListener('click',()=>cancelRegistrationFromPlan(btn.dataset.cancelRegistration,uid)));
   root.querySelector('#regApproveSelected')?.addEventListener('click',async()=>{
     const ids=[...root.querySelectorAll('[data-reg-review]:checked')].map(x=>x.value);
     const selected=pending.filter(r=>ids.includes(r.id));
@@ -1104,14 +1118,14 @@ function openReport(uid=KpiWorkflowState.user.uid) {
   const quarter=KpiWorkflowState.period.quarter||(clean(KpiWorkflowState.period.id).match(/Q([1-4])/)?.[1]||'…');
   const year=KpiWorkflowState.period.year||clean(KpiWorkflowState.period.startDate).slice(0,4)||now.getFullYear();
   const criteriaRows=COMMON_CRITERIA.map(c=>{const x=common?.items?.find(i=>i.code===c.code)||{};const result=x.confirmedResult||x.selfResult||'';const score=result==='DAM_BAO'?c.max:result==='KHONG_DAM_BAO'?0:'';return `<tr><td class="center">${c.code}</td><td>${esc(c.text)}</td><td class="center">${result==='DAM_BAO'?'X':''}</td><td class="center">${result==='KHONG_DAM_BAO'?'X':''}</td><td class="center">${c.max}</td><td class="center">${score}</td><td>${esc(x.confirmedNote||x.note||'')}</td></tr>`;}).join('');
-  const taskRows=mine.map((t,i)=>{const e=evaluationFor(t.id)||{};const progress=progressRateFromDates(t.deadline,t.completedAt,t.status==='HOAN_THANH',KpiWorkflowState.holidays);const scored=evaluationScore(e);return `<tr><td class="center">${i+1}</td><td>${esc(t.taskCode||'')}<br>${esc(t.title||'')}</td><td class="center">${fmt(t.maximumConvertedScore)}</td><td class="center">${progress}%</td><td class="center">${e.confirmedResultRate??e.selfResultRate??'—'}%</td><td class="center">${scored.available?fmt(scored.score):'—'}</td><td>${scored.confirmed?'Đã xác nhận':scored.available?'Tạm tính, chờ xác nhận':'Chưa tự đánh giá'}${e.reviewerComment||e.selfComment?`<br>${esc(e.reviewerComment||e.selfComment)}`:''}</td></tr>`;}).join('');
+  const taskRows=mine.map((t,i)=>{const e=evaluationFor(t.id)||{};const progress=progressRateFromDates(t.deadline,t.completedAt,t.status==='HOAN_THANH',KpiWorkflowState.holidays);const scored=evaluationScore(e);return `<tr><td class="center">${i+1}</td><td>${esc(t.title||'')}</td><td class="center">${fmt(t.maximumConvertedScore)}</td><td class="center">${progress}%</td><td class="center">${e.confirmedResultRate??e.selfResultRate??'—'}%</td><td class="center">${scored.available?fmt(scored.score):'—'}</td></tr>`;}).join('');
   const html=`<div id="kpiPdfPreview" class="kpi-report kpi-report-print"><section class="mau01-page">
   <div class="mau01-top"><div><strong>TRUNG TÂM<br>BẢO TRỢ XÃ HỘI TÂN HIỆP</strong><div>*</div></div><div><strong>ĐẢNG CỘNG SẢN VIỆT NAM</strong><div class="mau01-underline"></div><em>Đồng Nai, ngày ${String(now.getDate()).padStart(2,'0')} tháng ${String(now.getMonth()+1).padStart(2,'0')} năm ${now.getFullYear()}</em></div></div>
   <div class="mau01-code">Mẫu 01</div><h1>BẢN TỰ ĐÁNH GIÁ, XẾP LOẠI CỦA CÁ NHÂN</h1><h2>Quý ${esc(quarter)}, Năm ${esc(year)}</h2>
   <div class="mau01-info"><p><strong>Họ và tên:</strong> ${esc(person.fullName||'')} &nbsp;&nbsp; <strong>Ngày sinh:</strong> ${esc(person.birthDate||person.dateOfBirth||'')}</p><p><strong>Chức vụ Đảng:</strong> ${esc(person.partyPosition||'')}</p><p><strong>Chức vụ chính quyền:</strong> ${esc(person.governmentPosition||person.position||'')}</p><p><strong>Chức vụ đoàn thể:</strong> ${esc(person.unionPosition||'')}</p><p><strong>Đơn vị công tác:</strong> ${esc(person.departmentName||person.departmentId||'')}</p></div>
   <h3 class="mau01-section-title">I. Tự đánh giá kết quả thực hiện nhiệm vụ</h3><p>Trên cơ sở nhiệm vụ được giao, cá nhân tự đánh giá về kết quả thực hiện nhiệm vụ theo quý như sau:</p>
   <table class="mau01-table"><thead><tr><th colspan="7" class="left">A. NHÓM TIÊU CHÍ CHUNG (30 ĐIỂM)</th></tr><tr><th>TT</th><th>Tiêu chí / Nội dung</th><th>Đảm bảo</th><th>Không đảm bảo</th><th>Điểm tối đa</th><th>Điểm đạt</th><th>Ghi chú</th></tr></thead><tbody>${criteriaRows}<tr class="total-row"><td colspan="4">TỔNG (A)</td><td>30</td><td>${fmt(s.common30)}</td><td></td></tr></tbody></table>
-  <table class="mau01-table mau01-b"><thead><tr><th colspan="7" class="left">B. KẾT QUẢ THỰC HIỆN NHIỆM VỤ ĐƯỢC GIAO (70 ĐIỂM)</th></tr><tr><th>STT</th><th>Nội dung nhiệm vụ</th><th>Điểm tối đa</th><th>Tiến độ KPI</th><th>Chất lượng</th><th>Điểm đạt</th><th>Trạng thái / Ghi chú</th></tr></thead><tbody>${taskRows||'<tr><td colspan="7" class="center">Chưa có nhiệm vụ trong kỳ</td></tr>'}<tr class="total-row"><td colspan="2">TỔNG ĐIỂM NHIỆM VỤ</td><td>${fmt(s.A)}</td><td colspan="2"></td><td>${fmt(s.B)}</td><td>${s.hasProvisional?'Có điểm tạm tính chưa xác nhận':'Điểm đã xác nhận'}</td></tr><tr class="total-row"><td colspan="2">ĐIỂM KPI QUY ĐỔI</td><td colspan="3">MIN[(B thực tế / A kế hoạch) × 70; 70]</td><td>${fmt(s.kpi70)}/70</td><td>A = ${fmt(s.A)}; B = ${fmt(s.B)}</td></tr><tr class="total-row"><td colspan="2">TỔNG (A + B)</td><td colspan="3">100</td><td>${fmt(s.total100)}</td><td></td></tr></tbody></table>
+  <table class="mau01-table mau01-b"><thead><tr><th colspan="6" class="left">B. KẾT QUẢ THỰC HIỆN NHIỆM VỤ ĐƯỢC GIAO (70 ĐIỂM)</th></tr><tr><th>STT</th><th>Nội dung nhiệm vụ</th><th>Điểm tối đa</th><th>Tiến độ KPI</th><th>Chất lượng</th><th>Điểm đạt</th></tr></thead><tbody>${taskRows||'<tr><td colspan="6" class="center">Chưa có nhiệm vụ trong kỳ</td></tr>'}<tr class="total-row"><td colspan="2">TỔNG ĐIỂM NHIỆM VỤ</td><td>${fmt(s.A)}</td><td colspan="2"></td><td>${fmt(s.B)}</td></tr><tr class="total-row"><td colspan="2">ĐIỂM KPI QUY ĐỔI</td><td colspan="3">MIN[(B thực tế / A kế hoạch) × 70; 70]</td><td>${fmt(s.kpi70)}/70</td></tr><tr class="total-row"><td colspan="2">TỔNG (A + B)</td><td colspan="3">100</td><td>${fmt(s.total100)}</td></tr></tbody></table>
   <h3 class="mau01-section-title">II. Tự đề xuất xếp loại mức chất lượng: <span class="dotted">${esc(rating)}</span></h3><p class="mau01-note">Kết quả cuối cùng do cấp có thẩm quyền xem xét, quyết định.</p><div class="mau01-sign-one"><strong>CÁ NHÂN TỰ ĐÁNH GIÁ</strong><br><em>(Ký, ghi rõ họ tên)</em><div class="signature-space"></div><strong>${esc(person.fullName||'')}</strong></div>
   <h3 class="mau01-section-title">III. Nhận xét, đánh giá của cấp có thẩm quyền</h3><p>- Chấm điểm: ....................................................................................................................................</p><p>- Đề xuất xếp loại: ...........................................................................................................................</p><div class="mau01-sign-authority"><strong>XÁC NHẬN CỦA CẤP CÓ THẨM QUYỀN</strong><br><em>(Ký, ghi rõ họ tên và đóng dấu)</em></div></section></div>`;
   modal('Xem trước Mẫu 01',html,'<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button><button id="kpiPrintReport" class="kpi-button" type="button">🖨️ In Mẫu 01</button>');
