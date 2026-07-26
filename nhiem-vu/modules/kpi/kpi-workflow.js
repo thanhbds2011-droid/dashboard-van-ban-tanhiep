@@ -1,13 +1,13 @@
-import { auth, db } from '../../firebase-config.js?v=20260726.PRODUCTION6_FONT_LAYOUT_CACHEFIX';
+import { auth, db } from '../../firebase-config.js';
 import {
   addDoc, collection, deleteDoc, doc, getDoc, getDocs, onSnapshot, query,
   serverTimestamp, setDoc, updateDoc, where
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
-import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260726.PRODUCTION6_FONT_LAYOUT_CACHEFIX';
+import { TaskRegistrationService } from '../../services/task-registration-service.js';
 import {
   KPI2B as KPI2C, COMMON_CRITERIA, calculateTaskScore, calculateKpiSummary,
   proposedRating, ratingName, round2, progressRateFromDates
-} from '../../kpi-engine.js?v=20260726.PRODUCTION6_FONT_LAYOUT_CACHEFIX';
+} from '../../kpi-engine.js';
 
 export const KpiWorkflowState = {
   user: null,
@@ -254,7 +254,7 @@ async function activatePeriodInternal(periodId) {
   closeModal(); await loadAll(); openPeriodManager();
 }
 
-function completePeriodById(periodId) {
+async function completePeriodById(periodId) {
   if (!activeRole('ADMIN')) return;
   if (!confirm(`Kết thúc kỳ ${periodId}? Sau khi kết thúc, nhiệm vụ mới sẽ không được gắn vào kỳ này.`)) return;
   await updateDoc(doc(db,'evaluationPeriods',periodId), { active:false, status:'COMPLETED', completedAt:serverTimestamp(), completedByUserId:KpiWorkflowState.user.uid, updatedAt:serverTimestamp() });
