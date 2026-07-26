@@ -1,4 +1,4 @@
-/** Production 3D - chi tiết và phân công nhiệm vụ. */
+/** Thành phần nghiệp vụ quản lý nhiệm vụ. */
 import { UserContext } from "../../core/user-context.js";
 import { Permissions } from "../../core/permissions.js";
 import { UserReadService } from "../../services/user-read-service.js";

@@ -7,13 +7,13 @@ let renderSequence = 0;
 
 export async function renderTasksView(outlet) {
   const sequence = ++renderSequence;
-  outlet.innerHTML = loadingCard("Đang tải nhiệm vụ từ Firestore…");
+  outlet.innerHTML = loadingCard("Đang tải danh sách nhiệm vụ…");
   try {
     const tasks = await TaskReadService.list();
     if (sequence !== renderSequence) return;
     const summary = TaskReadService.summarize(tasks);
     outlet.innerHTML = `<section class="page-card">
-      <div class="page-header"><div><span class="page-eyebrow">PRODUCTION FINAL • THEO DÕI NHIỆM VỤ</span><h2>Nhiệm vụ của tôi</h2><p>Theo dõi đầu việc kế hoạch đã được duyệt và nhiệm vụ đột xuất được giao.</p></div>${Permissions.canCreateUnexpectedTask()?'<button id="btnCreateTask" class="primary-button" type="button">＋ Giao nhiệm vụ đột xuất</button>':""}</div>
+      <div class="page-header"><div><span class="page-eyebrow">THEO DÕI NHIỆM VỤ</span><h2>Nhiệm vụ của tôi</h2><p>Theo dõi đầu việc kế hoạch đã được duyệt và nhiệm vụ đột xuất được giao.</p></div>${Permissions.canCreateUnexpectedTask()?'<button id="btnCreateTask" class="primary-button" type="button">＋ Giao nhiệm vụ đột xuất</button>':""}</div>
       <div class="summary-grid compact-grid">${card("Tất cả",summary.total)}${card("Đang xử lý",summary.inProgress)}${card("Chờ phân công",summary.waitingAssignment)}${card("Trễ hạn",summary.overdue)}${card("Hoàn thành",summary.completed)}</div>
       <div class="toolbar"><label class="field-grow"><span>Tìm kiếm</span><input id="taskSearch" type="search" placeholder="Tìm mã, tiêu đề, người thực hiện…"></label><label><span>Trạng thái</span><select id="taskStatusFilter"><option value="ALL">Tất cả trạng thái</option><option value="IN_PROGRESS">Đang xử lý</option><option value="WAITING">Chờ phân công</option><option value="OVERDUE">Trễ hạn</option><option value="COMPLETED">Hoàn thành</option></select></label><button id="refreshTasks" class="secondary-button" type="button">↻ Làm mới</button></div>
       <div id="taskListContainer">${renderTaskList(tasks)}</div>

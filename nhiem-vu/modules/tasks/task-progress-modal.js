@@ -1,4 +1,4 @@
-/** Production 3D - modal tiếp nhận/cập nhật tiến độ/minh chứng/hoàn thành. */
+/** Cập nhật tiến độ, minh chứng và hoàn thành nhiệm vụ. */
 import { UserContext } from "../../core/user-context.js";
 import { Permissions } from "../../core/permissions.js";
 import { TaskWriteService } from "../../services/task-write-service.js";
@@ -80,6 +80,7 @@ export async function openTaskProgressModal(task, { onSaved }) {
       await TaskWriteService.updateProgress(task, changes);
       close();
       await onSaved?.();
+      if(changes.status==='HOAN_THANH'){const go=window.confirm('Nhiệm vụ đã hoàn thành. Bạn có muốn tự đánh giá KPI ngay không?');if(go){sessionStorage.setItem('kpiSelfAssessmentTaskId',task.id);window.location.hash='#/kpi';}}
     } catch (error) {
       window.alert(error?.message || "Không lưu được cập nhật.");
       button.disabled = false;

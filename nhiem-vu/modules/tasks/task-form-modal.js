@@ -1,4 +1,4 @@
-/** Production 3D - modal tạo nhiệm vụ. */
+/** Thành phần nghiệp vụ quản lý nhiệm vụ. */
 import { UserContext } from "../../core/user-context.js";
 import { Permissions } from "../../core/permissions.js";
 import { TaskWriteService } from "../../services/task-write-service.js";

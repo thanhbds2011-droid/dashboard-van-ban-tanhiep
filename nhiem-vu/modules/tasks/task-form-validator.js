@@ -1,4 +1,4 @@
-/** Production 3D - chuẩn hóa và kiểm tra dữ liệu form nhiệm vụ. */
+/** Thành phần nghiệp vụ quản lý nhiệm vụ. */
 
 export function cleanText(value, maxLength = 5000) {
   return String(value || "").replace(/\s+/g, " ").trim().slice(0, maxLength);
