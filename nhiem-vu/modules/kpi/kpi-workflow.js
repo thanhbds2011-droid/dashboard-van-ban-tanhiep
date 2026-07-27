@@ -24,7 +24,6 @@ export const KpiWorkflowState = {
   selectedTaskId: null,
   initialized: false,
   mode: 'plans',
-  holidays: [],
   delegations: []
 };
 
@@ -67,13 +66,12 @@ function mount() {
   section.innerHTML = `
     <div class="kpi-header">
       <div>
-        <div><span class="kpi-pilot">${mode === 'evaluations' ? 'ĐÁNH GIÁ KẾT QUẢ' : mode === 'reports' ? 'BÁO CÁO ĐÁNH GIÁ' : 'QUẢN LÝ KẾ HOẠCH'}</span></div>
         <h2>${heading}</h2>
         <p>${description}</p>
         <div id="kpiPeriodLine" class="kpi-period-line"></div>
       </div>
       <div class="kpi-actions kpi-no-print">
-        <button id="kpiRefresh" class="kpi-button secondary" type="button">↻ Làm mới</button>
+        <button id="kpiRefresh" class="kpi-button secondary" type="button">↻ Cập nhật</button>
         <button id="kpiOpenReport" class="kpi-button" type="button">🧾 Xem trước báo cáo</button>
       </div>
     </div>
@@ -268,10 +266,9 @@ async function loadAll() {
     const commonQuery = globalRole() ? query(collection(db,'commonCriteriaAssessments'), where('periodId','==',periodId))
       : isLeader() ? query(collection(db,'commonCriteriaAssessments'), where('periodId','==',periodId), where('departmentId','==',dept))
       : query(collection(db,'commonCriteriaAssessments'), where('periodId','==',periodId), where('userId','==',KpiWorkflowState.user.uid));
-    const [usersSnap, tasksSnap, registrationsSnap, evalSnap, commonAllSnap, planSnap, holidaySnap, delegationSnap] = await Promise.all([
+    const [usersSnap, tasksSnap, registrationsSnap, evalSnap, commonAllSnap, planSnap, delegationSnap] = await Promise.all([
       getDocs(collection(db,'users')), getDocs(taskQuery), getDocs(registrationQuery), getDocs(evaluationQuery), getDocs(commonQuery),
       getDoc(doc(db,'kpiPlans', `${periodId}_${dept}`)),
-      getDocs(query(collection(db,'holidays'), where('active','==',true))),
       getDocs(query(collection(db,'approvalDelegations'), where('departmentId','==',dept)))
     ]);
     KpiWorkflowState.users = usersSnap.docs.map(d => ({ id:d.id, ...d.data() }));
@@ -281,7 +278,6 @@ async function loadAll() {
     KpiWorkflowState.commonAll = commonAllSnap.docs.map(d => ({ id:d.id, ...d.data() }));
     KpiWorkflowState.common = KpiWorkflowState.commonAll.find(item => item.userId === KpiWorkflowState.user.uid) || null;
     KpiWorkflowState.plan = planSnap.exists() ? { id:planSnap.id, ...planSnap.data() } : null;
-    KpiWorkflowState.holidays = holidaySnap.docs.map(d => d.data().dateKey || d.id).filter(Boolean);
     KpiWorkflowState.delegations = delegationSnap.docs.map(d => ({ id:d.id, ...d.data() }));
     render();
     message('Dữ liệu đã được cập nhật.', 'ok');
@@ -347,7 +343,7 @@ function renderPlanDashboard(){
   target.innerHTML=`<div class="kpi-table-wrap"><table class="kpi-table"><thead><tr><th>STT</th><th>Họ và tên</th><th>Đầu việc đăng ký</th><th>Tổng điểm</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>${people.map((u,i)=>{const regs=regsForPerson(u.id),tasks=rowsForPerson(u.id),approved=tasks.filter(t=>t.includedInA===true),score=approved.reduce((a,t)=>a+Number(t.maximumConvertedScore||0),0),pending=regs.filter(r=>r.status==='PENDING').length;return `<tr><td>${i+1}</td><td><strong>${esc(u.fullName||u.email||u.id)}</strong><br><span class="kpi-small">${esc(u.position||'')}</span></td><td>${regs.length||tasks.length}</td><td>${fmt(score)}</td><td><span class="kpi-status">${pending?`${pending} chờ duyệt`:'Đã cập nhật'}</span></td><td><button class="kpi-button secondary" data-person-detail="${esc(u.id)}">Chi tiết</button></td></tr>`;}).join('')}</tbody></table></div>`;
   target.querySelectorAll('[data-person-detail]').forEach(b=>b.addEventListener('click',()=>openPersonPlanDetail(b.dataset.personDetail)));
   const completed = KpiWorkflowState.tasks.filter(taskForCurrentUser).filter(t => ['HOAN_THANH','COMPLETED','DA_HOAN_THANH'].includes(clean(t.status).toUpperCase()) || t.completedAt);
-  target.insertAdjacentHTML('beforeend', `<div class="kpi-subsection"><h3>Đánh giá nhiệm vụ đã hoàn thành</h3><p class="kpi-small">Tiến độ được tính theo ngày làm việc; người thực hiện đề xuất chất lượng, Trưởng phòng hoặc người được ủy quyền xác nhận.</p>${completed.length ? `<div class="kpi-table-wrap"><table class="kpi-table"><thead><tr><th>Nhiệm vụ</th><th>Người thực hiện</th><th>Tiến độ tự động</th><th>Chất lượng</th><th>Điểm thực tế</th><th>Thao tác</th></tr></thead><tbody>${completed.map(t=>{const ev=evaluationFor(t.id)||{};const progress=progressRateFromDates(t.deadline||t.dueDate,t.completedAt,true,KpiWorkflowState.holidays);const own=t.ownerUserId===KpiWorkflowState.user.uid;return `<tr><td><strong>${esc(t.taskCode||'')}</strong><br>${esc(t.title||'')}</td><td>${esc(t.ownerName||'')}</td><td>${progress}%</td><td>${ev.confirmedResultRate??ev.selfResultRate??'—'}%</td><td>${fmt(ev.confirmedActualScore||ev.selfActualScore)}</td><td>${own?`<button class="kpi-button" data-kpi-self="${t.id}">${ev?'Cập nhật đề xuất':'Tự đánh giá'}</button>`:canReviewEvaluation(ev,t)?`<button class="kpi-button" data-kpi-review="${ev?.id||''}">Xác nhận</button>`:'Chỉ xem'}</td></tr>`;}).join('')}</tbody></table></div>`:'<div class="kpi-empty">Chưa có nhiệm vụ hoàn thành để đánh giá.</div>'}</div>`);
+  target.insertAdjacentHTML('beforeend', `<div class="kpi-subsection"><h3>Đánh giá nhiệm vụ đã hoàn thành</h3><p class="kpi-small">Tiến độ được xác định theo thời hạn nhiệm vụ; người thực hiện tự đánh giá kết quả và cấp có thẩm quyền xác nhận.</p>${completed.length ? `<div class="kpi-table-wrap"><table class="kpi-table"><thead><tr><th>Nhiệm vụ</th><th>Người thực hiện</th><th>Tiến độ tự động</th><th>Chất lượng</th><th>Điểm thực tế</th><th>Thao tác</th></tr></thead><tbody>${completed.map(t=>{const ev=evaluationFor(t.id)||{};const progress=progressRateFromDates(t.deadline||t.dueDate,t.completedAt,true);const own=t.ownerUserId===KpiWorkflowState.user.uid;return `<tr><td><strong>${esc(t.taskCode||'')}</strong><br>${esc(t.title||'')}</td><td>${esc(t.ownerName||'')}</td><td>${progress}%</td><td>${ev.confirmedResultRate??ev.selfResultRate??'—'}%</td><td>${fmt(ev.confirmedActualScore||ev.selfActualScore)}</td><td>${own?`<button class="kpi-button" data-kpi-self="${t.id}">${ev?'Cập nhật đề xuất':'Tự đánh giá'}</button>`:canReviewEvaluation(ev,t)?`<button class="kpi-button" data-kpi-review="${ev?.id||''}">Xác nhận</button>`:'Chỉ xem'}</td></tr>`;}).join('')}</tbody></table></div>`:'<div class="kpi-empty">Chưa có nhiệm vụ hoàn thành để đánh giá.</div>'}</div>`);
   target.querySelectorAll('[data-kpi-self]').forEach(b=>b.addEventListener('click',()=>openSelfAssessment(b.dataset.kpiSelf)));
   target.querySelectorAll('[data-kpi-review]').forEach(b=>b.addEventListener('click',()=>openReview(b.dataset.kpiReview)));
 }
@@ -726,7 +722,7 @@ window.KPI2C = {
   })
 };
 
-window.KPI2c = window.KPI2C;
+
 
 export async function renderKpiWorkflow(outlet, options = {}) {
   KpiWorkflowState.mode = options.mode || 'plans';
