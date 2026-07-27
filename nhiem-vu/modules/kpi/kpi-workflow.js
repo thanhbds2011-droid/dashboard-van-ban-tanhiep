@@ -680,21 +680,133 @@ async function deletePeriodData(){
 
 function openReport() {
   if (!KpiWorkflowState.period) return;
-  const mine = KpiWorkflowState.tasks.filter(t => t.ownerUserId === KpiWorkflowState.user.uid);
+
+  const mine = KpiWorkflowState.tasks.filter(t => t.ownerUserId === KpiWorkflowState.user.uid && t.active !== false);
   const s = summary();
   const rating = ratingName(proposedRating(s.total100));
-  const taskRows = mine.map((t, i) => {
-    const e = evaluationFor(t.id) || {};
-    return `<tr><td>${i + 1}</td><td>${esc(t.taskCode || '')}<br>${esc(t.title)}</td><td>${fmt(t.baseScore)}</td><td>${fmt(t.difficultyCoefficient)}</td><td>${fmt(t.maximumConvertedScore)}</td><td>${e.selfProgressRate ?? '—'}% / ${e.selfResultRate ?? '—'}%</td><td>${e.confirmedProgressRate ?? '—'}% / ${e.confirmedResultRate ?? '—'}%</td><td>${fmt(e.confirmedActualScore)}</td></tr>`;
+  const profile = KpiWorkflowState.profile || {};
+  const commonItems = KpiWorkflowState.common?.items || [];
+
+  const profileValue = (...keys) => {
+    for (const key of keys) {
+      const value = clean(profile?.[key]);
+      if (value) return value;
+    }
+    return '';
+  };
+
+  const m01Groups = [
+    {
+      code: '1', title: 'Về phẩm chất chính trị, đạo đức, lối sống, thực hiện trách nhiệm nêu gương', max: 18,
+      items: [
+        ['1.1', 'Tuyệt đối trung thành với Đảng, Tổ quốc và Nhân dân; kiên định chủ nghĩa Mác - Lênin, tư tưởng Hồ Chí Minh, mục tiêu độc lập dân tộc và chủ nghĩa xã hội. Có lập trường, quan điểm, bản lĩnh chính trị vững vàng; kiên quyết bảo vệ nền tảng tư tưởng, Cương lĩnh chính trị, đường lối của Đảng, Hiến pháp, pháp luật của Nhà nước; đấu tranh phản bác các quan điểm sai trái, thù địch, các biểu hiện suy thoái, “tự diễn biến”, “tự chuyển hoá”.', 2],
+        ['1.2', 'Có tinh thần yêu nước sâu sắc, tận tuỵ phục vụ Nhân dân, sâu sát cơ sở, luôn hành động vì lợi ích của Nhân dân. Đặt lợi ích của Đảng, quốc gia - dân tộc, Nhân dân, tập thể lên trên lợi ích cá nhân, sẵn sàng hy sinh vì sự nghiệp cách mạng của Đảng, vì độc lập, tự do của Tổ quốc, vì hạnh phúc của Nhân dân.', 2],
+        ['1.3', 'Chấp hành nghiêm chủ trương, đường lối, nghị quyết, chỉ thị, quy định, nguyên tắc tổ chức, kỷ luật của Đảng, nhất là nguyên tắc tập trung dân chủ, tự phê bình và phê bình; chấp hành nghiêm pháp luật của Nhà nước và quy định của cơ quan, đơn vị. Tuyệt đối chấp hành sự phân công của tổ chức, yên tâm công tác và hoàn thành tốt mọi nhiệm vụ được giao.', 2],
+        ['1.4', 'Có tinh thần tự giác, trách nhiệm cao trong nghiên cứu, học tập chủ nghĩa Mác - Lênin, tư tưởng Hồ Chí Minh, các nghị quyết, chỉ thị của Đảng và các chương trình bồi dưỡng, cập nhật kiến thức mới nhằm nâng cao trình độ về mọi mặt, đáp ứng yêu cầu, nhiệm vụ.', 2],
+        ['1.5', 'Có phẩm chất đạo đức, lối sống trong sáng, trung thực, khiêm tốn, chân thành, giản dị; cần, kiệm, liêm, chính, chí công vô tư; chấp hành nghiêm quy định về chuẩn mực đạo đức cách mạng của cán bộ, đảng viên trong giai đoạn mới, trách nhiệm nêu gương; không vi phạm Quy định về những điều đảng viên không được làm. Không né tránh công việc, chạy theo thành tích; không vi phạm đạo đức, lối sống đến mức bị xử lý kỷ luật.', 2],
+        ['1.6', 'Không tham vọng quyền lực; không chạy chức, chạy quyền; không tham nhũng, lãng phí, cơ hội, vụ lợi, cục bộ, lợi ích nhóm; không để gia đình, người thân và người khác lợi dụng chức vụ, vị trí công tác để trục lợi. Không có biểu hiện suy thoái về tư tưởng chính trị, đạo đức, lối sống, những biểu hiện “tự diễn biến”, “tự chuyển hoá” trong nội bộ. Kiên quyết đấu tranh chống quan liêu, cửa quyền, tham nhũng, xa hoa, lãng phí, tiêu cực, chủ nghĩa cá nhân, lối sống cơ hội, thực dụng, bè phái, lợi ích nhóm, nói không đi đôi với làm.', 2],
+        ['1.7', 'Có uy tín cao, tiêu biểu về phẩm chất đạo đức và phong cách công tác; là trung tâm đoàn kết, thương yêu đồng chí, đồng nghiệp.', 2],
+        ['1.8', 'Có tinh thần chủ động, đổi mới sáng tạo; phấn đấu vì mục tiêu phát triển của cơ quan, đơn vị, đóng góp vào mục tiêu chung của đất nước.', 2],
+        ['1.9', 'Thực hiện việc kê khai và công khai tài sản, thu nhập theo quy định. Báo cáo đầy đủ, trung thực, cung cấp thông tin chính xác, khách quan về những nội dung liên quan đến việc thực hiện chức trách, nhiệm vụ được giao và hoạt động của cơ quan, tổ chức, đơn vị với cấp trên khi được yêu cầu.', 2]
+      ]
+    },
+    {
+      code: '2', title: 'Tư duy đổi mới, chiến lược, khát vọng cống hiến, dám nghĩ dám làm', max: 4,
+      items: [
+        ['2.1', 'Có tư duy đổi mới, tầm nhìn chiến lược, khả năng lãnh đạo, chỉ đạo thích ứng với sự phát triển của thời đại và xu thế toàn cầu hoá; phương pháp làm việc khoa học, nhạy bén chính trị; có năng lực cụ thể hoá trong lãnh đạo, chỉ đạo cơ quan, đơn vị thực hiện và hoàn thành tốt chức năng, nhiệm vụ được giao.', 1],
+        ['2.2', 'Luôn bám sát thực tiễn, có nhiều cách làm hay, sáng tạo, đạt hiệu quả cao trong lãnh đạo, chỉ đạo, tổ chức thực hiện nhiệm vụ; xây dựng cấp uỷ, tổ chức đảng trong sạch, vững mạnh, cơ quan, đơn vị vững mạnh toàn diện.', 1],
+        ['2.3', 'Nói đi đôi với làm, dám nghĩ, dám làm, dám chịu trách nhiệm, dám đột phá vì lợi ích chung. Có khả năng phân tích, dự báo tình hình, phát hiện những khó khăn, bất cập, thời cơ, thuận lợi trong thực tiễn; đề xuất hoặc quyết định những giải pháp phù hợp, kịp thời, hiệu quả.', 1],
+        ['2.4', 'Có khát vọng phấn đấu, cống hiến; có khả năng quy tụ và phát huy được sức mạnh của tập thể, cá nhân trong cơ quan, đơn vị và các cơ quan, đơn vị có liên quan.', 1]
+      ]
+    },
+    {
+      code: '3', title: 'Về tự phê bình và phê bình, tự soi, tự sửa, khắc phục hạn chế, khuyết điểm', max: 8,
+      items: [
+        ['3.1', 'Chủ động, nghiêm túc thực hiện tự phê bình và phê bình, có tinh thần cầu thị và tiếp thu phản biện, góp ý.', 2],
+        ['3.2', 'Có kế hoạch rõ ràng và quyết liệt trong khắc phục hạn chế, khuyết điểm đã được chỉ ra.', 2],
+        ['3.3', 'Kết quả khắc phục hoàn thành từ ≥ 80% nội dung, có tiến bộ rõ, được tổ chức đánh giá tốt; không để tái diễn tồn tại.', 2],
+        ['3.4', 'Tự soi, tự sửa trên tinh thần trách nhiệm chính trị cao, không né tránh, không đổ lỗi.', 2]
+      ]
+    }
+  ];
+
+  const resultFor = (code) => commonItems.find(item => item.code === code) || {};
+  const criterionRows = m01Groups.map(group => {
+    const rows = group.items.map(([code, text, max]) => {
+      const value = resultFor(code);
+      const result = value.confirmedResult || value.selfResult || 'DAM_BAO';
+      const ensured = result !== 'KHONG_DAM_BAO';
+      const score = ensured ? max : 0;
+      return `<tr class="m01-item-row">
+        <td class="m01-center">${esc(code)}</td>
+        <td>${esc(text)}</td>
+        <td class="m01-center m01-check">${ensured ? 'X' : ''}</td>
+        <td class="m01-center m01-check">${ensured ? '' : 'X'}</td>
+        <td class="m01-center">${fmt(max)}</td>
+        <td class="m01-center">${fmt(score)}</td>
+        <td>${esc(value.confirmedNote || value.note || '')}</td>
+      </tr>`;
+    }).join('');
+    const groupScore = group.items.reduce((total, [code, , max]) => {
+      const value = resultFor(code);
+      return total + ((value.confirmedResult || value.selfResult) === 'KHONG_DAM_BAO' ? 0 : max);
+    }, 0);
+    return `<tr class="m01-group-row"><td class="m01-center">${group.code}</td><td>${esc(group.title)}</td><td></td><td></td><td class="m01-center">${fmt(group.max)}</td><td class="m01-center">${fmt(groupScore)}</td><td></td></tr>${rows}`;
   }).join('');
-  const criteriaRows = COMMON_CRITERIA.map(c => {
-    const x = KpiWorkflowState.common?.items?.find(i => i.code === c.code) || {};
-    const score = (x.confirmedResult || x.selfResult) === 'KHONG_DAM_BAO' ? 0 : c.max;
-    return `<tr><td>${c.code}</td><td>${esc(c.text)}</td><td>${c.max}</td><td>${score}</td><td>${esc(x.confirmedNote || x.note || '')}</td></tr>`;
-  }).join('');
-  const pdfHtml = `<div id="kpiPdfPreview" class="kpi-report kpi-report-print"><div class="report-title"><strong>TRUNG TÂM BẢO TRỢ XÃ HỘI TÂN HIỆP</strong><h1>BẢN TỰ ĐÁNH GIÁ, XẾP LOẠI CỦA CÁ NHÂN</h1></div><h3>${esc(KpiWorkflowState.period.name)}</h3><p><strong>Họ và tên:</strong> ${esc(KpiWorkflowState.profile.fullName || '')} &nbsp; <strong>Chức vụ:</strong> ${esc(KpiWorkflowState.profile.position || '')}</p><p><strong>Đơn vị:</strong> ${esc(KpiWorkflowState.profile.departmentId || '')} &nbsp; <strong>Kỳ:</strong> ${dateVi(KpiWorkflowState.period.startDate)} đến ${dateVi(KpiWorkflowState.period.endDate)}</p><h3>A. NHÓM TIÊU CHÍ CHUNG (30 ĐIỂM)</h3><table class="kpi-report-table"><thead><tr><th>TT</th><th>Tiêu chí</th><th>Điểm tối đa</th><th>Điểm đạt</th><th>Ghi chú</th></tr></thead><tbody>${criteriaRows}<tr><th colspan="2">Tổng</th><th>30</th><th>${fmt(s.common30)}</th><th></th></tr></tbody></table><h3>B. KẾT QUẢ THỰC HIỆN NHIỆM VỤ (70 ĐIỂM)</h3><table class="kpi-report-table"><thead><tr><th>TT</th><th>Mã/Tên nhiệm vụ</th><th>Điểm chuẩn</th><th>Hệ số</th><th>Tối đa</th><th>Tự chấm</th><th>Xác nhận</th><th>Điểm thực tế</th></tr></thead><tbody>${taskRows}</tbody></table><p><strong>A – Tổng điểm tối đa kế hoạch:</strong> ${fmt(s.A)} &nbsp; <strong>B – Tổng điểm thực tế:</strong> ${fmt(s.B)}</p><p><strong>KPI công việc:</strong> ${fmt(s.kpi70)}/70 &nbsp; <strong>Tiêu chí chung:</strong> ${fmt(s.common30)}/30 &nbsp; <strong>Tổng:</strong> ${fmt(s.total100)}/100</p><p><strong>Mức tự đề xuất:</strong> ${esc(rating)}</p><p class="report-note"><strong>Lưu ý:</strong> Tổng điểm từ 60 điểm được hiển thị là hoàn thành nhiệm vụ còn hạn chế; hệ thống không tự động kết luận “không hoàn thành”. Kết quả cuối cùng do cấp có thẩm quyền xem xét.</p><div class="signature-grid"><div><strong>CÁ NHÂN TỰ ĐÁNH GIÁ</strong><br><em>(Ký, ghi rõ họ tên)</em></div><div><strong>XÁC NHẬN CỦA CẤP CÓ THẨM QUYỀN</strong><br><em>(Xác lập thời điểm, ký, ghi rõ họ tên và đóng dấu)</em></div></div></div>`;
-  const excelHtml = `<div id="kpiExcelPreview" class="kpi-hidden"><div class="kpi-alert kpi-ok">Bản xem trước dạng bảng Excel — chỉ xem, không tải tệp.</div><div class="kpi-table-wrap"><table class="kpi-table"><thead><tr><th>STT</th><th>Mã nhiệm vụ</th><th>Tên nhiệm vụ</th><th>Điểm chuẩn</th><th>Hệ số</th><th>Điểm tối đa</th><th>Tiến độ tự chấm</th><th>Kết quả tự chấm</th><th>Tiến độ xác nhận</th><th>Kết quả xác nhận</th><th>Điểm thực tế</th></tr></thead><tbody>${mine.map((t, i) => { const e = evaluationFor(t.id) || {}; return `<tr><td>${i + 1}</td><td>${esc(t.taskCode || '')}</td><td>${esc(t.title)}</td><td>${fmt(t.baseScore)}</td><td>${fmt(t.difficultyCoefficient)}</td><td>${fmt(t.maximumConvertedScore)}</td><td>${e.selfProgressRate ?? ''}</td><td>${e.selfResultRate ?? ''}</td><td>${e.confirmedProgressRate ?? ''}</td><td>${e.confirmedResultRate ?? ''}</td><td>${fmt(e.confirmedActualScore)}</td></tr>`; }).join('')}</tbody></table></div><div class="kpi-metrics" style="margin-top:12px"><div class="kpi-metric"><span>A</span><strong>${fmt(s.A)}</strong></div><div class="kpi-metric"><span>B</span><strong>${fmt(s.B)}</strong></div><div class="kpi-metric"><span>KPI 70</span><strong>${fmt(s.kpi70)}</strong></div><div class="kpi-metric"><span>Điểm chung 30</span><strong>${fmt(s.common30)}</strong></div><div class="kpi-metric"><span>Tổng 100</span><strong>${fmt(s.total100)}</strong></div></div></div>`;
-  modal('Xem trước báo cáo', `<div class="kpi-preview-tabs kpi-no-print"><button id="kpiPdfTab" class="kpi-button secondary active" type="button">Xem trước PDF</button><button id="kpiExcelTab" class="kpi-button secondary" type="button">Xem dạng bảng Excel</button></div>${pdfHtml}${excelHtml}`, '<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button><button id="kpiExportCsv" class="kpi-button secondary" type="button">📊 Xuất Excel</button><button id="kpiPrintReport" class="kpi-button" type="button">🖨️ In báo cáo</button>');
+
+  const quarterText = clean(KpiWorkflowState.period.name) || 'Quý …, Năm …';
+  const birthDate = profileValue('dateOfBirth', 'birthDate', 'birthday');
+  const partyPosition = profileValue('partyPosition', 'dangPosition');
+  const governmentPosition = profileValue('governmentPosition', 'position');
+  const unionPosition = profileValue('unionPosition', 'doanThePosition');
+  const departmentName = profileValue('departmentName', 'unitName', 'departmentId');
+  const currentDate = new Intl.DateTimeFormat('vi-VN', { day:'2-digit', month:'2-digit', year:'numeric' }).format(new Date());
+
+  const pdfHtml = `<div id="kpiPdfPreview" class="kpi-report kpi-report-print m01-report">
+    <div class="m01-top">
+      <div class="m01-agency"><strong>TRUNG TÂM<br>BẢO TRỢ XÃ HỘI TÂN HIỆP</strong><div>*</div></div>
+      <div class="m01-national"><strong>ĐẢNG CỘNG SẢN VIỆT NAM</strong><div><em>Đồng Nai, ngày ${currentDate.slice(0,2)} tháng ${currentDate.slice(3,5)} năm ${currentDate.slice(6)}</em></div></div>
+      <div class="m01-form-number">Mẫu 01</div>
+    </div>
+    <h1>BẢN TỰ ĐÁNH GIÁ, XẾP LOẠI CỦA CÁ NHÂN</h1>
+    <h2>${esc(quarterText)}</h2>
+    <div class="m01-profile">
+      <div><strong>Họ và tên:</strong> ${esc(profile.fullName || '')}<span class="m01-spacer"></span><strong>Ngày sinh:</strong> ${esc(birthDate)}</div>
+      <div><strong>Chức vụ Đảng:</strong> ${esc(partyPosition)}</div>
+      <div><strong>Chức vụ chính quyền:</strong> ${esc(governmentPosition)}</div>
+      <div><strong>Chức vụ đoàn thể:</strong> ${esc(unionPosition)}</div>
+      <div><strong>Đơn vị công tác:</strong> ${esc(departmentName)}</div>
+    </div>
+    <h3 class="m01-section-title">I. Tự đánh giá kết quả thực hiện nhiệm vụ</h3>
+    <p class="m01-intro"><em>Trên cơ sở nhiệm vụ được giao, cá nhân tự đánh giá về kết quả thực hiện nhiệm vụ theo quý như sau:</em></p>
+    <table class="kpi-report-table m01-table">
+      <colgroup><col class="m01-col-stt"><col class="m01-col-content"><col class="m01-col-check"><col class="m01-col-check"><col class="m01-col-score"><col class="m01-col-score"><col class="m01-col-note"></colgroup>
+      <tbody>
+        <tr class="m01-part-row"><td class="m01-center">A</td><td colspan="6">NHÓM TIÊU CHÍ CHUNG (30 ĐIỂM) - Các tiêu chí thực hiện theo Quy định số 366-QĐ/TW của Bộ Chính trị</td></tr>
+        <tr class="m01-header-row"><th>TT</th><th>Tiêu chí / Nội dung</th><th>Đảm bảo<br>(Đánh dấu x)</th><th>Không đảm bảo<br>(Đánh dấu x)</th><th>Điểm tối đa</th><th>Điểm đạt<br><small>(Tối đa nếu đảm bảo; 0 điểm nếu không đảm bảo)</small></th><th>Ghi chú</th></tr>
+        ${criterionRows}
+        <tr class="m01-total-row"><td colspan="4">Tổng (A) =</td><td class="m01-center">30</td><td class="m01-center">${fmt(s.common30)}</td><td></td></tr>
+        <tr class="m01-part-row"><td class="m01-center">B</td><td colspan="3">KẾT QUẢ THỰC HIỆN NHIỆM VỤ ĐƯỢC GIAO (70 ĐIỂM)</td><td class="m01-center">Điểm tối đa<br><small>(70 điểm)</small></td><td class="m01-center">Điểm đạt được<br><small>= Điểm KPI đã tính tại hệ thống</small></td><td>Ghi chú</td></tr>
+        <tr class="m01-total-row"><td colspan="4">TỔNG (B) = Điểm KPI đã tính tại hệ thống</td><td class="m01-center">70</td><td class="m01-center">${fmt(s.kpi70)}</td><td></td></tr>
+        <tr class="m01-grand-total"><td colspan="4">TỔNG (A + B) =</td><td class="m01-center">100</td><td class="m01-center">${fmt(s.total100)}</td><td></td></tr>
+      </tbody>
+    </table>
+    <div class="m01-proposal"><strong>II. Tự đề xuất xếp loại mức chất lượng:</strong> ${esc(rating)}</div>
+    <div class="m01-rating-note"><em>(Theo 04 mức: 1- Hoàn thành xuất sắc nhiệm vụ, 2- Hoàn thành tốt nhiệm vụ, 3- Hoàn thành nhiệm vụ và 4- Không hoàn thành nhiệm vụ)</em></div>
+    <p class="m01-legal-note">Tiêu chí đánh giá, xếp loại chất lượng thực hiện theo mục 2.3, khoản 2, phần IV của Kế hoạch số 13-KH/TU của Ban Thường vụ Thành ủy; trong đó, trường hợp cá nhân “Hoàn thành xuất sắc nhiệm vụ” ngoài kết quả tổng điểm đạt từ 90 điểm trở lên, các địa phương, lĩnh vực, cơ quan, đơn vị, bộ phận do cá nhân trực tiếp lãnh đạo, quản lý hoàn thành 100% nhiệm vụ được giao; trong đó có ít nhất 30% số nhiệm vụ hoàn thành vượt mức yêu cầu.</p>
+    <div class="m01-self-sign"><strong>CÁ NHÂN TỰ ĐÁNH GIÁ</strong><br><em>(Ký, ghi rõ họ tên)</em></div>
+    <div class="m01-authority">
+      <h3>III. Nhận xét, đánh giá của cấp có thẩm quyền</h3>
+      <p>- Chấm điểm: ....................................................................................................................................................................</p>
+      <p>- Đề xuất xếp loại: .............................................................................................................................................................</p>
+      <p>- Mức độ đáp ứng đối với các mục tiêu, nhiệm vụ then chốt: ............................................................................................</p>
+    </div>
+    <div class="m01-confirm-sign"><strong>XÁC NHẬN CỦA BAN THƯỜNG VỤ CẤP ỦY<br>HOẶC TẬP THỂ LÃNH ĐẠO CƠ QUAN, ĐƠN VỊ</strong><br><em>(Xác lập thời điểm, ký, ghi rõ họ tên và đóng dấu)</em></div>
+  </div>`;
+
+  const excelHtml = `<div id="kpiExcelPreview" class="kpi-hidden"><div class="kpi-alert kpi-ok">Bảng dữ liệu nhiệm vụ dùng để kiểm tra điểm KPI trước khi in Mẫu 01.</div><div class="kpi-table-wrap"><table class="kpi-table"><thead><tr><th>STT</th><th>Tên nhiệm vụ</th><th>Điểm chuẩn</th><th>Hệ số</th><th>Điểm tối đa</th><th>Tiến độ xác nhận</th><th>Kết quả xác nhận</th><th>Điểm thực tế</th></tr></thead><tbody>${mine.map((t, i) => { const e = evaluationFor(t.id) || {}; return `<tr><td>${i + 1}</td><td>${esc(t.title)}</td><td>${fmt(t.baseScore)}</td><td>${fmt(t.difficultyCoefficient)}</td><td>${fmt(t.maximumConvertedScore)}</td><td>${e.confirmedProgressRate ?? e.selfProgressRate ?? ''}</td><td>${e.confirmedResultRate ?? e.selfResultRate ?? ''}</td><td>${fmt(e.confirmedActualScore ?? e.selfActualScore)}</td></tr>`; }).join('')}</tbody></table></div></div>`;
+
+  modal('Xem trước Mẫu 01', `<div class="kpi-preview-tabs kpi-no-print"><button id="kpiPdfTab" class="kpi-button secondary active" type="button">Mẫu 01</button><button id="kpiExcelTab" class="kpi-button secondary" type="button">Bảng tính điểm</button></div>${pdfHtml}${excelHtml}`, '<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button><button id="kpiExportCsv" class="kpi-button secondary" type="button">📊 Xuất bảng điểm</button><button id="kpiPrintReport" class="kpi-button" type="button">🖨️ In Mẫu 01</button>');
   el('kpiPdfTab').addEventListener('click', () => { el('kpiPdfPreview').classList.remove('kpi-hidden'); el('kpiExcelPreview').classList.add('kpi-hidden'); el('kpiPdfTab').classList.add('active'); el('kpiExcelTab').classList.remove('active'); el('kpiPrintReport').classList.remove('kpi-hidden'); });
   el('kpiExcelTab').addEventListener('click', () => { el('kpiPdfPreview').classList.add('kpi-hidden'); el('kpiExcelPreview').classList.remove('kpi-hidden'); el('kpiPdfTab').classList.remove('active'); el('kpiExcelTab').classList.add('active'); el('kpiPrintReport').classList.add('kpi-hidden'); });
   el('kpiPrintReport').addEventListener('click', () => window.print());
