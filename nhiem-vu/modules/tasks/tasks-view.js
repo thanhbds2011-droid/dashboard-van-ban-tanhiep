@@ -14,7 +14,7 @@ export async function renderTasksView(outlet) {
     const summary = TaskReadService.summarize(tasks);
     outlet.innerHTML = `<section class="page-card">
       <div class="page-header"><div><h2>Nhiệm vụ</h2><p>Theo dõi nhiệm vụ được giao, tiến độ thực hiện và kết quả hoàn thành.</p></div>${Permissions.canCreateUnexpectedTask()?'<button id="btnCreateTask" class="primary-button" type="button">＋ Giao nhiệm vụ đột xuất</button>':""}</div>
-      <div class="summary-grid compact-grid">${card("Tất cả",summary.total)}${card("Đang xử lý",summary.inProgress)}${card("Chờ phân công",summary.waitingAssignment)}${card("Trễ hạn",summary.overdue)}${card("Hoàn thành",summary.completed)}</div>
+      <div class="summary-grid compact-grid tasks-summary-grid">${card("Tất cả",summary.total)}${card("Đang xử lý",summary.inProgress)}${card("Chờ phân công",summary.waitingAssignment)}${card("Trễ hạn",summary.overdue)}${card("Hoàn thành",summary.completed)}</div>
       <div class="toolbar"><label class="field-grow"><span>Tìm kiếm</span><input id="taskSearch" type="search" placeholder="Tìm mã, tiêu đề, người thực hiện…"></label><label><span>Trạng thái</span><select id="taskStatusFilter"><option value="ALL">Tất cả trạng thái</option><option value="IN_PROGRESS">Đang xử lý</option><option value="WAITING">Chờ phân công</option><option value="OVERDUE">Trễ hạn</option><option value="COMPLETED">Hoàn thành</option></select></label><button id="refreshTasks" class="secondary-button" type="button">↻ Cập nhật</button></div>
       <div id="taskListContainer">${renderTaskList(tasks)}</div>
     </section>`;
