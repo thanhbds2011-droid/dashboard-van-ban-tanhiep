@@ -29,13 +29,13 @@
    * Không đặt dấu "/" ở đầu serviceWorkerPath.
    */
   const SERVICE_WORKER_PATH =
-    "dashboard-van-ban-tanhiep/push/onesignal/OneSignalSDKWorker.js";
+    "/dashboard-van-ban-tanhiep/OneSignalSDKWorker.js";
 
   /*
    * Scope riêng, không trùng với PWA worker của /nhiem-vu/.
    */
   const SERVICE_WORKER_SCOPE =
-    "/dashboard-van-ban-tanhiep/push/onesignal/";
+    "/dashboard-van-ban-tanhiep/";
 
   const MODULE_NAME = "TASKS";
 

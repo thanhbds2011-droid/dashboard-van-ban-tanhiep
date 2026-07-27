@@ -29,7 +29,7 @@ async function loadOrCreateProfile(firebaseUser) {
   let profileSnapshot = await withTimeout(
     FirebaseService.getDoc(profileRef),
     PROFILE_TIMEOUT_MS,
-    "Quá thời gian đọc hồ sơ người dùng. Hãy kiểm tra mạng hoặc Firestore Rules."
+    "Không tải được hồ sơ người dùng. Vui lòng kiểm tra kết nối mạng và thử lại."
   );
 
   if (profileSnapshot.exists()) {
@@ -49,7 +49,7 @@ async function loadOrCreateProfile(firebaseUser) {
   );
 
   if (!accessSnapshot.exists()) {
-    throw new Error("Email chưa có trong danh sách accessAccounts. Vui lòng liên hệ Phòng Tổ chức – Hành chính.");
+    throw new Error("Email chưa được cấp quyền sử dụng hệ thống. Vui lòng liên hệ Phòng Tổ chức – Hành chính.");
   }
 
   const access = accessSnapshot.data() || {};
@@ -79,7 +79,7 @@ async function loadOrCreateProfile(firebaseUser) {
   await withTimeout(
     FirebaseService.setDoc(profileRef, profile, { merge: true }),
     PROFILE_TIMEOUT_MS,
-    "Không thể khởi tạo hồ sơ người dùng từ accessAccounts. Hãy kiểm tra Firestore Rules."
+    "Không thể khởi tạo hồ sơ người dùng. Vui lòng liên hệ quản trị viên."
   );
 
   profileSnapshot = await FirebaseService.getDoc(profileRef);

@@ -1,8 +1,9 @@
-/** Production hoàn chỉnh - Vòng đời nhiệm vụ và minh chứng Google Drive */
+/** Ứng dụng quản lý nhiệm vụ và đánh giá KPI. */
 import { Router } from "./core/router.js";
 import { AuthService } from "./core/auth-service.js";
 import { Permissions } from "./core/permissions.js";
 import { ToastService } from "./core/toast-service.js";
+import { FirebaseService } from "./core/firebase-service.js";
 
 import { renderDashboardView } from "./modules/dashboard/dashboard-view.js";
 import { renderTasksView } from "./modules/tasks/tasks-view.js";
@@ -26,6 +27,8 @@ async function bootstrap() {
   applyRoleBasedNavigation();
   bindLogout();
   bindMobileNavigation();
+  initializePushNotifications(user);
+  bindPushSubscriptionSync(user);
 
   const router = new Router({
     outlet,
@@ -96,6 +99,51 @@ function bindMobileNavigation() {
   overlay.addEventListener("click", close);
   nav.addEventListener("click", event => { if (event.target.closest("a")) close(); });
   document.addEventListener("v3:route-changed", close);
+}
+
+function bindPushSubscriptionSync(user) {
+  const save = async snapshot => {
+    const subscriptionId = String(snapshot?.subscriptionId || "").trim();
+    if (!subscriptionId) return;
+    const ref = FirebaseService.doc(FirebaseService.db, "taskPushSubscriptions", subscriptionId);
+    await FirebaseService.setDoc(ref, {
+      subscriptionId,
+      userId: user.uid,
+      uid: user.uid,
+      departmentId: user.departmentId || "",
+      role: user.role || "",
+      module: "TASKS",
+      active: snapshot.optedIn === true && snapshot.permission === "granted",
+      notificationPermission: snapshot.permission || "default",
+      oneSignalId: snapshot.oneSignalId || "",
+      externalId: snapshot.externalId || user.uid,
+      platform: "WEB_PUSH",
+      updatedAt: FirebaseService.serverTimestamp()
+    }, { merge: true });
+  };
+  window.addEventListener("taskpush:subscription-change", event => {
+    save(event.detail).catch(error => console.warn("Chưa lưu được thiết bị nhận thông báo:", error));
+  });
+  window.setTimeout(async () => {
+    try {
+      const snapshot = await window.TaskPush?.getSubscriptionSnapshot?.();
+      await save(snapshot);
+    } catch (error) {
+      console.warn("Chưa đồng bộ được thiết bị nhận thông báo:", error);
+    }
+  }, 1500);
+}
+
+function initializePushNotifications(user) {
+  window.setTimeout(async () => {
+    try {
+      if (window.TaskPush?.identify) {
+        await window.TaskPush.identify(user.uid, user);
+      }
+    } catch (error) {
+      console.warn("Chưa đồng bộ được thông báo đẩy:", error);
+    }
+  }, 0);
 }
 
 function formatRole(role) {

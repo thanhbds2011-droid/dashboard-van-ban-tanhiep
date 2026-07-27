@@ -68,29 +68,19 @@ export function parseDate(value) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-export function countWorkingDaysLate(deadlineValue, completedValue, holidayKeys = []) {
+export function countWorkingDaysLate(deadlineValue, completedValue) {
   const deadline = parseDate(deadlineValue);
   const completed = parseDate(completedValue);
-  if (!deadline || !completed || completed <= deadline) return 0;
-  const holidays = new Set((holidayKeys || []).map(String));
-  let count = 0;
-  const cursor = new Date(deadline);
-  cursor.setHours(12, 0, 0, 0);
-  const end = new Date(completed);
-  end.setHours(12, 0, 0, 0);
-  cursor.setDate(cursor.getDate() + 1);
-  while (cursor <= end) {
-    const day = cursor.getDay();
-    const key = cursor.toISOString().slice(0, 10);
-    if (day !== 0 && day !== 6 && !holidays.has(key)) count += 1;
-    cursor.setDate(cursor.getDate() + 1);
-  }
-  return count;
+  if (!deadline || !completed) return 0;
+  deadline.setHours(0, 0, 0, 0);
+  completed.setHours(0, 0, 0, 0);
+  if (completed <= deadline) return 0;
+  return Math.ceil((completed.getTime() - deadline.getTime()) / 86400000);
 }
 
-export function progressRateFromDates(deadlineValue, completedValue, isCompleted = true, holidayKeys = []) {
+export function progressRateFromDates(deadlineValue, completedValue, isCompleted = true) {
   if (!isCompleted) return 0;
-  const late = countWorkingDaysLate(deadlineValue, completedValue, holidayKeys);
+  const late = countWorkingDaysLate(deadlineValue, completedValue);
   if (late <= 0) return 100;
   if (late <= 3) return 80;
   if (late <= 5) return 60;

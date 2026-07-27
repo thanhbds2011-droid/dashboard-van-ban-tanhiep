@@ -1,16 +1,37 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="vi">
 <head>
-  <meta charset="UTF-8">
-  <meta
-    http-equiv="refresh"
-    content="0; url=./index.html"
-  >
-  <title>Đang chuyển trang</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0f5f8f">
+  <title>Đăng nhập – Nhiệm vụ và đánh giá KPI</title>
+  <link rel="icon" type="image/png" href="./icons/favicon-64.png">
+  <style>
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:#edf4fa;font-family:"Segoe UI",Arial,sans-serif;color:#0b2f4a}.login-card{width:min(440px,100%);background:#fff;border:1px solid #cfe0ec;border-radius:22px;padding:30px;box-shadow:0 18px 50px rgba(15,95,143,.14)}.logo{width:64px;height:64px;border-radius:18px;display:grid;place-items:center;background:linear-gradient(135deg,#0f5f8f,#2185b8);font-size:32px;color:#fff}.login-card h1{margin:18px 0 8px;font-size:27px}.login-card p{margin:0;color:#557286;line-height:1.55}.login-button{width:100%;margin-top:24px;min-height:52px;border:0;border-radius:13px;background:#0f6a9f;color:#fff;font:700 16px inherit;cursor:pointer}.login-button:disabled{opacity:.65;cursor:wait}.message{margin-top:16px;padding:12px 14px;border-radius:12px;background:#f5f8fa;color:#426277;display:none}.message.show{display:block}.message.error{background:#fff1ef;color:#9b2c22}.footer{margin-top:20px;font-size:13px;text-align:center;color:#6b8393}
+  </style>
 </head>
 <body>
-  <script>
-    window.location.replace("./index.html");
+  <main class="login-card">
+    <div class="logo" aria-hidden="true">📋</div>
+    <h1>Nhiệm vụ và đánh giá KPI</h1>
+    <p>Đăng nhập bằng tài khoản Google đã được cấp quyền sử dụng hệ thống.</p>
+    <button id="btnGoogleLogin" class="login-button" type="button">Đăng nhập bằng Google</button>
+    <div id="loginMessage" class="message" role="status"></div>
+    <div class="footer">Trung tâm Bảo trợ xã hội Tân Hiệp</div>
+  </main>
+  <script type="module">
+    import { auth } from "./firebase-config.js";
+    import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
+    const button=document.getElementById("btnGoogleLogin");
+    const message=document.getElementById("loginMessage");
+    const params=new URLSearchParams(location.search);
+    const requested=params.get("returnUrl")||"./index.html#/dashboard";
+    const safeReturn=requested.startsWith("/dashboard-van-ban-tanhiep/nhiem-vu/")||requested.startsWith("./")?requested:"./index.html#/dashboard";
+    let redirecting=false;
+    function show(text,type=""){message.textContent=text;message.className=`message show ${type}`;}
+    function go(){if(redirecting)return;redirecting=true;location.replace(safeReturn);}
+    onAuthStateChanged(auth,user=>{if(user)go();});
+    button.addEventListener("click",async()=>{button.disabled=true;show("Đang mở cửa sổ đăng nhập…");try{const provider=new GoogleAuthProvider();provider.setCustomParameters({prompt:"select_account"});await signInWithPopup(auth,provider);go();}catch(error){console.error(error);button.disabled=false;show(error?.code==="auth/popup-closed-by-user"?"Bạn đã đóng cửa sổ đăng nhập.":"Không đăng nhập được. Vui lòng thử lại.","error");}});
   </script>
 </body>
 </html>

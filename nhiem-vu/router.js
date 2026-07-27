@@ -7,6 +7,7 @@ export class Router {
     this.defaultRoute = defaultRoute;
     this.started = false;
     this.boundResolve = this.resolve.bind(this);
+    this.resolveSequence = 0;
   }
 
   start() {
@@ -29,6 +30,7 @@ export class Router {
   }
 
   async resolve() {
+    const sequence = ++this.resolveSequence;
     const route = this.normalizeRoute(window.location.hash);
     const handler = this.routes[route] || this.routes[this.defaultRoute];
     this.markActiveNavigation(route);
@@ -42,13 +44,15 @@ export class Router {
       this.outlet.setAttribute("aria-busy", "true");
       this.outlet.innerHTML = renderLoadingState();
       await handler(this.outlet, { route, router: this });
+      if (sequence !== this.resolveSequence) return;
       window.scrollTo({ top: 0, behavior: "smooth" });
       document.dispatchEvent(new CustomEvent("v3:route-changed", { detail: { route } }));
     } catch (error) {
+      if (sequence !== this.resolveSequence) return;
       console.error("Router render error:", error);
       this.outlet.innerHTML = `<section class="page-card error-card"><h2>Không thể hiển thị màn hình</h2><p>${escapeHtml(error?.message || "Lỗi không xác định.")}</p></section>`;
     } finally {
-      this.outlet.removeAttribute("aria-busy");
+      if (sequence === this.resolveSequence) this.outlet.removeAttribute("aria-busy");
     }
   }
 
