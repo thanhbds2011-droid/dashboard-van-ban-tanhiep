@@ -14,7 +14,7 @@ export async function renderDashboardView(outlet) {
 
     outlet.innerHTML = `
       <section class="page-card">
-        <div class="page-header"><div><span class="page-eyebrow">TỔNG QUAN NHIỆM VỤ</span><h2>Trang chủ</h2><p>Tổng quan nhiệm vụ và kỳ đánh giá theo phạm vi tài khoản.</p></div><button id="btnDashboardRefresh" class="secondary-button" type="button">↻ Làm mới</button></div>
+        <div class="page-header"><div><h2>Tổng quan</h2><p>Theo dõi nhiệm vụ và kỳ đánh giá theo phạm vi tài khoản.</p></div><button id="btnDashboardRefresh" class="secondary-button" type="button">↻ Cập nhật</button></div>
         <section class="welcome-panel"><div><span class="welcome-label">Xin chào</span><h3>${escapeHtml(user.fullName || "Người dùng")}</h3><p>${escapeHtml(user.position || "Chưa cập nhật chức danh")} ${user.departmentId ? `• ${escapeHtml(user.departmentId)}` : ""}</p></div><span class="role-badge">${escapeHtml(formatRole(user.role))}</span></section>
         <div class="summary-grid">
           ${metric("Nhiệm vụ đang xử lý", summary.inProgress, "Nhiệm vụ đang thực hiện", "blue")}
