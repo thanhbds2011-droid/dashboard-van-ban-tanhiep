@@ -16,7 +16,7 @@ function open({ title = "Thông báo", message = "", confirmText = "Đồng ý",
       <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
         <div class="modal-header">
           <div>
-            <span class="page-eyebrow">PRODUCTION 3B.2</span>
+            <span class="page-eyebrow">THÔNG BÁO</span>
             <h2 id="modalTitle">${escapeHtml(title)}</h2>
           </div>
           <button class="modal-x" type="button" aria-label="Đóng">×</button>
