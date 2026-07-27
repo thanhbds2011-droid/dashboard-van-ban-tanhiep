@@ -42,7 +42,7 @@ function mount() {
   section.innerHTML = `
     <div class="kpi-header">
       <div>
-        <div><span class="kpi-pilot">PRODUCTION 2C · VẬN HÀNH THỬ</span></div>
+        <div><span class="kpi-pilot">QUẢN LÝ KẾ HOẠCH</span></div>
         <h2>Đánh giá nhiệm vụ và chấm điểm KPI</h2>
         <p>Quản lý kế hoạch quý, tự đánh giá, xác nhận điểm, Mẫu 01 và báo cáo trình ký.</p>
         <div id="kpiPeriodLine" class="kpi-period-line"></div>
@@ -163,7 +163,7 @@ async function loadAll() {
     message('Dữ liệu đã được cập nhật.', 'ok');
   } catch (error) {
     console.error(error);
-    message(error?.code === 'permission-denied' ? 'Firestore Rules chưa cho phép đọc dữ liệu KPI. Hãy Publish file firestore.rules Production 2c.' : (error.message || 'Không tải được dữ liệu KPI.'));
+    message(error?.code === 'permission-denied' ? 'Không thể tải dữ liệu đánh giá do tài khoản chưa có quyền truy cập. Vui lòng liên hệ quản trị viên.' : (error.message || 'Không tải được dữ liệu KPI.'));
   }
 }
 

@@ -41,7 +41,7 @@ async function bootstrap() {
     }
   });
   router.start();
-  ToastService.success("Production hoàn chỉnh đã khởi động thành công.", 2200);
+  ToastService.success("Ứng dụng đã sẵn sàng.", 1800);
 }
 
 function setLoadingStatus(text) {
@@ -109,7 +109,7 @@ function escapeHtml(value) {
 }
 
 bootstrap().catch(error => {
-  console.error("Production Final bootstrap error:", error);
+  console.error("Lỗi khởi động ứng dụng:", error);
   const userInfo = document.getElementById("currentUserInfo");
   if (userInfo) userInfo.innerHTML = `<strong>Không tải được tài khoản</strong><span>Vui lòng xem thông báo bên dưới</span>`;
   const outlet = document.getElementById("appOutlet");
@@ -121,7 +121,7 @@ bootstrap().catch(error => {
         <button id="btnRetryBootstrap" type="button" class="primary-button">↻ Thử lại</button>
         <button id="btnForceLogout" type="button" class="secondary-button">Đăng xuất và đăng nhập lại</button>
       </div>
-      <p class="helper-text">Nếu lỗi lặp lại, kiểm tra email trong <strong>accessAccounts</strong>, hồ sơ <strong>users/{uid}</strong> và Firestore Rules.</p>
+      <p class="helper-text">Nếu lỗi lặp lại, vui lòng liên hệ quản trị viên để kiểm tra tài khoản và quyền truy cập.</p>
     </section>`;
   document.getElementById("btnRetryBootstrap")?.addEventListener("click", () => window.location.reload());
   document.getElementById("btnForceLogout")?.addEventListener("click", async () => {

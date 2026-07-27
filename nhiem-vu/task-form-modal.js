@@ -37,7 +37,7 @@ export async function openTaskCreateModal({ onSaved }) {
   overlay.className = "modal-backdrop";
   overlay.innerHTML = `
     <section class="modal-panel modal-large" role="dialog" aria-modal="true" aria-labelledby="createTaskTitle">
-      <div class="modal-header"><div><span class="page-eyebrow">PRODUCTION 3D</span><h2 id="createTaskTitle">Giao nhiệm vụ đột xuất</h2><p>Chỉ ghi nhận nhiệm vụ phát sinh, ngoài kế hoạch hoặc đột xuất.</p></div><button class="icon-button" type="button" data-close>✕</button></div>
+      <div class="modal-header"><div><span class="page-eyebrow">NHIỆM VỤ PHÁT SINH</span><h2 id="createTaskTitle">Giao nhiệm vụ đột xuất</h2><p>Chỉ ghi nhận nhiệm vụ phát sinh, ngoài kế hoạch hoặc đột xuất.</p></div><button class="icon-button" type="button" data-close>✕</button></div>
       <form id="taskCreateForm" class="modal-body task-form-grid">
         <input id="standardTaskCode" type="hidden" value="">
         <label class="field-full"><span>Tên nhiệm vụ *</span><input id="taskTitle" maxlength="300" required></label>

@@ -35,7 +35,7 @@ const fmt = (n) => Number(n || 0).toLocaleString('vi-VN', { maximumFractionDigit
 const dateVi = (key) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(clean(key)); return m ? `${m[3]}/${m[2]}/${m[1]}` : clean(key); };
 const normalizeDepartment = (value) => clean(value).toUpperCase();
 const activeRole = (...roles) => KpiWorkflowState.profile?.active === true && roles.includes(KpiWorkflowState.profile?.role);
-const globalRole = () => activeRole('ADMIN','DIRECTOR','TCHC_COORDINATOR');
+const globalRole = () => activeRole('ADMIN','DIRECTOR','TCHC_COORDINATOR') || (isLeader() && normalizeDepartment(KpiWorkflowState.profile?.departmentId) === 'TCHC');
 const isLeader = () => activeRole('DEPARTMENT_LEADER');
 const isStaff = () => activeRole('STAFF');
 const isDeputyLeader = () => isLeader() && /ph[oó]\s*trưởng|ph[oó]\s*phòng|ph[oó]\s*khu/i.test(clean(KpiWorkflowState.profile?.position));
@@ -62,12 +62,12 @@ function mount() {
   const section = el('kpiSection');
   if (!section) return;
   const mode = KpiWorkflowState.mode || 'plans';
-  const heading = mode === 'evaluations' ? 'Đánh giá và xác nhận kết quả' : mode === 'reports' ? 'Báo cáo KPI' : 'Kế hoạch KPI';
+  const heading = mode === 'evaluations' ? 'Đánh giá và xác nhận kết quả' : mode === 'reports' ? 'Báo cáo đánh giá' : 'Kế hoạch KPI';
   const description = mode === 'evaluations' ? 'Tự đánh giá nhiệm vụ hoàn thành, xác nhận điểm và Mẫu 01.' : mode === 'reports' ? 'Xem trước báo cáo cá nhân, báo cáo Phòng/Khu và bảng tổng hợp.' : 'Đăng ký, duyệt và khóa kế hoạch công việc trong kỳ.';
   section.innerHTML = `
     <div class="kpi-header">
       <div>
-        <div><span class="kpi-pilot">PRODUCTION FINAL · VẬN HÀNH</span></div>
+        <div><span class="kpi-pilot">${mode === 'evaluations' ? 'ĐÁNH GIÁ KẾT QUẢ' : mode === 'reports' ? 'BÁO CÁO ĐÁNH GIÁ' : 'QUẢN LÝ KẾ HOẠCH'}</span></div>
         <h2>${heading}</h2>
         <p>${description}</p>
         <div id="kpiPeriodLine" class="kpi-period-line"></div>
@@ -251,7 +251,7 @@ async function loadAll() {
       || null;
     if (!KpiWorkflowState.period) {
       render();
-      message(activeRole('ADMIN') ? 'Chưa có kỳ đánh giá đang hoạt động. Admin hãy tạo kỳ thí điểm.' : 'Chưa có kỳ đánh giá đang hoạt động.');
+      message(activeRole('ADMIN') ? 'Chưa có kỳ đánh giá đang hoạt động. Vui lòng tạo hoặc kích hoạt một kỳ đánh giá.' : 'Chưa có kỳ đánh giá đang hoạt động.');
       return;
     }
     const dept = normalizeDepartment(KpiWorkflowState.profile.departmentId);
@@ -287,7 +287,7 @@ async function loadAll() {
     message('Dữ liệu đã được cập nhật.', 'ok');
   } catch (error) {
     console.error(error);
-    message(error?.code === 'permission-denied' ? 'Firestore Rules chưa cho phép đọc dữ liệu KPI. Hãy Publish file firestore.rules Production 2c.' : (error.message || 'Không tải được dữ liệu KPI.'));
+    message(error?.code === 'permission-denied' ? 'Không thể tải dữ liệu đánh giá do tài khoản chưa có quyền truy cập. Vui lòng liên hệ quản trị viên.' : (error.message || 'Không tải được dữ liệu đánh giá.'));
   }
 }
 
@@ -552,7 +552,7 @@ function openSelfAssessment(taskId) {
       periodId:KpiWorkflowState.period.id, taskId:task.id, taskCode:task.taskCode||'', ownerUserId:KpiWorkflowState.user.uid, ownerName:KpiWorkflowState.profile.fullName||'', ownerRole:KpiWorkflowState.profile.role||'', departmentId:KpiWorkflowState.profile.departmentId||'',
       selfProgressRate:progress,selfResultRate:result,selfExecutionScore:score.execution,selfActualScore:score.actual,selfComment:comment,
       confirmedProgressRate:null,confirmedResultRate:null,confirmedActualScore:null,reviewerEmail:reviewer.email,reviewerUserId:reviewer.uid,reviewerName:reviewer.name,
-      isExceededRequirement:exceeded,exceededRequirementDescription:exceededText,status:'PENDING_REVIEW',formulaVersion:'PILOT_2026_V1',updatedAt:serverTimestamp(),createdAt:ev.createdAt||serverTimestamp()
+      isExceededRequirement:exceeded,exceededRequirementDescription:exceededText,status:'PENDING_REVIEW',formulaVersion:'KPI_2026_V1',updatedAt:serverTimestamp(),createdAt:ev.createdAt||serverTimestamp()
     },{merge:true});
     await audit('SUBMIT_SELF_ASSESSMENT',{taskId, selfActualScore:score.actual}); closeModal(); await loadAll();
   });
