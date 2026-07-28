@@ -6,44 +6,387 @@ import { TaskLogService } from "./task-log-service.js";
 const clean = value => String(value ?? "").trim();
 const upper = value => clean(value).toUpperCase();
 const lower = value => clean(value).toLowerCase();
-function dateKey(date){const y=date.getFullYear(),m=String(date.getMonth()+1).padStart(2,"0"),d=String(date.getDate()).padStart(2,"0");return `${y}-${m}-${d}`;}
-function createTaskCode(){const n=new Date();return `NV-${dateKey(n).replaceAll("-","")}-${String(n.getHours()).padStart(2,"0")}${String(n.getMinutes()).padStart(2,"0")}${String(n.getSeconds()).padStart(2,"0")}-${Math.random().toString(36).slice(2,5).toUpperCase()}`;}
-function registrationId(periodId,uid,standardTaskId){return `${periodId}_${uid}_${standardTaskId}`.replace(/[^A-Za-z0-9_-]/g,"_");}
-function taskLogRef(){return FirebaseService.doc(FirebaseService.collection(FirebaseService.db,"taskLogs"));}
-async function activePeriod(){const s=await FirebaseService.getDocs(FirebaseService.query(FirebaseService.collection(FirebaseService.db,"evaluationPeriods"),FirebaseService.where("active","==",true)));return s.docs.map(d=>({id:d.id,...d.data()})).find(p=>upper(p.status)!=="DELETED")||null;}
-function isDeputy(user){return /ph[oó]\s*(trưởng|phòng|khu)/i.test(clean(user?.position));}
-function isHead(user){return user?.role==="DEPARTMENT_LEADER"&&!isDeputy(user);}
-function canApprove(reg, reviewer){
-  if(!reviewer||reviewer.active!==true||!reg||reg.status!=="PENDING")return false;
-  if(reviewer.role==="ADMIN")return true;
-  if(reg.userRole==="DEPARTMENT_LEADER"){
-    if(isDeputy({role:reg.userRole,position:reg.userPosition})) return isHead(reviewer)&&upper(reviewer.departmentId)===upper(reg.departmentId);
-    return reviewer.role==="DIRECTOR"&&(!reg.reviewerEmail||lower(reg.reviewerEmail)===lower(reviewer.email));
+
+function dateKey(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function dateAtStart(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(clean(value));
+  return match ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 0, 0, 0) : null;
+}
+
+function dateAtEnd(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(clean(value));
+  return match ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 23, 59, 59) : null;
+}
+
+function createTaskCode() {
+  const now = new Date();
+  return `NV-${dateKey(now).replaceAll("-", "")}-${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}${String(now.getSeconds()).padStart(2, "0")}-${Math.random().toString(36).slice(2, 5).toUpperCase()}`;
+}
+
+function registrationId(periodId, uid, standardTaskId) {
+  return `${periodId}_${uid}_${standardTaskId}`.replace(/[^A-Za-z0-9_-]/g, "_");
+}
+
+function taskLogRef() {
+  return FirebaseService.doc(FirebaseService.collection(FirebaseService.db, "taskLogs"));
+}
+
+async function activePeriod() {
+  const snapshot = await FirebaseService.getDocs(
+    FirebaseService.query(
+      FirebaseService.collection(FirebaseService.db, "evaluationPeriods"),
+      FirebaseService.where("active", "==", true)
+    )
+  );
+  return snapshot.docs
+    .map(item => ({ id: item.id, ...item.data() }))
+    .find(period => upper(period.status) !== "DELETED") || null;
+}
+
+async function departmentPlan(periodId, departmentId) {
+  if (!periodId || !departmentId) return null;
+  const snapshot = await FirebaseService.getDoc(
+    FirebaseService.doc(
+      FirebaseService.db,
+      "kpiPlans",
+      `${periodId}_${upper(departmentId)}`
+    )
+  );
+  return snapshot.exists() ? { id: snapshot.id, ...snapshot.data() } : null;
+}
+
+function delegationAllows(data, permissionName) {
+  const permissions = Array.isArray(data?.permissions) ? data.permissions : [];
+  if (permissions.includes(permissionName)) return true;
+  return permissions.length === 0 && permissionName === "APPROVE_REGISTRATIONS";
+}
+
+async function hasDelegation(reviewer, departmentId, permissionName = "APPROVE_REGISTRATIONS") {
+  if (!Permissions.isDepartmentDeputy(reviewer)) return false;
+  const today = dateKey(new Date());
+  const snapshot = await FirebaseService.getDoc(
+    FirebaseService.doc(
+      FirebaseService.db,
+      "approvalDelegations",
+      `${upper(departmentId)}_ACTIVE`
+    )
+  );
+  if (!snapshot.exists()) return false;
+  const data = snapshot.data();
+  return (
+    data.active === true &&
+    data.delegateUserId === reviewer.uid &&
+    upper(data.departmentId) === upper(departmentId) &&
+    delegationAllows(data, permissionName) &&
+    (!data.startDate || data.startDate <= today) &&
+    (!data.endDate || data.endDate >= today)
+  );
+}
+
+function canApprove(registration, reviewer) {
+  if (!reviewer || reviewer.active !== true || !registration || registration.status !== "PENDING") return false;
+  if (reviewer.role === "ADMIN") return true;
+
+  if (registration.userRole === "DEPARTMENT_LEADER") {
+    if (Permissions.isDepartmentDeputy({
+      uid: registration.userId,
+      active: true,
+      role: registration.userRole,
+      position: registration.userPosition,
+      leaderLevel: registration.userLeaderLevel,
+      isDepartmentHead: registration.userIsDepartmentHead
+    })) {
+      return Permissions.isDepartmentHead(reviewer) && upper(reviewer.departmentId) === upper(registration.departmentId);
+    }
+    return reviewer.role === "DIRECTOR" && (!registration.reviewerEmail || lower(registration.reviewerEmail) === lower(reviewer.email));
   }
-  return isHead(reviewer)&&upper(reviewer.departmentId)===upper(reg.departmentId);
+
+  return Permissions.isDepartmentHead(reviewer) && upper(reviewer.departmentId) === upper(registration.departmentId);
 }
-async function hasDelegation(reviewer, departmentId){
-  if(!isDeputy(reviewer)) return false;
-  const today=dateKey(new Date());
-  const snap=await FirebaseService.getDocs(FirebaseService.query(FirebaseService.collection(FirebaseService.db,"approvalDelegations"),FirebaseService.where("departmentId","==",upper(departmentId)),FirebaseService.where("delegateUserId","==",reviewer.uid),FirebaseService.where("active","==",true)));
-  return snap.docs.some(d=>{const x=d.data();return (!x.startDate||x.startDate<=today)&&(!x.endDate||x.endDate>=today);});
+
+function endOfPeriod(period) {
+  const parsed = dateAtEnd(period?.endDate);
+  return parsed || new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0, 17, 0, 0);
 }
-function endOfPeriod(period){const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(clean(period?.endDate));return m?new Date(+m[1],+m[2]-1,+m[3],17,0,0):new Date(new Date().getFullYear(),new Date().getMonth()+1,0,17,0,0);}
-function taskPayload(reg, reviewer, due, options={}){
-  const code=createTaskCode();
-  return {code,payload:{active:true,taskCode:code,title:reg.title||reg.standardTaskName,description:reg.description||"",sourceType:"DANG_KY_KE_HOACH",sourceReference:reg.standardTaskCode||"",sourceDetail:"Đầu việc do cá nhân đăng ký và được phê duyệt.",sourceDate:FirebaseService.Timestamp.fromDate(new Date()),sourceDateKey:dateKey(new Date()),entryMode:"SELF_REGISTERED_APPROVED",primaryDepartmentId:reg.departmentId,supportDepartmentIds:[],relatedDepartmentIds:[],visibleDepartmentIds:[reg.departmentId],ownerUserId:reg.userId,ownerName:reg.userName||"",ownerPosition:reg.userPosition||"",teamId:reg.teamId||"",visibleUserIds:[reg.userId],assignedByUserId:reviewer.uid,assignedByName:reviewer.fullName||"",assignedByPosition:reviewer.position||"",assignedAt:FirebaseService.serverTimestamp(),assignmentStatus:"DA_PHAN_CONG",status:"MOI_TIEP_NHAN",progress:0,priority:"THUONG",deadline:FirebaseService.Timestamp.fromDate(due),deadlineDateKey:dateKey(due),standardTaskCode:reg.standardTaskCode||"",standardTaskName:reg.standardTaskName||"",registrationId:reg.id,workType:"THUONG_XUYEN",baseScore:Number(reg.baseScore||0),difficultyCoefficient:Number(reg.difficultyCoefficient||1),maximumConvertedScore:Number(reg.maximumConvertedScore||0),mandatoryEvidence:reg.mandatoryEvidence||"",confirmer:reviewer.fullName||"",reviewerEmail:reg.reviewerEmail||"",scoringVersion:"PRODUCTION_FINAL_FULL_V1",periodId:reg.periodId,periodName:reg.periodName||reg.periodId,planType:"KE_HOACH",planApprovalStatus:"APPROVED",includedInA:true,isCoreTask:Boolean(options.isCoreTask),scoringEnabled:true,scoringStatus:"NOT_ASSESSED",result:"",resultSummary:"",difficulties:"",proposal:"",evidenceType:"",evidenceUrl:"",evidenceLink:"",evidenceText:"",evidenceFileName:"",evidenceStoragePath:"",completedAt:null,createdAt:FirebaseService.serverTimestamp(),createdByUserId:reviewer.uid,createdByName:reviewer.fullName||"",createdByRole:reviewer.role||"",updatedAt:FirebaseService.serverTimestamp(),updatedByUserId:reviewer.uid,updatedByName:reviewer.fullName||""}};
+
+function taskPayload(registration, reviewer, due, options = {}) {
+  const code = createTaskCode();
+  return {
+    code,
+    payload: {
+      active: true,
+      taskCode: code,
+      title: registration.title || registration.standardTaskName,
+      description: registration.description || "",
+      sourceType: "DANG_KY_KE_HOACH",
+      sourceReference: registration.standardTaskCode || "",
+      sourceDetail: "Đầu việc do cá nhân đăng ký và được phê duyệt.",
+      sourceDate: FirebaseService.Timestamp.fromDate(new Date()),
+      sourceDateKey: dateKey(new Date()),
+      entryMode: "SELF_REGISTERED_APPROVED",
+      primaryDepartmentId: registration.departmentId,
+      supportDepartmentIds: [],
+      relatedDepartmentIds: [],
+      visibleDepartmentIds: [registration.departmentId],
+      ownerUserId: registration.userId,
+      ownerName: registration.userName || "",
+      ownerPosition: registration.userPosition || "",
+      teamId: registration.teamId || "",
+      visibleUserIds: [registration.userId],
+      assignedByUserId: reviewer.uid,
+      assignedByName: reviewer.fullName || "",
+      assignedByPosition: reviewer.position || "",
+      assignedAt: FirebaseService.serverTimestamp(),
+      assignmentStatus: "DA_PHAN_CONG",
+      status: "MOI_TIEP_NHAN",
+      progress: 0,
+      priority: "THUONG",
+      deadline: FirebaseService.Timestamp.fromDate(due),
+      deadlineDateKey: dateKey(due),
+      standardTaskCode: registration.standardTaskCode || "",
+      standardTaskName: registration.standardTaskName || "",
+      registrationId: registration.id,
+      workType: "THUONG_XUYEN",
+      baseScore: Number(registration.baseScore || 0),
+      difficultyCoefficient: Number(registration.difficultyCoefficient || 1),
+      maximumConvertedScore: Number(registration.maximumConvertedScore || 0),
+      mandatoryEvidence: registration.mandatoryEvidence || "",
+      confirmer: reviewer.fullName || "",
+      reviewerEmail: registration.reviewerEmail || "",
+      scoringVersion: "KPI_2026_V1",
+      periodId: registration.periodId,
+      periodName: registration.periodName || registration.periodId,
+      planType: "KE_HOACH",
+      planApprovalStatus: "APPROVED",
+      includedInA: true,
+      isCoreTask: Boolean(options.isCoreTask),
+      scoringEnabled: true,
+      scoringStatus: "NOT_ASSESSED",
+      result: "",
+      resultSummary: "",
+      difficulties: "",
+      proposal: "",
+      evidenceType: "",
+      evidenceUrl: "",
+      evidenceLink: "",
+      evidenceText: "",
+      evidenceFileName: "",
+      evidenceStoragePath: "",
+      completedAt: null,
+      createdAt: FirebaseService.serverTimestamp(),
+      createdByUserId: reviewer.uid,
+      createdByName: reviewer.fullName || "",
+      createdByRole: reviewer.role || "",
+      updatedAt: FirebaseService.serverTimestamp(),
+      updatedByUserId: reviewer.uid,
+      updatedByName: reviewer.fullName || ""
+    }
+  };
 }
-async function createApprovedTasks(regs, reviewer, options={}){
-  const batch=FirebaseService.writeBatch(FirebaseService.db), due=endOfPeriod({endDate:options.periodEndDate||regs[0]?.periodEndDate}), ids=[];
-  for(const reg of regs){const {code,payload}=taskPayload(reg,reviewer,due,options),tref=FirebaseService.doc(FirebaseService.collection(FirebaseService.db,"tasks")),rref=FirebaseService.doc(FirebaseService.db,"taskRegistrations",reg.id);batch.set(tref,payload);batch.set(rref,{status:"APPROVED",taskId:tref.id,taskCode:code,approvedAt:FirebaseService.serverTimestamp(),approvedByUserId:reviewer.uid,approvedByName:reviewer.fullName||"",updatedAt:FirebaseService.serverTimestamp()},{merge:true});batch.set(taskLogRef(),TaskLogService.buildTaskLog({taskId:tref.id,taskCode:code,action:"TASK_REGISTRATION_APPROVED",after:{...payload,createdAt:null,updatedAt:null,assignedAt:null},note:`Duyệt ${reg.standardTaskCode||""} của ${reg.userName||""}.`}));ids.push(tref.id);}await batch.commit();return ids;
+
+async function createApprovedTasks(registrations, reviewer, options = {}) {
+  const batch = FirebaseService.writeBatch(FirebaseService.db);
+  const due = endOfPeriod({ endDate: options.periodEndDate || registrations[0]?.periodEndDate });
+  const taskIds = [];
+
+  for (const registration of registrations) {
+    const { code, payload } = taskPayload(registration, reviewer, due, options);
+    const taskReference = FirebaseService.doc(FirebaseService.collection(FirebaseService.db, "tasks"));
+    const registrationReference = FirebaseService.doc(FirebaseService.db, "taskRegistrations", registration.id);
+
+    batch.set(taskReference, payload);
+    batch.set(registrationReference, {
+      status: "APPROVED",
+      taskId: taskReference.id,
+      taskCode: code,
+      approvedAt: FirebaseService.serverTimestamp(),
+      approvedByUserId: reviewer.uid,
+      approvedByName: reviewer.fullName || "",
+      updatedAt: FirebaseService.serverTimestamp()
+    }, { merge: true });
+    batch.set(taskLogRef(), TaskLogService.buildTaskLog({
+      taskId: taskReference.id,
+      taskCode: code,
+      action: "TASK_REGISTRATION_APPROVED",
+      after: { ...payload, createdAt: null, updatedAt: null, assignedAt: null },
+      note: `Duyệt ${registration.standardTaskCode || ""} của ${registration.userName || ""}.`
+    }));
+    taskIds.push(taskReference.id);
+  }
+
+  await batch.commit();
+  return taskIds;
 }
-export const TaskRegistrationService=Object.freeze({
-  async getActivePeriod(){return activePeriod();},
-  async listForCurrentUser(periodId){const u=UserContext.requireUser();if(!periodId)return[];const s=await FirebaseService.getDocs(FirebaseService.query(FirebaseService.collection(FirebaseService.db,"taskRegistrations"),FirebaseService.where("periodId","==",periodId),FirebaseService.where("userId","==",u.uid)));return s.docs.map(d=>({id:d.id,...d.data()})).filter(x=>x.active!==false);},
-  async registerMany(items,period){const u=UserContext.requireUser();if(!Permissions.canRegisterStandardTasks())throw new Error("Tài khoản không được đăng ký đầu việc chuẩn.");if(!period?.id)throw new Error("Chưa có kỳ đánh giá đang hoạt động.");if(!items?.length)throw new Error("Chưa chọn đầu việc để đăng ký.");const auto=isHead(u),batch=FirebaseService.writeBatch(FirebaseService.db),regs=[];for(const item of items){const id=registrationId(period.id,u.uid,item.id||item.code),reg={id,periodId:period.id,periodName:period.name||period.id,periodEndDate:period.endDate||"",standardTaskId:item.id||item.code,standardTaskCode:item.code||item.id,standardTaskName:item.name||"",title:item.name||"",description:item.outputRequirement||"",departmentId:u.departmentId||"",teamId:u.teamId||"",userId:u.uid,userName:u.fullName||"",userPosition:u.position||"",userRole:u.role||"",reviewerEmail:u.role==="DEPARTMENT_LEADER"?lower(u.kpiReviewerEmail):"",workType:"THUONG_XUYEN",baseScore:Number(item.baseScore||0),difficultyCoefficient:Number(item.difficultyCoefficient||1),maximumConvertedScore:Number(item.maximumConvertedScore||item.baseScore||0),mandatoryEvidence:item.mandatoryEvidence||"",status:auto?"AUTO_APPROVE_PENDING":"PENDING",active:true,registeredAt:FirebaseService.serverTimestamp(),createdAt:FirebaseService.serverTimestamp(),createdByUserId:u.uid,updatedAt:FirebaseService.serverTimestamp()};batch.set(FirebaseService.doc(FirebaseService.db,"taskRegistrations",id),reg,{merge:true});regs.push(reg);}await batch.commit();if(auto){regs.forEach(r=>r.status="PENDING");await createApprovedTasks(regs,u,{periodEndDate:period.endDate});}return items.length;},
-  async approveMany(regs,options={}){const r=UserContext.requireUser(),selected=(regs||[]).filter(x=>x?.status==="PENDING");if(!selected.length)throw new Error("Chưa chọn đầu việc để duyệt.");for(const x of selected){const delegated=await hasDelegation(r,x.departmentId);if(!canApprove(x,r)&&!delegated)throw new Error(`Bạn không có quyền duyệt đăng ký của ${x.userName||"người dùng"}.`);}return createApprovedTasks(selected,r,options);},
-  async rejectMany(regs,reason){const r=UserContext.requireUser(),selected=(regs||[]).filter(x=>x?.status==="PENDING");if(!selected.length)throw new Error("Không có đăng ký để trả lại.");for(const x of selected){const delegated=await hasDelegation(r,x.departmentId);if(!canApprove(x,r)&&!delegated)throw new Error("Bạn không có quyền trả lại đăng ký này.");}const b=FirebaseService.writeBatch(FirebaseService.db);for(const x of selected)b.update(FirebaseService.doc(FirebaseService.db,"taskRegistrations",x.id),{status:"REJECTED",rejectionReason:clean(reason),rejectedAt:FirebaseService.serverTimestamp(),rejectedByUserId:r.uid,rejectedByName:r.fullName||"",updatedAt:FirebaseService.serverTimestamp()});await b.commit();return selected.length;},
-  async cancelRegistration(reg,reason="Hủy để đăng ký lại"){const u=UserContext.requireUser();const own=reg.userId===u.uid,manage=Permissions.canManageTestData()&&upper(reg.departmentId)===upper(u.departmentId)||Permissions.isAdmin();if(!own&&!manage)throw new Error("Không có quyền hủy đăng ký này.");if(reg.taskId)throw new Error("Đăng ký đã sinh nhiệm vụ. Trưởng phòng/ADMIN phải hủy nhiệm vụ trước.");await FirebaseService.updateDoc(FirebaseService.doc(FirebaseService.db,"taskRegistrations",reg.id),{active:false,status:"CANCELLED",cancelReason:clean(reason),cancelledAt:FirebaseService.serverTimestamp(),cancelledByUserId:u.uid,updatedAt:FirebaseService.serverTimestamp()});},
-  async softDeleteApproved(reg,reason){const u=UserContext.requireUser();if(!(Permissions.isAdmin()||(Permissions.isDepartmentHead()&&upper(reg.departmentId)===upper(u.departmentId))))throw new Error("Chỉ ADMIN hoặc Trưởng phòng được hủy đầu việc đã duyệt.");const b=FirebaseService.writeBatch(FirebaseService.db);b.update(FirebaseService.doc(FirebaseService.db,"taskRegistrations",reg.id),{active:false,status:"CANCELLED",cancelReason:clean(reason),cancelledAt:FirebaseService.serverTimestamp(),cancelledByUserId:u.uid,updatedAt:FirebaseService.serverTimestamp()});if(reg.taskId)b.update(FirebaseService.doc(FirebaseService.db,"tasks",reg.taskId),{active:false,status:"HUY",deletedReason:clean(reason),deletedAt:FirebaseService.serverTimestamp(),deletedByUserId:u.uid,deletedByName:u.fullName||"",updatedAt:FirebaseService.serverTimestamp(),updatedByUserId:u.uid});await b.commit();},
-  async approve(reg,options={}){return (await this.approveMany([reg],options))[0];},async reject(reg,reason){return this.rejectMany([reg],reason);}
+
+export const TaskRegistrationService = Object.freeze({
+  async getActivePeriod() {
+    return activePeriod();
+  },
+
+  async getDepartmentPlan(periodId) {
+    const user = UserContext.requireUser();
+    return departmentPlan(periodId, user.departmentId);
+  },
+
+  async listForCurrentUser(periodId) {
+    const user = UserContext.requireUser();
+    if (!periodId) return [];
+    const snapshot = await FirebaseService.getDocs(
+      FirebaseService.query(
+        FirebaseService.collection(FirebaseService.db, "taskRegistrations"),
+        FirebaseService.where("periodId", "==", periodId),
+        FirebaseService.where("userId", "==", user.uid)
+      )
+    );
+    return snapshot.docs
+      .map(item => ({ id: item.id, ...item.data() }))
+      .filter(item => item.active !== false);
+  },
+
+  async registerMany(items, period) {
+    const user = UserContext.requireUser();
+    if (!Permissions.canRegisterStandardTasks()) throw new Error("Tài khoản không được đăng ký đầu việc chuẩn.");
+    if (!period?.id) throw new Error("Chưa có kỳ đánh giá đang hoạt động.");
+    if (!items?.length) throw new Error("Chưa chọn đầu việc để đăng ký.");
+
+    const plan = await departmentPlan(period.id, user.departmentId);
+    if (plan?.locked === true) throw new Error("Đăng ký kế hoạch của Phòng/Khu đã được khóa.");
+
+    const autoApprove = Permissions.isDepartmentHead(user);
+    const batch = FirebaseService.writeBatch(FirebaseService.db);
+    const registrations = [];
+
+    for (const item of items) {
+      const id = registrationId(period.id, user.uid, item.id || item.code);
+      const registration = {
+        id,
+        periodId: period.id,
+        periodName: period.name || period.id,
+        periodEndDate: period.endDate || "",
+        standardTaskId: item.id || item.code,
+        standardTaskCode: item.code || item.id,
+        standardTaskName: item.name || "",
+        title: item.name || "",
+        description: item.outputRequirement || "",
+        departmentId: user.departmentId || "",
+        teamId: user.teamId || "",
+        userId: user.uid,
+        userName: user.fullName || "",
+        userPosition: user.position || "",
+        userRole: user.role || "",
+        reviewerEmail: user.role === "DEPARTMENT_LEADER" ? lower(user.kpiReviewerEmail) : "",
+        workType: "THUONG_XUYEN",
+        baseScore: Number(item.baseScore || 0),
+        difficultyCoefficient: Number(item.difficultyCoefficient || 1),
+        maximumConvertedScore: Number(item.maximumConvertedScore || item.baseScore || 0),
+        mandatoryEvidence: item.mandatoryEvidence || "",
+        status: "PENDING",
+        active: true,
+        registeredAt: FirebaseService.serverTimestamp(),
+        createdAt: FirebaseService.serverTimestamp(),
+        createdByUserId: user.uid,
+        updatedAt: FirebaseService.serverTimestamp()
+      };
+      batch.set(FirebaseService.doc(FirebaseService.db, "taskRegistrations", id), registration, { merge: true });
+      registrations.push(registration);
+    }
+
+    await batch.commit();
+    if (autoApprove) {
+      await createApprovedTasks(registrations, user, { periodEndDate: period.endDate });
+    }
+    return items.length;
+  },
+
+  async approveMany(registrations, options = {}) {
+    const reviewer = UserContext.requireUser();
+    const selected = (registrations || []).filter(item => item?.status === "PENDING");
+    if (!selected.length) throw new Error("Chưa chọn đầu việc để duyệt.");
+
+    for (const item of selected) {
+      const delegated = await hasDelegation(reviewer, item.departmentId, "APPROVE_REGISTRATIONS");
+      if (!canApprove(item, reviewer) && !delegated) {
+        throw new Error(`Bạn không có quyền duyệt đăng ký của ${item.userName || "người dùng"}.`);
+      }
+    }
+    return createApprovedTasks(selected, reviewer, options);
+  },
+
+  async rejectMany(registrations, reason) {
+    const reviewer = UserContext.requireUser();
+    const selected = (registrations || []).filter(item => item?.status === "PENDING");
+    if (!selected.length) throw new Error("Không có đăng ký để trả lại.");
+
+    for (const item of selected) {
+      const delegated = await hasDelegation(reviewer, item.departmentId, "APPROVE_REGISTRATIONS");
+      if (!canApprove(item, reviewer) && !delegated) throw new Error("Bạn không có quyền trả lại đăng ký này.");
+    }
+
+    const batch = FirebaseService.writeBatch(FirebaseService.db);
+    for (const item of selected) {
+      batch.update(FirebaseService.doc(FirebaseService.db, "taskRegistrations", item.id), {
+        status: "REJECTED",
+        rejectionReason: clean(reason),
+        rejectedAt: FirebaseService.serverTimestamp(),
+        rejectedByUserId: reviewer.uid,
+        rejectedByName: reviewer.fullName || "",
+        updatedAt: FirebaseService.serverTimestamp()
+      });
+    }
+    await batch.commit();
+    return selected.length;
+  },
+
+  async cancelRegistration(registration) {
+    if (!Permissions.canDeleteRejectedRegistration(registration)) {
+      throw new Error("Tài khoản không có quyền xóa đăng ký này.");
+    }
+    if (registration.taskId) throw new Error("Đăng ký đã hình thành nhiệm vụ nên không thể xóa tại đây.");
+    await FirebaseService.deleteDoc(
+      FirebaseService.doc(FirebaseService.db, "taskRegistrations", registration.id)
+    );
+  },
+
+  async softDeleteApproved(registration, reason) {
+    const user = UserContext.requireUser();
+    if (!(Permissions.isAdmin() || (Permissions.isDepartmentHead() && upper(registration.departmentId) === upper(user.departmentId)))) {
+      throw new Error("Chỉ quản trị viên hoặc Trưởng phòng được hủy đầu việc đã duyệt.");
+    }
+    const batch = FirebaseService.writeBatch(FirebaseService.db);
+    batch.update(FirebaseService.doc(FirebaseService.db, "taskRegistrations", registration.id), {
+      active: false,
+      status: "CANCELLED",
+      cancelReason: clean(reason),
+      cancelledAt: FirebaseService.serverTimestamp(),
+      cancelledByUserId: user.uid,
+      updatedAt: FirebaseService.serverTimestamp()
+    });
+    if (registration.taskId) {
+      batch.update(FirebaseService.doc(FirebaseService.db, "tasks", registration.taskId), {
+        active: false,
+        status: "HUY",
+        deletedReason: clean(reason),
+        deletedAt: FirebaseService.serverTimestamp(),
+        deletedByUserId: user.uid,
+        deletedByName: user.fullName || "",
+        updatedAt: FirebaseService.serverTimestamp(),
+        updatedByUserId: user.uid
+      });
+    }
+    await batch.commit();
+  },
+
+  async approve(registration, options = {}) {
+    return (await this.approveMany([registration], options))[0];
+  },
+
+  async reject(registration, reason) {
+    return this.rejectMany([registration], reason);
+  }
 });
