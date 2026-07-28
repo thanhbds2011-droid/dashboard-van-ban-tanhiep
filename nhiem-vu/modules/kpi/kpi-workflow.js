@@ -3,8 +3,8 @@ import {
   addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, onSnapshot, query,
   serverTimestamp, setDoc, Timestamp, updateDoc, where
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
-import { TaskRegistrationService } from '../../services/task-registration-service.js';
-import { Permissions } from '../../core/permissions.js';
+import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260728.V1_1_5';
+import { Permissions } from '../../core/permissions.js?v=20260728.V1_1_5';
 import {
   KPI2B as KPI2C, COMMON_CRITERIA, calculateTaskScore, calculateKpiSummary,
   proposedRating, ratingName, round2, progressRateFromDates
@@ -124,6 +124,14 @@ function canApproveDepartmentPlanTask(task) {
     Permissions.canApproveStaffRegistrations(hasActiveApprovalDelegation('APPROVE_REGISTRATIONS')) &&
     sameDepartment(task) &&
     KpiWorkflowState.plan?.locked !== true
+  );
+}
+
+function canCancelRegistrationAsManager(registration) {
+  return Permissions.canCancelRegistrationForEmployee(
+    registration,
+    KpiWorkflowState.plan?.locked === true,
+    hasActiveApprovalDelegation('APPROVE_REGISTRATIONS')
   );
 }
 
@@ -534,13 +542,13 @@ function openPersonPlanDetail(uid) {
     </div>
     <div class="kpi-table-wrap"><table class="kpi-table"><thead><tr><th>Duyệt</th><th>Đầu việc</th><th>Điểm chuẩn</th><th>Hệ số</th><th>Điểm tối đa</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>
       ${rows.map(item => {
-        const canReset = item.kind === 'registration' && item.status === 'REJECTED' && !item.taskId && isLeader() && sameDepartment(item);
+        const canManagerCancel = item.kind === 'registration' && canCancelRegistrationAsManager(item);
         return `<tr>
           <td>${item.kind === 'registration' && item.status === 'PENDING' ? `<input type="checkbox" data-reg-review value="${esc(item.id)}" ${canApproveRegistration(item) ? 'checked' : 'disabled'}>` : '—'}</td>
           <td><strong>${esc(item.standardTaskCode || item.taskCode || '')}</strong><br>${esc(item.standardTaskName || item.title || '')}</td>
           <td>${fmt(item.baseScore)}</td><td>${fmt(item.difficultyCoefficient)}</td><td>${fmt(item.maximumConvertedScore)}</td>
           <td>${esc(item.status === 'PENDING' ? 'Chờ duyệt' : item.status === 'REJECTED' ? 'Đã trả lại' : item.planApprovalStatus === 'APPROVED' || item.status === 'APPROVED' ? 'Đã duyệt' : item.status || '')}</td>
-          <td>${canReset ? `<button class="kpi-button secondary" type="button" data-reset-registration="${esc(item.id)}">Cho phép đăng ký lại</button>` : '—'}</td>
+          <td>${canManagerCancel ? `<button class="kpi-button danger" type="button" data-cancel-registration-manager="${esc(item.id)}">Hủy đăng ký cho nhân viên</button>` : '—'}</td>
         </tr>`;
       }).join('')}
     </tbody></table></div>`,
@@ -549,18 +557,20 @@ function openPersonPlanDetail(uid) {
 
   root.querySelector('#regSelectAll')?.addEventListener('click', () => root.querySelectorAll('[data-reg-review]:not(:disabled)').forEach(input => { input.checked = true; }));
   root.querySelector('#regClearAll')?.addEventListener('click', () => root.querySelectorAll('[data-reg-review]').forEach(input => { input.checked = false; }));
-  root.querySelectorAll('[data-reset-registration]').forEach(button => {
+  root.querySelectorAll('[data-cancel-registration-manager]').forEach(button => {
     button.addEventListener('click', async () => {
-      const registration = registrations.find(item => item.id === button.dataset.resetRegistration);
-      if (!registration || !confirm('Cho phép người dùng đăng ký lại đầu việc này?')) return;
+      const registration = registrations.find(item => item.id === button.dataset.cancelRegistrationManager);
+      if (!registration) return;
+      const taskName = registration.standardTaskName || registration.title || 'đầu việc này';
+      if (!confirm(`Hủy đăng ký “${taskName}” của ${user.fullName || 'nhân viên'}? Đầu việc sẽ trở lại danh mục để đăng ký lại khi kế hoạch được mở.`)) return;
       button.disabled = true;
       try {
-        await TaskRegistrationService.cancelRegistration(registration);
+        await TaskRegistrationService.cancelRegistration(registration, { asManager: true });
         closeModal();
         await loadAll();
         openPersonPlanDetail(uid);
       } catch (error) {
-        alert(error.message || 'Không thể cho phép đăng ký lại.');
+        alert(error.message || 'Không thể hủy đăng ký cho nhân viên.');
         button.disabled = false;
       }
     });
