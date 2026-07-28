@@ -1,8 +1,8 @@
 import { UserContext } from "../../core/user-context.js";
-import { Permissions } from "../../core/permissions.js?v=20260728.V1_1_2";
+import { Permissions } from "../../core/permissions.js?v=20260728.V1_1_3";
 import { ToastService } from "../../core/toast-service.js";
 import { StandardTaskReadService } from "../../services/standard-task-read-service.js";
-import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260728.V1_1_2";
+import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260728.V1_1_3";
 
 export async function renderStandardTasksView(outlet) {
   const user = UserContext.requireUser();
