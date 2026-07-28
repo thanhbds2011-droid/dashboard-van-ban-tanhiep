@@ -1,6 +1,6 @@
 /* =========================================================
  * PHÂN HỆ KPI
- * Bản 20260728.V1_1_3
+ * Bản 20260728.V1_1_4
  * ========================================================= */
 
 .kpi-section {
@@ -1020,5 +1020,85 @@
   @page {
     size: A4 portrait;
     margin: 12mm;
+  }
+}
+
+/* V1.1.4 - Quản lý danh mục công việc tại ứng dụng */
+.standard-task-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.catalog-edit-button {
+  border: 1px solid #bdd4e2;
+  border-radius: 8px;
+  background: #edf6fb;
+  color: #174f70;
+  padding: 7px 10px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.catalog-edit-button:hover {
+  border-color: #77aac6;
+  background: #e2f1f9;
+}
+
+.standard-task-modal {
+  width: min(900px, calc(100vw - 32px));
+}
+
+.standard-task-editor-form .kpi-field,
+.standard-task-delegation-form .kpi-field {
+  min-width: 0;
+}
+
+.standard-task-editor-form input,
+.standard-task-editor-form select,
+.standard-task-editor-form textarea,
+.standard-task-delegation-form input,
+.standard-task-delegation-form select,
+.standard-task-delegation-form textarea {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.standard-task-editor-form strong {
+  display: flex;
+  align-items: center;
+  min-height: 46px;
+  padding: 0 14px;
+  border: 1px solid #d5e2ea;
+  border-radius: 10px;
+  background: #f5f9fb;
+  color: #0a4f75;
+  font-size: 18px;
+}
+
+.standard-task-delegation-form .info-banner,
+.standard-task-delegation-form .kpi-alert {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+@media (max-width: 760px) {
+  .standard-task-header-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .standard-task-header-actions .primary-button,
+  .standard-task-header-actions .secondary-button {
+    flex: 1 1 100%;
+  }
+
+  .standard-task-modal {
+    width: 100%;
   }
 }
