@@ -1,17 +1,19 @@
 import { UserContext } from "../../core/user-context.js";
-import { Permissions } from "../../core/permissions.js?v=20260728.V1_1_3";
+import { Permissions } from "../../core/permissions.js?v=20260728.V1_1_4";
 import { ToastService } from "../../core/toast-service.js";
 import { StandardTaskReadService } from "../../services/standard-task-read-service.js";
-import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260728.V1_1_3";
+import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260728.V1_1_4";
+import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260728.V1_1_4";
 
 export async function renderStandardTasksView(outlet) {
   const user = UserContext.requireUser();
   outlet.innerHTML = loadingCard("Đang tải danh mục công việc…");
 
   try {
-    const [items, period] = await Promise.all([
+    const [items, period, catalogAccess] = await Promise.all([
       StandardTaskReadService.list(),
-      TaskRegistrationService.getActivePeriod()
+      TaskRegistrationService.getActivePeriod(),
+      StandardTaskWriteService.getAccess()
     ]);
 
     const plan = period ? await TaskRegistrationService.getDepartmentPlan(period.id) : null;
@@ -33,13 +35,18 @@ export async function renderStandardTasksView(outlet) {
             ? "Chọn đầu việc ở cột Danh mục công việc; các đầu việc đã gửi sẽ tự chuyển sang cột Đã đăng ký."
             : "Tra cứu danh mục công việc theo vị trí việc làm."}</p>
         </div>
-        <button id="btnStandardRefresh" class="secondary-button" type="button">↻ Cập nhật</button>
+        <div class="standard-task-header-actions">
+          ${catalogAccess.canManage ? '<button id="btnAddStandardTask" class="primary-button" type="button">＋ Thêm đầu việc</button>' : ""}
+          ${catalogAccess.isDepartmentHead ? '<button id="btnDelegateCatalogEditor" class="secondary-button" type="button">👤 Ủy quyền nhập danh mục</button>' : ""}
+          <button id="btnStandardRefresh" class="secondary-button" type="button">↻ Cập nhật</button>
+        </div>
       </div>
 
       <div class="info-banner standard-task-period-banner">
         <span>Phòng/Khu: <strong>${escapeHtml(user.departmentId || "Toàn hệ thống")}</strong></span>
         <span>${period ? `Kỳ hiện tại: <strong>${escapeHtml(period.name || period.id)}</strong>` : "<strong>Chưa có kỳ hoạt động.</strong>"}</span>
         ${period ? `<span>Đăng ký: <strong>${registrationOpen ? "Đang mở" : "Đã khóa"}</strong></span>` : ""}
+        ${catalogAccess.canManage ? `<span>Quản lý danh mục: <strong>${catalogAccess.isDepartmentHead ? "Trưởng phòng" : "Được ủy quyền"}</strong></span>` : ""}
       </div>
 
       <div class="summary-grid compact-grid standard-task-summary">
@@ -58,7 +65,7 @@ export async function renderStandardTasksView(outlet) {
       ${registrationMode ? `<div class="registration-sticky">
         <div>
           <strong>Đã chọn: <span id="registrationSelectedCount">0</span> đầu việc · Tổng điểm: <span id="registrationSelectedScore">0</span></strong>
-          <small>${registrationOpen ? "Điểm kế hoạch = Điểm chuẩn × Hệ số khó." : "Đăng ký kế hoạch của Phòng/Khu đang được khóa."}</small>
+          <small>${registrationOpen ? "Điểm kế hoạch = Điểm chuẩn × Hệ số khó." : "Đăng ký kế hoạch của Phòng/Khu đang được khóa. Trưởng phòng cần mở lại đăng ký trước khi người dùng đăng ký."}</small>
         </div>
         <button id="btnRegisterSelected" class="primary-button" type="button" ${registrationOpen ? "" : "disabled"}>Đăng ký đầu việc đã chọn</button>
       </div>` : ""}
@@ -90,20 +97,27 @@ export async function renderStandardTasksView(outlet) {
           const registration = registrations.find(item => item.id === button.dataset.deleteRegistration);
           if (!registration) return;
 
-          const message = registration.status === "REJECTED"
+          const confirmation = registration.status === "REJECTED"
             ? "Xóa đăng ký đã được trả lại để chọn đầu việc này lại?"
             : "Hủy đăng ký đang chờ duyệt?";
-          if (!window.confirm(message)) return;
+          if (!window.confirm(confirmation)) return;
 
           button.disabled = true;
           try {
             await TaskRegistrationService.cancelRegistration(registration);
             ToastService.success("Đã hủy đăng ký. Đầu việc đã trở lại danh mục để lựa chọn.");
-            window.dispatchEvent(new HashChangeEvent("hashchange"));
+            reloadRoute();
           } catch (error) {
             ToastService.error(error.message || "Không hủy được đăng ký.");
             button.disabled = false;
           }
+        });
+      });
+
+      document.querySelectorAll("[data-edit-standard-task]").forEach(button => {
+        button.addEventListener("click", () => {
+          const item = regularItems.find(task => task.id === button.dataset.editStandardTask);
+          if (item) openTaskEditor(item);
         });
       });
 
@@ -118,15 +132,15 @@ export async function renderStandardTasksView(outlet) {
         .includes(keyword));
 
       listContainer.innerHTML = registrationMode
-        ? renderRegistrationWorkspace(visibleItems, registeredMap, registrationOpen)
-        : renderCatalogList(visibleItems);
+        ? renderRegistrationWorkspace(visibleItems, registeredMap, registrationOpen, catalogAccess.canManage)
+        : renderCatalogList(visibleItems, catalogAccess.canManage);
       bindListActions();
     };
 
     search?.addEventListener("input", renderCurrentLists);
-    document.getElementById("btnStandardRefresh")?.addEventListener("click", () => {
-      window.dispatchEvent(new HashChangeEvent("hashchange"));
-    });
+    document.getElementById("btnStandardRefresh")?.addEventListener("click", reloadRoute);
+    document.getElementById("btnAddStandardTask")?.addEventListener("click", () => openTaskEditor(null));
+    document.getElementById("btnDelegateCatalogEditor")?.addEventListener("click", () => openCatalogDelegation(catalogAccess.delegation, period));
 
     document.getElementById("btnRegisterSelected")?.addEventListener("click", async () => {
       const ids = [...document.querySelectorAll("[data-registration-check]:checked")].map(input => input.value);
@@ -138,7 +152,7 @@ export async function renderStandardTasksView(outlet) {
       try {
         const count = await TaskRegistrationService.registerMany(selected, period);
         ToastService.success(`Đã gửi đăng ký ${count} đầu việc chờ duyệt.`);
-        window.dispatchEvent(new HashChangeEvent("hashchange"));
+        reloadRoute();
       } catch (error) {
         ToastService.error(error.message || "Không đăng ký được đầu việc.");
         button.disabled = false;
@@ -151,7 +165,7 @@ export async function renderStandardTasksView(outlet) {
   }
 }
 
-function renderRegistrationWorkspace(items, registeredMap, registrationOpen) {
+function renderRegistrationWorkspace(items, registeredMap, registrationOpen, canManageCatalog) {
   const availableItems = items.filter(item => !findRegistration(item, registeredMap));
   const registeredItems = items.filter(item => findRegistration(item, registeredMap));
 
@@ -167,7 +181,7 @@ function renderRegistrationWorkspace(items, registeredMap, registrationOpen) {
       </header>
       <div class="registration-column-list">
         ${availableItems.length
-          ? availableItems.map(item => renderAvailableTask(item, registrationOpen)).join("")
+          ? availableItems.map(item => renderAvailableTask(item, registrationOpen, canManageCatalog)).join("")
           : compactEmpty("Không còn đầu việc phù hợp", "Các đầu việc đang hiển thị đã được đăng ký.")}
       </div>
     </section>
@@ -183,14 +197,14 @@ function renderRegistrationWorkspace(items, registeredMap, registrationOpen) {
       </header>
       <div class="registration-column-list">
         ${registeredItems.length
-          ? registeredItems.map(item => renderRegisteredTask(item, findRegistration(item, registeredMap))).join("")
+          ? registeredItems.map(item => renderRegisteredTask(item, findRegistration(item, registeredMap), canManageCatalog)).join("")
           : compactEmpty("Chưa có đầu việc đã đăng ký", "Đầu việc được chọn ở cột bên trái sẽ xuất hiện tại đây.")}
       </div>
     </section>
   </div>`;
 }
 
-function renderAvailableTask(item, registrationOpen) {
+function renderAvailableTask(item, registrationOpen, canManageCatalog) {
   const key = taskKey(item);
   return `<article class="registration-row registration-row-available">
     <label class="registration-check" title="Chọn đầu việc">
@@ -204,11 +218,12 @@ function renderAvailableTask(item, registrationOpen) {
     <div class="data-row-meta">
       <span class="status-pill neutral">Chưa đăng ký</span>
       <small>Điểm tối đa: ${formatNumber(item.maximumConvertedScore || 0)}</small>
+      ${canManageCatalog ? `<button class="catalog-edit-button" type="button" data-edit-standard-task="${escapeHtml(item.id)}">Sửa danh mục</button>` : ""}
     </div>
   </article>`;
 }
 
-function renderRegisteredTask(item, registration) {
+function renderRegisteredTask(item, registration, canManageCatalog) {
   const status = ({
     PENDING: "Chờ duyệt",
     APPROVED: "Đã duyệt",
@@ -238,11 +253,12 @@ function renderRegisteredTask(item, registration) {
       <span class="status-pill ${statusClass}">${escapeHtml(status)}</span>
       <small>Điểm tối đa: ${formatNumber(item.maximumConvertedScore || 0)}</small>
       ${canDelete ? `<button class="registration-delete-button" type="button" data-delete-registration="${escapeHtml(registration.id)}">Hủy đăng ký</button>` : ""}
+      ${canManageCatalog ? `<button class="catalog-edit-button" type="button" data-edit-standard-task="${escapeHtml(item.id)}">Sửa danh mục</button>` : ""}
     </div>
   </article>`;
 }
 
-function renderCatalogList(items) {
+function renderCatalogList(items, canManageCatalog) {
   if (!items.length) return compactEmpty("Không có đầu việc phù hợp", "Hãy thay đổi nội dung tìm kiếm.");
   return `<div class="registration-list">${items.map(item => `<article class="registration-row registration-row-catalog-only">
     <div class="registration-state-mark" aria-hidden="true">📄</div>
@@ -250,8 +266,166 @@ function renderCatalogList(items) {
       <strong>${escapeHtml(item.code || item.id)} — ${escapeHtml(item.name || "")}</strong>
       <small>${escapeHtml(item.outputRequirement || "")}</small>
     </div>
-    <div class="data-row-meta"><small>Điểm tối đa: ${formatNumber(item.maximumConvertedScore || 0)}</small></div>
+    <div class="data-row-meta">
+      <small>Điểm tối đa: ${formatNumber(item.maximumConvertedScore || 0)}</small>
+      ${canManageCatalog ? `<button class="catalog-edit-button" type="button" data-edit-standard-task="${escapeHtml(item.id)}">Sửa danh mục</button>` : ""}
+    </div>
   </article>`).join("")}</div>`;
+}
+
+function openTaskEditor(item) {
+  const editing = Boolean(item?.id);
+  const root = openStandardModal(
+    editing ? "Cập nhật đầu việc chuẩn" : "Thêm đầu việc chuẩn",
+    `<div class="kpi-form-grid standard-task-editor-form">
+      <label class="kpi-field"><span>Mã đầu việc</span><input id="catalogTaskCode" value="${escapeHtml(item?.code || "")}" ${editing ? "disabled" : ""} placeholder="Ví dụ: TCHC01"></label>
+      <label class="kpi-field"><span>Loại công việc</span><select id="catalogTaskWorkType"><option value="THUONG_XUYEN" ${String(item?.workType || "THUONG_XUYEN").toUpperCase() === "THUONG_XUYEN" ? "selected" : ""}>Thường xuyên</option><option value="DOT_XUAT" ${String(item?.workType || "").toUpperCase() === "DOT_XUAT" ? "selected" : ""}>Đột xuất</option></select></label>
+      <label class="kpi-field full"><span>Tên đầu việc</span><input id="catalogTaskName" value="${escapeHtml(item?.name || "")}" placeholder="Nhập tên đầu việc"></label>
+      <label class="kpi-field full"><span>Sản phẩm đầu ra/Yêu cầu hoàn thành</span><textarea id="catalogTaskOutput" rows="3">${escapeHtml(item?.outputRequirement || "")}</textarea></label>
+      <label class="kpi-field full"><span>Minh chứng bắt buộc</span><textarea id="catalogTaskEvidence" rows="2">${escapeHtml(item?.mandatoryEvidence || "")}</textarea></label>
+      <label class="kpi-field"><span>Điểm chuẩn</span><input id="catalogTaskBaseScore" type="number" min="0.1" step="0.1" value="${escapeHtml(item?.baseScore ?? 1)}"></label>
+      <label class="kpi-field"><span>Hệ số khó</span><input id="catalogTaskCoefficient" type="number" min="0.1" step="0.1" value="${escapeHtml(item?.difficultyCoefficient ?? 1)}"></label>
+      <label class="kpi-field"><span>Thứ tự hiển thị</span><input id="catalogTaskOrder" type="number" min="1" step="1" value="${escapeHtml(item?.order ?? 9999)}"></label>
+      <div class="kpi-field"><span>Điểm tối đa dự kiến</span><strong id="catalogTaskMaximum">${formatNumber(Number(item?.baseScore || 1) * Number(item?.difficultyCoefficient || 1))}</strong></div>
+    </div>`,
+    `${editing ? '<button id="deactivateCatalogTask" class="kpi-button danger" type="button">Ngừng sử dụng</button>' : ""}<button class="kpi-button secondary" data-standard-close type="button">Đóng</button><button id="saveCatalogTask" class="kpi-button" type="button">Lưu đầu việc</button>`
+  );
+
+  const recalculate = () => {
+    const base = Number(document.getElementById("catalogTaskBaseScore")?.value || 0);
+    const coefficient = Number(document.getElementById("catalogTaskCoefficient")?.value || 0);
+    const target = document.getElementById("catalogTaskMaximum");
+    if (target) target.textContent = formatNumber(base * coefficient);
+  };
+  document.getElementById("catalogTaskBaseScore")?.addEventListener("input", recalculate);
+  document.getElementById("catalogTaskCoefficient")?.addEventListener("input", recalculate);
+
+  root.querySelector("#saveCatalogTask")?.addEventListener("click", async event => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    try {
+      await StandardTaskWriteService.saveTask({
+        code: document.getElementById("catalogTaskCode")?.value,
+        name: document.getElementById("catalogTaskName")?.value,
+        workType: document.getElementById("catalogTaskWorkType")?.value,
+        outputRequirement: document.getElementById("catalogTaskOutput")?.value,
+        mandatoryEvidence: document.getElementById("catalogTaskEvidence")?.value,
+        baseScore: document.getElementById("catalogTaskBaseScore")?.value,
+        difficultyCoefficient: document.getElementById("catalogTaskCoefficient")?.value,
+        order: document.getElementById("catalogTaskOrder")?.value,
+        active: true
+      }, item?.id || "");
+      closeStandardModal(root);
+      ToastService.success(editing ? "Đã cập nhật đầu việc." : "Đã thêm đầu việc vào danh mục.");
+      reloadRoute();
+    } catch (error) {
+      ToastService.error(error.message || "Không lưu được đầu việc.");
+      button.disabled = false;
+    }
+  });
+
+  root.querySelector("#deactivateCatalogTask")?.addEventListener("click", async event => {
+    if (!window.confirm("Ngừng sử dụng đầu việc này? Các đăng ký và nhiệm vụ đã tạo trước đây vẫn được giữ nguyên.")) return;
+    const button = event.currentTarget;
+    button.disabled = true;
+    try {
+      await StandardTaskWriteService.deactivateTask(item.id);
+      closeStandardModal(root);
+      ToastService.success("Đã ngừng sử dụng đầu việc trong các kỳ đăng ký mới.");
+      reloadRoute();
+    } catch (error) {
+      ToastService.error(error.message || "Không thể ngừng sử dụng đầu việc.");
+      button.disabled = false;
+    }
+  });
+}
+
+async function openCatalogDelegation(currentDelegation, period) {
+  try {
+    const candidates = await StandardTaskWriteService.listDelegationCandidates();
+    const active = currentDelegation?.active === true ? currentDelegation : null;
+    const today = StandardTaskWriteService.todayKey();
+    const defaultEnd = period?.endDate || addDays(today, 30);
+    const root = openStandardModal(
+      "Ủy quyền nhập danh mục công việc",
+      `<div class="kpi-form-grid standard-task-delegation-form">
+        <label class="kpi-field full"><span>Nhân viên được ủy quyền</span><select id="catalogDelegateUser"><option value="">-- Chọn nhân viên --</option>${candidates.map(item => `<option value="${escapeHtml(item.id)}" ${active?.delegateUserId === item.id ? "selected" : ""}>${escapeHtml(item.fullName || "Chưa cập nhật họ tên")} — ${escapeHtml(item.position || "Nhân viên")}</option>`).join("")}</select></label>
+        ${candidates.length ? "" : '<div class="kpi-alert full">Chưa có tài khoản nhân viên đang hoạt động trong cùng Phòng/Khu.</div>'}
+        <label class="kpi-field"><span>Từ ngày</span><input id="catalogDelegateStart" type="date" value="${escapeHtml(active?.startDate || today)}"></label>
+        <label class="kpi-field"><span>Đến ngày</span><input id="catalogDelegateEnd" type="date" value="${escapeHtml(active?.endDate || defaultEnd)}"></label>
+        <label class="kpi-field full"><span>Lý do</span><textarea id="catalogDelegateReason" rows="3" placeholder="Ví dụ: Phân công phụ trách cập nhật danh mục đầu việc">${escapeHtml(active?.reason || "")}</textarea></label>
+        <div class="info-banner full">Nhân viên được ủy quyền chỉ được thêm, chỉnh sửa và ngừng sử dụng đầu việc thuộc đúng Phòng/Khu; không có quyền khóa kế hoạch hoặc duyệt KPI.</div>
+      </div>`,
+      `${active ? '<button id="revokeCatalogDelegation" class="kpi-button danger" type="button">Hủy ủy quyền</button>' : ""}<button class="kpi-button secondary" data-standard-close type="button">Đóng</button><button id="saveCatalogDelegation" class="kpi-button" type="button">Lưu ủy quyền</button>`
+    );
+
+    root.querySelector("#saveCatalogDelegation")?.addEventListener("click", async event => {
+      const button = event.currentTarget;
+      button.disabled = true;
+      try {
+        await StandardTaskWriteService.saveDelegation({
+          delegateUserId: document.getElementById("catalogDelegateUser")?.value,
+          startDate: document.getElementById("catalogDelegateStart")?.value,
+          endDate: document.getElementById("catalogDelegateEnd")?.value,
+          reason: document.getElementById("catalogDelegateReason")?.value
+        });
+        closeStandardModal(root);
+        ToastService.success("Đã ủy quyền nhập danh mục công việc.");
+        reloadRoute();
+      } catch (error) {
+        ToastService.error(error.message || "Không lưu được ủy quyền.");
+        button.disabled = false;
+      }
+    });
+
+    root.querySelector("#revokeCatalogDelegation")?.addEventListener("click", async event => {
+      if (!window.confirm("Hủy ủy quyền nhập danh mục ngay bây giờ?")) return;
+      const button = event.currentTarget;
+      button.disabled = true;
+      try {
+        await StandardTaskWriteService.revokeDelegation();
+        closeStandardModal(root);
+        ToastService.success("Đã hủy ủy quyền nhập danh mục.");
+        reloadRoute();
+      } catch (error) {
+        ToastService.error(error.message || "Không hủy được ủy quyền.");
+        button.disabled = false;
+      }
+    });
+  } catch (error) {
+    ToastService.error(error.message || "Không mở được chức năng ủy quyền nhập danh mục.");
+  }
+}
+
+function openStandardModal(title, body, footer) {
+  document.getElementById("standardTaskModalRoot")?.remove();
+  const root = document.createElement("div");
+  root.id = "standardTaskModalRoot";
+  root.className = "kpi-modal-backdrop";
+  root.innerHTML = `<section class="kpi-modal standard-task-modal" role="dialog" aria-modal="true">
+    <header class="kpi-modal-head"><h2>${escapeHtml(title)}</h2><button class="kpi-button secondary" data-standard-close type="button">×</button></header>
+    <div class="kpi-modal-body">${body}</div>
+    <footer class="kpi-modal-foot">${footer}</footer>
+  </section>`;
+  root.querySelectorAll("[data-standard-close]").forEach(button => button.addEventListener("click", () => closeStandardModal(root)));
+  root.addEventListener("click", event => {
+    if (event.target === root) closeStandardModal(root);
+  });
+  document.body.appendChild(root);
+  return root;
+}
+
+function closeStandardModal(root) {
+  root?.remove();
+}
+
+function addDays(dateText, days) {
+  const date = new Date(`${dateText}T00:00:00`);
+  date.setDate(date.getDate() + days);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function createRegistrationMap(registrations) {
@@ -282,7 +456,7 @@ function metric(label, value) {
 }
 
 function formatNumber(value) {
-  return new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 1 }).format(Number(value || 0));
+  return new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2 }).format(Number(value || 0));
 }
 
 function loadingCard(message) {
@@ -291,6 +465,10 @@ function loadingCard(message) {
 
 function errorCard(title, error) {
   return `<section class="page-card error-card"><h2>${escapeHtml(title)}</h2><p>${escapeHtml(error?.message || "Lỗi không xác định")}</p></section>`;
+}
+
+function reloadRoute() {
+  window.dispatchEvent(new HashChangeEvent("hashchange"));
 }
 
 function escapeHtml(value) {
