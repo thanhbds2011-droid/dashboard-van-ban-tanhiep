@@ -165,21 +165,45 @@ export const Permissions = Object.freeze({
     return this.isAdmin() || this.isDirector() || this.isTchcCoordinator() || this.isDepartmentLeader();
   },
 
-  canCancelRegistration(registration) {
+  canCancelOwnRegistration(registration, planLocked = false) {
     const user = UserContext.getUser();
-    if (!activeUser(user) || !registration || registration.taskId) return false;
-    if (registration.userId === user.uid) {
-      return ["PENDING", "REJECTED"].includes(clean(registration.status).toUpperCase());
-    }
-    return (
-      (this.isAdmin() || this.isDepartmentLeader()) &&
-      clean(registration.departmentId).toUpperCase() === clean(user.departmentId).toUpperCase() &&
-      clean(registration.status).toUpperCase() === "REJECTED"
+    const hasTask = Boolean(clean(registration?.taskId));
+    return Boolean(
+      activeUser(user) &&
+      registration &&
+      registration.userId === user.uid &&
+      !hasTask &&
+      planLocked !== true &&
+      ["PENDING", "REJECTED"].includes(clean(registration.status).toUpperCase())
     );
   },
 
+  canCancelRegistrationForEmployee(registration, planLocked = false, hasDelegation = false) {
+    const user = UserContext.getUser();
+    const hasTask = Boolean(clean(registration?.taskId));
+    const sameDepartment = clean(registration?.departmentId).toUpperCase() === clean(user?.departmentId).toUpperCase();
+    const authorizedManager = this.isDepartmentHead(user) || (this.isDepartmentDeputy(user) && hasDelegation === true);
+    return Boolean(
+      activeUser(user) &&
+      registration &&
+      registration.userId !== user.uid &&
+      !hasTask &&
+      planLocked === true &&
+      sameDepartment &&
+      authorizedManager &&
+      ["PENDING", "REJECTED"].includes(clean(registration.status).toUpperCase())
+    );
+  },
+
+  canCancelRegistration(registration, options = {}) {
+    const planLocked = options.planLocked === true;
+    return options.asManager === true
+      ? this.canCancelRegistrationForEmployee(registration, planLocked, options.hasDelegation === true)
+      : this.canCancelOwnRegistration(registration, planLocked);
+  },
+
   canDeleteRejectedRegistration(registration) {
-    return this.canCancelRegistration(registration);
+    return this.canCancelOwnRegistration(registration, false);
   },
 
   canReviewStaffTask() {
