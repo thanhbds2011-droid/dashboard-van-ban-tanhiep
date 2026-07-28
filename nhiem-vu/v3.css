@@ -278,3 +278,25 @@ button,input,select,textarea{font-size:16px}
   .m01-top,.m01-profile,.m01-part-row,.m01-group-row,.m01-total-row,.m01-grand-total{page-break-inside:avoid}
   @page{size:A4 portrait;margin:8mm}
 }
+
+/* Đồng bộ bố cục và trạng thái ẩn */
+[hidden]{display:none!important}
+.push-status-box{
+  width:min(1180px,calc(100% - 32px));
+  max-width:none;
+}
+@media (min-width:961px){
+  .v3-navigation a{
+    flex:1 1 0;
+    min-width:0;
+    justify-content:center;
+    text-align:center;
+    white-space:nowrap;
+  }
+}
+@media (max-width:760px){
+  .push-status-box{
+    width:calc(100% - 24px);
+    margin:10px auto 0;
+  }
+}
