@@ -1,6 +1,6 @@
 /* =========================================================
  * PHÂN HỆ KPI
- * Bản 20260728.V1_1_2
+ * Bản 20260728.V1_1_3
  * ========================================================= */
 
 .kpi-section {
@@ -389,7 +389,7 @@
 .kpi-delegation-person,
 .kpi-delegation-warning,
 .kpi-delegation-dates,
-.kpi-delegation-scope,
+.kpi-delegation-scope-select,
 .kpi-delegation-reason {
   width: 100%;
   min-width: 0;
@@ -401,48 +401,11 @@
   gap: 16px;
 }
 
-.kpi-delegation-scope {
-  margin: 0;
-  border: 1px solid #cbd8e3;
-  border-radius: 12px;
-  padding: 12px 14px 14px;
-}
-
-.kpi-delegation-scope legend {
-  padding: 0 8px;
-  font-weight: 700;
-  color: #253b4b;
-}
-
-.kpi-delegation-options {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px 20px;
-}
-
-.kpi-delegation-option {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: start;
+.kpi-delegation-scope-select select {
+  width: 100%;
+  max-width: 100%;
   min-width: 0;
-  gap: 9px;
-  line-height: 1.45;
-  cursor: pointer;
 }
-
-.kpi-delegation-option input[type="checkbox"] {
-  width: 18px;
-  height: 18px;
-  min-height: 0;
-  margin: 2px 0 0;
-  accent-color: #0f6996;
-}
-
-.kpi-delegation-option span {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
 
 .kpi-delegation-active-note {
   display: grid;
@@ -462,17 +425,9 @@
   font-weight: 700;
 }
 
-.kpi-delegation-active-note small,
-.kpi-delegation-help {
+.kpi-delegation-active-note small {
   color: #587083;
   line-height: 1.5;
-}
-
-.kpi-delegation-help {
-  margin: 12px 0 0;
-  border-top: 1px dashed #cbd8e3;
-  padding-top: 10px;
-  font-size: 13px;
 }
 
 /* ===== Báo cáo ===== */
@@ -965,7 +920,6 @@
   }
 
   .kpi-delegation-dates,
-  .kpi-delegation-options,
   .kpi-report-options,
   .department-report-signatures,
   .kpi-signatures {
