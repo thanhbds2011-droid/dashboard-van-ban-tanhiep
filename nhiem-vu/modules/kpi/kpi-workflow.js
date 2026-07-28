@@ -3,8 +3,8 @@ import {
   addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, onSnapshot, query,
   serverTimestamp, setDoc, Timestamp, updateDoc, where
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
-import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260728.V1_1_5';
-import { Permissions } from '../../core/permissions.js?v=20260728.V1_1_5';
+import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260728.V1_1_6';
+import { Permissions } from '../../core/permissions.js?v=20260728.V1_1_6';
 import {
   KPI2B as KPI2C, COMMON_CRITERIA, calculateTaskScore, calculateKpiSummary,
   proposedRating, ratingName, round2, progressRateFromDates
@@ -155,12 +155,13 @@ function mount() {
     </div>
     <div id="kpiMessage"></div>
     <div class="kpi-metrics">
-      <div class="kpi-metric"><span>A · Kế hoạch</span><strong id="kpiMetricA">0</strong></div>
-      <div class="kpi-metric"><span>B · Thực tế</span><strong id="kpiMetricB">0</strong></div>
-      <div class="kpi-metric"><span>KPI công việc</span><strong id="kpiMetric70">0/70</strong></div>
-      <div class="kpi-metric"><span>Tiêu chí chung</span><strong id="kpiMetric30">0/30</strong></div>
-      <div class="kpi-metric"><span>Tổng điểm</span><strong id="kpiMetric100">0/100</strong></div>
+      <div class="kpi-metric kpi-metric-plan"><span>A · Kế hoạch</span><strong id="kpiMetricA">0</strong><small>Điểm tối đa đã duyệt</small></div>
+      <div class="kpi-metric kpi-metric-actual"><span>B · Thực tế</span><strong id="kpiMetricB">0</strong><small>Điểm đang áp dụng</small></div>
+      <div class="kpi-metric kpi-metric-work"><span>KPI công việc</span><strong id="kpiMetric70">0/70</strong><small>Quy đổi theo nhiệm vụ</small></div>
+      <div class="kpi-metric kpi-metric-common"><span>Tiêu chí chung</span><strong id="kpiMetric30">0/30</strong><small>Tự chấm hoặc xác nhận</small></div>
+      <div class="kpi-metric kpi-metric-total"><span>Tổng điểm</span><strong id="kpiMetric100">0/100</strong><small>Kết quả hiện tại</small></div>
     </div>
+    <div id="kpiScoreState" class="kpi-score-state kpi-hidden" aria-live="polite"></div>
     <div id="kpiManagementToolbar" class="kpi-toolbar kpi-no-print kpi-hidden"></div>
     <div class="kpi-grid kpi-grid-single" data-mode-grid>
       <section class="kpi-card">
@@ -450,7 +451,7 @@ async function loadAll() {
       || null;
 
     render();
-    message('Dữ liệu đã được cập nhật.', 'ok');
+    message('');
   } catch (error) {
     console.error(error);
     renderManagementToolbar();
@@ -466,18 +467,119 @@ function taskForCurrentUser(task) {
   return task.ownerUserId === KpiWorkflowState.user.uid || task.createdByUserId === KpiWorkflowState.user.uid;
 }
 function evaluationFor(taskId){ return KpiWorkflowState.evaluations.find(e => e.taskId === taskId); }
-function recognizedRowsForUser() {
-  return KpiWorkflowState.tasks.filter(t => t.ownerUserId === KpiWorkflowState.user.uid).map(t => {
-    const ev = evaluationFor(t.id);
+function hasNumericValue(value) {
+  return value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value));
+}
+function evaluationScoreSnapshot(evaluation = null) {
+  const inactive = evaluation?.active === false || ['CANCELLED', 'HUY'].includes(clean(evaluation?.status).toUpperCase());
+  if (inactive) return { official:false, provisional:false, hasScore:false, actualScore:0, progressRate:null, resultRate:null, label:'Chưa tự đánh giá', shortLabel:'Chưa có điểm' };
+  const official = Boolean(
+    evaluation &&
+    (evaluation.status === 'CONFIRMED' || evaluation.scoreLocked === true) &&
+    hasNumericValue(evaluation.confirmedActualScore)
+  );
+  const hasSelfScore = Boolean(evaluation && hasNumericValue(evaluation.selfActualScore));
+  const hasScore = official || hasSelfScore;
+  const actualScore = official
+    ? Number(evaluation.confirmedActualScore || 0)
+    : hasSelfScore ? Number(evaluation.selfActualScore || 0) : 0;
+  const progressRate = official && hasNumericValue(evaluation.confirmedProgressRate)
+    ? Number(evaluation.confirmedProgressRate)
+    : hasNumericValue(evaluation?.selfProgressRate) ? Number(evaluation.selfProgressRate) : null;
+  const resultRate = official && hasNumericValue(evaluation.confirmedResultRate)
+    ? Number(evaluation.confirmedResultRate)
+    : hasNumericValue(evaluation?.selfResultRate) ? Number(evaluation.selfResultRate) : null;
+  return {
+    official,
+    provisional: hasScore && !official,
+    hasScore,
+    actualScore,
+    progressRate,
+    resultRate,
+    label: official ? 'Điểm chính thức' : hasScore ? 'Điểm tự đánh giá' : 'Chưa tự đánh giá',
+    shortLabel: official ? 'Chính thức' : hasScore ? 'Tự đánh giá' : 'Chưa có điểm'
+  };
+}
+function commonScoreSnapshot(common = null) {
+  const inactive = common?.active === false || ['CANCELLED', 'HUY'].includes(clean(common?.status).toUpperCase());
+  if (inactive) return { official:false, provisional:false, hasScore:false, total:0, items:[] };
+  const official = Boolean(common?.status === 'CONFIRMED' && hasNumericValue(common?.confirmedTotal));
+  const hasSelfScore = Boolean(common && hasNumericValue(common.selfTotal));
+  const hasScore = official || hasSelfScore;
+  return {
+    official,
+    provisional: hasScore && !official,
+    hasScore,
+    total: official ? Number(common.confirmedTotal || 0) : hasSelfScore ? Number(common.selfTotal || 0) : 0,
+    items: Array.isArray(common?.items) ? common.items : []
+  };
+}
+function scoreRowsForUser(userId) {
+  return KpiWorkflowState.tasks.filter(task => task.ownerUserId === userId).map(task => {
+    const evaluation = KpiWorkflowState.evaluations.find(item => item.taskId === task.id && item.ownerUserId === userId);
+    const score = evaluationScoreSnapshot(evaluation);
     return {
-      ...t,
-      recognized: ev?.status === 'CONFIRMED',
-      confirmedActualScore: Number(ev?.confirmedActualScore || 0),
-      includedInA: t.includedInA === true
+      ...task,
+      recognized: score.hasScore,
+      confirmedActualScore: score.actualScore,
+      appliedScoreStatus: score.official ? 'OFFICIAL' : score.hasScore ? 'SELF' : 'EMPTY',
+      includedInA: task.includedInA === true
     };
   });
 }
-function summary() { return calculateKpiSummary(recognizedRowsForUser(), Number(KpiWorkflowState.common?.confirmedTotal ?? KpiWorkflowState.common?.selfTotal ?? 0)); }
+function scoreStateForUser(userId) {
+  const tasks = KpiWorkflowState.tasks.filter(task => {
+    if (task.ownerUserId !== userId || task.active === false) return false;
+    const evaluation = KpiWorkflowState.evaluations.find(item => item.taskId === task.id && item.ownerUserId === userId);
+    return task.includedInA === true || task.planApprovalStatus === 'APPROVED' || Boolean(evaluation);
+  });
+  const evaluations = tasks.map(task => KpiWorkflowState.evaluations.find(item => item.taskId === task.id && item.ownerUserId === userId));
+  const common = KpiWorkflowState.commonAll.find(item => item.userId === userId)
+    || (userId === KpiWorkflowState.user?.uid ? KpiWorkflowState.common : null);
+  const commonScore = commonScoreSnapshot(common);
+  const taskScores = evaluations.map(evaluationScoreSnapshot);
+  const hasAnyScore = taskScores.some(item => item.hasScore) || commonScore.hasScore;
+  const hasNeedsRevision = evaluations.some(item => item?.status === 'NEEDS_REVISION');
+  const taskOfficial = tasks.length > 0 && taskScores.length === tasks.length && taskScores.every(item => item.official);
+  const allOfficial = taskOfficial && commonScore.official;
+  const anyOfficial = taskScores.some(item => item.official) || commonScore.official;
+
+  if (allOfficial) return {
+    code: 'OFFICIAL',
+    label: 'Điểm chính thức',
+    detail: 'Kết quả đã được cấp có thẩm quyền xác nhận và không thể chỉnh sửa.',
+    className: 'is-official'
+  };
+  if (hasNeedsRevision) return {
+    code: 'REVISION',
+    label: 'Cần cập nhật tự đánh giá',
+    detail: 'Báo cáo đang dùng điểm tự đánh giá hiện có. Cá nhân có thể chỉnh sửa và gửi lại trước khi xác nhận.',
+    className: 'is-revision'
+  };
+  if (hasAnyScore && anyOfficial) return {
+    code: 'PARTIAL',
+    label: 'Điểm tạm tính · đang xác nhận',
+    detail: 'Nội dung đã xác nhận dùng điểm chính thức; nội dung còn lại dùng điểm tự đánh giá.',
+    className: 'is-pending'
+  };
+  if (hasAnyScore) return {
+    code: 'SELF',
+    label: 'Điểm tự đánh giá',
+    detail: 'Được dùng để xem trước và in báo cáo; cá nhân vẫn có thể chỉnh sửa trước khi xác nhận chính thức.',
+    className: 'is-self'
+  };
+  return {
+    code: 'EMPTY',
+    label: 'Chưa có điểm tự đánh giá',
+    detail: 'Hoàn thành tự đánh giá nhiệm vụ và tiêu chí chung để hình thành báo cáo.',
+    className: 'is-empty'
+  };
+}
+function recognizedRowsForUser() { return scoreRowsForUser(KpiWorkflowState.user.uid); }
+function summary() {
+  const common = commonScoreSnapshot(KpiWorkflowState.common);
+  return calculateKpiSummary(recognizedRowsForUser(), common.total);
+}
 
 function render() {
   const periodLine = el('kpiPeriodLine');
@@ -496,6 +598,16 @@ function render() {
   el('kpiMetric70').textContent = `${fmt(currentSummary.kpi70)}/70`;
   el('kpiMetric30').textContent = `${fmt(currentSummary.common30)}/30`;
   el('kpiMetric100').textContent = `${fmt(currentSummary.total100)}/100`;
+
+  const scoreStateBox = el('kpiScoreState');
+  if (scoreStateBox) {
+    const shouldShow = Boolean(KpiWorkflowState.period && ['evaluations', 'reports'].includes(KpiWorkflowState.mode));
+    const state = scoreStateForUser(KpiWorkflowState.user.uid);
+    scoreStateBox.className = `kpi-score-state ${state.className}${shouldShow ? '' : ' kpi-hidden'}`;
+    scoreStateBox.innerHTML = shouldShow
+      ? `<span class="kpi-score-state-icon">${state.code === 'OFFICIAL' ? '✓' : state.code === 'REVISION' ? '!' : state.code === 'EMPTY' ? '○' : '✎'}</span><div><strong>${esc(state.label)}</strong><span>${esc(state.detail)}</span></div>`
+      : '';
+  }
 
   renderManagementToolbar();
   el('kpiAdminBox')?.classList.toggle('kpi-hidden', !activeRole('ADMIN'));
@@ -587,7 +699,7 @@ function openPersonPlanDetail(uid) {
   });
 }
 function renderEvaluationDashboard(){
-  const target=el('kpiTaskList');if(!target)return;el('kpiMainCardTitle').textContent='Đánh giá nhiệm vụ đã hoàn thành';el('kpiMainCardHint').textContent='Cá nhân tự đánh giá nhiệm vụ của chính mình; cấp có thẩm quyền chỉ xác nhận điểm.';
+  const target=el('kpiTaskList');if(!target)return;el('kpiMainCardTitle').textContent='Đánh giá nhiệm vụ đã hoàn thành';el('kpiMainCardHint').textContent='Cá nhân có thể cập nhật điểm tự đánh giá nhiều lần trước khi cấp có thẩm quyền xác nhận chính thức.';
   const rows=KpiWorkflowState.tasks.filter(taskForCurrentUser).filter(t=>t.status==='HOAN_THANH');if(!rows.length){target.innerHTML='<div class="kpi-empty">Chưa có nhiệm vụ hoàn thành để đánh giá.</div>';return;}target.innerHTML=`<div class="kpi-table-wrap"><table class="kpi-table"><thead><tr><th>Nhiệm vụ</th><th>Người thực hiện</th><th>Điểm tối đa</th><th>Trạng thái đánh giá</th><th>Thao tác</th></tr></thead><tbody>${rows.map(t=>{const ev=evaluationFor(t.id),own=t.ownerUserId===KpiWorkflowState.user.uid,locked=ev?.status==='CONFIRMED'||ev?.scoreLocked===true;return `<tr><td><strong>${esc(t.taskCode||'')}</strong><br>${esc(t.title||'')}</td><td>${esc(t.ownerName||'')}</td><td>${fmt(t.maximumConvertedScore)}</td><td>${esc(taskStatus(t,ev))}</td><td>${own?(locked?'Đã xác nhận':`<button class="kpi-button" data-kpi-self="${t.id}">${ev?'Cập nhật tự đánh giá':'Tự đánh giá'}</button>`):canReviewEvaluation(ev,t)?`<button class="kpi-button" data-kpi-review="${ev?.id||''}">Xác nhận</button>`:'Chỉ xem'}</td></tr>`;}).join('')}</tbody></table></div>`;target.addEventListener('click',taskAction);target.addEventListener('click',reviewAction);
 }
 function renderReportDashboard() {
@@ -595,12 +707,16 @@ function renderReportDashboard() {
   if (!target) return;
   el('kpiMainCardTitle').textContent = 'Báo cáo và tổng hợp KPI';
   el('kpiMainCardHint').textContent = canViewDepartmentReport()
-    ? 'Xem báo cáo cá nhân hoặc tổng hợp kết quả của Phòng/Khu.'
-    : 'Xem báo cáo đánh giá của chính mình.';
-  target.innerHTML = `<div class="kpi-report-options">
-    <button id="reportPersonal" class="kpi-report-option" type="button"><span>📄</span><strong>Báo cáo cá nhân</strong><small>Xem trước và in Mẫu 01 của cá nhân.</small></button>
-    <button id="reportProfile" class="kpi-report-option" type="button"><span>🪪</span><strong>Thông tin Mẫu 01</strong><small>Cập nhật ngày sinh, chức vụ và đơn vị công tác.</small></button>
-    ${canViewDepartmentReport() ? '<button id="reportDepartment" class="kpi-report-option" type="button"><span>📊</span><strong>Tổng hợp Phòng/Khu</strong><small>Tổng hợp điểm và mức xếp loại theo từng người.</small></button>' : ''}
+    ? 'Điểm tự đánh giá được hiển thị ngay để chuẩn bị họp; điểm chính thức chỉ hình thành sau khi xác nhận.'
+    : 'Điểm tự đánh giá được đưa vào báo cáo ngay và vẫn có thể chỉnh sửa trước khi xác nhận.';
+  target.innerHTML = `<div class="kpi-report-workflow">
+    <div><span>1</span><strong>Cá nhân tự đánh giá</strong><small>Hình thành điểm tạm tính và có thể in báo cáo.</small></div>
+    <div><span>2</span><strong>Trao đổi tại cuộc họp</strong><small>Cá nhân được điều chỉnh và gửi lại trước khi chốt.</small></div>
+    <div><span>3</span><strong>Xác nhận một lần</strong><small>Trưởng phòng hoặc người được ủy quyền chốt điểm chính thức.</small></div>
+  </div><div class="kpi-report-options">
+    <button id="reportPersonal" class="kpi-report-option is-personal" type="button"><span>📄</span><strong>Báo cáo cá nhân</strong><small>Xem trước và in Mẫu 01 với điểm đang áp dụng.</small></button>
+    <button id="reportProfile" class="kpi-report-option is-profile" type="button"><span>🪪</span><strong>Thông tin Mẫu 01</strong><small>Cập nhật ngày sinh, chức vụ và đơn vị công tác.</small></button>
+    ${canViewDepartmentReport() ? '<button id="reportDepartment" class="kpi-report-option is-department" type="button"><span>📊</span><strong>Tổng hợp Phòng/Khu</strong><small>Xem điểm tạm tính, điểm chính thức và trạng thái từng người.</small></button>' : ''}
   </div>`;
   el('reportPersonal')?.addEventListener('click', openReport);
   el('reportProfile')?.addEventListener('click', openKpiProfileEditor);
@@ -641,31 +757,12 @@ function openKpiProfileEditor() {
 }
 
 function summaryForUser(userId) {
-  const rows = KpiWorkflowState.tasks
-    .filter(task => task.ownerUserId === userId && task.active !== false)
-    .map(task => {
-      const evaluation = KpiWorkflowState.evaluations.find(item => item.taskId === task.id && item.ownerUserId === userId);
-      return {
-        ...task,
-        recognized: evaluation?.status === 'CONFIRMED',
-        confirmedActualScore: Number(evaluation?.confirmedActualScore || 0),
-        includedInA: task.includedInA === true
-      };
-    });
   const common = KpiWorkflowState.commonAll.find(item => item.userId === userId);
-  const officialCommon = common?.status === 'CONFIRMED' ? Number(common.confirmedTotal || 0) : 0;
-  return calculateKpiSummary(rows, officialCommon);
+  return calculateKpiSummary(scoreRowsForUser(userId), commonScoreSnapshot(common).total);
 }
 
 function evaluationStateForUser(userId) {
-  const evaluations = KpiWorkflowState.evaluations.filter(item => item.ownerUserId === userId);
-  const common = KpiWorkflowState.commonAll.find(item => item.userId === userId);
-  if (!evaluations.length && !common) return 'Chưa đánh giá';
-  const tasks = KpiWorkflowState.tasks.filter(item => item.ownerUserId === userId && item.active !== false);
-  const relevant = tasks.filter(item => ['HOAN_THANH', 'COMPLETED', 'DA_HOAN_THANH'].includes(clean(item.status).toUpperCase()) || item.completedAt);
-  const allConfirmed = relevant.length > 0 && relevant.every(task => evaluations.some(item => item.taskId === task.id && item.status === 'CONFIRMED'));
-  if (allConfirmed && common?.status === 'CONFIRMED') return 'Đã xác nhận';
-  return 'Đang đánh giá';
+  return scoreStateForUser(userId).label;
 }
 
 function openDepartmentReport() {
@@ -689,11 +786,12 @@ function openDepartmentReport() {
     const body = people.map((user, index) => {
       const data = summaryForUser(user.id);
       const taskCount = KpiWorkflowState.tasks.filter(task => task.ownerUserId === user.id && task.active !== false).length;
-      return `<tr><td>${index + 1}</td><td><strong>${esc(user.fullName || user.email || user.id)}</strong></td><td>${esc(user.position || '')}</td><td class="m01-center">${taskCount}</td><td class="m01-center">${fmt(data.kpi70)}</td><td class="m01-center">${fmt(data.common30)}</td><td class="m01-center"><strong>${fmt(data.total100)}</strong></td><td>${esc(ratingName(proposedRating(data.total100)))}</td><td>${esc(evaluationStateForUser(user.id))}</td></tr>`;
+      const state = scoreStateForUser(user.id);
+      return `<tr><td>${index + 1}</td><td><strong>${esc(user.fullName || user.email || user.id)}</strong></td><td>${esc(user.position || '')}</td><td class="m01-center">${taskCount}</td><td class="m01-center">${fmt(data.kpi70)}</td><td class="m01-center">${fmt(data.common30)}</td><td class="m01-center"><strong>${fmt(data.total100)}</strong></td><td>${esc(ratingName(proposedRating(data.total100)))}</td><td><span class="kpi-score-badge ${state.className}">${esc(state.label)}</span></td></tr>`;
     }).join('');
     root.querySelector('#departmentReportContent').innerHTML = people.length ? `<div id="departmentReportPrint" class="department-report kpi-report-print">
       <div class="department-report-heading"><strong>TRUNG TÂM BẢO TRỢ XÃ HỘI TÂN HIỆP</strong><h2>BẢNG TỔNG HỢP KẾT QUẢ ĐÁNH GIÁ PHÒNG/KHU</h2><p>${esc(KpiWorkflowState.period?.name || '')} · ${esc(departmentId)}</p></div>
-      <div class="kpi-table-wrap"><table class="kpi-report-table department-report-table"><thead><tr><th>STT</th><th>Họ và tên</th><th>Chức vụ</th><th>Số nhiệm vụ</th><th>Điểm nhiệm vụ</th><th>Điểm tiêu chí chung</th><th>Tổng điểm</th><th>Mức xếp loại</th><th>Trạng thái xác nhận</th></tr></thead><tbody>${body}</tbody></table></div>
+      <div class="kpi-table-wrap"><table class="kpi-report-table department-report-table"><thead><tr><th>STT</th><th>Họ và tên</th><th>Chức vụ</th><th>Số nhiệm vụ</th><th>Điểm nhiệm vụ</th><th>Điểm tiêu chí chung</th><th>Tổng điểm</th><th>Mức xếp loại</th><th>Trạng thái điểm</th></tr></thead><tbody>${body}</tbody></table></div>
       <div class="department-report-signatures"><div><strong>NGƯỜI LẬP BIỂU</strong><br><em>(Ký, ghi rõ họ tên)</em></div><div><strong>TRƯỞNG PHÒNG/KHU</strong><br><em>(Ký, ghi rõ họ tên)</em></div></div>
     </div>` : '<div class="kpi-empty">Chưa có dữ liệu đánh giá trong kỳ này.</div>';
   };
@@ -726,7 +824,7 @@ function renderTasks() {
     return `<tr><td><strong>${esc(task.taskCode || task.standardTaskCode || task.id)}</strong><br>${esc(task.title)}<br><span class="kpi-small">${esc(task.ownerName || 'Chờ phân công')}</span></td>
       <td><span class="kpi-status">${esc(taskStatus(task,ev))}</span><br><span class="kpi-small">${task.includedInA === true ? 'Thuộc A' : (task.planType === 'DOT_XUAT' ? 'Đột xuất · không tăng A' : 'Chưa vào A')}</span>${task.isCoreTask === true ? '<br><strong>⭐ Cốt lõi</strong>' : ''}</td>
       <td>${fmt(task.maximumConvertedScore)}</td>
-      <td>${ev ? `Tự chấm: ${fmt(ev.selfActualScore)}<br>Xác nhận: ${fmt(ev.confirmedActualScore)}` : 'Chưa đánh giá'}</td>
+      <td>${ev ? (()=>{const score=evaluationScoreSnapshot(ev);return `<strong>${fmt(score.actualScore)}</strong><br><span class="kpi-small">${esc(score.label)}</span>`;})() : 'Chưa đánh giá'}</td>
       <td><div class="kpi-actions">${canApprove ? `<button class="kpi-button secondary" data-kpi-approve-plan="${task.id}">Duyệt vào kế hoạch</button><button class="kpi-button danger" data-kpi-reject-plan="${task.id}">Trả lại</button>` : ''}${canSelf ? `<button class="kpi-button" data-kpi-self="${task.id}">${ev ? 'Cập nhật tự đánh giá' : 'Tự đánh giá'}</button>` : ''}<button class="kpi-button secondary" data-kpi-view="${task.id}">Chi tiết</button></div></td></tr>`;
   }).join('')}</tbody></table></div>`;
 }
@@ -905,12 +1003,14 @@ function openReview(evalId) {
   modal('Xác nhận điểm nhiệm vụ', `<form class="kpi-form-grid"><div class="kpi-field full"><strong>${esc(task.ownerName)} · ${esc(task.title)}</strong><span>Tự chấm: tiến độ ${ev.selfProgressRate}%, kết quả ${ev.selfResultRate}%, điểm ${fmt(ev.selfActualScore)}</span></div>
     <div class="kpi-field"><label>Tiến độ xác nhận</label><select id="kpiConfirmProgress">${rates.map(r=>`<option value="${r}" ${Number(ev.confirmedProgressRate??ev.selfProgressRate)===r?'selected':''}>${r}%</option>`).join('')}</select></div>
     <div class="kpi-field"><label>Kết quả xác nhận</label><select id="kpiConfirmResult">${rates.map(r=>`<option value="${r}" ${Number(ev.confirmedResultRate??ev.selfResultRate)===r?'selected':''}>${r}%</option>`).join('')}</select></div>
-    <div class="kpi-field full"><label>Nhận xét/căn cứ</label><textarea id="kpiReviewerComment" rows="4">${esc(ev.reviewerComment||'')}</textarea></div><div class="kpi-field full"><div id="kpiConfirmScore" class="kpi-alert"></div></div></form>`,
+    <div class="kpi-field full"><label>Nhận xét/căn cứ</label><textarea id="kpiReviewerComment" rows="4">${esc(ev.reviewerComment||'')}</textarea></div>
+    <div class="kpi-field full"><div id="kpiConfirmScore" class="kpi-alert"></div></div>
+    <div class="kpi-field full"><div class="kpi-confirm-once"><strong>Xác nhận một lần</strong><span>Sau khi xác nhận, điểm trở thành điểm chính thức và không thể chỉnh sửa.</span></div></div></form>`,
     '<button id="kpiNeedRevision" class="kpi-button secondary" type="button">Yêu cầu bổ sung</button><button class="kpi-button secondary" data-kpi-close type="button">Hủy</button><button id="kpiConfirmEvaluation" class="kpi-button" type="button">Xác nhận điểm</button>');
   const recalc=()=>{const x=calculateTaskScore(task.baseScore,task.difficultyCoefficient,el('kpiConfirmProgress').value,el('kpiConfirmResult').value);el('kpiConfirmScore').textContent=`Điểm xác nhận: ${fmt(x.actual)}/${fmt(x.maximum)}`;};
   el('kpiConfirmProgress').addEventListener('change',recalc);el('kpiConfirmResult').addEventListener('change',recalc);recalc();
   el('kpiNeedRevision').addEventListener('click',async()=>{const note=clean(el('kpiReviewerComment').value);if(!note){alert('Nhập nội dung cần bổ sung.');return;}await updateDoc(doc(db,'taskEvaluations',ev.id),{status:'NEEDS_REVISION',reviewerComment:note,reviewedByUserId:KpiWorkflowState.user.uid,reviewedByName:KpiWorkflowState.profile.fullName||'',updatedAt:serverTimestamp()});closeModal();await loadAll();});
-  el('kpiConfirmEvaluation').addEventListener('click',async()=>{const p=Number(el('kpiConfirmProgress').value),r=Number(el('kpiConfirmResult').value),note=clean(el('kpiReviewerComment').value);if((p!==Number(ev.selfProgressRate)||r!==Number(ev.selfResultRate))&&!note){alert('Khi điều chỉnh khác tự chấm phải nhập lý do.');return;}const x=calculateTaskScore(task.baseScore,task.difficultyCoefficient,p,r);await updateDoc(doc(db,'taskEvaluations',ev.id),{confirmedProgressRate:p,confirmedResultRate:r,confirmedExecutionScore:x.execution,confirmedActualScore:x.actual,reviewerComment:note,status:'CONFIRMED',scoreLocked:true,reviewedByUserId:KpiWorkflowState.user.uid,reviewedByName:KpiWorkflowState.profile.fullName||'',confirmedAt:serverTimestamp(),updatedAt:serverTimestamp()});await updateDoc(doc(db,'tasks',task.id),{scoringStatus:'CONFIRMED',scoreLocked:true,confirmedActualScore:x.actual,updatedAt:serverTimestamp()});await audit('CONFIRM_TASK_SCORE',{taskId:task.id,confirmedActualScore:x.actual});closeModal();await loadAll();});
+  el('kpiConfirmEvaluation').addEventListener('click',async()=>{const p=Number(el('kpiConfirmProgress').value),r=Number(el('kpiConfirmResult').value),note=clean(el('kpiReviewerComment').value);if((p!==Number(ev.selfProgressRate)||r!==Number(ev.selfResultRate))&&!note){alert('Khi điều chỉnh khác tự chấm phải nhập lý do.');return;}const x=calculateTaskScore(task.baseScore,task.difficultyCoefficient,p,r);if(!confirm(`Xác nhận ${fmt(x.actual)} điểm là điểm chính thức? Sau thao tác này không thể chỉnh sửa.`))return;await updateDoc(doc(db,'taskEvaluations',ev.id),{confirmedProgressRate:p,confirmedResultRate:r,confirmedExecutionScore:x.execution,confirmedActualScore:x.actual,reviewerComment:note,status:'CONFIRMED',scoreLocked:true,reviewedByUserId:KpiWorkflowState.user.uid,reviewedByName:KpiWorkflowState.profile.fullName||'',confirmedAt:serverTimestamp(),updatedAt:serverTimestamp()});await updateDoc(doc(db,'tasks',task.id),{scoringStatus:'CONFIRMED',scoreLocked:true,confirmedActualScore:x.actual,updatedAt:serverTimestamp()});await audit('CONFIRM_TASK_SCORE',{taskId:task.id,confirmedActualScore:x.actual});closeModal();await loadAll();});
 }
 
 function openTaskInfo(taskId){const t=KpiWorkflowState.tasks.find(x=>x.id===taskId),e=evaluationFor(taskId);if(!t)return;modal('Chi tiết KPI nhiệm vụ',`<div class="kpi-form-grid"><div class="kpi-field full"><strong>${esc(t.taskCode||'')} — ${esc(t.title)}</strong></div><div class="kpi-field"><label>Người thực hiện</label><span>${esc(t.ownerName||'Chờ phân công')}</span></div><div class="kpi-field"><label>Trạng thái kế hoạch</label><span>${esc(taskStatus(t,e))}</span></div><div class="kpi-field"><label>Điểm chuẩn</label><span>${fmt(t.baseScore)}</span></div><div class="kpi-field"><label>Hệ số</label><span>${fmt(t.difficultyCoefficient)}</span></div><div class="kpi-field"><label>Điểm tối đa</label><span>${fmt(t.maximumConvertedScore)}</span></div><div class="kpi-field"><label>Cốt lõi</label><span>${t.isCoreTask===true?'Có':'Không'}</span></div><div class="kpi-field full"><label>Minh chứng bắt buộc</label><span>${esc(t.standardTaskMandatoryEvidence||'—')}</span></div></div>`);}
@@ -929,13 +1029,14 @@ function openCommonReview(assessmentId) {
   const allowed = activeRole('ADMIN') || ((isDepartmentHead() || hasActiveApprovalDelegation('CONFIRM_EVALUATIONS')) && normalizeDepartment(assessment.departmentId) === normalizeDepartment(KpiWorkflowState.profile.departmentId) && owner?.role === 'STAFF');
   if (!allowed) return;
   const items = assessment.items || [];
-  modal('Xác nhận Mẫu 01 · 30 điểm', `<p><strong>${esc(assessment.fullName)}</strong> · Tự chấm ${fmt(assessment.selfTotal)}/30</p><div class="kpi-criteria-list">${COMMON_CRITERIA.map(c=>{const v=items.find(x=>x.code===c.code)||{};const confirmed=v.confirmedResult||v.selfResult||'DAM_BAO';return `<div class="kpi-criterion"><strong class="kpi-criterion-score">${c.code}<br>${c.max} điểm</strong><p class="kpi-criterion-text">${esc(c.text)}<br><span class="kpi-small">Cá nhân: ${v.selfResult==='KHONG_DAM_BAO'?'Không đảm bảo':'Đảm bảo'}</span></p><div class="kpi-criterion-controls"><select data-confirm-common-code="${c.code}" aria-label="Kết quả xác nhận tiêu chí ${c.code}"><option value="DAM_BAO" ${confirmed==='DAM_BAO'?'selected':''}>Đảm bảo</option><option value="KHONG_DAM_BAO" ${confirmed==='KHONG_DAM_BAO'?'selected':''}>Không đảm bảo</option></select><textarea data-confirm-common-note="${c.code}" rows="2" placeholder="Căn cứ khi điều chỉnh" aria-label="Căn cứ tiêu chí ${c.code}">${esc(v.confirmedNote||v.note||'')}</textarea></div></div>`;}).join('')}</div><div id="kpiConfirmCommonTotal" class="kpi-alert"></div>`, '<button class="kpi-button secondary" data-kpi-close type="button">Hủy</button><button id="kpiConfirmCommonSave" class="kpi-button" type="button">Xác nhận 30 điểm</button>');
+  modal('Xác nhận Mẫu 01 · 30 điểm', `<p><strong>${esc(assessment.fullName)}</strong> · Tự chấm ${fmt(assessment.selfTotal)}/30</p><div class="kpi-criteria-list">${COMMON_CRITERIA.map(c=>{const v=items.find(x=>x.code===c.code)||{};const confirmed=v.confirmedResult||v.selfResult||'DAM_BAO';return `<div class="kpi-criterion"><strong class="kpi-criterion-score">${c.code}<br>${c.max} điểm</strong><p class="kpi-criterion-text">${esc(c.text)}<br><span class="kpi-small">Cá nhân: ${v.selfResult==='KHONG_DAM_BAO'?'Không đảm bảo':'Đảm bảo'}</span></p><div class="kpi-criterion-controls"><select data-confirm-common-code="${c.code}" aria-label="Kết quả xác nhận tiêu chí ${c.code}"><option value="DAM_BAO" ${confirmed==='DAM_BAO'?'selected':''}>Đảm bảo</option><option value="KHONG_DAM_BAO" ${confirmed==='KHONG_DAM_BAO'?'selected':''}>Không đảm bảo</option></select><textarea data-confirm-common-note="${c.code}" rows="2" placeholder="Căn cứ khi điều chỉnh" aria-label="Căn cứ tiêu chí ${c.code}">${esc(v.confirmedNote||v.note||'')}</textarea></div></div>`;}).join('')}</div><div id="kpiConfirmCommonTotal" class="kpi-alert"></div><div class="kpi-confirm-once"><strong>Xác nhận một lần</strong><span>Sau khi xác nhận, 30 điểm tiêu chí chung trở thành điểm chính thức và không thể chỉnh sửa.</span></div>`, '<button class="kpi-button secondary" data-kpi-close type="button">Hủy</button><button id="kpiConfirmCommonSave" class="kpi-button" type="button">Xác nhận 30 điểm</button>');
   const calc=()=>{let total=0;COMMON_CRITERIA.forEach(c=>{if(document.querySelector(`[data-confirm-common-code="${c.code}"]`)?.value==='DAM_BAO')total+=c.max;});el('kpiConfirmCommonTotal').textContent=`Điểm xác nhận: ${total}/30`;return total;};
   document.querySelectorAll('[data-confirm-common-code]').forEach(input=>input.addEventListener('change',calc));calc();
   el('kpiConfirmCommonSave').addEventListener('click', async()=>{
     try {
       const confirmedItems = COMMON_CRITERIA.map(c=>{const original=items.find(x=>x.code===c.code)||{};const result=document.querySelector(`[data-confirm-common-code="${c.code}"]`).value;const note=clean(document.querySelector(`[data-confirm-common-note="${c.code}"]`).value);if(result!==original.selfResult&&!note)throw new Error(`Tiêu chí ${c.code} điều chỉnh khác tự chấm phải có căn cứ.`);return {...original,code:c.code,max:c.max,text:c.text,confirmedResult:result,confirmedScore:result==='DAM_BAO'?c.max:0,confirmedNote:note};});
       const total=confirmedItems.reduce((sum,item)=>sum+item.confirmedScore,0);
+      if(!confirm(`Xác nhận ${fmt(total)}/30 điểm tiêu chí chung là điểm chính thức? Sau thao tác này không thể chỉnh sửa.`))return;
       await updateDoc(doc(db,'commonCriteriaAssessments',assessment.id),{items:confirmedItems,confirmedTotal:total,status:'CONFIRMED',confirmedByUserId:KpiWorkflowState.user.uid,confirmedByName:KpiWorkflowState.profile.fullName||'',confirmedAt:serverTimestamp(),updatedAt:serverTimestamp()});
       await audit('CONFIRM_COMMON_CRITERIA',{userId:assessment.userId,score:total});closeModal();await loadAll();
     } catch(error){alert(error.message);}
@@ -1219,15 +1320,12 @@ function openReport() {
   if (!KpiWorkflowState.period) return;
 
   const mine = KpiWorkflowState.tasks.filter(t => t.ownerUserId === KpiWorkflowState.user.uid && t.active !== false);
-  const officialCommonScore = KpiWorkflowState.common?.status === 'CONFIRMED'
-    ? Number(KpiWorkflowState.common.confirmedTotal || 0)
-    : 0;
-  const s = calculateKpiSummary(recognizedRowsForUser(), officialCommonScore);
+  const commonScore = commonScoreSnapshot(KpiWorkflowState.common);
+  const scoreState = scoreStateForUser(KpiWorkflowState.user.uid);
+  const s = calculateKpiSummary(recognizedRowsForUser(), commonScore.total);
   const rating = ratingName(proposedRating(s.total100));
   const profile = { ...(KpiWorkflowState.profile || {}), ...(KpiWorkflowState.kpiProfile || {}) };
-  const commonItems = KpiWorkflowState.common?.status === 'CONFIRMED'
-    ? (KpiWorkflowState.common.items || [])
-    : [];
+  const commonItems = commonScore.items;
 
   const profileValue = (...keys) => {
     for (const key of keys) {
@@ -1276,7 +1374,7 @@ function openReport() {
   const criterionRows = m01Groups.map(group => {
     const rows = group.items.map(([code, text, max]) => {
       const value = resultFor(code);
-      const result = value.confirmedResult || value.selfResult || '';
+      const result = commonScore.official ? (value.confirmedResult || value.selfResult || '') : (value.selfResult || '');
       const ensured = result === 'DAM_BAO';
       const notEnsured = result === 'KHONG_DAM_BAO';
       const score = ensured ? max : notEnsured ? 0 : '';
@@ -1287,28 +1385,26 @@ function openReport() {
         <td class="m01-center m01-check">${notEnsured ? 'X' : ''}</td>
         <td class="m01-center">${fmt(max)}</td>
         <td class="m01-center">${score === '' ? '' : fmt(score)}</td>
-        <td>${esc(value.confirmedNote || value.note || '')}</td>
+        <td>${esc(commonScore.official ? (value.confirmedNote || value.note || '') : (value.note || ''))}</td>
       </tr>`;
     }).join('');
     const groupScore = group.items.reduce((total, [code, , max]) => {
       const value = resultFor(code);
-      const result = value.confirmedResult || value.selfResult || '';
+      const result = commonScore.official ? (value.confirmedResult || value.selfResult || '') : (value.selfResult || '');
       return total + (result === 'DAM_BAO' ? max : 0);
     }, 0);
     return `<tr class="m01-group-row"><td class="m01-center">${group.code}</td><td>${esc(group.title)}</td><td></td><td></td><td class="m01-center">${fmt(group.max)}</td><td class="m01-center">${fmt(groupScore)}</td><td></td></tr>${rows}`;
   }).join('');
 
   const taskRows = mine.map((task, index) => {
-    const evaluation = evaluationFor(task.id) || {};
-    const officialScore = evaluation.status === 'CONFIRMED'
-      ? Number(evaluation.confirmedActualScore || 0)
-      : '';
+    const evaluation = evaluationFor(task.id);
+    const applied = evaluationScoreSnapshot(evaluation);
     return `<tr class="m01-task-row">
       <td class="m01-center">${index + 1}</td>
       <td colspan="3">${esc(task.title || '')}</td>
       <td class="m01-center">${fmt(task.maximumConvertedScore || 0)}</td>
-      <td class="m01-center">${officialScore === '' ? '' : fmt(officialScore)}</td>
-      <td></td>
+      <td class="m01-center">${applied.hasScore ? fmt(applied.actualScore) : ''}</td>
+      <td>${applied.hasScore ? esc(applied.shortLabel) : ''}</td>
     </tr>`;
   }).join('');
 
@@ -1342,6 +1438,7 @@ function openReport() {
     </div>
     <h3 class="m01-section-title">I. Tự đánh giá kết quả thực hiện nhiệm vụ</h3>
     <p class="m01-intro"><em>Trên cơ sở nhiệm vụ được giao, cá nhân tự đánh giá về kết quả thực hiện nhiệm vụ theo quý như sau:</em></p>
+    <div class="m01-score-preview kpi-no-print ${scoreState.className}"><strong>${esc(scoreState.label)}</strong><span>${esc(scoreState.detail)}</span></div>
     <table class="kpi-report-table m01-table">
       <colgroup><col class="m01-col-stt"><col class="m01-col-content"><col class="m01-col-check"><col class="m01-col-check"><col class="m01-col-score"><col class="m01-col-score"><col class="m01-col-note"></colgroup>
       <tbody>
@@ -1352,7 +1449,7 @@ function openReport() {
         <tr class="m01-part-row"><td class="m01-center">B</td><td colspan="3">KẾT QUẢ THỰC HIỆN NHIỆM VỤ ĐƯỢC GIAO (70 ĐIỂM)</td><td class="m01-center">Điểm tối đa<br><small>(70 điểm)</small></td><td class="m01-center">Điểm đạt được</td><td>Ghi chú</td></tr>
         ${taskRows || '<tr class="m01-task-row"><td class="m01-center">—</td><td colspan="3">Chưa có nhiệm vụ trong kỳ.</td><td></td><td></td><td></td></tr>'}
         <tr class="m01-total-row"><td colspan="4">TỔNG (B) =</td><td class="m01-center">70</td><td class="m01-center">${fmt(s.kpi70)}</td><td></td></tr>
-        <tr class="m01-grand-total"><td colspan="4">TỔNG (A + B) =</td><td class="m01-center">100</td><td class="m01-center">${fmt(s.total100)}</td><td></td></tr>
+        <tr class="m01-grand-total"><td colspan="4">TỔNG (A + B) =</td><td class="m01-center">100</td><td class="m01-center">${fmt(s.total100)}</td><td>${esc(scoreState.code === 'OFFICIAL' ? 'Điểm chính thức' : 'Điểm tự đánh giá')}</td></tr>
       </tbody>
     </table>
     <div class="m01-proposal"><strong>II. Tự đề xuất xếp loại mức chất lượng:</strong> ${esc(rating)}</div>
@@ -1368,7 +1465,7 @@ function openReport() {
     <div class="m01-confirm-sign"><strong>XÁC NHẬN CỦA BAN THƯỜNG VỤ CẤP ỦY<br>HOẶC TẬP THỂ LÃNH ĐẠO CƠ QUAN, ĐƠN VỊ</strong><br><em>(Xác lập thời điểm, ký, ghi rõ họ tên và đóng dấu)</em></div>
   </div>`;
 
-  const excelHtml = `<div id="kpiExcelPreview" class="kpi-hidden"><div class="kpi-alert kpi-ok">Bảng dữ liệu nhiệm vụ dùng để kiểm tra điểm KPI trước khi in Mẫu 01.</div><div class="kpi-table-wrap"><table class="kpi-table"><thead><tr><th>STT</th><th>Tên nhiệm vụ</th><th>Điểm chuẩn</th><th>Hệ số</th><th>Điểm tối đa</th><th>Tiến độ xác nhận</th><th>Kết quả xác nhận</th><th>Điểm thực tế</th></tr></thead><tbody>${mine.map((t, i) => { const e = evaluationFor(t.id) || {}; return `<tr><td>${i + 1}</td><td>${esc(t.title)}</td><td>${fmt(t.baseScore)}</td><td>${fmt(t.difficultyCoefficient)}</td><td>${fmt(t.maximumConvertedScore)}</td><td>${e.confirmedProgressRate ?? e.selfProgressRate ?? ''}</td><td>${e.confirmedResultRate ?? e.selfResultRate ?? ''}</td><td>${fmt(e.confirmedActualScore ?? e.selfActualScore)}</td></tr>`; }).join('')}</tbody></table></div></div>`;
+  const excelHtml = `<div id="kpiExcelPreview" class="kpi-hidden"><div class="kpi-score-state ${scoreState.className}"><span class="kpi-score-state-icon">${scoreState.code === 'OFFICIAL' ? '✓' : '✎'}</span><div><strong>${esc(scoreState.label)}</strong><span>${esc(scoreState.detail)}</span></div></div><div class="kpi-table-wrap"><table class="kpi-table"><thead><tr><th>STT</th><th>Tên nhiệm vụ</th><th>Điểm chuẩn</th><th>Hệ số</th><th>Điểm tối đa</th><th>Tiến độ áp dụng</th><th>Kết quả áp dụng</th><th>Điểm áp dụng</th><th>Trạng thái</th></tr></thead><tbody>${mine.map((t, i) => { const applied = evaluationScoreSnapshot(evaluationFor(t.id)); return `<tr><td>${i + 1}</td><td>${esc(t.title)}</td><td>${fmt(t.baseScore)}</td><td>${fmt(t.difficultyCoefficient)}</td><td>${fmt(t.maximumConvertedScore)}</td><td>${applied.progressRate ?? ''}</td><td>${applied.resultRate ?? ''}</td><td>${applied.hasScore ? fmt(applied.actualScore) : ''}</td><td>${esc(applied.label)}</td></tr>`; }).join('')}</tbody></table></div></div>`;
 
   modal('Xem trước Mẫu 01', `<div class="kpi-preview-tabs kpi-no-print"><button id="kpiPdfTab" class="kpi-button secondary active" type="button">Mẫu 01</button><button id="kpiExcelTab" class="kpi-button secondary" type="button">Bảng tính điểm</button></div>${pdfHtml}${excelHtml}`, '<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button><button id="kpiExportCsv" class="kpi-button secondary" type="button">📊 Xuất bảng điểm</button><button id="kpiPrintReport" class="kpi-button" type="button">🖨️ In Mẫu 01</button>');
   el('kpiPdfTab').addEventListener('click', () => { el('kpiPdfPreview').classList.remove('kpi-hidden'); el('kpiExcelPreview').classList.add('kpi-hidden'); el('kpiPdfTab').classList.add('active'); el('kpiExcelTab').classList.remove('active'); el('kpiPrintReport').classList.remove('kpi-hidden'); });
@@ -1379,9 +1476,10 @@ function openReport() {
 
 function exportReportCsv(tasks, summaryData){
   const quote = value => `"${String(value ?? '').replaceAll('\"','\"\"')}"`;
-  const rows = [['STT','Tên nhiệm vụ','Điểm chuẩn','Hệ số','Điểm tối đa','Tiến độ xác nhận','Chất lượng xác nhận','Điểm thực tế']];
-  tasks.forEach((task,index)=>{const ev=evaluationFor(task.id)||{};rows.push([index+1,task.title||'',task.baseScore||0,task.difficultyCoefficient||1,task.maximumConvertedScore||0,ev.confirmedProgressRate??ev.selfProgressRate??'',ev.confirmedResultRate??ev.selfResultRate??'',ev.confirmedActualScore??ev.selfActualScore??0]);});
-  rows.push([]);rows.push(['A',summaryData.A]);rows.push(['B',summaryData.B]);rows.push(['KPI công việc /70',summaryData.kpi70]);rows.push(['Tiêu chí chung /30',summaryData.common30]);rows.push(['Tổng /100',summaryData.total100]);
+  const state = scoreStateForUser(KpiWorkflowState.user.uid);
+  const rows = [['STT','Tên nhiệm vụ','Điểm chuẩn','Hệ số','Điểm tối đa','Tiến độ áp dụng','Chất lượng áp dụng','Điểm áp dụng','Trạng thái điểm']];
+  tasks.forEach((task,index)=>{const applied=evaluationScoreSnapshot(evaluationFor(task.id));rows.push([index+1,task.title||'',task.baseScore||0,task.difficultyCoefficient||1,task.maximumConvertedScore||0,applied.progressRate??'',applied.resultRate??'',applied.hasScore?applied.actualScore:'',applied.label]);});
+  rows.push([]);rows.push(['Trạng thái báo cáo',state.label]);rows.push(['A',summaryData.A]);rows.push(['B',summaryData.B]);rows.push(['KPI công việc /70',summaryData.kpi70]);rows.push(['Tiêu chí chung /30',summaryData.common30]);rows.push(['Tổng /100',summaryData.total100]);
   const csv='\ufeff'+rows.map(row=>row.map(quote).join(';')).join('\r\n');
   const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`Bao_cao_KPI_${KpiWorkflowState.period?.id||'ky'}_${KpiWorkflowState.profile?.fullName||'ca_nhan'}.csv`;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
 }
