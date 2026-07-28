@@ -1,6 +1,6 @@
 import { auth, db } from '../../firebase-config.js';
 import {
-  addDoc, collection, deleteDoc, doc, getDoc, getDocs, onSnapshot, query,
+  addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, onSnapshot, query,
   serverTimestamp, setDoc, Timestamp, updateDoc, where
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
 import { TaskRegistrationService } from '../../services/task-registration-service.js';
@@ -943,26 +943,59 @@ async function lockDepartmentPlan() {
     alert('Đăng ký kế hoạch đã được khóa.');
     return;
   }
+
   const departmentId = normalizeDepartment(KpiWorkflowState.profile.departmentId);
-  const approved = KpiWorkflowState.tasks.filter(task => normalizeDepartment(task.primaryDepartmentId) === departmentId && task.planApprovalStatus === 'APPROVED' && task.includedInA === true);
-  const planScore = round2(approved.reduce((sum, task) => sum + Number(task.maximumConvertedScore || 0), 0));
+  const approved = KpiWorkflowState.tasks.filter(task =>
+    normalizeDepartment(task.primaryDepartmentId) === departmentId
+    && task.planApprovalStatus === 'APPROVED'
+    && task.includedInA === true
+  );
+
   if (!approved.length) {
     alert('Chưa có nhiệm vụ kế hoạch được duyệt.');
     return;
   }
-  if (!confirm(`Khóa đăng ký kế hoạch của ${departmentId} với tổng điểm A = ${fmt(planScore)}? Sau khi khóa, người dùng không thể đăng ký thêm.`)) return;
+
+  const userPlanScores = {};
+  approved.forEach(task => {
+    const ownerUserId = clean(task.ownerUserId);
+    if (!ownerUserId) return;
+    userPlanScores[ownerUserId] = round2(
+      Number(userPlanScores[ownerUserId] || 0)
+      + Number(task.maximumConvertedScore || 0)
+    );
+  });
+  const approvedUserCount = Object.keys(userPlanScores).length;
+  const approvedTaskCount = approved.length;
+  const peopleLabel = approvedUserCount > 0
+    ? `${approvedUserCount} cá nhân`
+    : 'các cá nhân trong Phòng/Khu';
+
+  if (!confirm(
+    `Khóa đăng ký kế hoạch của ${departmentId}? Hiện có ${approvedTaskCount} đầu việc `
+    + `đã được duyệt cho ${peopleLabel}. Sau khi khóa, người dùng không thể đăng ký thêm.`
+  )) return;
+
   await setDoc(doc(db, 'kpiPlans', `${KpiWorkflowState.period.id}_${departmentId}`), {
     periodId: KpiWorkflowState.period.id,
     departmentId,
     locked: true,
-    planMaximumScore: planScore,
+    planMaximumScore: deleteField(),
+    approvedTaskCount,
+    approvedUserCount,
+    userPlanScores,
     taskIds: approved.map(task => task.id),
     lockedByUserId: KpiWorkflowState.user.uid,
     lockedByName: KpiWorkflowState.profile.fullName || '',
     lockedAt: serverTimestamp(),
     updatedAt: serverTimestamp()
   }, { merge: true });
-  await audit('LOCK_DEPARTMENT_PLAN', { departmentId, A: planScore });
+
+  await audit('LOCK_DEPARTMENT_PLAN', {
+    departmentId,
+    approvedTaskCount,
+    approvedUserCount
+  });
   await loadAll();
   message('Đã khóa đăng ký kế hoạch.', 'ok');
 }
@@ -982,6 +1015,18 @@ async function openDelegationManager() {
   const selectedPermissions = Array.isArray(active?.permissions) && active.permissions.length
     ? active.permissions.filter(permission => allowedPermissions.includes(permission))
     : ['APPROVE_REGISTRATIONS'];
+  const scopePresets = [
+    { value: 'APPROVE_REGISTRATIONS', label: 'Duyệt và trả lại đăng ký kế hoạch' },
+    { value: 'CONFIRM_EVALUATIONS', label: 'Xác nhận kết quả đánh giá' },
+    { value: 'LOCK_PLAN', label: 'Khóa hoặc mở lại đăng ký kế hoạch' },
+    { value: 'APPROVE_REGISTRATIONS|CONFIRM_EVALUATIONS', label: 'Duyệt đăng ký và xác nhận kết quả' },
+    { value: 'APPROVE_REGISTRATIONS|LOCK_PLAN', label: 'Duyệt đăng ký và khóa/mở kế hoạch' },
+    { value: 'CONFIRM_EVALUATIONS|LOCK_PLAN', label: 'Xác nhận kết quả và khóa/mở kế hoạch' },
+    { value: 'APPROVE_REGISTRATIONS|CONFIRM_EVALUATIONS|LOCK_PLAN', label: 'Toàn bộ quyền quản lý kế hoạch' }
+  ];
+  const selectedScope = allowedPermissions
+    .filter(permission => selectedPermissions.includes(permission))
+    .join('|') || 'APPROVE_REGISTRATIONS';
   const activeStatus = active
     ? `<div class="kpi-delegation-active-note"><strong>Ủy quyền đang có hiệu lực</strong><span>${esc(active.delegateName || 'Phó Trưởng phòng')} · ${dateVi(active.startDate)} – ${dateVi(active.endDate)}</span><small>Có thể hủy ngay khi Trưởng phòng trở lại làm việc; dữ liệu ủy quyền cũ vẫn được lưu để đối chiếu.</small></div>`
     : '';
@@ -1000,11 +1045,7 @@ async function openDelegationManager() {
         <label class="kpi-field"><span>Từ ngày</span><input id="delegationStart" type="date" value="${active?.startDate || todayKey()}"></label>
         <label class="kpi-field"><span>Đến ngày</span><input id="delegationEnd" type="date" value="${active?.endDate || KpiWorkflowState.period?.endDate || ''}"></label>
       </div>
-      <fieldset class="kpi-delegation-scope"><legend>Phạm vi ủy quyền</legend><div class="kpi-delegation-options">
-        <label class="kpi-delegation-option"><input type="checkbox" value="APPROVE_REGISTRATIONS" data-delegation-permission ${selectedPermissions.includes('APPROVE_REGISTRATIONS') ? 'checked' : ''}><span>Duyệt và trả lại đăng ký kế hoạch</span></label>
-        <label class="kpi-delegation-option"><input type="checkbox" value="CONFIRM_EVALUATIONS" data-delegation-permission ${selectedPermissions.includes('CONFIRM_EVALUATIONS') ? 'checked' : ''}><span>Xác nhận kết quả đánh giá</span></label>
-        <label class="kpi-delegation-option"><input type="checkbox" value="LOCK_PLAN" data-delegation-permission ${selectedPermissions.includes('LOCK_PLAN') ? 'checked' : ''}><span>Khóa hoặc mở lại đăng ký kế hoạch</span></label>
-      </div><p class="kpi-delegation-help">Trưởng phòng và Phó Trưởng phòng đều được xem báo cáo tổng hợp của Phòng/Khu, không cần thiết lập ủy quyền cho quyền xem báo cáo.</p></fieldset>
+      <label class="kpi-field kpi-delegation-scope-select"><span>Phạm vi ủy quyền</span><select id="delegationScope">${scopePresets.map(option => `<option value="${option.value}" ${selectedScope === option.value ? 'selected' : ''}>${esc(option.label)}</option>`).join('')}</select></label>
       <label class="kpi-field kpi-delegation-reason"><span>Lý do</span><textarea id="delegationReason" rows="3" placeholder="Ví dụ: Nghỉ phép, đi công tác…">${esc(active?.reason || '')}</textarea></label>
     </div>`,
     footer
@@ -1015,7 +1056,7 @@ async function openDelegationManager() {
     const reason = clean(el('delegationReason').value);
     const startDate = clean(el('delegationStart').value);
     const endDate = clean(el('delegationEnd').value);
-    const permissions = [...root.querySelectorAll('[data-delegation-permission]:checked')].map(input => input.value);
+    const permissions = clean(el('delegationScope').value).split('|').filter(permission => allowedPermissions.includes(permission));
     if (!delegateUserId) return alert('Hãy chọn Phó Trưởng phòng được ủy quyền.');
     if (!reason) return alert('Phải nhập lý do ủy quyền.');
     if (!permissions.length) return alert('Hãy chọn ít nhất một phạm vi ủy quyền.');
