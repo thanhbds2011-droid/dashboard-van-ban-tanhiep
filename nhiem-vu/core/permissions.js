@@ -99,15 +99,22 @@ export const Permissions = Object.freeze({
   },
 
   canCreatePeriod() {
-    return this.isAdmin();
+    return this.canManageEvaluationPeriods();
   },
 
   canManageEvaluationPeriods() {
-    return this.isAdmin();
+    const user = UserContext.getUser();
+    return this.isDepartmentHead(user)
+      && clean(user?.departmentId).toUpperCase() === "TCHC";
   },
 
   canRegisterStandardTasks() {
     return this.isStaff() || this.isDepartmentLeader();
+  },
+
+  canManageStandardTasks(hasDelegation = false) {
+    return this.isDepartmentHead()
+      || (this.isStaff() && hasDelegation === true);
   },
 
   canCreateUnexpectedTask() {
@@ -139,7 +146,7 @@ export const Permissions = Object.freeze({
   },
 
   canLockDepartmentPlan(hasDelegation = false) {
-    return this.isAdmin() || this.isDepartmentHead() || (this.isDepartmentDeputy() && hasDelegation === true);
+    return this.isDepartmentHead() || (this.isDepartmentDeputy() && hasDelegation === true);
   },
 
   canUnlockDepartmentPlan(hasDelegation = false) {
