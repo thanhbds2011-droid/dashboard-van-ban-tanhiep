@@ -163,11 +163,9 @@ function mount() {
       <div id="kpiReviewList" class="kpi-hidden"></div>
     </div>
     <section id="kpiAdminBox" class="kpi-card kpi-admin-danger kpi-hidden kpi-no-print">
-      <h3>Quản trị kỳ đánh giá</h3>
-      <p>Chỉ thực hiện sau khi đã sao lưu và hoàn tất hồ sơ báo cáo của kỳ.</p>
+      <h3>Quản lý dữ liệu kỳ đánh giá</h3>
+      <p>Chỉ sử dụng khi cần hủy dữ liệu nghiệp vụ sau khi đã sao lưu đầy đủ.</p>
       <div class="kpi-actions">
-        <button id="kpiInitPilot" class="kpi-button secondary" type="button">Tạo kỳ mới</button>
-        <button id="kpiCompletePeriod" class="kpi-button secondary" type="button">Kết thúc kỳ</button>
         <button id="kpiDeletePeriod" class="kpi-button danger" type="button">Hủy dữ liệu nghiệp vụ trong kỳ</button>
       </div>
     </section>`;
@@ -264,7 +262,7 @@ function periodStatusLabel(period) {
 }
 
 function openPeriodManager() {
-  if (!activeRole('ADMIN')) return;
+  if (!Permissions.canManageEvaluationPeriods()) return;
   const rows = [...KpiWorkflowState.periods]
     .sort((a,b) => clean(b.startDate).localeCompare(clean(a.startDate)))
     .map(period => `<tr>
@@ -293,7 +291,7 @@ function openPeriodManager() {
 
 function openEditPeriod(periodId) {
   const period = KpiWorkflowState.periods.find(item => item.id === periodId);
-  if (!period || !activeRole('ADMIN')) return;
+  if (!period || !Permissions.canManageEvaluationPeriods()) return;
   modal('Sửa kỳ đánh giá', `<form class="kpi-form-grid">
     <div class="kpi-field"><label>Mã kỳ</label><input value="${esc(period.id)}" disabled></div>
     <div class="kpi-field"><label>Tên kỳ</label><input id="editPeriodName" value="${esc(period.name || '')}" required></div>
@@ -312,7 +310,7 @@ function openEditPeriod(periodId) {
 }
 
 async function activatePeriod(periodId) {
-  if (!activeRole('ADMIN')) return;
+  if (!Permissions.canManageEvaluationPeriods()) return;
   if (KpiWorkflowState.periods.some(period => period.active === true && period.id !== periodId)) return alert('Đang có một kỳ hoạt động. Hãy kết thúc kỳ đó trước.');
   await updateDoc(doc(db,'evaluationPeriods',periodId), { active:true, status:'ACTIVE', activatedAt:serverTimestamp(), activatedByUserId:KpiWorkflowState.user.uid, updatedAt:serverTimestamp() });
   await audit('ACTIVATE_PERIOD',{periodId});
@@ -320,7 +318,7 @@ async function activatePeriod(periodId) {
 }
 
 async function completePeriodById(periodId) {
-  if (!activeRole('ADMIN')) return;
+  if (!Permissions.canManageEvaluationPeriods()) return;
   if (!confirm(`Kết thúc kỳ ${periodId}? Sau khi kết thúc, nhiệm vụ mới sẽ không được gắn vào kỳ này.`)) return;
   await updateDoc(doc(db,'evaluationPeriods',periodId), { active:false, status:'COMPLETED', completedAt:serverTimestamp(), completedByUserId:KpiWorkflowState.user.uid, updatedAt:serverTimestamp() });
   await audit('COMPLETE_PERIOD',{periodId});
@@ -339,7 +337,7 @@ async function loadAll() {
     const periodSnapshot = await getDocs(collection(db, 'evaluationPeriods'));
     KpiWorkflowState.periods = periodSnapshot.docs.map(item => ({ id: item.id, ...item.data() }));
     KpiWorkflowState.period = KpiWorkflowState.periods.find(period => period.active === true && period.status !== 'DELETED')
-      || (activeRole('ADMIN') ? KpiWorkflowState.periods.filter(period => period.status === 'COMPLETED').sort((a, b) => clean(b.endDate).localeCompare(clean(a.endDate)))[0] : null)
+      || (Permissions.canManageEvaluationPeriods() ? KpiWorkflowState.periods.filter(period => period.status === 'COMPLETED').sort((a, b) => clean(b.endDate).localeCompare(clean(a.endDate)))[0] : null)
       || null;
 
     if (!KpiWorkflowState.period) {
@@ -353,7 +351,7 @@ async function loadAll() {
       KpiWorkflowState.delegations = [];
       KpiWorkflowState.kpiProfile = null;
       render();
-      message(activeRole('ADMIN') ? 'Chưa có kỳ đánh giá đang hoạt động. Vui lòng tạo hoặc kích hoạt một kỳ đánh giá.' : 'Chưa có kỳ đánh giá đang hoạt động.');
+      message(Permissions.canManageEvaluationPeriods() ? 'Chưa có kỳ đánh giá đang hoạt động. Trưởng phòng TCHC có thể tạo hoặc kích hoạt kỳ đánh giá.' : 'Chưa có kỳ đánh giá đang hoạt động.');
       return;
     }
 
@@ -1127,8 +1125,7 @@ async function unlockDepartmentPlan() {
     return;
   }
   const hasEvaluation = KpiWorkflowState.evaluations.some(item => ['PENDING_REVIEW', 'CONFIRMED'].includes(item.status));
-  if (hasEvaluation && !activeRole('ADMIN')) {
-    alert('Kỳ đã bắt đầu đánh giá. Chỉ quản trị viên được mở lại đăng ký.');
+  if (hasEvaluation && !confirm('Kỳ đã phát sinh dữ liệu tự đánh giá hoặc xác nhận. Trưởng phòng vẫn muốn mở lại đăng ký kế hoạch của Phòng/Khu?')) {
     return;
   }
   const reason = prompt('Nhập lý do mở lại đăng ký kế hoạch:');
@@ -1146,7 +1143,7 @@ async function unlockDepartmentPlan() {
 }
 
 function initializePilotPeriod(){
-  if(!activeRole('ADMIN')) return;
+  if(!Permissions.canManageEvaluationPeriods()) return;
   const next = nextQuarterDefaults();
   modal('Tạo kỳ đánh giá', `<form id="kpiPeriodForm" class="kpi-form-grid">
     <div class="kpi-field"><label>Mã kỳ</label><input id="kpiPeriodIdInput" value="${esc(next.id)}" required></div>
@@ -1176,6 +1173,7 @@ function nextQuarterDefaults(){
 }
 
 async function createPeriodFromForm(){
+  if (!Permissions.canManageEvaluationPeriods()) return;
   const periodId=clean(el('kpiPeriodIdInput').value).toUpperCase();
   const name=clean(el('kpiPeriodNameInput').value);
   const startDate=clean(el('kpiPeriodStartInput').value);
@@ -1192,7 +1190,7 @@ async function createPeriodFromForm(){
   await audit('CREATE_PERIOD',{periodId,startDate,endDate});
   closeModal(); await loadAll();
 }
-async function completePeriod(){if(!activeRole('ADMIN')||!KpiWorkflowState.period)return;if(!confirm('Xác nhận đã in và lưu hồ sơ giấy, sau đó kết thúc kỳ?'))return;await updateDoc(doc(db,'evaluationPeriods',KpiWorkflowState.period.id),{status:'COMPLETED',active:false,completedByUserId:KpiWorkflowState.user.uid,completedAt:serverTimestamp(),updatedAt:serverTimestamp()});await audit('COMPLETE_PERIOD',{periodId:KpiWorkflowState.period.id});await loadAll();}
+async function completePeriod(){if(!Permissions.canManageEvaluationPeriods()||!KpiWorkflowState.period)return;if(!confirm('Xác nhận đã in và lưu hồ sơ giấy, sau đó kết thúc kỳ?'))return;await updateDoc(doc(db,'evaluationPeriods',KpiWorkflowState.period.id),{status:'COMPLETED',active:false,completedByUserId:KpiWorkflowState.user.uid,completedAt:serverTimestamp(),updatedAt:serverTimestamp()});await audit('COMPLETE_PERIOD',{periodId:KpiWorkflowState.period.id});await loadAll();}
 async function deletePeriodData(){
   if(!activeRole('ADMIN')||!KpiWorkflowState.period)return;
   const reason=prompt('Nhập lý do hủy dữ liệu nghiệp vụ trong kỳ:');if(!clean(reason))return;
