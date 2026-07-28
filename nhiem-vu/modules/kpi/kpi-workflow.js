@@ -35,6 +35,20 @@ const esc = (value) => clean(value).replace(/[&<>'"]/g, (c) => ({'&':'&amp;','<'
 const fmt = (n) => Number(n || 0).toLocaleString('vi-VN', { maximumFractionDigits: 2 });
 const dateVi = (key) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(clean(key)); return m ? `${m[3]}/${m[2]}/${m[1]}` : clean(key); };
 const normalizeDepartment = (value) => clean(value).toUpperCase();
+const normalizeUserRecord = (data = {}, documentId = '') => {
+  const id = clean(documentId || data.id || data.uid);
+  return {
+    ...data,
+    id,
+    uid: id,
+    email: clean(data.email).toLowerCase(),
+    role: clean(data.role).toUpperCase(),
+    departmentId: normalizeDepartment(data.departmentId),
+    position: clean(data.position),
+    leaderLevel: clean(data.leaderLevel).toUpperCase(),
+    active: data.active === true
+  };
+};
 const activeRole = (...roles) => KpiWorkflowState.profile?.active === true && roles.includes(KpiWorkflowState.profile?.role);
 const globalRole = () => Permissions.canViewAllDepartments();
 const isLeader = () => Permissions.isDepartmentLeader();
@@ -309,7 +323,7 @@ async function completePeriodById(periodId) {
 
 async function readProfile(uid) {
   const snap = await getDoc(doc(db, 'users', uid));
-  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+  return snap.exists() ? normalizeUserRecord(snap.data(), snap.id) : null;
 }
 
 async function loadAll() {
@@ -384,11 +398,11 @@ async function loadAll() {
       : evaluationDepartmentScope
         ? query(collection(db, 'commonCriteriaAssessments'), where('periodId', '==', periodId), where('departmentId', '==', departmentId))
         : query(collection(db, 'commonCriteriaAssessments'), where('periodId', '==', periodId), where('userId', '==', KpiWorkflowState.user.uid));
-    const usersRequest = globalRole()
+    // Trưởng/Phó phòng cần đọc danh sách tài khoản rồi lọc theo Phòng/Khu ở phía ứng dụng.
+    // Không truy vấn departmentId tuyệt đối vì dữ liệu cũ có thể khác chữ hoa/thường hoặc có khoảng trắng.
+    const usersRequest = (globalRole() || userDepartmentScope)
       ? getDocs(collection(db, 'users'))
-      : userDepartmentScope
-        ? getDocs(query(collection(db, 'users'), where('departmentId', '==', departmentId)))
-        : Promise.resolve(null);
+      : Promise.resolve(null);
     const profileRequest = getDocs(query(collection(db, 'kpiProfiles'), where('userId', '==', KpiWorkflowState.user.uid)));
 
     const [usersSnapshot, tasksSnapshot, registrationsSnapshot, evaluationsSnapshot, commonSnapshot, planSnapshot, profileSnapshot] = await Promise.all([
@@ -401,11 +415,18 @@ async function loadAll() {
       profileRequest
     ]);
 
-    KpiWorkflowState.users = usersSnapshot
-      ? usersSnapshot.docs.map(item => ({ id: item.id, ...item.data() }))
-      : [{ id: KpiWorkflowState.user.uid, ...KpiWorkflowState.profile }];
+    const loadedUsers = usersSnapshot
+      ? usersSnapshot.docs.map(item => normalizeUserRecord(item.data(), item.id))
+      : [normalizeUserRecord(KpiWorkflowState.profile, KpiWorkflowState.user.uid)];
+
+    KpiWorkflowState.users = globalRole()
+      ? loadedUsers
+      : userDepartmentScope
+        ? loadedUsers.filter(item => normalizeDepartment(item.departmentId) === departmentId)
+        : loadedUsers.filter(item => item.id === KpiWorkflowState.user.uid);
+
     if (!KpiWorkflowState.users.some(item => item.id === KpiWorkflowState.user.uid)) {
-      KpiWorkflowState.users.push({ id: KpiWorkflowState.user.uid, ...KpiWorkflowState.profile });
+      KpiWorkflowState.users.push(normalizeUserRecord(KpiWorkflowState.profile, KpiWorkflowState.user.uid));
     }
     KpiWorkflowState.tasks = tasksSnapshot.docs.map(item => ({ id: item.id, ...item.data() }));
     KpiWorkflowState.registrations = registrationsSnapshot.docs.map(item => ({ id: item.id, ...item.data() }));
@@ -884,7 +905,7 @@ function openTaskInfo(taskId){const t=KpiWorkflowState.tasks.find(x=>x.id===task
 
 function openCommonCriteria(){
   if(!KpiWorkflowState.period)return;
-  if(KpiWorkflowState.common?.status==='CONFIRMED'){alert('Tiêu chí chung đã được xác nhận và không thể chỉnh sửa.');return;}const items=KpiWorkflowState.common?.items||[];modal('Mẫu 01 · Nhóm tiêu chí chung 30 điểm',`<div class="kpi-criteria-list">${COMMON_CRITERIA.map(c=>{const v=items.find(x=>x.code===c.code)||{};return `<div class="kpi-criterion"><strong>${c.code}<br>${c.max} điểm</strong><p>${esc(c.text)}</p><div><select data-common-code="${c.code}"><option value="DAM_BAO" ${v.selfResult!=='KHONG_DAM_BAO'?'selected':''}>Đảm bảo</option><option value="KHONG_DAM_BAO" ${v.selfResult==='KHONG_DAM_BAO'?'selected':''}>Không đảm bảo</option></select><textarea data-common-note="${c.code}" rows="2" placeholder="Ghi chú/căn cứ">${esc(v.note||'')}</textarea></div></div>`;}).join('')}</div><div id="kpiCommonTotal" class="kpi-alert"></div>`, '<button class="kpi-button secondary" data-kpi-close type="button">Hủy</button><button id="kpiSaveCommon" class="kpi-button" type="button">Lưu tự đánh giá</button>');
+  if(KpiWorkflowState.common?.status==='CONFIRMED'){alert('Tiêu chí chung đã được xác nhận và không thể chỉnh sửa.');return;}const items=KpiWorkflowState.common?.items||[];modal('Mẫu 01 · Nhóm tiêu chí chung 30 điểm',`<div class="kpi-criteria-list">${COMMON_CRITERIA.map(c=>{const v=items.find(x=>x.code===c.code)||{};return `<div class="kpi-criterion"><strong class="kpi-criterion-score">${c.code}<br>${c.max} điểm</strong><p class="kpi-criterion-text">${esc(c.text)}</p><div class="kpi-criterion-controls"><select data-common-code="${c.code}" aria-label="Kết quả tiêu chí ${c.code}"><option value="DAM_BAO" ${v.selfResult!=='KHONG_DAM_BAO'?'selected':''}>Đảm bảo</option><option value="KHONG_DAM_BAO" ${v.selfResult==='KHONG_DAM_BAO'?'selected':''}>Không đảm bảo</option></select><textarea data-common-note="${c.code}" rows="2" placeholder="Ghi chú/căn cứ" aria-label="Ghi chú tiêu chí ${c.code}">${esc(v.note||'')}</textarea></div></div>`;}).join('')}</div><div id="kpiCommonTotal" class="kpi-alert"></div>`, '<button class="kpi-button secondary" data-kpi-close type="button">Hủy</button><button id="kpiSaveCommon" class="kpi-button" type="button">Lưu tự đánh giá</button>');
   const calc=()=>{let total=0;COMMON_CRITERIA.forEach(c=>{if(document.querySelector(`[data-common-code="${c.code}"]`)?.value==='DAM_BAO')total+=c.max;});el('kpiCommonTotal').textContent=`Tổng điểm tiêu chí chung: ${total}/30`;return total;};document.querySelectorAll('[data-common-code]').forEach(x=>x.addEventListener('change',calc));calc();
   el('kpiSaveCommon').addEventListener('click',async()=>{const data=COMMON_CRITERIA.map(c=>{const result=document.querySelector(`[data-common-code="${c.code}"]`).value;const note=clean(document.querySelector(`[data-common-note="${c.code}"]`).value);if(result==='KHONG_DAM_BAO'&&!note)throw new Error(`Tiêu chí ${c.code} không đảm bảo phải có căn cứ.`);return {code:c.code,max:c.max,text:c.text,selfResult:result,selfScore:result==='DAM_BAO'?c.max:0,note};});try{const total=data.reduce((s,x)=>s+x.selfScore,0);await setDoc(doc(db,'commonCriteriaAssessments',`${KpiWorkflowState.period.id}_${KpiWorkflowState.user.uid}`),{periodId:KpiWorkflowState.period.id,userId:KpiWorkflowState.user.uid,fullName:KpiWorkflowState.profile.fullName||'',departmentId:KpiWorkflowState.profile.departmentId||'',items:data,selfTotal:total,confirmedTotal:null,status:'SELF_COMPLETED',updatedAt:serverTimestamp(),createdAt:KpiWorkflowState.common?.createdAt||serverTimestamp()},{merge:true});await audit('SAVE_COMMON_CRITERIA',{score:total});closeModal();await loadAll();}catch(err){alert(err.message);}});
 }
@@ -896,7 +917,7 @@ function openCommonReview(assessmentId) {
   const allowed = activeRole('ADMIN') || ((isDepartmentHead() || hasActiveApprovalDelegation('CONFIRM_EVALUATIONS')) && normalizeDepartment(assessment.departmentId) === normalizeDepartment(KpiWorkflowState.profile.departmentId) && owner?.role === 'STAFF');
   if (!allowed) return;
   const items = assessment.items || [];
-  modal('Xác nhận Mẫu 01 · 30 điểm', `<p><strong>${esc(assessment.fullName)}</strong> · Tự chấm ${fmt(assessment.selfTotal)}/30</p><div class="kpi-criteria-list">${COMMON_CRITERIA.map(c=>{const v=items.find(x=>x.code===c.code)||{};const confirmed=v.confirmedResult||v.selfResult||'DAM_BAO';return `<div class="kpi-criterion"><strong>${c.code}<br>${c.max} điểm</strong><p>${esc(c.text)}<br><span class="kpi-small">Cá nhân: ${v.selfResult==='KHONG_DAM_BAO'?'Không đảm bảo':'Đảm bảo'}</span></p><div><select data-confirm-common-code="${c.code}"><option value="DAM_BAO" ${confirmed==='DAM_BAO'?'selected':''}>Đảm bảo</option><option value="KHONG_DAM_BAO" ${confirmed==='KHONG_DAM_BAO'?'selected':''}>Không đảm bảo</option></select><textarea data-confirm-common-note="${c.code}" rows="2" placeholder="Căn cứ khi điều chỉnh">${esc(v.confirmedNote||v.note||'')}</textarea></div></div>`;}).join('')}</div><div id="kpiConfirmCommonTotal" class="kpi-alert"></div>`, '<button class="kpi-button secondary" data-kpi-close type="button">Hủy</button><button id="kpiConfirmCommonSave" class="kpi-button" type="button">Xác nhận 30 điểm</button>');
+  modal('Xác nhận Mẫu 01 · 30 điểm', `<p><strong>${esc(assessment.fullName)}</strong> · Tự chấm ${fmt(assessment.selfTotal)}/30</p><div class="kpi-criteria-list">${COMMON_CRITERIA.map(c=>{const v=items.find(x=>x.code===c.code)||{};const confirmed=v.confirmedResult||v.selfResult||'DAM_BAO';return `<div class="kpi-criterion"><strong class="kpi-criterion-score">${c.code}<br>${c.max} điểm</strong><p class="kpi-criterion-text">${esc(c.text)}<br><span class="kpi-small">Cá nhân: ${v.selfResult==='KHONG_DAM_BAO'?'Không đảm bảo':'Đảm bảo'}</span></p><div class="kpi-criterion-controls"><select data-confirm-common-code="${c.code}" aria-label="Kết quả xác nhận tiêu chí ${c.code}"><option value="DAM_BAO" ${confirmed==='DAM_BAO'?'selected':''}>Đảm bảo</option><option value="KHONG_DAM_BAO" ${confirmed==='KHONG_DAM_BAO'?'selected':''}>Không đảm bảo</option></select><textarea data-confirm-common-note="${c.code}" rows="2" placeholder="Căn cứ khi điều chỉnh" aria-label="Căn cứ tiêu chí ${c.code}">${esc(v.confirmedNote||v.note||'')}</textarea></div></div>`;}).join('')}</div><div id="kpiConfirmCommonTotal" class="kpi-alert"></div>`, '<button class="kpi-button secondary" data-kpi-close type="button">Hủy</button><button id="kpiConfirmCommonSave" class="kpi-button" type="button">Xác nhận 30 điểm</button>');
   const calc=()=>{let total=0;COMMON_CRITERIA.forEach(c=>{if(document.querySelector(`[data-confirm-common-code="${c.code}"]`)?.value==='DAM_BAO')total+=c.max;});el('kpiConfirmCommonTotal').textContent=`Điểm xác nhận: ${total}/30`;return total;};
   document.querySelectorAll('[data-confirm-common-code]').forEach(input=>input.addEventListener('change',calc));calc();
   el('kpiConfirmCommonSave').addEventListener('click', async()=>{
@@ -945,29 +966,32 @@ async function lockDepartmentPlan() {
 async function openDelegationManager() {
   if (!Permissions.canDelegateApproval()) return;
   const departmentId = normalizeDepartment(KpiWorkflowState.profile.departmentId);
-  const deputies = KpiWorkflowState.users.filter(user =>
-    user.active === true &&
-    user.id !== KpiWorkflowState.user.uid &&
-    normalizeDepartment(user.departmentId) === departmentId &&
-    Permissions.isDepartmentDeputy({ id: user.id, uid: user.id, ...user })
-  );
+  const deputies = KpiWorkflowState.users.filter(user => {
+    const candidate = normalizeUserRecord(user, user.id || user.uid);
+    return candidate.active === true
+      && candidate.id !== KpiWorkflowState.user.uid
+      && normalizeDepartment(candidate.departmentId) === departmentId
+      && Permissions.isDepartmentDeputy(candidate);
+  });
   const active = KpiWorkflowState.delegations.find(item => item.active === true && item.delegatorUserId === KpiWorkflowState.user.uid);
   const selectedPermissions = Array.isArray(active?.permissions) && active.permissions.length
     ? active.permissions
     : ['APPROVE_REGISTRATIONS'];
   const root = modal('Ủy quyền Phó Trưởng phòng', `
-    <div class="kpi-form-grid">
-      <label class="kpi-field full"><span>Người được ủy quyền</span><select id="delegationUser"><option value="">-- Không ủy quyền --</option>${deputies.map(user => `<option value="${user.id}" ${active?.delegateUserId === user.id ? 'selected' : ''}>${esc(user.fullName || user.email)} — ${esc(user.position || 'Phó Trưởng phòng')} — ${esc(user.email || '')}</option>`).join('')}</select></label>
-      ${deputies.length ? '' : '<div class="kpi-alert full">Chưa tìm thấy tài khoản Phó Trưởng phòng hoạt động trong cùng Phòng/Khu. Hãy kiểm tra role, position hoặc leaderLevel của tài khoản.</div>'}
-      <label class="kpi-field"><span>Từ ngày</span><input id="delegationStart" type="date" value="${active?.startDate || todayKey()}"></label>
-      <label class="kpi-field"><span>Đến ngày</span><input id="delegationEnd" type="date" value="${active?.endDate || KpiWorkflowState.period?.endDate || ''}"></label>
-      <fieldset class="kpi-delegation-scope full"><legend>Phạm vi ủy quyền</legend>
-        <label><input type="checkbox" value="APPROVE_REGISTRATIONS" data-delegation-permission ${selectedPermissions.includes('APPROVE_REGISTRATIONS') ? 'checked' : ''}> Duyệt và trả lại đăng ký kế hoạch</label>
-        <label><input type="checkbox" value="CONFIRM_EVALUATIONS" data-delegation-permission ${selectedPermissions.includes('CONFIRM_EVALUATIONS') ? 'checked' : ''}> Xác nhận kết quả đánh giá</label>
-        <label><input type="checkbox" value="LOCK_PLAN" data-delegation-permission ${selectedPermissions.includes('LOCK_PLAN') ? 'checked' : ''}> Khóa hoặc mở lại đăng ký kế hoạch</label>
-        <label><input type="checkbox" value="VIEW_DEPARTMENT_REPORT" data-delegation-permission ${selectedPermissions.includes('VIEW_DEPARTMENT_REPORT') ? 'checked' : ''}> Xem báo cáo tổng hợp Phòng/Khu</label>
-      </fieldset>
-      <label class="kpi-field full"><span>Lý do</span><textarea id="delegationReason" rows="3">${esc(active?.reason || '')}</textarea></label>
+    <div class="kpi-delegation-form">
+      <label class="kpi-field kpi-delegation-person"><span>Người được ủy quyền</span><select id="delegationUser"><option value="">-- Không ủy quyền --</option>${deputies.map(user => `<option value="${user.id}" ${active?.delegateUserId === user.id ? 'selected' : ''}>${esc(user.fullName || user.email)} — ${esc(user.position || 'Phó Trưởng phòng')} — ${esc(user.email || '')}</option>`).join('')}</select></label>
+      ${deputies.length ? '' : '<div class="kpi-alert kpi-delegation-warning">Chưa tìm thấy Phó Trưởng phòng đang hoạt động trong cùng Phòng/Khu. Vui lòng kiểm tra lại thông tin tài khoản và đăng nhập lại một lần để hệ thống đồng bộ.</div>'}
+      <div class="kpi-delegation-dates">
+        <label class="kpi-field"><span>Từ ngày</span><input id="delegationStart" type="date" value="${active?.startDate || todayKey()}"></label>
+        <label class="kpi-field"><span>Đến ngày</span><input id="delegationEnd" type="date" value="${active?.endDate || KpiWorkflowState.period?.endDate || ''}"></label>
+      </div>
+      <fieldset class="kpi-delegation-scope"><legend>Phạm vi ủy quyền</legend><div class="kpi-delegation-options">
+        <label class="kpi-delegation-option"><input type="checkbox" value="APPROVE_REGISTRATIONS" data-delegation-permission ${selectedPermissions.includes('APPROVE_REGISTRATIONS') ? 'checked' : ''}><span>Duyệt và trả lại đăng ký kế hoạch</span></label>
+        <label class="kpi-delegation-option"><input type="checkbox" value="CONFIRM_EVALUATIONS" data-delegation-permission ${selectedPermissions.includes('CONFIRM_EVALUATIONS') ? 'checked' : ''}><span>Xác nhận kết quả đánh giá</span></label>
+        <label class="kpi-delegation-option"><input type="checkbox" value="LOCK_PLAN" data-delegation-permission ${selectedPermissions.includes('LOCK_PLAN') ? 'checked' : ''}><span>Khóa hoặc mở lại đăng ký kế hoạch</span></label>
+        <label class="kpi-delegation-option"><input type="checkbox" value="VIEW_DEPARTMENT_REPORT" data-delegation-permission ${selectedPermissions.includes('VIEW_DEPARTMENT_REPORT') ? 'checked' : ''}><span>Xem báo cáo tổng hợp Phòng/Khu</span></label>
+      </div></fieldset>
+      <label class="kpi-field kpi-delegation-reason"><span>Lý do</span><textarea id="delegationReason" rows="3">${esc(active?.reason || '')}</textarea></label>
     </div>`,
     '<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button><button id="saveDelegation" class="kpi-button" type="button">Lưu ủy quyền</button>'
   );
