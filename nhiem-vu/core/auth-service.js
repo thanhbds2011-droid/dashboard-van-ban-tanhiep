@@ -1,8 +1,11 @@
 /**
- * Production Final - Auth Service ổn định.
- * - Không để màn hình "Đang tải tài khoản" treo vô thời hạn.
- * - Tự tạo/đồng bộ users/{uid} từ accessAccounts/{email} khi cần.
- * - Hiển thị lỗi rõ ràng để người dùng thử lại hoặc đăng xuất.
+ * Dịch vụ xác thực và đồng bộ hồ sơ người dùng.
+ *
+ * Nguyên tắc:
+ * - accessAccounts/{email} là nguồn cấp quyền truy cập.
+ * - users/{uid} là hồ sơ vận hành gắn với UID Firebase thật.
+ * - Mỗi lần đăng nhập, các trường phân quyền trong users/{uid} được đối chiếu
+ *   với accessAccounts để thay đổi vai trò/chức vụ có hiệu lực ổn định.
  */
 
 import { FirebaseService } from "./firebase-service.js";
@@ -20,23 +23,28 @@ function withTimeout(promise, timeoutMs, message) {
   return Promise.race([promise, timeout]).finally(() => window.clearTimeout(timer));
 }
 
-function normalizeEmail(value) {
-  return String(value || "").trim().toLowerCase();
+function clean(value) {
+  return String(value ?? "").trim();
 }
 
-async function loadOrCreateProfile(firebaseUser) {
-  const profileRef = FirebaseService.doc(FirebaseService.db, "users", firebaseUser.uid);
-  let profileSnapshot = await withTimeout(
-    FirebaseService.getDoc(profileRef),
-    PROFILE_TIMEOUT_MS,
-    "Không tải được hồ sơ người dùng. Vui lòng kiểm tra kết nối mạng và thử lại."
-  );
+function normalizeEmail(value) {
+  return clean(value).toLowerCase();
+}
 
-  if (profileSnapshot.exists()) {
-    return profileSnapshot.data() || {};
-  }
+function normalizeRole(value) {
+  return clean(value).toUpperCase();
+}
 
-  const email = normalizeEmail(firebaseUser.email);
+function normalizeDepartment(value) {
+  return clean(value).toUpperCase();
+}
+
+function hasOwn(object, key) {
+  return Object.prototype.hasOwnProperty.call(object || {}, key);
+}
+
+async function readAccessAccount(firebaseUser) {
+  const email = normalizeEmail(firebaseUser?.email);
   if (!email) {
     throw new Error("Tài khoản Google không cung cấp email để kiểm tra quyền truy cập.");
   }
@@ -57,35 +65,129 @@ async function loadOrCreateProfile(firebaseUser) {
     throw new Error("Tài khoản hiện đã ngừng hoạt động.");
   }
 
-  const profile = {
-    email,
-    fullName: access.fullName || firebaseUser.displayName || email,
-    departmentId: access.departmentId || "",
-    role: access.role || "STAFF",
-    position: access.position || "",
-    teamId: access.teamId || "",
-    employeeCode: access.employeeCode || "",
-    kpiReviewerEmail: access.kpiReviewerEmail || "",
-    ...(access.leaderLevel ? { leaderLevel: access.leaderLevel } : {}),
-    ...(typeof access.isDepartmentHead === "boolean" ? { isDepartmentHead: access.isDepartmentHead } : {}),
-    taskNotificationCoordinator: access.taskNotificationCoordinator === true,
-    active: true,
-    createdAt: FirebaseService.serverTimestamp(),
-    updatedAt: FirebaseService.serverTimestamp()
-  };
+  return { email, access };
+}
 
-  if (!profile.departmentId || !profile.role) {
-    throw new Error("Dữ liệu accessAccounts thiếu departmentId hoặc role.");
+function buildProfileFromAccess(firebaseUser, accessEmail, access, existingProfile = null) {
+  const role = normalizeRole(access.role);
+  const departmentId = normalizeDepartment(access.departmentId);
+
+  if (!role || !departmentId) {
+    throw new Error("Dữ liệu tài khoản được cấp quyền thiếu Phòng/Khu hoặc vai trò.");
   }
 
-  await withTimeout(
-    FirebaseService.setDoc(profileRef, profile, { merge: true }),
-    PROFILE_TIMEOUT_MS,
-    "Không thể khởi tạo hồ sơ người dùng. Vui lòng liên hệ quản trị viên."
+  const profile = {
+    email: accessEmail,
+    fullName: clean(access.fullName) || clean(existingProfile?.fullName) || clean(firebaseUser.displayName) || accessEmail,
+    departmentId,
+    role,
+    teamId: clean(access.teamId) || clean(existingProfile?.teamId),
+    employeeCode: clean(access.employeeCode) || clean(existingProfile?.employeeCode),
+    kpiReviewerEmail: normalizeEmail(access.kpiReviewerEmail) || normalizeEmail(existingProfile?.kpiReviewerEmail),
+    taskNotificationCoordinator: access.taskNotificationCoordinator === true,
+    active: true
+  };
+
+  // Các trường xác định Trưởng/Phó phòng chỉ lấy từ accessAccounts khi có.
+  // Nếu accessAccounts chưa khai báo thì giữ nguyên dữ liệu đang có, không tự suy đoán.
+  if (hasOwn(access, "position")) {
+    profile.position = clean(access.position);
+  } else if (hasOwn(existingProfile, "position")) {
+    profile.position = clean(existingProfile.position);
+  }
+
+  if (hasOwn(access, "leaderLevel")) {
+    profile.leaderLevel = normalizeRole(access.leaderLevel);
+  } else if (hasOwn(existingProfile, "leaderLevel")) {
+    profile.leaderLevel = normalizeRole(existingProfile.leaderLevel);
+  }
+
+  if (typeof access.isDepartmentHead === "boolean") {
+    profile.isDepartmentHead = access.isDepartmentHead;
+  } else if (typeof existingProfile?.isDepartmentHead === "boolean") {
+    profile.isDepartmentHead = existingProfile.isDepartmentHead;
+  }
+
+  return profile;
+}
+
+function profileNeedsSync(existingProfile, desiredProfile) {
+  if (!existingProfile) return true;
+
+  const stringFields = [
+    "email",
+    "fullName",
+    "departmentId",
+    "role",
+    "position",
+    "teamId",
+    "employeeCode",
+    "kpiReviewerEmail",
+    "leaderLevel"
+  ];
+
+  if (stringFields.some(field => clean(existingProfile[field]) !== clean(desiredProfile[field]))) {
+    return true;
+  }
+
+  if (existingProfile.active !== true) return true;
+  if ((existingProfile.taskNotificationCoordinator === true) !== (desiredProfile.taskNotificationCoordinator === true)) return true;
+
+  const existingHead = typeof existingProfile.isDepartmentHead === "boolean" ? existingProfile.isDepartmentHead : null;
+  const desiredHead = typeof desiredProfile.isDepartmentHead === "boolean" ? desiredProfile.isDepartmentHead : null;
+  return existingHead !== desiredHead;
+}
+
+async function loadOrCreateProfile(firebaseUser) {
+  const profileRef = FirebaseService.doc(FirebaseService.db, "users", firebaseUser.uid);
+
+  const [profileSnapshot, accessResult] = await Promise.all([
+    withTimeout(
+      FirebaseService.getDoc(profileRef),
+      PROFILE_TIMEOUT_MS,
+      "Không tải được hồ sơ người dùng. Vui lòng kiểm tra kết nối mạng và thử lại."
+    ),
+    readAccessAccount(firebaseUser)
+  ]);
+
+  const existingProfile = profileSnapshot.exists() ? (profileSnapshot.data() || {}) : null;
+  const desiredProfile = buildProfileFromAccess(
+    firebaseUser,
+    accessResult.email,
+    accessResult.access,
+    existingProfile
   );
 
-  profileSnapshot = await FirebaseService.getDoc(profileRef);
-  return profileSnapshot.exists() ? profileSnapshot.data() : profile;
+  if (!existingProfile) {
+    await withTimeout(
+      FirebaseService.setDoc(profileRef, {
+        ...desiredProfile,
+        createdAt: FirebaseService.serverTimestamp(),
+        updatedAt: FirebaseService.serverTimestamp()
+      }, { merge: true }),
+      PROFILE_TIMEOUT_MS,
+      "Không thể khởi tạo hồ sơ người dùng. Vui lòng liên hệ quản trị viên."
+    );
+  } else if (profileNeedsSync(existingProfile, desiredProfile)) {
+    await withTimeout(
+      FirebaseService.setDoc(profileRef, {
+        ...desiredProfile,
+        updatedAt: FirebaseService.serverTimestamp()
+      }, { merge: true }),
+      PROFILE_TIMEOUT_MS,
+      "Không thể đồng bộ thay đổi vai trò hoặc chức vụ. Vui lòng liên hệ quản trị viên."
+    );
+  }
+
+  const refreshedSnapshot = await withTimeout(
+    FirebaseService.getDoc(profileRef),
+    PROFILE_TIMEOUT_MS,
+    "Không tải được hồ sơ sau khi đồng bộ. Vui lòng thử lại."
+  );
+
+  return refreshedSnapshot.exists()
+    ? (refreshedSnapshot.data() || desiredProfile)
+    : desiredProfile;
 }
 
 export const AuthService = Object.freeze({
@@ -109,7 +211,7 @@ export const AuthService = Object.freeze({
       throw new Error("Tài khoản hiện đã ngừng hoạt động.");
     }
     if (!profile.role || !profile.departmentId) {
-      throw new Error("Hồ sơ người dùng thiếu role hoặc departmentId.");
+      throw new Error("Hồ sơ người dùng thiếu vai trò hoặc Phòng/Khu.");
     }
 
     return UserContext.setUser({
