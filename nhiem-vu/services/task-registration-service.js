@@ -1,6 +1,6 @@
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js";
+import { Permissions } from "../core/permissions.js?v=20260728.V1_1_2";
 import { TaskLogService } from "./task-log-service.js";
 
 const clean = value => String(value ?? "").trim();
@@ -280,6 +280,8 @@ export const TaskRegistrationService = Object.freeze({
         userName: user.fullName || "",
         userPosition: user.position || "",
         userRole: user.role || "",
+        userLeaderLevel: user.leaderLevel || "",
+        userIsDepartmentHead: user.isDepartmentHead === true,
         reviewerEmail: user.role === "DEPARTMENT_LEADER" ? lower(user.kpiReviewerEmail) : "",
         workType: "THUONG_XUYEN",
         baseScore: Number(item.baseScore || 0),
@@ -287,6 +289,7 @@ export const TaskRegistrationService = Object.freeze({
         maximumConvertedScore: Number(item.maximumConvertedScore || item.baseScore || 0),
         mandatoryEvidence: item.mandatoryEvidence || "",
         status: "PENDING",
+        taskId: null,
         active: true,
         registeredAt: FirebaseService.serverTimestamp(),
         createdAt: FirebaseService.serverTimestamp(),
@@ -344,10 +347,10 @@ export const TaskRegistrationService = Object.freeze({
   },
 
   async cancelRegistration(registration) {
-    if (!Permissions.canDeleteRejectedRegistration(registration)) {
-      throw new Error("Tài khoản không có quyền xóa đăng ký này.");
+    if (!Permissions.canCancelRegistration(registration)) {
+      throw new Error("Tài khoản không có quyền hủy đăng ký này.");
     }
-    if (registration.taskId) throw new Error("Đăng ký đã hình thành nhiệm vụ nên không thể xóa tại đây.");
+    if (registration.taskId) throw new Error("Đăng ký đã hình thành nhiệm vụ nên không thể hủy tại đây.");
     await FirebaseService.deleteDoc(
       FirebaseService.doc(FirebaseService.db, "taskRegistrations", registration.id)
     );
