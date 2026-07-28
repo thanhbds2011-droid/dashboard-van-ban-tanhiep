@@ -1,9 +1,9 @@
-const CACHE_NAME = "nhiem-vu-20260728-v1-1-4";
+const CACHE_NAME = "nhiem-vu-20260728-v1-1-5";
 const SHELL = [
   "./",
   "./index.html",
-  "./v3.css?v=20260728.V1_1_4",
-  "./kpi.css?v=20260728.V1_1_4",
+  "./v3.css?v=20260728.V1_1_5",
+  "./kpi.css?v=20260728.V1_1_5",
   "./offline.html",
   "./manifest.webmanifest",
   "./icons/icon-192.png",
