@@ -1,44 +1,110 @@
 /**
- * Production Final Complete - UI permissions.
- * Firestore Rules remains the authoritative security layer.
+ * Lớp kiểm tra quyền dùng thống nhất cho giao diện.
+ * Firestore Security Rules vẫn là lớp kiểm soát bắt buộc ở phía dữ liệu.
  */
 import { UserContext } from "./user-context.js";
 
-function normalize(value) {
-  return String(value ?? "").trim().toLowerCase();
+function clean(value) {
+  return String(value ?? "").trim();
 }
 
-function isDeputyPosition(position) {
-  const text = normalize(position);
-  return text.includes("phó trưởng") || text.includes("pho truong") || text.startsWith("phó ") || text.startsWith("pho ");
+function normalize(value) {
+  return clean(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .toLowerCase()
+    .replace(/[._-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function leaderLevel(user) {
+  const explicit = clean(user?.leaderLevel).toUpperCase();
+  if (["HEAD", "DEPARTMENT_HEAD", "TRUONG"].includes(explicit)) return "HEAD";
+  if (["DEPUTY", "DEPARTMENT_DEPUTY", "PHO"].includes(explicit)) return "DEPUTY";
+  if (user?.isDepartmentHead === true) return "HEAD";
+  if (user?.isDepartmentHead === false && user?.role === "DEPARTMENT_LEADER") return "DEPUTY";
+
+  const position = normalize(user?.position);
+  if (!position) return "";
+
+  const deputyPatterns = [
+    /^pho\s+truong\s+(phong|khu)\b/,
+    /^pho\s+(phong|khu)\b/,
+    /^p\s*truong\s+(phong|khu)\b/,
+    /^ptp\b/,
+    /^ptk\b/
+  ];
+  if (deputyPatterns.some(pattern => pattern.test(position))) return "DEPUTY";
+
+  const headPatterns = [
+    /^truong\s+(phong|khu)\b/,
+    /^quyen\s+truong\s+(phong|khu)\b/,
+    /^phu\s+trach\s+(phong|khu)\b/
+  ];
+  if (headPatterns.some(pattern => pattern.test(position))) return "HEAD";
+
+  return "";
+}
+
+function activeUser(user = UserContext.getUser()) {
+  return Boolean(user?.uid && user?.active === true);
 }
 
 export const Permissions = Object.freeze({
-  isAdmin() { return UserContext.hasRole("ADMIN"); },
-  isDirector() { return UserContext.hasRole("DIRECTOR"); },
-  isDepartmentLeader() { return UserContext.hasRole("DEPARTMENT_LEADER"); },
-  isStaff() { return UserContext.hasRole("STAFF"); },
-
-  isDepartmentHead() {
-    const user = UserContext.getUser();
-    return Boolean(user?.role === "DEPARTMENT_LEADER" && !isDeputyPosition(user.position));
+  getLeaderLevel(user = UserContext.getUser()) {
+    return leaderLevel(user);
   },
 
-  isDepartmentDeputy() {
-    const user = UserContext.getUser();
-    return Boolean(user?.role === "DEPARTMENT_LEADER" && isDeputyPosition(user.position));
+  isAdmin() {
+    return UserContext.hasRole("ADMIN");
+  },
+
+  isDirector() {
+    return UserContext.hasRole("DIRECTOR");
+  },
+
+  isDepartmentLeader() {
+    return UserContext.hasRole("DEPARTMENT_LEADER");
+  },
+
+  isStaff() {
+    return UserContext.hasRole("STAFF");
   },
 
   isTchcCoordinator() {
-    const user = UserContext.getUser();
+    return UserContext.hasRole("TCHC_COORDINATOR");
+  },
+
+  isDepartmentHead(user = UserContext.getUser()) {
     return Boolean(
-      user?.departmentId === "TCHC" &&
-      ["ADMIN", "TCHC_COORDINATOR", "DEPARTMENT_LEADER"].includes(user.role)
+      activeUser(user) &&
+      clean(user?.role).toUpperCase() === "DEPARTMENT_LEADER" &&
+      leaderLevel(user) === "HEAD"
     );
   },
 
-  canAccessAdmin() { return this.isAdmin(); },
-  canCreatePeriod() { return this.isAdmin(); },
+  isDepartmentDeputy(user = UserContext.getUser()) {
+    return Boolean(
+      activeUser(user) &&
+      clean(user?.role).toUpperCase() === "DEPARTMENT_LEADER" &&
+      leaderLevel(user) === "DEPUTY"
+    );
+  },
+
+  canAccessAdmin() {
+    return this.isAdmin();
+  },
+
+  canCreatePeriod() {
+    return this.isAdmin();
+  },
+
+  canManageEvaluationPeriods() {
+    return this.isAdmin();
+  },
 
   canRegisterStandardTasks() {
     return this.isStaff() || this.isDepartmentLeader();
@@ -56,28 +122,53 @@ export const Permissions = Object.freeze({
     return this.canCreateUnexpectedTask();
   },
 
-  canApproveStaffRegistrations() {
-    return this.isAdmin() || this.isDepartmentHead();
+  canApproveStaffRegistrations(hasDelegation = false) {
+    return this.isAdmin() || this.isDepartmentHead() || (this.isDepartmentDeputy() && hasDelegation === true);
   },
 
-  canViewStaffRegistrations() {
-    return this.isAdmin() || this.isDirector() || this.isDepartmentLeader();
+  canViewStaffRegistrations(hasDelegation = false) {
+    return this.isAdmin() || this.isDirector() || this.isDepartmentHead() || (this.isDepartmentDeputy() && hasDelegation === true);
   },
 
-  canApproveLeaderRegistrations() {
-    return this.isAdmin() || this.isDirector() || this.isDepartmentHead();
+  canApproveLeaderRegistrations(hasDelegation = false) {
+    return this.isAdmin() || this.isDirector() || this.isDepartmentHead() || (this.isDepartmentDeputy() && hasDelegation === true);
   },
 
-  canApprovePlan() {
-    return this.canApproveStaffRegistrations() || this.canApproveLeaderRegistrations();
+  canApprovePlan(hasDelegation = false) {
+    return this.canApproveStaffRegistrations(hasDelegation) || this.canApproveLeaderRegistrations(hasDelegation);
   },
 
-  canLockDepartmentPlan() {
-    return this.isAdmin() || this.isDepartmentHead();
+  canLockDepartmentPlan(hasDelegation = false) {
+    return this.isAdmin() || this.isDepartmentHead() || (this.isDepartmentDeputy() && hasDelegation === true);
   },
 
-  canManageTestData() {
-    return this.isAdmin() || this.isDepartmentHead();
+  canUnlockDepartmentPlan(hasDelegation = false) {
+    return this.canLockDepartmentPlan(hasDelegation);
+  },
+
+  canDelegateApproval() {
+    return this.isDepartmentHead();
+  },
+
+  canConfirmEvaluations(hasDelegation = false) {
+    return this.isAdmin() || this.isDirector() || this.isDepartmentHead() || (this.isDepartmentDeputy() && hasDelegation === true);
+  },
+
+  canViewDepartmentReport(hasDelegation = false) {
+    return this.isAdmin() || this.isDirector() || this.isTchcCoordinator() || this.isDepartmentHead() || (this.isDepartmentDeputy() && hasDelegation === true);
+  },
+
+  canDeleteRejectedRegistration(registration) {
+    const user = UserContext.getUser();
+    if (!activeUser(user) || !registration || registration.taskId) return false;
+    if (registration.userId === user.uid) {
+      return ["PENDING", "REJECTED"].includes(clean(registration.status).toUpperCase());
+    }
+    return (
+      (this.isAdmin() || this.isDepartmentLeader()) &&
+      clean(registration.departmentId).toUpperCase() === clean(user.departmentId).toUpperCase() &&
+      clean(registration.status).toUpperCase() === "REJECTED"
+    );
   },
 
   canReviewStaffTask() {
@@ -86,5 +177,9 @@ export const Permissions = Object.freeze({
 
   canViewAllDepartments() {
     return this.isAdmin() || this.isDirector() || this.isTchcCoordinator();
+  },
+
+  canViewOwnKpi() {
+    return UserContext.isAuthenticated();
   }
 });

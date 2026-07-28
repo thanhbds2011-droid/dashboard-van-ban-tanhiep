@@ -1,8 +1,4 @@
-/**
- * Production 3B.1 - User Context
- * Lưu ngữ cảnh người dùng hiện tại cho toàn bộ module.
- */
-
+/** Lưu ngữ cảnh người dùng hiện tại cho toàn bộ module. */
 let currentUser = null;
 
 function normalizeText(value) {
@@ -19,11 +15,12 @@ export const UserContext = Object.freeze({
       departmentId: normalizeText(user.departmentId).toUpperCase(),
       teamId: normalizeText(user.teamId).toUpperCase(),
       position: normalizeText(user.position),
+      leaderLevel: normalizeText(user.leaderLevel).toUpperCase(),
+      isDepartmentHead: typeof user.isDepartmentHead === "boolean" ? user.isDepartmentHead : null,
       employeeCode: normalizeText(user.employeeCode),
       kpiReviewerEmail: normalizeText(user.kpiReviewerEmail).toLowerCase(),
       active: user.active === true
     });
-
     return currentUser;
   },
 
@@ -32,10 +29,7 @@ export const UserContext = Object.freeze({
   },
 
   requireUser() {
-    if (!currentUser?.uid) {
-      throw new Error("Chưa có ngữ cảnh người dùng hợp lệ.");
-    }
-
+    if (!currentUser?.uid) throw new Error("Chưa có ngữ cảnh người dùng hợp lệ.");
     return currentUser;
   },
 
@@ -53,9 +47,6 @@ export const UserContext = Object.freeze({
   },
 
   belongsToDepartment(departmentId) {
-    return (
-      normalizeText(departmentId).toUpperCase() ===
-      (currentUser?.departmentId || "")
-    );
+    return normalizeText(departmentId).toUpperCase() === (currentUser?.departmentId || "");
   }
 });

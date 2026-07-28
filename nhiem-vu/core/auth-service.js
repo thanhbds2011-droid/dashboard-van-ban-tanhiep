@@ -66,6 +66,8 @@ async function loadOrCreateProfile(firebaseUser) {
     teamId: access.teamId || "",
     employeeCode: access.employeeCode || "",
     kpiReviewerEmail: access.kpiReviewerEmail || "",
+    ...(access.leaderLevel ? { leaderLevel: access.leaderLevel } : {}),
+    ...(typeof access.isDepartmentHead === "boolean" ? { isDepartmentHead: access.isDepartmentHead } : {}),
     taskNotificationCoordinator: access.taskNotificationCoordinator === true,
     active: true,
     createdAt: FirebaseService.serverTimestamp(),
@@ -120,6 +122,8 @@ export const AuthService = Object.freeze({
       position: profile.position || "",
       employeeCode: profile.employeeCode || "",
       kpiReviewerEmail: profile.kpiReviewerEmail || "",
+      leaderLevel: profile.leaderLevel || "",
+      isDepartmentHead: typeof profile.isDepartmentHead === "boolean" ? profile.isDepartmentHead : null,
       active: profile.active === true
     });
   },
