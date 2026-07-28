@@ -2,8 +2,8 @@
 import { UserContext } from "../../core/user-context.js";
 import { Permissions } from "../../core/permissions.js";
 import { UserReadService } from "../../services/user-read-service.js";
-import { TaskWriteService } from "../../services/task-write-service.js";
-import { openTaskProgressModal } from "./task-progress-modal.js";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260728.V1_1_5";
+import { openTaskProgressModal } from "./task-progress-modal.js?v=20260728.V1_1_5";
 
 function canAssign(task) {
   const user = UserContext.requireUser();
@@ -12,6 +12,10 @@ function canAssign(task) {
 }
 
 export async function openTaskDetailModal(task, { onSaved }) {
+  const currentUser = UserContext.requireUser();
+  const isOwner = task.ownerUserId === currentUser.uid;
+  const accepted = task.assignmentStatus === "DA_TIEP_NHAN";
+  const completed = task._completed === true || ["HOAN_THANH", "COMPLETED", "DA_HOAN_THANH"].includes(String(task.status || "").toUpperCase()) || Boolean(task.completedAt);
   const users = canAssign(task) ? await UserReadService.listActive() : [];
   const departmentUsers = users.filter(user => user.departmentId === task.primaryDepartmentId);
   const overlay = document.createElement("div");
@@ -30,9 +34,10 @@ export async function openTaskDetailModal(task, { onSaved }) {
         </div>
         <section class="detail-section"><h3>Nội dung thực hiện</h3><p>${escapeHtml(task.description || "Chưa có nội dung chi tiết.")}</p></section>
         <section class="detail-section"><h3>Kết quả và minh chứng</h3><p>${escapeHtml(task.resultSummary || task.result || "Chưa ghi nhận kết quả.")}</p>${task.evidenceUrl ? `<a class="primary-link" target="_blank" rel="noopener" href="${escapeHtml(task.evidenceUrl)}">📎 ${escapeHtml(task.evidenceFileName || "Mở tệp minh chứng")}</a>` : ""}${task.evidenceText ? `<p>${escapeHtml(task.evidenceText)}</p>` : ""}</section>
+        ${isOwner && !accepted && !completed ? '<div class="info-banner">Bạn cần xác nhận đã nhận nhiệm vụ trước khi cập nhật tiến độ, kết quả hoặc minh chứng.</div>' : ""}
         ${canAssign(task) ? `<section class="detail-section"><h3>Phân công nội bộ</h3><div class="inline-form"><select id="assignOwner"><option value="">— Chưa phân công cá nhân —</option>${departmentUsers.map(user => `<option value="${escapeHtml(user.id)}" ${user.id === task.ownerUserId ? "selected" : ""}>${escapeHtml(user.fullName || user.email)} — ${escapeHtml(user.position || user.role)}</option>`).join("")}</select><input id="assignTeam" placeholder="Tổ/Nhóm" value="${escapeHtml(task.teamId || "")}"><button id="assignTaskButton" class="secondary-button" type="button">Lưu phân công</button></div></section>` : ""}
       </div>
-      <div class="modal-footer"><button class="secondary-button" type="button" data-close>Đóng</button><button id="updateTaskButton" class="primary-button" type="button">Cập nhật tiến độ</button></div>
+      <div class="modal-footer"><button class="secondary-button" type="button" data-close>Đóng</button>${isOwner && !accepted && !completed ? '<button id="acceptTaskButton" class="primary-button" type="button">Xác nhận đã nhận nhiệm vụ</button>' : ""}${isOwner && accepted && !completed ? '<button id="updateTaskButton" class="primary-button" type="button">Cập nhật nhiệm vụ</button>' : ""}</div>
     </section>`;
   document.body.appendChild(overlay);
   const close = () => overlay.remove();
@@ -57,6 +62,21 @@ export async function openTaskDetailModal(task, { onSaved }) {
     }
   });
 
+  overlay.querySelector("#acceptTaskButton")?.addEventListener("click", async () => {
+    const button = overlay.querySelector("#acceptTaskButton");
+    try {
+      button.disabled = true;
+      button.textContent = "Đang xác nhận...";
+      await TaskWriteService.accept(task);
+      close();
+      await onSaved?.();
+    } catch (error) {
+      window.alert(error?.message || "Không xác nhận được nhiệm vụ.");
+      button.disabled = false;
+      button.textContent = "Xác nhận đã nhận nhiệm vụ";
+    }
+  });
+
   overlay.querySelector("#updateTaskButton")?.addEventListener("click", async () => {
     close();
     await openTaskProgressModal(task, { onSaved });
@@ -64,7 +84,7 @@ export async function openTaskDetailModal(task, { onSaved }) {
 }
 
 function detail(label, value) { return `<div class="detail-item"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`; }
-function statusName(task) { if (task._overdue) return "Trễ hạn"; if (task._completed) return "Hoàn thành"; const map={CHO_PHAN_CONG:"Chờ phân công",MOI_TIEP_NHAN:"Mới tiếp nhận",DANG_XU_LY:"Đang xử lý",TAM_DUNG:"Tạm dừng"}; return map[task.status] || "Đang xử lý"; }
+function statusName(task) { if (task._overdue) return "Trễ hạn"; if (task._completed) return "Hoàn thành"; const map={CHO_PHAN_CONG:"Chờ phân công",MOI_TIEP_NHAN:"Chờ tiếp nhận",DANG_XU_LY:"Đang xử lý",TAM_DUNG:"Tạm dừng"}; return map[task.status] || "Đang xử lý"; }
 function priorityName(value) { return {THUONG:"Thường",QUAN_TRONG:"Quan trọng",KHAN:"Khẩn",DOT_XUAT:"Đột xuất"}[value] || value || "Thường"; }
 function formatDate(value) { const date = value?.toDate ? value.toDate() : value instanceof Date ? value : value ? new Date(value) : null; return date && !Number.isNaN(date.getTime()) ? new Intl.DateTimeFormat("vi-VN").format(date) : "Không có hạn"; }
 function escapeHtml(value) { return String(value ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;"); }

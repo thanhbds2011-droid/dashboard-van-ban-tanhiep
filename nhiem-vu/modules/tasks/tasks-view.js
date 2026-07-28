@@ -1,7 +1,7 @@
 import { Permissions } from "../../core/permissions.js";
-import { TaskReadService } from "../../services/task-read-service.js";
+import { TaskReadService } from "../../services/task-read-service.js?v=20260728.V1_1_5";
 import { openTaskCreateModal } from "./task-form-modal.js";
-import { openTaskDetailModal } from "./task-detail-modal.js";
+import { openTaskDetailModal } from "./task-detail-modal.js?v=20260728.V1_1_5";
 
 let renderSequence = 0;
 
@@ -31,8 +31,8 @@ export async function renderTasksView(outlet) {
         const text = [task.taskCode, task.title, task.ownerName, task.createdByName, task.primaryDepartmentId].join(" ").toLowerCase();
         const keywordMatch = !keyword || text.includes(keyword);
         const statusMatch = status === "ALL" ||
-          (status === "IN_PROGRESS" && !task._completed && !task._overdue && !["CHO_PHAN_CONG","PENDING_ASSIGNMENT"].includes(task._status)) ||
-          (status === "WAITING" && ["CHO_PHAN_CONG","PENDING_ASSIGNMENT"].includes(task._status)) ||
+          (status === "IN_PROGRESS" && !task._completed && !task._overdue && !["CHO_PHAN_CONG","PENDING_ASSIGNMENT","MOI_TIEP_NHAN"].includes(task._status)) ||
+          (status === "WAITING" && ["CHO_PHAN_CONG","PENDING_ASSIGNMENT","MOI_TIEP_NHAN"].includes(task._status)) ||
           (status === "OVERDUE" && task._overdue) ||
           (status === "COMPLETED" && task._completed);
         return keywordMatch && statusMatch;
@@ -59,7 +59,18 @@ function bindRows(tasks, rerender) {
 
 function renderTaskList(tasks) {
   if (!tasks.length) return `<div class="empty-state"><div class="empty-icon">📋</div><strong>Không có nhiệm vụ trong phạm vi hiển thị</strong><p>Các đầu việc được duyệt hoặc nhiệm vụ đột xuất sẽ xuất hiện tại đây.</p></div>`;
-  return `<div class="data-list">${tasks.slice(0,300).map(task => `<button type="button" class="data-row task-row-button" data-task-id="${escapeHtml(task.id)}"><div class="data-row-main"><strong>${escapeHtml(task.title || task.taskCode || "Nhiệm vụ không có tiêu đề")}</strong><small>${escapeHtml(task.taskCode || task.id)} • ${escapeHtml(task.primaryDepartmentId || "-")} • ${escapeHtml(task.ownerName || "Chưa phân công")}</small><div class="progress-track"><span style="width:${Math.min(100,Math.max(0,Number(task.progress || 0)))}%"></span></div></div><div class="data-row-meta"><span class="status-pill ${task._overdue?"danger":task._completed?"success":["CHO_PHAN_CONG","PENDING_ASSIGNMENT"].includes(task._status)?"warning":"neutral"}">${task._overdue?"Trễ hạn":task._completed?"Hoàn thành":["CHO_PHAN_CONG","PENDING_ASSIGNMENT"].includes(task._status)?"Chờ phân công":"Đang xử lý"}</span><small>${formatDate(task._deadline)}</small><strong>${Number(task.progress || 0)}%</strong></div></button>`).join("")}</div>`;
+  return `<div class="data-list">${tasks.slice(0,300).map(task => {
+    const status = task._overdue
+      ? { label: "Trễ hạn", className: "danger" }
+      : task._completed
+        ? { label: "Hoàn thành", className: "success" }
+        : ["CHO_PHAN_CONG", "PENDING_ASSIGNMENT"].includes(task._status)
+          ? { label: "Chờ phân công", className: "warning" }
+          : task._status === "MOI_TIEP_NHAN"
+            ? { label: "Chờ tiếp nhận", className: "warning" }
+            : { label: "Đang xử lý", className: "neutral" };
+    return `<button type="button" class="data-row task-row-button" data-task-id="${escapeHtml(task.id)}"><div class="data-row-main"><strong>${escapeHtml(task.title || task.taskCode || "Nhiệm vụ không có tiêu đề")}</strong><small>${escapeHtml(task.taskCode || task.id)} • ${escapeHtml(task.primaryDepartmentId || "-")} • ${escapeHtml(task.ownerName || "Chưa phân công")}</small><div class="progress-track"><span style="width:${Math.min(100,Math.max(0,Number(task.progress || 0)))}%"></span></div></div><div class="data-row-meta"><span class="status-pill ${status.className}">${status.label}</span><small>${formatDate(task._deadline)}</small><strong>${Number(task.progress || 0)}%</strong></div></button>`;
+  }).join("")}</div>`;
 }
 function formatDate(date){return date instanceof Date ? new Intl.DateTimeFormat("vi-VN").format(date) : "Không có hạn";}
 function card(label,value){return `<article class="summary-card"><span>${label}</span><strong>${value}</strong></article>`;}

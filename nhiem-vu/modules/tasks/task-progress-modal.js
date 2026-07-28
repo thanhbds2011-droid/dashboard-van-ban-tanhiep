@@ -1,17 +1,22 @@
 /** Production 3D - modal tiếp nhận/cập nhật tiến độ/minh chứng/hoàn thành. */
 import { UserContext } from "../../core/user-context.js";
 import { Permissions } from "../../core/permissions.js";
-import { TaskWriteService } from "../../services/task-write-service.js";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260728.V1_1_5";
 import { DriveEvidenceService } from "../../services/drive-evidence-service.js";
 import { validateProgressInput, cleanText } from "./task-form-validator.js";
 
 function mayUpdate(task) {
   const user = UserContext.requireUser();
-  return Boolean(task && task.ownerUserId === user.uid && task.active !== false);
+  return Boolean(
+    task &&
+    task.ownerUserId === user.uid &&
+    task.active !== false &&
+    task.assignmentStatus === "DA_TIEP_NHAN"
+  );
 }
 
 export async function openTaskProgressModal(task, { onSaved }) {
-  if (!mayUpdate(task)) throw new Error("Bạn không có quyền cập nhật nhiệm vụ này.");
+  if (!mayUpdate(task)) throw new Error("Bạn cần xác nhận đã nhận nhiệm vụ trước khi cập nhật.");
   const overlay = document.createElement("div");
   overlay.className = "modal-backdrop";
   overlay.innerHTML = `
@@ -28,18 +33,14 @@ export async function openTaskProgressModal(task, { onSaved }) {
         <label class="field-full"><span>Tải tệp/hình ảnh minh chứng lên Google Drive</span><input id="evidenceFile" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"><small>Tối đa 8 MB. Tệp được lưu trong thư mục Drive minh chứng của hệ thống.</small></label>
         ${task.evidenceUrl ? `<div class="field-full info-banner">Tệp hiện tại: <a href="${escapeHtml(task.evidenceUrl)}" target="_blank" rel="noopener">${escapeHtml(task.evidenceFileName || "Mở minh chứng")}</a></div>` : ""}
       </div>
-      <div class="modal-footer">${task.ownerUserId === UserContext.getUser()?.uid && task.assignmentStatus !== "DA_TIEP_NHAN" ? '<button id="acceptTaskButton" class="secondary-button" type="button">Tiếp nhận nhiệm vụ</button>' : ''}<button class="secondary-button" type="button" data-close>Hủy</button><button id="saveProgressButton" class="primary-button" type="button">Lưu cập nhật</button></div>
+      <div class="modal-footer"><button class="secondary-button" type="button" data-close>Hủy</button><button id="saveProgressButton" class="primary-button" type="button">Lưu cập nhật</button></div>
     </section>`;
   document.body.appendChild(overlay);
   const $ = id => overlay.querySelector(`#${id}`);
   const close = () => overlay.remove();
   overlay.querySelectorAll("[data-close]").forEach(button => button.addEventListener("click", close));
 
-  $("acceptTaskButton")?.addEventListener("click", async () => {
-    const button = $("acceptTaskButton");
-    try { button.disabled = true; button.textContent = "Đang tiếp nhận..."; await TaskWriteService.accept(task); close(); await onSaved?.(); }
-    catch (error) { window.alert(error?.message || "Không tiếp nhận được nhiệm vụ."); button.disabled = false; button.textContent = "Tiếp nhận nhiệm vụ"; }
-  });
+
 
   $("progressStatus").addEventListener("change", () => {
     if ($("progressStatus").value === "HOAN_THANH") $("progressValue").value = "100";
