@@ -97,11 +97,17 @@ function canApproveRegistration(registration) {
 }
 
 function canViewDepartmentData() {
-  return globalRole() || isDepartmentHead() || hasActiveApprovalDelegation('APPROVE_REGISTRATIONS') || hasActiveApprovalDelegation('VIEW_DEPARTMENT_REPORT') || hasActiveApprovalDelegation('CONFIRM_EVALUATIONS') || hasActiveApprovalDelegation('LOCK_PLAN');
+  const reportScope = KpiWorkflowState.mode === 'reports' && isLeader();
+  return globalRole()
+    || isDepartmentHead()
+    || reportScope
+    || hasActiveApprovalDelegation('APPROVE_REGISTRATIONS')
+    || hasActiveApprovalDelegation('CONFIRM_EVALUATIONS')
+    || hasActiveApprovalDelegation('LOCK_PLAN');
 }
 
 function canViewDepartmentReport() {
-  return Permissions.canViewDepartmentReport(hasActiveApprovalDelegation('VIEW_DEPARTMENT_REPORT'));
+  return Permissions.canViewDepartmentReport();
 }
 
 function canLockPlan() {
@@ -365,17 +371,15 @@ async function loadAll() {
       }
     }
 
-    const taskDepartmentScope = globalRole() || isDepartmentHead()
+    const reportDepartmentScope = KpiWorkflowState.mode === 'reports' && isLeader();
+    const taskDepartmentScope = globalRole() || isDepartmentHead() || reportDepartmentScope
       || hasActiveApprovalDelegation('APPROVE_REGISTRATIONS')
       || hasActiveApprovalDelegation('CONFIRM_EVALUATIONS')
-      || hasActiveApprovalDelegation('LOCK_PLAN')
-      || hasActiveApprovalDelegation('VIEW_DEPARTMENT_REPORT');
-    const registrationDepartmentScope = globalRole() || isDepartmentHead()
-      || hasActiveApprovalDelegation('APPROVE_REGISTRATIONS')
-      || hasActiveApprovalDelegation('VIEW_DEPARTMENT_REPORT');
-    const evaluationDepartmentScope = globalRole() || isDepartmentHead()
-      || hasActiveApprovalDelegation('CONFIRM_EVALUATIONS')
-      || hasActiveApprovalDelegation('VIEW_DEPARTMENT_REPORT');
+      || hasActiveApprovalDelegation('LOCK_PLAN');
+    const registrationDepartmentScope = globalRole() || isDepartmentHead() || reportDepartmentScope
+      || hasActiveApprovalDelegation('APPROVE_REGISTRATIONS');
+    const evaluationDepartmentScope = globalRole() || isDepartmentHead() || reportDepartmentScope
+      || hasActiveApprovalDelegation('CONFIRM_EVALUATIONS');
     const userDepartmentScope = taskDepartmentScope || registrationDepartmentScope || evaluationDepartmentScope;
 
     const taskQuery = globalRole()
@@ -974,13 +978,24 @@ async function openDelegationManager() {
       && Permissions.isDepartmentDeputy(candidate);
   });
   const active = KpiWorkflowState.delegations.find(item => item.active === true && item.delegatorUserId === KpiWorkflowState.user.uid);
+  const allowedPermissions = ['APPROVE_REGISTRATIONS', 'CONFIRM_EVALUATIONS', 'LOCK_PLAN'];
   const selectedPermissions = Array.isArray(active?.permissions) && active.permissions.length
-    ? active.permissions
+    ? active.permissions.filter(permission => allowedPermissions.includes(permission))
     : ['APPROVE_REGISTRATIONS'];
+  const activeStatus = active
+    ? `<div class="kpi-delegation-active-note"><strong>Ủy quyền đang có hiệu lực</strong><span>${esc(active.delegateName || 'Phó Trưởng phòng')} · ${dateVi(active.startDate)} – ${dateVi(active.endDate)}</span><small>Có thể hủy ngay khi Trưởng phòng trở lại làm việc; dữ liệu ủy quyền cũ vẫn được lưu để đối chiếu.</small></div>`
+    : '';
+  const footer = [
+    '<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button>',
+    active ? '<button id="revokeDelegation" class="kpi-button danger" type="button">Hủy ủy quyền</button>' : '',
+    '<button id="saveDelegation" class="kpi-button" type="button">Lưu ủy quyền</button>'
+  ].filter(Boolean).join('');
+
   const root = modal('Ủy quyền Phó Trưởng phòng', `
     <div class="kpi-delegation-form">
-      <label class="kpi-field kpi-delegation-person"><span>Người được ủy quyền</span><select id="delegationUser"><option value="">-- Không ủy quyền --</option>${deputies.map(user => `<option value="${user.id}" ${active?.delegateUserId === user.id ? 'selected' : ''}>${esc(user.fullName || user.email)} — ${esc(user.position || 'Phó Trưởng phòng')} — ${esc(user.email || '')}</option>`).join('')}</select></label>
-      ${deputies.length ? '' : '<div class="kpi-alert kpi-delegation-warning">Chưa tìm thấy Phó Trưởng phòng đang hoạt động trong cùng Phòng/Khu. Vui lòng kiểm tra lại thông tin tài khoản và đăng nhập lại một lần để hệ thống đồng bộ.</div>'}
+      ${activeStatus}
+      <label class="kpi-field kpi-delegation-person"><span>Người được ủy quyền</span><select id="delegationUser"><option value="">-- Chọn Phó Trưởng phòng --</option>${deputies.map(user => `<option value="${user.id}" ${active?.delegateUserId === user.id ? 'selected' : ''}>${esc(user.fullName || 'Chưa cập nhật họ tên')} — ${esc(user.position || 'Phó Trưởng phòng')}</option>`).join('')}</select></label>
+      ${deputies.length ? '' : '<div class="kpi-alert kpi-delegation-warning">Chưa tìm thấy Phó Trưởng phòng đang hoạt động trong cùng Phòng/Khu. Vui lòng kiểm tra lại chức vụ, cấp lãnh đạo và mã Phòng/Khu của tài khoản.</div>'}
       <div class="kpi-delegation-dates">
         <label class="kpi-field"><span>Từ ngày</span><input id="delegationStart" type="date" value="${active?.startDate || todayKey()}"></label>
         <label class="kpi-field"><span>Đến ngày</span><input id="delegationEnd" type="date" value="${active?.endDate || KpiWorkflowState.period?.endDate || ''}"></label>
@@ -989,11 +1004,10 @@ async function openDelegationManager() {
         <label class="kpi-delegation-option"><input type="checkbox" value="APPROVE_REGISTRATIONS" data-delegation-permission ${selectedPermissions.includes('APPROVE_REGISTRATIONS') ? 'checked' : ''}><span>Duyệt và trả lại đăng ký kế hoạch</span></label>
         <label class="kpi-delegation-option"><input type="checkbox" value="CONFIRM_EVALUATIONS" data-delegation-permission ${selectedPermissions.includes('CONFIRM_EVALUATIONS') ? 'checked' : ''}><span>Xác nhận kết quả đánh giá</span></label>
         <label class="kpi-delegation-option"><input type="checkbox" value="LOCK_PLAN" data-delegation-permission ${selectedPermissions.includes('LOCK_PLAN') ? 'checked' : ''}><span>Khóa hoặc mở lại đăng ký kế hoạch</span></label>
-        <label class="kpi-delegation-option"><input type="checkbox" value="VIEW_DEPARTMENT_REPORT" data-delegation-permission ${selectedPermissions.includes('VIEW_DEPARTMENT_REPORT') ? 'checked' : ''}><span>Xem báo cáo tổng hợp Phòng/Khu</span></label>
-      </div></fieldset>
-      <label class="kpi-field kpi-delegation-reason"><span>Lý do</span><textarea id="delegationReason" rows="3">${esc(active?.reason || '')}</textarea></label>
+      </div><p class="kpi-delegation-help">Trưởng phòng và Phó Trưởng phòng đều được xem báo cáo tổng hợp của Phòng/Khu, không cần thiết lập ủy quyền cho quyền xem báo cáo.</p></fieldset>
+      <label class="kpi-field kpi-delegation-reason"><span>Lý do</span><textarea id="delegationReason" rows="3" placeholder="Ví dụ: Nghỉ phép, đi công tác…">${esc(active?.reason || '')}</textarea></label>
     </div>`,
-    '<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button><button id="saveDelegation" class="kpi-button" type="button">Lưu ủy quyền</button>'
+    footer
   );
 
   root.querySelector('#saveDelegation')?.addEventListener('click', async () => {
@@ -1002,22 +1016,12 @@ async function openDelegationManager() {
     const startDate = clean(el('delegationStart').value);
     const endDate = clean(el('delegationEnd').value);
     const permissions = [...root.querySelectorAll('[data-delegation-permission]:checked')].map(input => input.value);
-    if (delegateUserId && !reason) return alert('Phải nhập lý do ủy quyền.');
-    if (delegateUserId && !permissions.length) return alert('Hãy chọn ít nhất một phạm vi ủy quyền.');
-    if (delegateUserId && (!startDate || !endDate || startDate > endDate)) return alert('Thời gian ủy quyền chưa hợp lệ.');
+    if (!delegateUserId) return alert('Hãy chọn Phó Trưởng phòng được ủy quyền.');
+    if (!reason) return alert('Phải nhập lý do ủy quyền.');
+    if (!permissions.length) return alert('Hãy chọn ít nhất một phạm vi ủy quyền.');
+    if (!startDate || !endDate || startDate > endDate) return alert('Thời gian ủy quyền chưa hợp lệ.');
 
     const reference = doc(db, 'approvalDelegations', `${departmentId}_ACTIVE`);
-    if (!delegateUserId) {
-      if (active) {
-        await updateDoc(reference, { active: false, revokedAt: serverTimestamp(), revokedByUserId: KpiWorkflowState.user.uid, updatedAt: serverTimestamp() });
-        await audit('REVOKE_APPROVAL_DELEGATION', { delegateUserId: active.delegateUserId });
-      }
-      closeModal();
-      await loadAll();
-      message('Đã thu hồi ủy quyền.', 'ok');
-      return;
-    }
-
     const deputy = deputies.find(item => item.id === delegateUserId);
     const startAt = Timestamp.fromDate(new Date(`${startDate}T00:00:00`));
     const endAt = Timestamp.fromDate(new Date(`${endDate}T23:59:59`));
@@ -1036,6 +1040,9 @@ async function openDelegationManager() {
       endAt,
       reason,
       active: true,
+      revokedAt: null,
+      revokedByUserId: '',
+      revokedByName: '',
       createdAt: active?.createdAt || serverTimestamp(),
       createdBy: active?.createdBy || KpiWorkflowState.user.uid,
       updatedAt: serverTimestamp(),
@@ -1045,6 +1052,31 @@ async function openDelegationManager() {
     closeModal();
     await loadAll();
     message('Đã thiết lập ủy quyền.', 'ok');
+  });
+
+  root.querySelector('#revokeDelegation')?.addEventListener('click', async () => {
+    if (!active) return;
+    if (!confirm(`Hủy ủy quyền của ${active.delegateName || 'Phó Trưởng phòng'} ngay bây giờ? Quyền được ủy quyền sẽ hết hiệu lực ngay.`)) return;
+    const reference = doc(db, 'approvalDelegations', `${departmentId}_ACTIVE`);
+    const button = root.querySelector('#revokeDelegation');
+    button.disabled = true;
+    try {
+      await updateDoc(reference, {
+        active: false,
+        revokedAt: serverTimestamp(),
+        revokedByUserId: KpiWorkflowState.user.uid,
+        revokedByName: KpiWorkflowState.profile.fullName || '',
+        updatedAt: serverTimestamp(),
+        updatedBy: KpiWorkflowState.user.uid
+      });
+      await audit('REVOKE_APPROVAL_DELEGATION', { delegateUserId: active.delegateUserId, endedEarly: true });
+      closeModal();
+      await loadAll();
+      message('Đã hủy ủy quyền. Quyền được ủy quyền đã hết hiệu lực.', 'ok');
+    } catch (error) {
+      alert(error?.message || 'Không thể hủy ủy quyền.');
+      button.disabled = false;
+    }
   });
 }
 
