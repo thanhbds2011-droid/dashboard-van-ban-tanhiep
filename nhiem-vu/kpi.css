@@ -1,6 +1,6 @@
 /* =========================================================
  * PHÂN HỆ KPI
- * Bản 20260728.V1_1_1
+ * Bản 20260728.V1_1_2
  * ========================================================= */
 
 .kpi-section {
@@ -443,6 +443,38 @@
   overflow-wrap: anywhere;
 }
 
+
+.kpi-delegation-active-note {
+  display: grid;
+  gap: 4px;
+  border: 1px solid #b9ddc9;
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: #eefaf3;
+  color: #165f3a;
+}
+
+.kpi-delegation-active-note strong {
+  font-size: 15px;
+}
+
+.kpi-delegation-active-note span {
+  font-weight: 700;
+}
+
+.kpi-delegation-active-note small,
+.kpi-delegation-help {
+  color: #587083;
+  line-height: 1.5;
+}
+
+.kpi-delegation-help {
+  margin: 12px 0 0;
+  border-top: 1px dashed #cbd8e3;
+  padding-top: 10px;
+  font-size: 13px;
+}
+
 /* ===== Báo cáo ===== */
 .kpi-report {
   font-family: "Times New Roman", Times, serif;
@@ -616,6 +648,203 @@
   color: #9f2d24 !important;
 }
 
+/* ===== Danh mục công việc hai cột ===== */
+.standard-task-page {
+  overflow: visible;
+}
+
+.standard-task-period-banner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  align-items: center;
+}
+
+.standard-task-summary .summary-card {
+  min-height: 92px;
+  background: linear-gradient(145deg, #ffffff, #f6fafc);
+}
+
+.standard-task-toolbar {
+  margin-top: 18px;
+}
+
+.registration-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(0, .92fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.registration-column {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #d6e4ed;
+  border-radius: 16px;
+  background: #fbfdfe;
+  box-shadow: 0 8px 22px rgba(31, 76, 105, .06);
+}
+
+.registration-column-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 11px;
+  align-items: center;
+  min-height: 86px;
+  padding: 15px 16px;
+  border-bottom: 1px solid #dbe7ef;
+}
+
+.registration-column-catalog .registration-column-header {
+  background: linear-gradient(135deg, #edf7fc, #f7fbfd);
+}
+
+.registration-column-selected .registration-column-header {
+  background: linear-gradient(135deg, #eef9f3, #f8fcfa);
+}
+
+.registration-column-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 5px 14px rgba(31, 76, 105, .09);
+  font-size: 21px;
+}
+
+.registration-column-header h3 {
+  margin: 0 0 3px;
+  color: #0a3d5c;
+  font-size: 17px;
+}
+
+.registration-column-header p {
+  margin: 0;
+  color: #627a8f;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.registration-column-count {
+  display: grid;
+  place-items: center;
+  min-width: 38px;
+  height: 32px;
+  border-radius: 999px;
+  padding: 0 10px;
+  background: #fff;
+  color: #0f628f;
+  font-weight: 900;
+  box-shadow: 0 3px 10px rgba(31, 76, 105, .08);
+}
+
+.registration-column-list {
+  display: grid;
+  gap: 10px;
+  max-height: min(66vh, 760px);
+  overflow: auto;
+  padding: 12px;
+  scrollbar-width: thin;
+  scrollbar-color: #b9cedb transparent;
+}
+
+.registration-column-list .registration-row {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  min-height: 112px;
+  border-color: #dde8ef;
+  padding: 13px;
+  box-shadow: 0 3px 12px rgba(31, 76, 105, .035);
+  transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+
+.registration-column-list .registration-row:hover {
+  border-color: #a9cadc;
+  box-shadow: 0 8px 18px rgba(31, 76, 105, .08);
+  transform: translateY(-1px);
+}
+
+.registration-row-registered {
+  background: #fff;
+}
+
+.registration-state-mark {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: #eaf4f9;
+  color: #0f6996;
+  font-weight: 900;
+}
+
+.registration-row-registered .registration-state-mark {
+  background: #eaf8ef;
+  color: #238452;
+}
+
+.registration-column-list .data-row-main strong {
+  color: #102f43;
+  line-height: 1.45;
+}
+
+.registration-column-list .data-row-main small {
+  line-height: 1.5;
+}
+
+.registration-column-list .data-row-meta {
+  min-width: 120px;
+}
+
+.registration-delete-button {
+  min-height: 34px;
+  border-radius: 8px !important;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.registration-column-empty {
+  display: grid;
+  place-items: center;
+  min-height: 190px;
+  padding: 26px 18px;
+  text-align: center;
+  color: #6a8091;
+}
+
+.registration-column-empty > span {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  margin-bottom: 8px;
+  border-radius: 50%;
+  background: #edf4f8;
+  color: #6f9bb5;
+  font-size: 28px;
+}
+
+.registration-column-empty strong,
+.registration-column-empty small {
+  display: block;
+}
+
+.registration-column-empty strong {
+  color: #24465b;
+  font-size: 15px;
+}
+
+.registration-column-empty small {
+  max-width: 320px;
+  margin-top: 4px;
+  line-height: 1.5;
+}
+
 /* ===== Duyệt đăng ký ===== */
 .registration-modal-tools {
   display: flex;
@@ -642,6 +871,16 @@
 }
 
 /* ===== Responsive ===== */
+@media (max-width: 1080px) {
+  .registration-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .registration-column-list {
+    max-height: 520px;
+  }
+}
+
 @media (max-width: 980px) {
   .kpi-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -662,6 +901,41 @@
 }
 
 @media (max-width: 680px) {
+  .registration-column-header {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    min-height: 78px;
+    padding: 12px;
+  }
+
+  .registration-column-icon {
+    width: 36px;
+    height: 36px;
+    font-size: 18px;
+  }
+
+  .registration-column-list {
+    max-height: none;
+    overflow: visible;
+    padding: 9px;
+  }
+
+  .registration-column-list .registration-row {
+    grid-template-columns: auto minmax(0, 1fr);
+    min-height: 0;
+  }
+
+  .registration-column-list .data-row-meta {
+    grid-column: 2;
+    min-width: 0;
+    justify-items: start;
+    text-align: left;
+  }
+
+  .standard-task-period-banner {
+    display: grid;
+    gap: 4px;
+  }
+
   .kpi-header {
     display: grid;
   }
