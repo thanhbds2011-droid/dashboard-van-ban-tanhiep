@@ -154,11 +154,11 @@ export const Permissions = Object.freeze({
     return this.isAdmin() || this.isDirector() || this.isDepartmentHead() || (this.isDepartmentDeputy() && hasDelegation === true);
   },
 
-  canViewDepartmentReport(hasDelegation = false) {
-    return this.isAdmin() || this.isDirector() || this.isTchcCoordinator() || this.isDepartmentHead() || (this.isDepartmentDeputy() && hasDelegation === true);
+  canViewDepartmentReport() {
+    return this.isAdmin() || this.isDirector() || this.isTchcCoordinator() || this.isDepartmentLeader();
   },
 
-  canDeleteRejectedRegistration(registration) {
+  canCancelRegistration(registration) {
     const user = UserContext.getUser();
     if (!activeUser(user) || !registration || registration.taskId) return false;
     if (registration.userId === user.uid) {
@@ -169,6 +169,10 @@ export const Permissions = Object.freeze({
       clean(registration.departmentId).toUpperCase() === clean(user.departmentId).toUpperCase() &&
       clean(registration.status).toUpperCase() === "REJECTED"
     );
+  },
+
+  canDeleteRejectedRegistration(registration) {
+    return this.canCancelRegistration(registration);
   },
 
   canReviewStaffTask() {
