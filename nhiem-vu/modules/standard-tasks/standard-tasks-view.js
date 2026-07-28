@@ -1,9 +1,9 @@
 import { UserContext } from "../../core/user-context.js";
-import { Permissions } from "../../core/permissions.js?v=20260728.V1_1_4";
+import { Permissions } from "../../core/permissions.js?v=20260728.V1_1_5";
 import { ToastService } from "../../core/toast-service.js";
 import { StandardTaskReadService } from "../../services/standard-task-read-service.js";
-import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260728.V1_1_4";
-import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260728.V1_1_4";
+import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260728.V1_1_5";
+import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260728.V1_1_5";
 
 export async function renderStandardTasksView(outlet) {
   const user = UserContext.requireUser();
@@ -191,13 +191,13 @@ function renderRegistrationWorkspace(items, registeredMap, registrationOpen, can
         <div class="registration-column-icon" aria-hidden="true">✅</div>
         <div>
           <h3>Đã đăng ký</h3>
-          <p>Theo dõi trạng thái và hủy mục chưa được duyệt.</p>
+          <p>${registrationOpen ? "Theo dõi trạng thái và hủy mục chưa được duyệt." : "Kế hoạch đã khóa; người đăng ký không thể tự hủy đầu việc."}</p>
         </div>
         <span class="registration-column-count">${registeredItems.length}</span>
       </header>
       <div class="registration-column-list">
         ${registeredItems.length
-          ? registeredItems.map(item => renderRegisteredTask(item, findRegistration(item, registeredMap), canManageCatalog)).join("")
+          ? registeredItems.map(item => renderRegisteredTask(item, findRegistration(item, registeredMap), registrationOpen, canManageCatalog)).join("")
           : compactEmpty("Chưa có đầu việc đã đăng ký", "Đầu việc được chọn ở cột bên trái sẽ xuất hiện tại đây.")}
       </div>
     </section>
@@ -223,7 +223,7 @@ function renderAvailableTask(item, registrationOpen, canManageCatalog) {
   </article>`;
 }
 
-function renderRegisteredTask(item, registration, canManageCatalog) {
+function renderRegisteredTask(item, registration, registrationOpen, canManageCatalog) {
   const status = ({
     PENDING: "Chờ duyệt",
     APPROVED: "Đã duyệt",
@@ -237,9 +237,8 @@ function renderRegisteredTask(item, registration, canManageCatalog) {
         ? "danger"
         : "neutral";
   const canDelete = Boolean(
-    registration &&
-    !registration.taskId &&
-    ["PENDING", "REJECTED"].includes(String(registration.status || "").toUpperCase())
+    registrationOpen &&
+    Permissions.canCancelOwnRegistration(registration, false)
   );
 
   return `<article class="registration-row registration-row-registered">
@@ -288,7 +287,7 @@ function openTaskEditor(item) {
       <label class="kpi-field"><span>Thứ tự hiển thị</span><input id="catalogTaskOrder" type="number" min="1" step="1" value="${escapeHtml(item?.order ?? 9999)}"></label>
       <div class="kpi-field"><span>Điểm tối đa dự kiến</span><strong id="catalogTaskMaximum">${formatNumber(Number(item?.baseScore || 1) * Number(item?.difficultyCoefficient || 1))}</strong></div>
     </div>`,
-    `${editing ? '<button id="deactivateCatalogTask" class="kpi-button danger" type="button">Ngừng sử dụng</button>' : ""}<button class="kpi-button secondary" data-standard-close type="button">Đóng</button><button id="saveCatalogTask" class="kpi-button" type="button">Lưu đầu việc</button>`
+    `<button class="kpi-button secondary" data-standard-close type="button">Đóng</button><button id="saveCatalogTask" class="kpi-button" type="button">Lưu đầu việc</button>`
   );
 
   const recalculate = () => {
@@ -324,20 +323,7 @@ function openTaskEditor(item) {
     }
   });
 
-  root.querySelector("#deactivateCatalogTask")?.addEventListener("click", async event => {
-    if (!window.confirm("Ngừng sử dụng đầu việc này? Các đăng ký và nhiệm vụ đã tạo trước đây vẫn được giữ nguyên.")) return;
-    const button = event.currentTarget;
-    button.disabled = true;
-    try {
-      await StandardTaskWriteService.deactivateTask(item.id);
-      closeStandardModal(root);
-      ToastService.success("Đã ngừng sử dụng đầu việc trong các kỳ đăng ký mới.");
-      reloadRoute();
-    } catch (error) {
-      ToastService.error(error.message || "Không thể ngừng sử dụng đầu việc.");
-      button.disabled = false;
-    }
-  });
+
 }
 
 async function openCatalogDelegation(currentDelegation, period) {
@@ -354,7 +340,7 @@ async function openCatalogDelegation(currentDelegation, period) {
         <label class="kpi-field"><span>Từ ngày</span><input id="catalogDelegateStart" type="date" value="${escapeHtml(active?.startDate || today)}"></label>
         <label class="kpi-field"><span>Đến ngày</span><input id="catalogDelegateEnd" type="date" value="${escapeHtml(active?.endDate || defaultEnd)}"></label>
         <label class="kpi-field full"><span>Lý do</span><textarea id="catalogDelegateReason" rows="3" placeholder="Ví dụ: Phân công phụ trách cập nhật danh mục đầu việc">${escapeHtml(active?.reason || "")}</textarea></label>
-        <div class="info-banner full">Nhân viên được ủy quyền chỉ được thêm, chỉnh sửa và ngừng sử dụng đầu việc thuộc đúng Phòng/Khu; không có quyền khóa kế hoạch hoặc duyệt KPI.</div>
+        <div class="info-banner full">Nhân viên được ủy quyền chỉ được thêm và chỉnh sửa đầu việc thuộc đúng Phòng/Khu; không có quyền khóa kế hoạch hoặc duyệt KPI.</div>
       </div>`,
       `${active ? '<button id="revokeCatalogDelegation" class="kpi-button danger" type="button">Hủy ủy quyền</button>' : ""}<button class="kpi-button secondary" data-standard-close type="button">Đóng</button><button id="saveCatalogDelegation" class="kpi-button" type="button">Lưu ủy quyền</button>`
     );
