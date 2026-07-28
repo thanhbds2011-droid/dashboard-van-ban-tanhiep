@@ -1,6 +1,6 @@
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260728.V1_1_4";
+import { Permissions } from "../core/permissions.js?v=20260728.V1_1_5";
 import { TaskLogService } from "./task-log-service.js";
 
 const clean = value => String(value ?? "").trim();
@@ -346,11 +346,34 @@ export const TaskRegistrationService = Object.freeze({
     return selected.length;
   },
 
-  async cancelRegistration(registration) {
-    if (!Permissions.canCancelRegistration(registration)) {
+  async cancelRegistration(registration, options = {}) {
+    const user = UserContext.requireUser();
+    if (!registration?.id) throw new Error("Không tìm thấy đăng ký cần hủy.");
+    if (clean(registration.taskId)) throw new Error("Đăng ký đã hình thành nhiệm vụ nên không thể hủy tại đây.");
+
+    const plan = await departmentPlan(registration.periodId, registration.departmentId);
+    const planLocked = plan?.locked === true;
+    const asManager = options.asManager === true;
+    const delegated = asManager
+      ? await hasDelegation(user, registration.departmentId, "APPROVE_REGISTRATIONS")
+      : false;
+
+    const allowed = Permissions.canCancelRegistration(registration, {
+      asManager,
+      planLocked,
+      hasDelegation: delegated
+    });
+
+    if (!allowed) {
+      if (!asManager && planLocked) {
+        throw new Error("Kế hoạch đã khóa. Người đăng ký không thể tự hủy đầu việc; Trưởng phòng hoặc Phó Trưởng phòng được ủy quyền sẽ xử lý khi cần.");
+      }
+      if (asManager && !planLocked) {
+        throw new Error("Kế hoạch đang mở. Người đăng ký có thể tự hủy đầu việc của mình.");
+      }
       throw new Error("Tài khoản không có quyền hủy đăng ký này.");
     }
-    if (registration.taskId) throw new Error("Đăng ký đã hình thành nhiệm vụ nên không thể hủy tại đây.");
+
     await FirebaseService.deleteDoc(
       FirebaseService.doc(FirebaseService.db, "taskRegistrations", registration.id)
     );

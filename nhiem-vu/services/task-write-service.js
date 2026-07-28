@@ -1,7 +1,7 @@
 /** Production 3D - tạo, phân công, tiếp nhận, cập nhật tiến độ và hoàn thành nhiệm vụ. */
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js";
+import { Permissions } from "../core/permissions.js?v=20260728.V1_1_5";
 import { TaskLogService } from "./task-log-service.js";
 
 function dateKey(date) {
@@ -166,7 +166,12 @@ export const TaskWriteService = Object.freeze({
 
   async accept(task) {
     const user = UserContext.requireUser();
-    if (task.ownerUserId !== user.uid) throw new Error("Chỉ người được giao mới được tiếp nhận nhiệm vụ.");
+    if (task.ownerUserId !== user.uid) throw new Error("Chỉ người được giao mới được xác nhận đã nhận nhiệm vụ.");
+    if (task.active === false) throw new Error("Nhiệm vụ này không còn hiệu lực.");
+    if (["HOAN_THANH", "COMPLETED", "DA_HOAN_THANH"].includes(String(task.status || "").toUpperCase()) || task.completedAt) {
+      throw new Error("Nhiệm vụ đã hoàn thành nên không cần xác nhận tiếp nhận.");
+    }
+    if (task.assignmentStatus === "DA_TIEP_NHAN") throw new Error("Nhiệm vụ đã được tiếp nhận trước đó.");
     const payload = {
       assignmentStatus: "DA_TIEP_NHAN",
       status: "DANG_XU_LY",
@@ -186,6 +191,9 @@ export const TaskWriteService = Object.freeze({
   async updateProgress(task, changes) {
     const user = UserContext.requireUser();
     if (task.ownerUserId !== user.uid) throw new Error("Chỉ người thực hiện mới được cập nhật tiến độ và hoàn thành nhiệm vụ.");
+    if (task.assignmentStatus !== "DA_TIEP_NHAN") {
+      throw new Error("Bạn cần xác nhận đã nhận nhiệm vụ trước khi cập nhật tiến độ, kết quả hoặc minh chứng.");
+    }
     const payload = {
       status: changes.status,
       progress: Number(changes.progress),

@@ -98,8 +98,8 @@ export const TaskReadService = Object.freeze({
       completed: all.filter(item => item._completed).length,
       overdue: all.filter(item => item._overdue).length,
       dueSoon: all.filter(item => item._dueSoon).length,
-      inProgress: all.filter(item => !item._completed && !item._overdue).length,
-      waitingAssignment: all.filter(item => ["CHO_PHAN_CONG", "PENDING_ASSIGNMENT"].includes(item._status)).length
+      inProgress: all.filter(item => !item._completed && !item._overdue && !["CHO_PHAN_CONG", "PENDING_ASSIGNMENT", "MOI_TIEP_NHAN"].includes(item._status)).length,
+      waitingAssignment: all.filter(item => ["CHO_PHAN_CONG", "PENDING_ASSIGNMENT", "MOI_TIEP_NHAN"].includes(item._status)).length
     };
   }
 });
