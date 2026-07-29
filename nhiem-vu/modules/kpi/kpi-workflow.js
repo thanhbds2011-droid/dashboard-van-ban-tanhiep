@@ -3,8 +3,8 @@ import {
   addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, onSnapshot, query,
   serverTimestamp, setDoc, Timestamp, updateDoc, where
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
-import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260728.V1_1_6';
-import { Permissions } from '../../core/permissions.js?v=20260728.V1_1_6';
+import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260728.V1_1_7';
+import { Permissions } from '../../core/permissions.js?v=20260728.V1_1_7';
 import {
   KPI2B as KPI2C, COMMON_CRITERIA, calculateTaskScore, calculateKpiSummary,
   proposedRating, ratingName, round2, progressRateFromDates
@@ -28,6 +28,144 @@ export const KpiWorkflowState = {
   delegations: [],
   kpiProfile: null
 };
+
+let stopKpiRealtime = () => {};
+let kpiRealtimeTimer = null;
+let kpiRealtimePending = false;
+let kpiRouteCleanupBound = false;
+let kpiPeriodReloading = false;
+
+function isKpiRoute(route = window.location.hash) {
+  return ['#/kpi', '#/kpi/periods', '#/kpi/evaluations', '#/reports'].includes(route);
+}
+
+function bindKpiRouteCleanup() {
+  if (kpiRouteCleanupBound) return;
+  kpiRouteCleanupBound = true;
+  document.addEventListener('v3:route-changed', event => {
+    if (!isKpiRoute(event.detail?.route)) {
+      stopKpiRealtime();
+      stopKpiRealtime = () => {};
+      window.clearTimeout(kpiRealtimeTimer);
+      kpiRealtimePending = false;
+    }
+  });
+}
+
+function scheduleKpiRealtimeRender() {
+  if (!isKpiRoute()) return;
+  if (el('kpiModalRoot')) {
+    kpiRealtimePending = true;
+    return;
+  }
+  window.clearTimeout(kpiRealtimeTimer);
+  kpiRealtimeTimer = window.setTimeout(() => {
+    if (!isKpiRoute() || !el('kpiSection')) return;
+    kpiRealtimePending = false;
+    render();
+  }, 120);
+}
+
+function kpiScopeQueries(periodId, departmentId) {
+  const reportDepartmentScope = KpiWorkflowState.mode === 'reports' && isLeader();
+  const taskDepartmentScope = globalRole() || isDepartmentHead() || reportDepartmentScope
+    || hasActiveApprovalDelegation('APPROVE_REGISTRATIONS')
+    || hasActiveApprovalDelegation('CONFIRM_EVALUATIONS')
+    || hasActiveApprovalDelegation('LOCK_PLAN');
+  const registrationDepartmentScope = globalRole() || isDepartmentHead() || reportDepartmentScope
+    || hasActiveApprovalDelegation('APPROVE_REGISTRATIONS');
+  const evaluationDepartmentScope = globalRole() || isDepartmentHead() || reportDepartmentScope
+    || hasActiveApprovalDelegation('CONFIRM_EVALUATIONS');
+
+  return {
+    taskQuery: globalRole()
+      ? query(collection(db, 'tasks'), where('periodId', '==', periodId))
+      : taskDepartmentScope
+        ? query(collection(db, 'tasks'), where('periodId', '==', periodId), where('primaryDepartmentId', '==', departmentId))
+        : query(collection(db, 'tasks'), where('periodId', '==', periodId), where('ownerUserId', '==', KpiWorkflowState.user.uid)),
+    registrationQuery: globalRole()
+      ? query(collection(db, 'taskRegistrations'), where('periodId', '==', periodId))
+      : registrationDepartmentScope
+        ? query(collection(db, 'taskRegistrations'), where('periodId', '==', periodId), where('departmentId', '==', departmentId))
+        : query(collection(db, 'taskRegistrations'), where('periodId', '==', periodId), where('userId', '==', KpiWorkflowState.user.uid)),
+    evaluationQuery: globalRole()
+      ? query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId))
+      : evaluationDepartmentScope
+        ? query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId), where('departmentId', '==', departmentId))
+        : query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId), where('ownerUserId', '==', KpiWorkflowState.user.uid)),
+    commonQuery: globalRole()
+      ? query(collection(db, 'commonCriteriaAssessments'), where('periodId', '==', periodId))
+      : evaluationDepartmentScope
+        ? query(collection(db, 'commonCriteriaAssessments'), where('periodId', '==', periodId), where('departmentId', '==', departmentId))
+        : query(collection(db, 'commonCriteriaAssessments'), where('periodId', '==', periodId), where('userId', '==', KpiWorkflowState.user.uid))
+  };
+}
+
+function setupKpiRealtime() {
+  stopKpiRealtime();
+  const unsubscribers = [];
+  const onError = error => console.warn('Theo dõi dữ liệu KPI bị gián đoạn:', error);
+
+  unsubscribers.push(onSnapshot(collection(db, 'evaluationPeriods'), snapshot => {
+    const periods = snapshot.docs.map(item => ({ id: item.id, ...item.data() }));
+    const nextPeriod = periods.find(period => period.active === true && period.status !== 'DELETED') || null;
+    const currentId = KpiWorkflowState.period?.id || '';
+    const nextId = nextPeriod?.id || '';
+    KpiWorkflowState.periods = periods;
+    if (currentId !== nextId && !kpiPeriodReloading) {
+      kpiPeriodReloading = true;
+      loadAll().finally(() => { kpiPeriodReloading = false; });
+    }
+  }, onError));
+
+  if (KpiWorkflowState.period && KpiWorkflowState.user && KpiWorkflowState.profile) {
+    const periodId = KpiWorkflowState.period.id;
+    const departmentId = normalizeDepartment(KpiWorkflowState.profile.departmentId);
+    const scopes = kpiScopeQueries(periodId, departmentId);
+
+    unsubscribers.push(onSnapshot(scopes.taskQuery, snapshot => {
+      KpiWorkflowState.tasks = snapshot.docs.map(item => ({ id: item.id, ...item.data() }));
+      scheduleKpiRealtimeRender();
+    }, onError));
+    unsubscribers.push(onSnapshot(scopes.registrationQuery, snapshot => {
+      KpiWorkflowState.registrations = snapshot.docs.map(item => ({ id: item.id, ...item.data() }));
+      scheduleKpiRealtimeRender();
+    }, onError));
+    unsubscribers.push(onSnapshot(scopes.evaluationQuery, snapshot => {
+      KpiWorkflowState.evaluations = snapshot.docs.map(item => ({ id: item.id, ...item.data() }));
+      scheduleKpiRealtimeRender();
+    }, onError));
+    unsubscribers.push(onSnapshot(scopes.commonQuery, snapshot => {
+      KpiWorkflowState.commonAll = snapshot.docs.map(item => ({ id: item.id, ...item.data() }));
+      KpiWorkflowState.common = KpiWorkflowState.commonAll.find(item => item.userId === KpiWorkflowState.user.uid) || null;
+      scheduleKpiRealtimeRender();
+    }, onError));
+    unsubscribers.push(onSnapshot(doc(db, 'kpiPlans', `${periodId}_${departmentId}`), snapshot => {
+      KpiWorkflowState.plan = snapshot.exists() ? { id: snapshot.id, ...snapshot.data() } : null;
+      scheduleKpiRealtimeRender();
+    }, onError));
+    unsubscribers.push(onSnapshot(query(collection(db, 'kpiProfiles'), where('userId', '==', KpiWorkflowState.user.uid)), snapshot => {
+      const profiles = snapshot.docs.map(item => ({ id: item.id, ...item.data() }));
+      KpiWorkflowState.kpiProfile = profiles.find(item => item.periodId === periodId) || profiles[0] || null;
+      scheduleKpiRealtimeRender();
+    }, onError));
+
+    if (isDeputyLeader() || isDepartmentHead()) {
+      unsubscribers.push(onSnapshot(doc(db, 'approvalDelegations', `${departmentId}_ACTIVE`), snapshot => {
+        if (!snapshot.exists()) KpiWorkflowState.delegations = [];
+        else {
+          const delegation = { id: snapshot.id, ...snapshot.data() };
+          KpiWorkflowState.delegations = isDepartmentHead() || delegation.delegateUserId === KpiWorkflowState.user.uid ? [delegation] : [];
+        }
+        scheduleKpiRealtimeRender();
+      }, onError));
+    }
+  }
+
+  stopKpiRealtime = () => unsubscribers.forEach(unsubscribe => {
+    try { unsubscribe?.(); } catch (_) { /* Không cần xử lý khi đổi trang. */ }
+  });
+}
 
 const el = (id) => document.getElementById(id);
 const clean = (value) => String(value ?? '').trim();
@@ -250,7 +388,7 @@ function modal(title, body, footer='') {
   });
   return node;
 }
-function closeModal(){ el('kpiModalRoot')?.remove(); }
+function closeModal(){ el('kpiModalRoot')?.remove(); if (kpiRealtimePending) scheduleKpiRealtimeRender(); }
 
 function wireEvents() {
   el('kpiRefresh')?.addEventListener('click', loadAll);
@@ -361,6 +499,7 @@ async function loadAll() {
       KpiWorkflowState.kpiProfile = null;
       render();
       message(Permissions.canManageEvaluationPeriods() ? 'Chưa có kỳ đánh giá đang hoạt động. Trưởng phòng TCHC có thể tạo hoặc kích hoạt kỳ đánh giá.' : 'Chưa có kỳ đánh giá đang hoạt động.');
+      setupKpiRealtime();
       return;
     }
 
@@ -452,6 +591,7 @@ async function loadAll() {
 
     render();
     message('');
+    setupKpiRealtime();
   } catch (error) {
     console.error(error);
     renderManagementToolbar();
@@ -709,11 +849,7 @@ function renderReportDashboard() {
   el('kpiMainCardHint').textContent = canViewDepartmentReport()
     ? 'Điểm tự đánh giá được hiển thị ngay để chuẩn bị họp; điểm chính thức chỉ hình thành sau khi xác nhận.'
     : 'Điểm tự đánh giá được đưa vào báo cáo ngay và vẫn có thể chỉnh sửa trước khi xác nhận.';
-  target.innerHTML = `<div class="kpi-report-workflow">
-    <div><span>1</span><strong>Cá nhân tự đánh giá</strong><small>Hình thành điểm tạm tính và có thể in báo cáo.</small></div>
-    <div><span>2</span><strong>Trao đổi tại cuộc họp</strong><small>Cá nhân được điều chỉnh và gửi lại trước khi chốt.</small></div>
-    <div><span>3</span><strong>Xác nhận một lần</strong><small>Trưởng phòng hoặc người được ủy quyền chốt điểm chính thức.</small></div>
-  </div><div class="kpi-report-options">
+  target.innerHTML = `<div class="kpi-report-options">
     <button id="reportPersonal" class="kpi-report-option is-personal" type="button"><span>📄</span><strong>Báo cáo cá nhân</strong><small>Xem trước và in Mẫu 01 với điểm đang áp dụng.</small></button>
     <button id="reportProfile" class="kpi-report-option is-profile" type="button"><span>🪪</span><strong>Thông tin Mẫu 01</strong><small>Cập nhật ngày sinh, chức vụ và đơn vị công tác.</small></button>
     ${canViewDepartmentReport() ? '<button id="reportDepartment" class="kpi-report-option is-department" type="button"><span>📊</span><strong>Tổng hợp Phòng/Khu</strong><small>Xem điểm tạm tính, điểm chính thức và trạng thái từng người.</small></button>' : ''}
@@ -1499,6 +1635,9 @@ window.KPI2C = {
 
 
 export async function renderKpiWorkflow(outlet, options = {}) {
+  bindKpiRouteCleanup();
+  stopKpiRealtime();
+  stopKpiRealtime = () => {};
   KpiWorkflowState.mode = options.mode || 'plans';
   outlet.innerHTML = '<section id="kpiSection"></section>';
   KpiWorkflowState.user = auth.currentUser;
