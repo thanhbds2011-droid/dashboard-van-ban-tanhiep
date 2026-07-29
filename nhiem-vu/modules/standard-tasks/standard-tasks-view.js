@@ -1,11 +1,64 @@
 import { UserContext } from "../../core/user-context.js";
-import { Permissions } from "../../core/permissions.js?v=20260728.V1_1_5";
+import { Permissions } from "../../core/permissions.js?v=20260728.V1_1_7";
 import { ToastService } from "../../core/toast-service.js";
-import { StandardTaskReadService } from "../../services/standard-task-read-service.js";
-import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260728.V1_1_5";
-import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260728.V1_1_5";
+import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260728.V1_1_7";
+import { PeriodReadService } from "../../services/period-read-service.js?v=20260728.V1_1_7";
+import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260728.V1_1_7";
+import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260728.V1_1_7";
+
+let stopStandardRealtime = () => {};
+let standardRealtimeTimer = null;
+let standardRouteCleanupBound = false;
+
+function bindStandardRouteCleanup() {
+  if (standardRouteCleanupBound) return;
+  standardRouteCleanupBound = true;
+  document.addEventListener("v3:route-changed", event => {
+    if (event.detail?.route !== "#/standard-tasks") {
+      stopStandardRealtime();
+      stopStandardRealtime = () => {};
+      window.clearTimeout(standardRealtimeTimer);
+    }
+  });
+}
+
+function scheduleStandardRealtimeRefresh() {
+  window.clearTimeout(standardRealtimeTimer);
+  standardRealtimeTimer = window.setTimeout(() => {
+    if (window.location.hash === "#/standard-tasks" && !document.getElementById("standardTaskModalRoot")) {
+      reloadRoute();
+    }
+  }, 260);
+}
+
+function startStandardRealtime(period, registrationMode) {
+  stopStandardRealtime();
+  const unsubscribers = [];
+  const watchAfterInitial = subscribe => {
+    let initial = true;
+    const unsubscribe = subscribe(() => {
+      if (initial) { initial = false; return; }
+      scheduleStandardRealtimeRefresh();
+    }, error => console.warn("Theo dõi danh mục bị gián đoạn:", error));
+    unsubscribers.push(unsubscribe);
+  };
+
+  watchAfterInitial((onData, onError) => StandardTaskReadService.subscribe(onData, onError));
+  watchAfterInitial((onData, onError) => PeriodReadService.subscribe(onData, onError));
+  if (registrationMode && period?.id) {
+    watchAfterInitial((onData, onError) => TaskRegistrationService.subscribeForCurrentUser(period.id, onData, onError));
+    watchAfterInitial((onData, onError) => TaskRegistrationService.subscribeDepartmentPlan(period.id, onData, onError));
+  }
+
+  stopStandardRealtime = () => unsubscribers.forEach(unsubscribe => {
+    try { unsubscribe?.(); } catch (_) { /* Không cần xử lý khi đổi trang. */ }
+  });
+}
 
 export async function renderStandardTasksView(outlet) {
+  bindStandardRouteCleanup();
+  stopStandardRealtime();
+  stopStandardRealtime = () => {};
   const user = UserContext.requireUser();
   outlet.innerHTML = loadingCard("Đang tải danh mục công việc…");
 
@@ -160,6 +213,7 @@ export async function renderStandardTasksView(outlet) {
     });
 
     renderCurrentLists();
+    startStandardRealtime(period, registrationMode);
   } catch (error) {
     outlet.innerHTML = errorCard("Không thể tải danh mục công việc", error);
   }
