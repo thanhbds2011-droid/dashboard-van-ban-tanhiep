@@ -1,8 +1,7 @@
-/** Production 3D - modal tiếp nhận/cập nhật tiến độ/minh chứng/hoàn thành. */
+/** Cập nhật tiến độ, kết quả và minh chứng nhiệm vụ. */
 import { UserContext } from "../../core/user-context.js";
-import { Permissions } from "../../core/permissions.js";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260728.V1_1_5";
-import { DriveEvidenceService } from "../../services/drive-evidence-service.js";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260728.V1_1_7";
+import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260728.V1_1_7";
 import { validateProgressInput, cleanText } from "./task-form-validator.js";
 
 function mayUpdate(task) {
@@ -30,38 +29,105 @@ export async function openTaskProgressModal(task, { onSaved }) {
         <label class="field-full"><span>Khó khăn, vướng mắc</span><textarea id="difficulties" rows="2" maxlength="3000">${escapeHtml(task.difficulties || "")}</textarea></label>
         <label class="field-full"><span>Đề xuất hỗ trợ</span><textarea id="proposal" rows="2" maxlength="3000">${escapeHtml(task.proposal || "")}</textarea></label>
         <label class="field-full"><span>Minh chứng dạng nội dung/liên kết</span><textarea id="evidenceText" rows="2" maxlength="3000">${escapeHtml(task.evidenceText || "")}</textarea></label>
-        <label class="field-full"><span>Tải tệp/hình ảnh minh chứng lên Google Drive</span><input id="evidenceFile" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"><small>Tối đa 8 MB. Tệp được lưu trong thư mục Drive minh chứng của hệ thống.</small></label>
+        <label class="field-full evidence-file-field"><span>Tải tệp/hình ảnh minh chứng lên Google Drive</span><input id="evidenceFile" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"><small>Hình ảnh dung lượng lớn được tự động tối ưu trước khi tải. Tệp tối đa 8 MB.</small></label>
+        <div id="evidenceUploadStatus" class="field-full evidence-upload-status" hidden aria-live="polite">
+          <div class="evidence-upload-heading"><strong id="evidenceUploadMessage">Đang chuẩn bị tệp…</strong><span id="evidenceUploadPercent">0%</span></div>
+          <div class="evidence-upload-track"><span id="evidenceUploadBar"></span></div>
+          <small id="evidenceUploadDetail"></small>
+        </div>
         ${task.evidenceUrl ? `<div class="field-full info-banner">Tệp hiện tại: <a href="${escapeHtml(task.evidenceUrl)}" target="_blank" rel="noopener">${escapeHtml(task.evidenceFileName || "Mở minh chứng")}</a></div>` : ""}
       </div>
       <div class="modal-footer"><button class="secondary-button" type="button" data-close>Hủy</button><button id="saveProgressButton" class="primary-button" type="button">Lưu cập nhật</button></div>
     </section>`;
   document.body.appendChild(overlay);
+
   const $ = id => overlay.querySelector(`#${id}`);
-  const close = () => overlay.remove();
+  let uploading = false;
+  let preparedPromise = null;
+  let selectedFile = null;
+
+  const close = () => {
+    if (uploading) return;
+    overlay.remove();
+  };
   overlay.querySelectorAll("[data-close]").forEach(button => button.addEventListener("click", close));
 
+  const updateUploadStatus = info => {
+    const box = $("evidenceUploadStatus");
+    if (!box) return;
+    box.hidden = false;
+    box.classList.remove("is-error", "is-complete");
+    if (info?.phase === "COMPLETED") box.classList.add("is-complete");
+    const percent = Math.max(0, Math.min(100, Number(info?.percent || 0)));
+    $("evidenceUploadMessage").textContent = info?.message || "Đang xử lý tệp…";
+    $("evidenceUploadPercent").textContent = `${Math.round(percent)}%`;
+    $("evidenceUploadBar").style.width = `${percent}%`;
+    if (info?.optimized === true && info.originalSize && info.uploadedSize) {
+      $("evidenceUploadDetail").textContent = `Dung lượng tải lên: ${DriveEvidenceService.formatBytes(info.uploadedSize)} · Tệp gốc: ${DriveEvidenceService.formatBytes(info.originalSize)}`;
+    } else if (selectedFile) {
+      $("evidenceUploadDetail").textContent = `Dung lượng: ${DriveEvidenceService.formatBytes(selectedFile.size)}`;
+    }
+  };
 
+  const showUploadError = message => {
+    const box = $("evidenceUploadStatus");
+    box.hidden = false;
+    box.classList.add("is-error");
+    $("evidenceUploadMessage").textContent = message;
+    $("evidenceUploadPercent").textContent = "";
+    $("evidenceUploadBar").style.width = "0%";
+  };
 
   $("progressStatus").addEventListener("change", () => {
     if ($("progressStatus").value === "HOAN_THANH") $("progressValue").value = "100";
+  });
+
+  $("evidenceFile").addEventListener("change", () => {
+    selectedFile = $("evidenceFile").files?.[0] || null;
+    preparedPromise = null;
+    if (!selectedFile) {
+      $("evidenceUploadStatus").hidden = true;
+      return;
+    }
+    try {
+      DriveEvidenceService.validateFile(selectedFile);
+      updateUploadStatus({ phase: "SELECTED", percent: 2, message: `Đã chọn ${selectedFile.name}` });
+      preparedPromise = DriveEvidenceService.prepare(selectedFile, { onProgress: updateUploadStatus });
+      preparedPromise.then(prepared => {
+        updateUploadStatus({
+          phase: "READY",
+          percent: 16,
+          message: prepared.optimized ? "Hình ảnh đã được tối ưu, sẵn sàng tải lên." : "Tệp đã sẵn sàng tải lên.",
+          ...prepared
+        });
+      }).catch(error => showUploadError(error?.message || "Không chuẩn bị được tệp."));
+    } catch (error) {
+      showUploadError(error?.message || "Tệp không hợp lệ.");
+    }
   });
 
   $("saveProgressButton").addEventListener("click", async () => {
     const button = $("saveProgressButton");
     try {
       button.disabled = true;
-      button.textContent = "Đang lưu...";
+      uploading = true;
+      overlay.querySelectorAll("[data-close]").forEach(item => item.disabled = true);
+      button.textContent = "Đang lưu…";
+
       let evidenceUrl = task.evidenceUrl || task.evidenceLink || "";
       let evidenceFileName = task.evidenceFileName || "";
       let evidenceStoragePath = task.evidenceStoragePath || "";
       const file = $("evidenceFile").files?.[0] || null;
+
       if (file) {
-        button.textContent = "Đang tải minh chứng lên Drive...";
-        const uploaded = await DriveEvidenceService.upload(file, task);
+        if (preparedPromise) await preparedPromise;
+        button.textContent = "Đang tải minh chứng…";
+        const uploaded = await DriveEvidenceService.upload(file, task, { onProgress: updateUploadStatus });
         evidenceUrl = uploaded.fileUrl || "";
         evidenceFileName = uploaded.fileName || file.name;
         evidenceStoragePath = uploaded.fileId || "";
       }
+
       const changes = {
         status: $("progressStatus").value,
         progress: Number($("progressValue").value),
@@ -76,13 +142,18 @@ export async function openTaskProgressModal(task, { onSaved }) {
         evidenceStoragePath
       };
       validateProgressInput(changes, task);
+      button.textContent = "Đang hoàn tất cập nhật…";
       await TaskWriteService.updateProgress(task, changes);
-      close();
+      uploading = false;
+      overlay.remove();
       await onSaved?.();
     } catch (error) {
+      uploading = false;
       window.alert(error?.message || "Không lưu được cập nhật.");
+      showUploadError(error?.message || "Không lưu được cập nhật.");
       button.disabled = false;
       button.textContent = "Lưu cập nhật";
+      overlay.querySelectorAll("[data-close]").forEach(item => item.disabled = false);
     }
   });
 }

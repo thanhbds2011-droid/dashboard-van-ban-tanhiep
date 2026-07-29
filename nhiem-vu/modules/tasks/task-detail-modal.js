@@ -2,8 +2,8 @@
 import { UserContext } from "../../core/user-context.js";
 import { Permissions } from "../../core/permissions.js";
 import { UserReadService } from "../../services/user-read-service.js";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260728.V1_1_5";
-import { openTaskProgressModal } from "./task-progress-modal.js?v=20260728.V1_1_5";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260728.V1_1_7";
+import { openTaskProgressModal } from "./task-progress-modal.js?v=20260728.V1_1_7";
 
 function canAssign(task) {
   const user = UserContext.requireUser();
