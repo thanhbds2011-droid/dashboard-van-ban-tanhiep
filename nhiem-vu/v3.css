@@ -354,3 +354,17 @@ button,input,select,textarea{font-size:16px}
 @media(max-width:680px){
   .evidence-upload-heading{align-items:flex-start}
 }
+
+/* V1.1.8: nhận diện loại đầu việc trong danh mục */
+.standard-task-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.standard-task-tags .status-pill {
+  font-size: 0.75rem;
+  line-height: 1.2;
+}
