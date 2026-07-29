@@ -1,11 +1,15 @@
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260728.V1_1_7";
+import { Permissions } from "../core/permissions.js?v=20260729.V1_1_8";
 import { TaskLogService } from "./task-log-service.js";
 
 const clean = value => String(value ?? "").trim();
 const upper = value => clean(value).toUpperCase();
 const lower = value => clean(value).toLowerCase();
+
+function standardWorkType(value) {
+  return upper(value) === "DOT_XUAT" ? "DOT_XUAT" : "THUONG_XUYEN";
+}
 
 function dateKey(date) {
   const year = date.getFullYear();
@@ -117,6 +121,8 @@ function endOfPeriod(period) {
 
 function taskPayload(registration, reviewer, due, options = {}) {
   const code = createTaskCode();
+  const workType = standardWorkType(registration.workType);
+  const isUnexpected = workType === "DOT_XUAT";
   return {
     code,
     payload: {
@@ -126,7 +132,7 @@ function taskPayload(registration, reviewer, due, options = {}) {
       description: registration.description || "",
       sourceType: "DANG_KY_KE_HOACH",
       sourceReference: registration.standardTaskCode || "",
-      sourceDetail: "Đầu việc do cá nhân đăng ký và được phê duyệt.",
+      sourceDetail: isUnexpected ? "Đầu việc đột xuất trong danh mục được cá nhân đăng ký và phê duyệt." : "Đầu việc thường xuyên do cá nhân đăng ký và được phê duyệt.",
       sourceDate: FirebaseService.Timestamp.fromDate(new Date()),
       sourceDateKey: dateKey(new Date()),
       entryMode: "SELF_REGISTERED_APPROVED",
@@ -146,13 +152,13 @@ function taskPayload(registration, reviewer, due, options = {}) {
       assignmentStatus: "DA_PHAN_CONG",
       status: "MOI_TIEP_NHAN",
       progress: 0,
-      priority: "THUONG",
+      priority: isUnexpected ? "DOT_XUAT" : "THUONG",
       deadline: FirebaseService.Timestamp.fromDate(due),
       deadlineDateKey: dateKey(due),
       standardTaskCode: registration.standardTaskCode || "",
       standardTaskName: registration.standardTaskName || "",
       registrationId: registration.id,
-      workType: "THUONG_XUYEN",
+      workType,
       baseScore: Number(registration.baseScore || 0),
       difficultyCoefficient: Number(registration.difficultyCoefficient || 1),
       maximumConvertedScore: Number(registration.maximumConvertedScore || 0),
@@ -162,9 +168,9 @@ function taskPayload(registration, reviewer, due, options = {}) {
       scoringVersion: "KPI_2026_V1",
       periodId: registration.periodId,
       periodName: registration.periodName || registration.periodId,
-      planType: "KE_HOACH",
+      planType: isUnexpected ? "DOT_XUAT" : "KE_HOACH",
       planApprovalStatus: "APPROVED",
-      includedInA: true,
+      includedInA: !isUnexpected,
       isCoreTask: Boolean(options.isCoreTask),
       scoringEnabled: true,
       scoringStatus: "NOT_ASSESSED",
@@ -314,6 +320,7 @@ export const TaskRegistrationService = Object.freeze({
 
     for (const item of items) {
       const id = registrationId(period.id, user.uid, item.id || item.code);
+      const workType = standardWorkType(item.workType);
       const registration = {
         id,
         periodId: period.id,
@@ -333,7 +340,9 @@ export const TaskRegistrationService = Object.freeze({
         userLeaderLevel: user.leaderLevel || "",
         userIsDepartmentHead: user.isDepartmentHead === true,
         reviewerEmail: user.role === "DEPARTMENT_LEADER" ? lower(user.kpiReviewerEmail) : "",
-        workType: "THUONG_XUYEN",
+        workType,
+        planType: workType === "DOT_XUAT" ? "DOT_XUAT" : "KE_HOACH",
+        includedInA: workType !== "DOT_XUAT",
         baseScore: Number(item.baseScore || 0),
         difficultyCoefficient: Number(item.difficultyCoefficient || 1),
         maximumConvertedScore: Number(item.maximumConvertedScore || item.baseScore || 0),
