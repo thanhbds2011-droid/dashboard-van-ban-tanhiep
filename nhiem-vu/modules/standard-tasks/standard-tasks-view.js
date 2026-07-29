@@ -1,10 +1,10 @@
 import { UserContext } from "../../core/user-context.js";
-import { Permissions } from "../../core/permissions.js?v=20260728.V1_1_7";
+import { Permissions } from "../../core/permissions.js?v=20260729.V1_1_8";
 import { ToastService } from "../../core/toast-service.js";
-import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260728.V1_1_7";
-import { PeriodReadService } from "../../services/period-read-service.js?v=20260728.V1_1_7";
-import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260728.V1_1_7";
-import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260728.V1_1_7";
+import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260729.V1_1_8";
+import { PeriodReadService } from "../../services/period-read-service.js?v=20260729.V1_1_8";
+import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260729.V1_1_8";
+import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260729.V1_1_8";
 
 let stopStandardRealtime = () => {};
 let standardRealtimeTimer = null;
@@ -70,15 +70,17 @@ export async function renderStandardTasksView(outlet) {
     ]);
 
     const plan = period ? await TaskRegistrationService.getDepartmentPlan(period.id) : null;
-    const regularItems = items.filter(item => String(item.workType || "THUONG_XUYEN").toUpperCase() !== "DOT_XUAT");
+    const catalogItems = items;
     const registrationMode = Permissions.canRegisterStandardTasks();
     const registrations = registrationMode && period
       ? await TaskRegistrationService.listForCurrentUser(period.id)
       : [];
     const registeredMap = createRegistrationMap(registrations);
     const registrationOpen = Boolean(period && plan?.locked !== true);
-    const registeredCount = regularItems.filter(item => findRegistration(item, registeredMap)).length;
-    const availableCount = Math.max(regularItems.length - registeredCount, 0);
+    const registeredCount = catalogItems.filter(item => findRegistration(item, registeredMap)).length;
+    const availableCount = Math.max(catalogItems.length - registeredCount, 0);
+    const regularCount = catalogItems.filter(item => !isUnexpectedTask(item)).length;
+    const unexpectedCount = catalogItems.filter(isUnexpectedTask).length;
 
     outlet.innerHTML = `<section class="page-card standard-task-page">
       <div class="page-header">
@@ -103,22 +105,27 @@ export async function renderStandardTasksView(outlet) {
       </div>
 
       <div class="summary-grid compact-grid standard-task-summary">
-        ${metric("Tổng đầu việc", regularItems.length)}
+        ${metric("Tổng đầu việc", catalogItems.length)}
         ${metric("Chưa đăng ký", availableCount)}
         ${metric("Đã đăng ký", registeredCount)}
         ${metric("Đã duyệt", registrations.filter(item => item.status === "APPROVED").length)}
       </div>
 
       <div class="toolbar standard-task-toolbar">
-        <label class="field-grow"><span>Tìm kiếm</span><input id="standardTaskSearch" type="search" placeholder="Tìm theo mã, tên đầu việc hoặc sản phẩm đầu ra…"></label>
+        <label class="field-grow"><span>Tìm kiếm</span><input id="standardTaskSearch" type="search" placeholder="Tìm theo mã, tên đầu việc, tần suất hoặc sản phẩm đầu ra…"></label>
+        <label><span>Loại công việc</span><select id="standardTaskTypeFilter">
+          <option value="ALL">Tất cả (${catalogItems.length})</option>
+          <option value="THUONG_XUYEN">Thường xuyên (${regularCount})</option>
+          <option value="DOT_XUAT">Đột xuất (${unexpectedCount})</option>
+        </select></label>
       </div>
 
       <div id="standardTaskListContainer"></div>
 
       ${registrationMode ? `<div class="registration-sticky">
         <div>
-          <strong>Đã chọn: <span id="registrationSelectedCount">0</span> đầu việc · Tổng điểm: <span id="registrationSelectedScore">0</span></strong>
-          <small>${registrationOpen ? "Điểm kế hoạch = Điểm chuẩn × Hệ số khó." : "Đăng ký kế hoạch của Phòng/Khu đang được khóa. Trưởng phòng cần mở lại đăng ký trước khi người dùng đăng ký."}</small>
+          <strong>Đã chọn: <span id="registrationSelectedCount">0</span> đầu việc · Điểm A dự kiến: <span id="registrationSelectedScore">0</span></strong>
+          <small>${registrationOpen ? "Đầu việc thường xuyên được tính vào A; đầu việc đột xuất chỉ ghi nhận vào kết quả thực tế khi phát sinh." : "Đăng ký kế hoạch của Phòng/Khu đang được khóa. Trưởng phòng cần mở lại đăng ký trước khi người dùng đăng ký."}</small>
         </div>
         <button id="btnRegisterSelected" class="primary-button" type="button" ${registrationOpen ? "" : "disabled"}>Đăng ký đầu việc đã chọn</button>
       </div>` : ""}
@@ -126,6 +133,7 @@ export async function renderStandardTasksView(outlet) {
 
     const search = document.getElementById("standardTaskSearch");
     const listContainer = document.getElementById("standardTaskListContainer");
+    const typeFilter = document.getElementById("standardTaskTypeFilter");
 
     const updateCount = () => {
       const selectedInputs = [...document.querySelectorAll("[data-registration-check]:checked")];
@@ -133,8 +141,8 @@ export async function renderStandardTasksView(outlet) {
       const countTarget = document.getElementById("registrationSelectedCount");
       if (countTarget) countTarget.textContent = String(ids.length);
 
-      const score = regularItems
-        .filter(item => ids.includes(taskKey(item)))
+      const score = catalogItems
+        .filter(item => ids.includes(taskKey(item)) && !isUnexpectedTask(item))
         .reduce((sum, item) => sum + Number(item.maximumConvertedScore || item.baseScore || 0), 0);
       const scoreTarget = document.getElementById("registrationSelectedScore");
       if (scoreTarget) scoreTarget.textContent = formatNumber(score);
@@ -169,7 +177,7 @@ export async function renderStandardTasksView(outlet) {
 
       document.querySelectorAll("[data-edit-standard-task]").forEach(button => {
         button.addEventListener("click", () => {
-          const item = regularItems.find(task => task.id === button.dataset.editStandardTask);
+          const item = catalogItems.find(task => task.id === button.dataset.editStandardTask);
           if (item) openTaskEditor(item);
         });
       });
@@ -179,10 +187,15 @@ export async function renderStandardTasksView(outlet) {
 
     const renderCurrentLists = () => {
       const keyword = String(search?.value || "").trim().toLowerCase();
-      const visibleItems = regularItems.filter(item => [item.code, item.name, item.outputRequirement]
-        .join(" ")
-        .toLowerCase()
-        .includes(keyword));
+      const selectedType = String(typeFilter?.value || "ALL").toUpperCase();
+      const visibleItems = catalogItems.filter(item => {
+        const typeMatches = selectedType === "ALL" || normalizedWorkType(item) === selectedType;
+        const textMatches = [item.code, item.name, item.outputRequirement, item.frequency, workTypeLabel(item)]
+          .join(" ")
+          .toLowerCase()
+          .includes(keyword);
+        return typeMatches && textMatches;
+      });
 
       listContainer.innerHTML = registrationMode
         ? renderRegistrationWorkspace(visibleItems, registeredMap, registrationOpen, catalogAccess.canManage)
@@ -191,13 +204,14 @@ export async function renderStandardTasksView(outlet) {
     };
 
     search?.addEventListener("input", renderCurrentLists);
+    typeFilter?.addEventListener("change", renderCurrentLists);
     document.getElementById("btnStandardRefresh")?.addEventListener("click", reloadRoute);
     document.getElementById("btnAddStandardTask")?.addEventListener("click", () => openTaskEditor(null));
     document.getElementById("btnDelegateCatalogEditor")?.addEventListener("click", () => openCatalogDelegation(catalogAccess.delegation, period));
 
     document.getElementById("btnRegisterSelected")?.addEventListener("click", async () => {
       const ids = [...document.querySelectorAll("[data-registration-check]:checked")].map(input => input.value);
-      const selected = regularItems.filter(item => ids.includes(taskKey(item)));
+      const selected = catalogItems.filter(item => ids.includes(taskKey(item)));
       if (!selected.length) return ToastService.error("Hãy chọn ít nhất một đầu việc ở cột Danh mục công việc.");
 
       const button = document.getElementById("btnRegisterSelected");
@@ -268,6 +282,7 @@ function renderAvailableTask(item, registrationOpen, canManageCatalog) {
     <div class="data-row-main">
       <strong>${escapeHtml(item.code || item.id)} — ${escapeHtml(item.name || "")}</strong>
       <small>${escapeHtml(item.outputRequirement || "")}</small>
+      <div class="standard-task-tags">${workTypeBadge(item)}${item.frequency ? `<span class="status-pill neutral">${escapeHtml(item.frequency)}</span>` : ""}</div>
     </div>
     <div class="data-row-meta">
       <span class="status-pill neutral">Chưa đăng ký</span>
@@ -300,6 +315,7 @@ function renderRegisteredTask(item, registration, registrationOpen, canManageCat
     <div class="data-row-main">
       <strong>${escapeHtml(item.code || item.id)} — ${escapeHtml(item.name || "")}</strong>
       <small>${escapeHtml(item.outputRequirement || "")}</small>
+      <div class="standard-task-tags">${workTypeBadge(item)}${item.frequency ? `<span class="status-pill neutral">${escapeHtml(item.frequency)}</span>` : ""}</div>
       ${registration?.rejectionReason ? `<small class="text-danger">Lý do trả lại: ${escapeHtml(registration.rejectionReason)}</small>` : ""}
     </div>
     <div class="data-row-meta">
@@ -318,6 +334,7 @@ function renderCatalogList(items, canManageCatalog) {
     <div class="data-row-main">
       <strong>${escapeHtml(item.code || item.id)} — ${escapeHtml(item.name || "")}</strong>
       <small>${escapeHtml(item.outputRequirement || "")}</small>
+      <div class="standard-task-tags">${workTypeBadge(item)}${item.frequency ? `<span class="status-pill neutral">${escapeHtml(item.frequency)}</span>` : ""}</div>
     </div>
     <div class="data-row-meta">
       <small>Điểm tối đa: ${formatNumber(item.maximumConvertedScore || 0)}</small>
@@ -466,6 +483,26 @@ function addDays(dateText, days) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function normalizedWorkType(item) {
+  return String(item?.workType || "THUONG_XUYEN").trim().toUpperCase() === "DOT_XUAT"
+    ? "DOT_XUAT"
+    : "THUONG_XUYEN";
+}
+
+function isUnexpectedTask(item) {
+  return normalizedWorkType(item) === "DOT_XUAT";
+}
+
+function workTypeLabel(item) {
+  return isUnexpectedTask(item) ? "Đột xuất" : "Thường xuyên";
+}
+
+function workTypeBadge(item) {
+  return isUnexpectedTask(item)
+    ? '<span class="status-pill warning">Đột xuất · không cộng A</span>'
+    : '<span class="status-pill success">Thường xuyên · tính vào A</span>';
 }
 
 function createRegistrationMap(registrations) {
