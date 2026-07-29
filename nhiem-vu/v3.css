@@ -300,3 +300,57 @@ button,input,select,textarea{font-size:16px}
     margin:10px auto 0;
   }
 }
+
+/* Trạng thái tải minh chứng Drive */
+.evidence-file-field input[type="file"]{
+  padding:9px;
+  background:#fbfdff;
+  border-style:dashed;
+}
+.evidence-upload-status{
+  border:1px solid #c8dce8;
+  border-radius:12px;
+  padding:12px 14px;
+  background:linear-gradient(145deg,#f8fcff,#eef7fc);
+}
+.evidence-upload-status[hidden]{display:none!important}
+.evidence-upload-heading{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:8px;
+}
+.evidence-upload-heading strong{color:#174861}
+.evidence-upload-heading span{font-weight:800;color:#0f6d9d;white-space:nowrap}
+.evidence-upload-track{
+  height:9px;
+  overflow:hidden;
+  border-radius:999px;
+  background:#dceaf2;
+}
+.evidence-upload-track span{
+  display:block;
+  width:0;
+  height:100%;
+  border-radius:inherit;
+  background:linear-gradient(90deg,#1680b8,#27a67b);
+  transition:width .22s ease;
+}
+.evidence-upload-status small{
+  display:block;
+  margin-top:7px;
+  color:#587387;
+}
+.evidence-upload-status.is-complete{
+  border-color:#acd9c2;
+  background:#f0fbf5;
+}
+.evidence-upload-status.is-error{
+  border-color:#efb6b0;
+  background:#fff5f4;
+}
+.evidence-upload-status.is-error .evidence-upload-heading strong{color:#a92f25}
+@media(max-width:680px){
+  .evidence-upload-heading{align-items:flex-start}
+}
