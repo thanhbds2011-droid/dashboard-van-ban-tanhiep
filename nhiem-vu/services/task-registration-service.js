@@ -1,6 +1,6 @@
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260728.V1_1_5";
+import { Permissions } from "../core/permissions.js?v=20260728.V1_1_7";
 import { TaskLogService } from "./task-log-service.js";
 
 const clean = value => String(value ?? "").trim();
@@ -224,6 +224,13 @@ async function createApprovedTasks(registrations, reviewer, options = {}) {
   return taskIds;
 }
 
+
+function mapRegistrationSnapshot(snapshot) {
+  return snapshot.docs
+    .map(item => ({ id: item.id, ...item.data() }))
+    .filter(item => item.active !== false);
+}
+
 export const TaskRegistrationService = Object.freeze({
   async getActivePeriod() {
     return activePeriod();
@@ -247,6 +254,49 @@ export const TaskRegistrationService = Object.freeze({
     return snapshot.docs
       .map(item => ({ id: item.id, ...item.data() }))
       .filter(item => item.active !== false);
+  },
+
+
+  subscribeForCurrentUser(periodId, onData, onError) {
+    const user = UserContext.requireUser();
+    if (!periodId) {
+      onData?.([]);
+      return () => {};
+    }
+    const reference = FirebaseService.query(
+      FirebaseService.collection(FirebaseService.db, "taskRegistrations"),
+      FirebaseService.where("periodId", "==", periodId),
+      FirebaseService.where("userId", "==", user.uid)
+    );
+    return FirebaseService.onSnapshot(
+      reference,
+      snapshot => onData?.(mapRegistrationSnapshot(snapshot)),
+      error => {
+        console.error("Không thể theo dõi đăng ký kế hoạch theo thời gian thực:", error);
+        onError?.(error);
+      }
+    );
+  },
+
+  subscribeDepartmentPlan(periodId, onData, onError) {
+    const user = UserContext.requireUser();
+    if (!periodId || !user.departmentId) {
+      onData?.(null);
+      return () => {};
+    }
+    const reference = FirebaseService.doc(
+      FirebaseService.db,
+      "kpiPlans",
+      `${periodId}_${upper(user.departmentId)}`
+    );
+    return FirebaseService.onSnapshot(
+      reference,
+      snapshot => onData?.(snapshot.exists() ? { id: snapshot.id, ...snapshot.data() } : null),
+      error => {
+        console.error("Không thể theo dõi trạng thái kế hoạch theo thời gian thực:", error);
+        onError?.(error);
+      }
+    );
   },
 
   async registerMany(items, period) {

@@ -1,4 +1,4 @@
-/** Production 3C - Evaluation Period Read Service (read only). */
+/** Dịch vụ đọc kỳ đánh giá. */
 import { FirebaseService } from "../core/firebase-service.js";
 
 function mapSnapshot(snapshot) {
@@ -9,13 +9,29 @@ function normalizeStatus(period) {
   return String(period.status || (period.active ? "OPEN" : "DRAFT")).trim().toUpperCase();
 }
 
+function normalize(items = []) {
+  return items
+    .map(item => ({ ...item, _status: normalizeStatus(item) }))
+    .sort((a, b) => String(b.startDateKey || b.id).localeCompare(String(a.startDateKey || a.id)));
+}
+
 export const PeriodReadService = Object.freeze({
   async list() {
     const reference = FirebaseService.collection(FirebaseService.db, "evaluationPeriods");
     const snapshot = await FirebaseService.getDocs(reference);
-    return mapSnapshot(snapshot)
-      .map(item => ({ ...item, _status: normalizeStatus(item) }))
-      .sort((a, b) => String(b.startDateKey || b.id).localeCompare(String(a.startDateKey || a.id)));
+    return normalize(mapSnapshot(snapshot));
+  },
+
+  subscribe(onData, onError) {
+    const reference = FirebaseService.collection(FirebaseService.db, "evaluationPeriods");
+    return FirebaseService.onSnapshot(
+      reference,
+      snapshot => onData?.(normalize(mapSnapshot(snapshot))),
+      error => {
+        console.error("Không thể theo dõi kỳ đánh giá theo thời gian thực:", error);
+        onError?.(error);
+      }
+    );
   },
 
   active(periods = []) {

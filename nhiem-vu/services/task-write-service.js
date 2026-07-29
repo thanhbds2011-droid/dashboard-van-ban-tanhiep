@@ -1,7 +1,7 @@
 /** Production 3D - tạo, phân công, tiếp nhận, cập nhật tiến độ và hoàn thành nhiệm vụ. */
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260728.V1_1_5";
+import { Permissions } from "../core/permissions.js?v=20260728.V1_1_7";
 import { TaskLogService } from "./task-log-service.js";
 
 function dateKey(date) {

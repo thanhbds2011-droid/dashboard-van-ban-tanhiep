@@ -1,4 +1,4 @@
-/** Production 3C - Task Read Service (read only). */
+/** Dịch vụ đọc nhiệm vụ theo đúng phạm vi tài khoản. */
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
 import { Permissions } from "../core/permissions.js";
@@ -16,35 +16,36 @@ function mapSnapshot(snapshot) {
   }));
 }
 
-async function runQuery(constraints = []) {
-  const reference = FirebaseService.collection(FirebaseService.db, "tasks");
-  const builtQuery = constraints.length
-    ? FirebaseService.query(reference, ...constraints)
-    : reference;
-  const snapshot = await FirebaseService.getDocs(builtQuery);
-  return mapSnapshot(snapshot);
-}
-
-async function loadScopedTasks() {
+function scopedReferences() {
   const user = UserContext.requireUser();
+  const reference = FirebaseService.collection(FirebaseService.db, "tasks");
 
   if (Permissions.canViewAllDepartments()) {
-    return runQuery([]);
+    return [reference];
   }
 
   if (Permissions.isDepartmentLeader()) {
     const departmentId = user.departmentId;
-    const resultSets = await Promise.all([
-      runQuery([FirebaseService.where("primaryDepartmentId", "==", departmentId)]),
-      runQuery([FirebaseService.where("visibleDepartmentIds", "array-contains", departmentId)]),
-      runQuery([FirebaseService.where("supportDepartmentIds", "array-contains", departmentId)])
-    ]);
-    return uniqueById(resultSets.flat());
+    return [
+      FirebaseService.query(reference, FirebaseService.where("primaryDepartmentId", "==", departmentId)),
+      FirebaseService.query(reference, FirebaseService.where("visibleDepartmentIds", "array-contains", departmentId)),
+      FirebaseService.query(reference, FirebaseService.where("supportDepartmentIds", "array-contains", departmentId))
+    ];
   }
 
-  // Viên chức chỉ truy vấn nhiệm vụ được giao trực tiếp cho mình.
-  // Tránh truy vấn rộng visibleUserIds gây permission-denied khi dữ liệu cũ thiếu trường.
-  return runQuery([FirebaseService.where("ownerUserId", "==", user.uid)]);
+  return [
+    FirebaseService.query(reference, FirebaseService.where("ownerUserId", "==", user.uid))
+  ];
+}
+
+async function runReference(reference) {
+  const snapshot = await FirebaseService.getDocs(reference);
+  return mapSnapshot(snapshot);
+}
+
+async function loadScopedTasks() {
+  const resultSets = await Promise.all(scopedReferences().map(runReference));
+  return uniqueById(resultSets.flat());
 }
 
 function timestampToDate(value) {
@@ -85,10 +86,49 @@ function enrichTask(task) {
   };
 }
 
+function subscribeScopedTasks(onData, onError) {
+  if (typeof onData !== "function") throw new Error("Thiếu hàm nhận dữ liệu nhiệm vụ.");
+
+  const references = scopedReferences();
+  const stores = references.map(() => new Map());
+  const initialized = references.map(() => false);
+  let active = true;
+
+  const emit = () => {
+    if (!active || initialized.some(value => value !== true)) return;
+    const merged = uniqueById(stores.flatMap(store => [...store.values()])).map(enrichTask);
+    onData(merged);
+  };
+
+  const unsubscribers = references.map((reference, index) => FirebaseService.onSnapshot(
+    reference,
+    snapshot => {
+      stores[index] = new Map(mapSnapshot(snapshot).map(item => [item.id, item]));
+      initialized[index] = true;
+      emit();
+    },
+    error => {
+      console.error("Không thể theo dõi nhiệm vụ theo thời gian thực:", error);
+      onError?.(error);
+    }
+  ));
+
+  return () => {
+    active = false;
+    unsubscribers.forEach(unsubscribe => {
+      try { unsubscribe?.(); } catch (_) { /* Không cần xử lý khi đóng màn hình. */ }
+    });
+  };
+}
+
 export const TaskReadService = Object.freeze({
   async list() {
     const tasks = await loadScopedTasks();
     return tasks.map(enrichTask);
+  },
+
+  subscribe(onData, onError) {
+    return subscribeScopedTasks(onData, onError);
   },
 
   summarize(tasks = []) {

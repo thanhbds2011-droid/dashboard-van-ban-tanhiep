@@ -1,4 +1,4 @@
-/** Production 3C - Standard Task Read Service (read only). */
+/** Dịch vụ đọc danh mục đầu việc chuẩn. */
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
 import { Permissions } from "../core/permissions.js";
@@ -7,17 +7,36 @@ function mapSnapshot(snapshot) {
   return snapshot.docs.map(documentSnapshot => ({ id: documentSnapshot.id, ...documentSnapshot.data() }));
 }
 
+function normalize(items = []) {
+  return items
+    .filter(item => item.active !== false)
+    .sort((a, b) => Number(a.order || 9999) - Number(b.order || 9999) || String(a.code || a.id).localeCompare(String(b.code || b.id), "vi"));
+}
+
+function sourceReference() {
+  const user = UserContext.requireUser();
+  const reference = FirebaseService.collection(FirebaseService.db, "standardTasks");
+  return Permissions.canViewAllDepartments()
+    ? reference
+    : FirebaseService.query(reference, FirebaseService.where("departmentId", "==", user.departmentId));
+}
+
 export const StandardTaskReadService = Object.freeze({
   async list() {
-    const user = UserContext.requireUser();
-    const reference = FirebaseService.collection(FirebaseService.db, "standardTasks");
-    const source = Permissions.canViewAllDepartments()
-      ? reference
-      : FirebaseService.query(reference, FirebaseService.where("departmentId", "==", user.departmentId));
-    const snapshot = await FirebaseService.getDocs(source);
-    return mapSnapshot(snapshot)
-      .filter(item => item.active !== false)
-      .sort((a, b) => Number(a.order || 9999) - Number(b.order || 9999) || String(a.code || a.id).localeCompare(String(b.code || b.id), "vi"));
+    const snapshot = await FirebaseService.getDocs(sourceReference());
+    return normalize(mapSnapshot(snapshot));
+  },
+
+  subscribe(onData, onError) {
+    if (typeof onData !== "function") throw new Error("Thiếu hàm nhận dữ liệu danh mục công việc.");
+    return FirebaseService.onSnapshot(
+      sourceReference(),
+      snapshot => onData(normalize(mapSnapshot(snapshot))),
+      error => {
+        console.error("Không thể theo dõi danh mục công việc theo thời gian thực:", error);
+        onError?.(error);
+      }
+    );
   },
 
   summarize(items = []) {
