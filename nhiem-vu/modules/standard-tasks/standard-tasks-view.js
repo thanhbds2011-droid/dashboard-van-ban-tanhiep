@@ -1,10 +1,10 @@
 import { UserContext } from "../../core/user-context.js";
-import { Permissions } from "../../core/permissions.js?v=20260729.V1_1_8";
+import { Permissions } from "../../core/permissions.js?v=20260730.V1_1_9";
 import { ToastService } from "../../core/toast-service.js";
-import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260729.V1_1_8";
-import { PeriodReadService } from "../../services/period-read-service.js?v=20260729.V1_1_8";
-import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260729.V1_1_8";
-import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260729.V1_1_8";
+import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260730.V1_1_9";
+import { PeriodReadService } from "../../services/period-read-service.js?v=20260730.V1_1_9";
+import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260730.V1_1_9";
+import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260730.V1_1_9";
 
 let stopStandardRealtime = () => {};
 let standardRealtimeTimer = null;
@@ -125,7 +125,7 @@ export async function renderStandardTasksView(outlet) {
       ${registrationMode ? `<div class="registration-sticky">
         <div>
           <strong>Đã chọn: <span id="registrationSelectedCount">0</span> đầu việc · Điểm A dự kiến: <span id="registrationSelectedScore">0</span></strong>
-          <small>${registrationOpen ? "Đầu việc thường xuyên được tính vào A; đầu việc đột xuất chỉ ghi nhận vào kết quả thực tế khi phát sinh." : "Đăng ký kế hoạch của Phòng/Khu đang được khóa. Trưởng phòng cần mở lại đăng ký trước khi người dùng đăng ký."}</small>
+          <small>${registrationOpen ? "Tất cả đầu việc đã đăng ký và được duyệt, gồm thường xuyên và đột xuất, đều được tính vào A." : "Đăng ký kế hoạch của Phòng/Khu đang được khóa. Trưởng phòng cần mở lại đăng ký trước khi người dùng đăng ký."}</small>
         </div>
         <button id="btnRegisterSelected" class="primary-button" type="button" ${registrationOpen ? "" : "disabled"}>Đăng ký đầu việc đã chọn</button>
       </div>` : ""}
@@ -142,7 +142,7 @@ export async function renderStandardTasksView(outlet) {
       if (countTarget) countTarget.textContent = String(ids.length);
 
       const score = catalogItems
-        .filter(item => ids.includes(taskKey(item)) && !isUnexpectedTask(item))
+        .filter(item => ids.includes(taskKey(item)))
         .reduce((sum, item) => sum + Number(item.maximumConvertedScore || item.baseScore || 0), 0);
       const scoreTarget = document.getElementById("registrationSelectedScore");
       if (scoreTarget) scoreTarget.textContent = formatNumber(score);
@@ -353,8 +353,12 @@ function openTaskEditor(item) {
       <label class="kpi-field full"><span>Tên đầu việc</span><input id="catalogTaskName" value="${escapeHtml(item?.name || "")}" placeholder="Nhập tên đầu việc"></label>
       <label class="kpi-field full"><span>Sản phẩm đầu ra/Yêu cầu hoàn thành</span><textarea id="catalogTaskOutput" rows="3">${escapeHtml(item?.outputRequirement || "")}</textarea></label>
       <label class="kpi-field full"><span>Minh chứng bắt buộc</span><textarea id="catalogTaskEvidence" rows="2">${escapeHtml(item?.mandatoryEvidence || "")}</textarea></label>
-      <label class="kpi-field"><span>Điểm chuẩn</span><input id="catalogTaskBaseScore" type="number" min="0.1" step="0.1" value="${escapeHtml(item?.baseScore ?? 1)}"></label>
-      <label class="kpi-field"><span>Hệ số khó</span><input id="catalogTaskCoefficient" type="number" min="0.1" step="0.1" value="${escapeHtml(item?.difficultyCoefficient ?? 1)}"></label>
+      <label class="kpi-field"><span>Điểm chuẩn</span><input id="catalogTaskBaseScore" type="number" value="${escapeHtml(item?.baseScore ?? (String(item?.workType || "THUONG_XUYEN").toUpperCase() === "DOT_XUAT" ? 12 : 10))}" readonly></label>
+      <label class="kpi-field"><span>Hệ số độ khó</span><select id="catalogTaskCoefficient">
+        <option value="1" ${Math.abs(Number(item?.difficultyCoefficient ?? 1) - 1) < 0.000001 ? "selected" : ""}>100%</option>
+        <option value="1.1" ${Math.abs(Number(item?.difficultyCoefficient ?? 1) - 1.1) < 0.000001 ? "selected" : ""}>110%</option>
+        <option value="1.2" ${Math.abs(Number(item?.difficultyCoefficient ?? 1) - 1.2) < 0.000001 ? "selected" : ""}>120%</option>
+      </select></label>
       <label class="kpi-field"><span>Thứ tự hiển thị</span><input id="catalogTaskOrder" type="number" min="1" step="1" value="${escapeHtml(item?.order ?? 9999)}"></label>
       <div class="kpi-field"><span>Điểm tối đa dự kiến</span><strong id="catalogTaskMaximum">${formatNumber(Number(item?.baseScore || 1) * Number(item?.difficultyCoefficient || 1))}</strong></div>
     </div>`,
@@ -367,8 +371,15 @@ function openTaskEditor(item) {
     const target = document.getElementById("catalogTaskMaximum");
     if (target) target.textContent = formatNumber(base * coefficient);
   };
-  document.getElementById("catalogTaskBaseScore")?.addEventListener("input", recalculate);
-  document.getElementById("catalogTaskCoefficient")?.addEventListener("input", recalculate);
+  const syncBaseScoreWithWorkType = () => {
+    const workType = String(document.getElementById("catalogTaskWorkType")?.value || "THUONG_XUYEN").toUpperCase();
+    const baseInput = document.getElementById("catalogTaskBaseScore");
+    if (baseInput) baseInput.value = workType === "DOT_XUAT" ? "12" : "10";
+    recalculate();
+  };
+  document.getElementById("catalogTaskWorkType")?.addEventListener("change", syncBaseScoreWithWorkType);
+  document.getElementById("catalogTaskCoefficient")?.addEventListener("change", recalculate);
+  syncBaseScoreWithWorkType();
 
   root.querySelector("#saveCatalogTask")?.addEventListener("click", async event => {
     const button = event.currentTarget;
@@ -501,7 +512,7 @@ function workTypeLabel(item) {
 
 function workTypeBadge(item) {
   return isUnexpectedTask(item)
-    ? '<span class="status-pill warning">Đột xuất · không cộng A</span>'
+    ? '<span class="status-pill warning">Đột xuất · tính vào A</span>'
     : '<span class="status-pill success">Thường xuyên · tính vào A</span>';
 }
 
