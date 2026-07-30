@@ -1,5 +1,6 @@
 import { auth } from "./firebase-config.js?v=20260718.2000";
 import { NOTIFICATION_WEB_APP_URL } from "./notification-config.js?v=20260718.2000";
+import { UserContext } from "./core/user-context.js";
 
 /* =========================================================
  * AI MODULE V3 — HYBRID CALLBACK + MOBILE POLLING — TRỢ LÝ GỢI Ý NỘI DUNG THEO TINH THẦN 6 RÕ
@@ -16,17 +17,22 @@ const AI_POLL_INTERVAL_MS = 1500;
 const AI_POLL_FIRST_DELAY_MS = 700;
 const AI_JSONP_TIMEOUT_MS = 8000;
 
-const elements = {
-  taskTitle: document.getElementById("taskTitle"),
-  taskDescription: document.getElementById("taskDescription"),
-  sourceType: document.getElementById("sourceType"),
-  sourceDetail: document.getElementById("sourceDetail"),
-  assignedByUserId: document.getElementById("assignedByUserId"),
-  primaryDepartmentId: document.getElementById("primaryDepartmentId"),
-  deadline: document.getElementById("deadline"),
-  priority: document.getElementById("priority"),
-  resultSummary: document.getElementById("resultSummary")
-};
+let elements = resolveElements(document);
+
+function resolveElements(root = document) {
+  const queryRoot = root && typeof root.querySelector === "function" ? root : document;
+  return {
+    taskTitle: queryRoot.querySelector("#taskTitle"),
+    taskDescription: queryRoot.querySelector("#taskDescription"),
+    sourceType: queryRoot.querySelector("#sourceType"),
+    sourceDetail: queryRoot.querySelector("#sourceDetail, #sourceReference"),
+    assignedByUserId: queryRoot.querySelector("#assignedByUserId, #ownerUserId"),
+    primaryDepartmentId: queryRoot.querySelector("#primaryDepartmentId"),
+    deadline: queryRoot.querySelector("#deadline"),
+    priority: queryRoot.querySelector("#priority, #difficultyCoefficient"),
+    resultSummary: queryRoot.querySelector("#resultSummary")
+  };
+}
 
 let pendingRequestId = "";
 let pendingRequestCancel = null;
@@ -63,7 +69,7 @@ function createElementFromHtml(html) {
   return template.content.firstElementChild;
 }
 
-function buildTaskAssistant() {
+function buildTaskAssistant(root = document) {
   if (!elements.taskDescription || document.getElementById("taskAiAssistant")) {
     return;
   }
@@ -120,9 +126,12 @@ function buildTaskAssistant() {
     </section>
   `);
 
-  const fieldBlock = elements.taskDescription.closest(".field-block");
+  const fieldBlock = elements.taskDescription.closest(".field-block, label");
   if (fieldBlock) {
+    panel.classList.add("field-full");
     fieldBlock.insertAdjacentElement("afterend", panel);
+  } else if (root && typeof root.appendChild === "function") {
+    root.appendChild(panel);
   }
 
   document.getElementById("taskAiSuggestButton")
@@ -196,16 +205,29 @@ function setButtonBusy(buttonId, busy, busyText, normalText) {
 }
 
 function collectTaskContext() {
+  let currentUser = null;
+  try { currentUser = UserContext.getUser?.() || UserContext.requireUser?.(); } catch (_) { currentUser = null; }
+
+  const ownerText = selectedText(elements.assignedByUserId);
+  const departmentText = selectedText(elements.primaryDepartmentId);
+  const description = clean(elements.taskDescription?.value, 2600);
+  const responsibility = ownerText
+    ? `Người phụ trách: ${ownerText}.`
+    : departmentText
+      ? `Đơn vị chịu trách nhiệm phân công: ${departmentText}.`
+      : "";
+  const sourceReference = clean(elements.sourceDetail?.value, 500);
+
   return {
     purpose: "CREATE_TASK",
     title: clean(elements.taskTitle?.value, 250),
-    description: clean(elements.taskDescription?.value, 3000),
+    description: clean([description, responsibility].filter(Boolean).join(" "), 3000),
     sourceType: selectedText(elements.sourceType),
-    sourceDetail: clean(elements.sourceDetail?.value, 700),
-    assignedBy: selectedText(elements.assignedByUserId),
-    primaryDepartment: selectedText(elements.primaryDepartmentId),
+    sourceDetail: clean(sourceReference, 700),
+    assignedBy: clean(currentUser?.fullName || currentUser?.email || "", 300),
+    primaryDepartment: departmentText,
     deadline: clean(elements.deadline?.value, 20),
-    priority: selectedText(elements.priority)
+    priority: selectedText(elements.priority) ? `Hệ số độ khó ${selectedText(elements.priority)}` : ""
   };
 }
 
@@ -674,8 +696,26 @@ function applyTaskSuggestion(includeTitle) {
   );
 }
 
+export function mountTaskAiAssistant(root = document) {
+  elements = resolveElements(root);
+  currentSuggestion = null;
+  pendingRequestId = "";
+  buildTaskAssistant(root);
+
+  return () => {
+    if (typeof pendingRequestCancel === "function") {
+      try { pendingRequestCancel(); } catch (_) { /* Không cần xử lý khi đóng biểu mẫu. */ }
+    }
+    pendingRequestCancel = null;
+    pendingRequestId = "";
+    currentSuggestion = null;
+    root?.querySelector?.("#taskAiAssistant")?.remove();
+  };
+}
+
 function initializeAiAssistant() {
-  buildTaskAssistant();
+  elements = resolveElements(document);
+  buildTaskAssistant(document);
   buildResultAssistant();
 }
 

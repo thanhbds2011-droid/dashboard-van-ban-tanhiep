@@ -368,3 +368,41 @@ button,input,select,textarea{font-size:16px}
   font-size: 0.75rem;
   line-height: 1.2;
 }
+
+/* V1.1.9 — biểu mẫu nhiệm vụ phát sinh */
+.task-score-preview {
+  min-width: 0;
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  padding: 13px 15px;
+  border: 1px solid #cfe1ed;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f7fbfe, #edf7fc);
+}
+
+.task-score-preview span,
+.task-score-preview small {
+  color: #60778a;
+}
+
+.task-score-preview strong {
+  color: #0e668f;
+  font-size: 24px;
+  line-height: 1.1;
+}
+
+.assignment-inline-form {
+  grid-template-columns: minmax(180px, 0.8fr) minmax(260px, 1.4fr) auto;
+}
+
+.check-row.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (max-width: 820px) {
+  .assignment-inline-form {
+    grid-template-columns: 1fr;
+  }
+}
