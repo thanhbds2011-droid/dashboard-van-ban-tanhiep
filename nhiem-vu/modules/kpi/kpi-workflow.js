@@ -3,8 +3,8 @@ import {
   addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, onSnapshot, query,
   serverTimestamp, setDoc, Timestamp, updateDoc, where
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
-import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260730.V1_1_9';
-import { Permissions } from '../../core/permissions.js?v=20260730.V1_1_9';
+import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260730.V1_1_10';
+import { Permissions } from '../../core/permissions.js?v=20260730.V1_1_10';
 import {
   KPI2B as KPI2C, COMMON_CRITERIA, calculateTaskScore, calculateKpiSummary,
   proposedRating, ratingName, round2, progressRateFromDates
