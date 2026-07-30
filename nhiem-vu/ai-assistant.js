@@ -10,12 +10,12 @@ import { UserContext } from "./core/user-context.js";
  * và xóa nhánh AI_SUGGEST_TASK cùng khối AI MODULE V3 — HYBRID CALLBACK + MOBILE POLLING trong Code.gs.
  * ========================================================= */
 
-const AI_REQUEST_TIMEOUT_MS = 35000;
+const AI_REQUEST_TIMEOUT_MS = 75000;
 const AI_SOURCE = "TASK_AI_SUGGESTION";
 const AI_POLL_ACTION = "AI_GET_RESULT";
-const AI_POLL_INTERVAL_MS = 1500;
+const AI_POLL_INTERVAL_MS = 1200;
 const AI_POLL_FIRST_DELAY_MS = 700;
-const AI_JSONP_TIMEOUT_MS = 8000;
+const AI_JSONP_TIMEOUT_MS = 12000;
 
 let elements = resolveElements(document);
 
@@ -357,7 +357,7 @@ async function submitAiRequest(context) {
       finish(
         null,
         new Error(
-          "Chưa nhận được phản hồi AI sau 35 giây. Nội dung đã nhập vẫn được giữ nguyên; vui lòng thử lại sau."
+          "AI chưa phản hồi sau 75 giây. Nội dung đã nhập vẫn được giữ nguyên; vui lòng kiểm tra kết nối và thử lại."
         )
       );
     }, AI_REQUEST_TIMEOUT_MS);
@@ -365,13 +365,13 @@ async function submitAiRequest(context) {
     progressTimerId = window.setTimeout(() => {
       if (!settled) {
         updatePendingMessage(
-          "AI đang xử lý lâu hơn dự kiến. Bạn vẫn có thể tiếp tục nhập hoặc chờ thêm."
+          "AI đang phân tích nội dung. Kết quả sẽ tự hiển thị khi hoàn tất; bạn không cần bấm lại."
         );
       }
     }, 8000);
 
     try {
-      const idToken = await auth.currentUser.getIdToken(true);
+      const idToken = await auth.currentUser.getIdToken(false);
 
       iframe = document.createElement("iframe");
       iframe.name = `aiFrame_${requestId}`;
