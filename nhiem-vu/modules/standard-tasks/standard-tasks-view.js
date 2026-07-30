@@ -1,10 +1,10 @@
 import { UserContext } from "../../core/user-context.js";
-import { Permissions } from "../../core/permissions.js?v=20260730.V1_1_9";
+import { Permissions } from "../../core/permissions.js?v=20260730.V1_1_10";
 import { ToastService } from "../../core/toast-service.js";
-import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260730.V1_1_9";
-import { PeriodReadService } from "../../services/period-read-service.js?v=20260730.V1_1_9";
-import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260730.V1_1_9";
-import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260730.V1_1_9";
+import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260730.V1_1_10";
+import { PeriodReadService } from "../../services/period-read-service.js?v=20260730.V1_1_10";
+import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260730.V1_1_10";
+import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260730.V1_1_10";
 
 let stopStandardRealtime = () => {};
 let standardRealtimeTimer = null;
@@ -512,8 +512,8 @@ function workTypeLabel(item) {
 
 function workTypeBadge(item) {
   return isUnexpectedTask(item)
-    ? '<span class="status-pill warning">Đột xuất · tính vào A</span>'
-    : '<span class="status-pill success">Thường xuyên · tính vào A</span>';
+    ? '<span class="status-pill warning">Đột xuất</span>'
+    : '<span class="status-pill success">Thường xuyên</span>';
 }
 
 function createRegistrationMap(registrations) {
