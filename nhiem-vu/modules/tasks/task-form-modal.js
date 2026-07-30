@@ -1,11 +1,11 @@
 /** Biểu mẫu giao nhiệm vụ phát sinh/đột xuất. */
 import { UserContext } from "../../core/user-context.js";
-import { Permissions } from "../../core/permissions.js?v=20260730.V1_1_9";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260730.V1_1_9";
+import { Permissions } from "../../core/permissions.js?v=20260730.V1_1_10";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260730.V1_1_10";
 import { UserReadService } from "../../services/user-read-service.js";
 import { DepartmentReadService } from "../../services/department-read-service.js";
-import { validateTaskCreateInput, cleanText } from "./task-form-validator.js?v=20260730.V1_1_9";
-import { mountTaskAiAssistant } from "../../ai-assistant.js?v=20260730.V1_1_9";
+import { validateTaskCreateInput, cleanText } from "./task-form-validator.js?v=20260730.V1_1_10";
+import { mountTaskAiAssistant } from "../../ai-assistant.js?v=20260730.V1_1_10";
 import { ToastService } from "../../core/toast-service.js";
 
 const DIRECT_TASK_BASE_SCORE = 12;
@@ -111,7 +111,7 @@ export async function openTaskCreateModal({ onSaved }) {
         <label class="field-full"><span>Tên nhiệm vụ *</span><input id="taskTitle" maxlength="300" required></label>
         <label class="field-full"><span>Nội dung/Yêu cầu thực hiện</span><textarea id="taskDescription" rows="4" maxlength="5000"></textarea></label>
         <label><span>Phòng/Khu chính *</span><select id="primaryDepartmentId" ${canChooseDepartment ? "" : "disabled"}>${departments.map(d => option(d.id || d.code, d.name || d.id, (d.id || d.code) === defaultDepartment)).join("")}</select></label>
-        <label><span>Tổ/Nhóm</span><select id="teamId"><option value="">— Không chọn Tổ/Nhóm —</option></select></label>
+        <label id="teamField" class="task-team-field" hidden><span>Tổ/Nhóm</span><select id="teamId"><option value="">— Không chọn Tổ/Nhóm —</option></select></label>
         <label><span>Người phụ trách</span><select id="ownerUserId"><option value="">— Giao cấp Phòng/Khu —</option></select></label>
         <label><span>Hạn xử lý *</span><input id="deadline" type="date" value="${dateInputValue(deadline)}" required></label>
         <label><span>Hệ số độ khó *</span><select id="difficultyCoefficient">${DIFFICULTY_OPTIONS.map(item => option(item.value, item.label, item.value === 1)).join("")}</select></label>
@@ -135,6 +135,7 @@ export async function openTaskCreateModal({ onSaved }) {
   const $ = id => overlay.querySelector(`#${id}`);
   const departmentSelect = $("primaryDepartmentId");
   const teamSelect = $("teamId");
+  const teamField = $("teamField");
   const ownerSelect = $("ownerUserId");
   const coefficientSelect = $("difficultyCoefficient");
 
@@ -150,10 +151,13 @@ export async function openTaskCreateModal({ onSaved }) {
     const departmentId = departmentSelect.value || defaultDepartment;
     const previous = normalizeTeamId(teamSelect.value);
     const teams = listDepartmentTeams(users, departmentId);
-    teamSelect.innerHTML = teams.length
+    const hasTeams = teams.length > 0;
+    teamField.hidden = !hasTeams;
+    teamSelect.disabled = !hasTeams;
+    teamSelect.innerHTML = hasTeams
       ? `<option value="">— Không chọn Tổ/Nhóm —</option>${teams.map(team => option(team.id, team.label, team.id === previous)).join("")}`
-      : `<option value="">— Phòng/Khu chưa khai báo Tổ/Nhóm —</option>`;
-    teamSelect.disabled = teams.length === 0;
+      : `<option value="">— Không áp dụng —</option>`;
+    if (!hasTeams) teamSelect.value = "";
     if (previous && teams.some(team => team.id === previous)) teamSelect.value = previous;
   };
 

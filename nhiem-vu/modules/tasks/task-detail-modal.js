@@ -1,9 +1,9 @@
 /** Chi tiết và phân công nhiệm vụ. */
 import { UserContext } from "../../core/user-context.js";
-import { Permissions } from "../../core/permissions.js?v=20260730.V1_1_9";
+import { Permissions } from "../../core/permissions.js?v=20260730.V1_1_10";
 import { UserReadService } from "../../services/user-read-service.js";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260730.V1_1_9";
-import { openTaskProgressModal } from "./task-progress-modal.js?v=20260730.V1_1_9";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260730.V1_1_10";
+import { openTaskProgressModal } from "./task-progress-modal.js?v=20260730.V1_1_10";
 
 const TEAM_LABELS = Object.freeze({
   BAO_VE: "Tổ Bảo vệ",
