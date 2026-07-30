@@ -1,7 +1,7 @@
 /** Cập nhật tiến độ, kết quả và minh chứng nhiệm vụ. */
 import { UserContext } from "../../core/user-context.js";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260728.V1_1_7";
-import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260728.V1_1_7";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260730.V1_1_9";
+import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260730.V1_1_9";
 import { validateProgressInput, cleanText } from "./task-form-validator.js";
 
 function mayUpdate(task) {
