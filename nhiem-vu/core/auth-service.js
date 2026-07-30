@@ -83,7 +83,6 @@ function buildProfileFromAccess(firebaseUser, accessEmail, access, existingProfi
     role,
     teamId: clean(access.teamId) || clean(existingProfile?.teamId),
     employeeCode: clean(access.employeeCode) || clean(existingProfile?.employeeCode),
-    kpiReviewerEmail: normalizeEmail(access.kpiReviewerEmail) || normalizeEmail(existingProfile?.kpiReviewerEmail),
     taskNotificationCoordinator: access.taskNotificationCoordinator === true,
     active: true
   };
@@ -122,7 +121,6 @@ function profileNeedsSync(existingProfile, desiredProfile) {
     "position",
     "teamId",
     "employeeCode",
-    "kpiReviewerEmail",
     "leaderLevel"
   ];
 
@@ -223,7 +221,6 @@ export const AuthService = Object.freeze({
       teamId: profile.teamId || "",
       position: profile.position || "",
       employeeCode: profile.employeeCode || "",
-      kpiReviewerEmail: profile.kpiReviewerEmail || "",
       leaderLevel: profile.leaderLevel || "",
       isDepartmentHead: typeof profile.isDepartmentHead === "boolean" ? profile.isDepartmentHead : null,
       active: profile.active === true

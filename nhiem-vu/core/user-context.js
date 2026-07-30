@@ -18,7 +18,6 @@ export const UserContext = Object.freeze({
       leaderLevel: normalizeText(user.leaderLevel).toUpperCase(),
       isDepartmentHead: typeof user.isDepartmentHead === "boolean" ? user.isDepartmentHead : null,
       employeeCode: normalizeText(user.employeeCode),
-      kpiReviewerEmail: normalizeText(user.kpiReviewerEmail).toLowerCase(),
       active: user.active === true
     });
     return currentUser;
