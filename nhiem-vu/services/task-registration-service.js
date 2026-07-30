@@ -1,6 +1,6 @@
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260729.V1_1_8";
+import { Permissions } from "../core/permissions.js?v=20260730.V1_1_9";
 import { TaskLogService } from "./task-log-service.js";
 
 const clean = value => String(value ?? "").trim();
@@ -108,7 +108,7 @@ function canApprove(registration, reviewer) {
     })) {
       return Permissions.isDepartmentHead(reviewer) && upper(reviewer.departmentId) === upper(registration.departmentId);
     }
-    return reviewer.role === "DIRECTOR" && (!registration.reviewerEmail || lower(registration.reviewerEmail) === lower(reviewer.email));
+    return reviewer.role === "DIRECTOR";
   }
 
   return Permissions.isDepartmentHead(reviewer) && upper(reviewer.departmentId) === upper(registration.departmentId);
@@ -132,7 +132,7 @@ function taskPayload(registration, reviewer, due, options = {}) {
       description: registration.description || "",
       sourceType: "DANG_KY_KE_HOACH",
       sourceReference: registration.standardTaskCode || "",
-      sourceDetail: isUnexpected ? "Đầu việc đột xuất trong danh mục được cá nhân đăng ký và phê duyệt." : "Đầu việc thường xuyên do cá nhân đăng ký và được phê duyệt.",
+      sourceDetail: isUnexpected ? "Đầu việc đột xuất trong danh mục được cá nhân đăng ký, phê duyệt và tính vào A." : "Đầu việc thường xuyên do cá nhân đăng ký và được phê duyệt.",
       sourceDate: FirebaseService.Timestamp.fromDate(new Date()),
       sourceDateKey: dateKey(new Date()),
       entryMode: "SELF_REGISTERED_APPROVED",
@@ -164,13 +164,12 @@ function taskPayload(registration, reviewer, due, options = {}) {
       maximumConvertedScore: Number(registration.maximumConvertedScore || 0),
       mandatoryEvidence: registration.mandatoryEvidence || "",
       confirmer: reviewer.fullName || "",
-      reviewerEmail: registration.reviewerEmail || "",
       scoringVersion: "KPI_2026_V1",
       periodId: registration.periodId,
       periodName: registration.periodName || registration.periodId,
       planType: isUnexpected ? "DOT_XUAT" : "KE_HOACH",
       planApprovalStatus: "APPROVED",
-      includedInA: !isUnexpected,
+      includedInA: true,
       isCoreTask: Boolean(options.isCoreTask),
       scoringEnabled: true,
       scoringStatus: "NOT_ASSESSED",
@@ -339,10 +338,9 @@ export const TaskRegistrationService = Object.freeze({
         userRole: user.role || "",
         userLeaderLevel: user.leaderLevel || "",
         userIsDepartmentHead: user.isDepartmentHead === true,
-        reviewerEmail: user.role === "DEPARTMENT_LEADER" ? lower(user.kpiReviewerEmail) : "",
         workType,
         planType: workType === "DOT_XUAT" ? "DOT_XUAT" : "KE_HOACH",
-        includedInA: workType !== "DOT_XUAT",
+        includedInA: true,
         baseScore: Number(item.baseScore || 0),
         difficultyCoefficient: Number(item.difficultyCoefficient || 1),
         maximumConvertedScore: Number(item.maximumConvertedScore || item.baseScore || 0),
