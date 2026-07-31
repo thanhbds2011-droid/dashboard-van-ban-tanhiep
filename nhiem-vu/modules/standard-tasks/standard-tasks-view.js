@@ -1,10 +1,10 @@
 import { UserContext } from "../../core/user-context.js";
-import { Permissions } from "../../core/permissions.js?v=20260730.V1_1_10";
+import { Permissions } from "../../core/permissions.js?v=20260730.V1_1_11";
 import { ToastService } from "../../core/toast-service.js";
-import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260730.V1_1_10";
-import { PeriodReadService } from "../../services/period-read-service.js?v=20260730.V1_1_10";
-import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260730.V1_1_10";
-import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260730.V1_1_10";
+import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260730.V1_1_11";
+import { PeriodReadService } from "../../services/period-read-service.js?v=20260730.V1_1_11";
+import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260730.V1_1_11";
+import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260730.V1_1_11";
 
 let stopStandardRealtime = () => {};
 let standardRealtimeTimer = null;
@@ -76,6 +76,9 @@ export async function renderStandardTasksView(outlet) {
       ? await TaskRegistrationService.listForCurrentUser(period.id)
       : [];
     const registeredMap = createRegistrationMap(registrations);
+    const approvedCancellationMap = registrationMode && registrations.length
+      ? await TaskRegistrationService.getApprovedCancellationMap(registrations)
+      : {};
     const registrationOpen = Boolean(period && plan?.locked !== true);
     const registeredCount = catalogItems.filter(item => findRegistration(item, registeredMap)).length;
     const availableCount = Math.max(catalogItems.length - registeredCount, 0);
@@ -125,7 +128,7 @@ export async function renderStandardTasksView(outlet) {
       ${registrationMode ? `<div class="registration-sticky">
         <div>
           <strong>Đã chọn: <span id="registrationSelectedCount">0</span> đầu việc · Điểm A dự kiến: <span id="registrationSelectedScore">0</span></strong>
-          <small>${registrationOpen ? "Tất cả đầu việc đã đăng ký và được duyệt, gồm thường xuyên và đột xuất, đều được tính vào A." : "Đăng ký kế hoạch của Phòng/Khu đang được khóa. Trưởng phòng cần mở lại đăng ký trước khi người dùng đăng ký."}</small>
+          <small>${registrationOpen ? "Kiểm tra đầu việc và tổng điểm dự kiến trước khi gửi đăng ký." : "Đăng ký kế hoạch của Phòng/Khu đang được khóa. Trưởng phòng cần mở lại đăng ký trước khi người dùng đăng ký."}</small>
         </div>
         <button id="btnRegisterSelected" class="primary-button" type="button" ${registrationOpen ? "" : "disabled"}>Đăng ký đầu việc đã chọn</button>
       </div>` : ""}
@@ -175,6 +178,34 @@ export async function renderStandardTasksView(outlet) {
         });
       });
 
+      document.querySelectorAll("[data-cancel-approved-registration]").forEach(button => {
+        button.addEventListener("click", async () => {
+          const registration = registrations.find(item => item.id === button.dataset.cancelApprovedRegistration);
+          if (!registration) return;
+
+          const reason = window.prompt(
+            "Nhập lý do hủy đầu việc đã duyệt. Chỉ được hủy khi nhiệm vụ chưa được tiếp nhận và chưa phát sinh tiến độ hoặc minh chứng.",
+            "Đăng ký nhầm đầu việc"
+          );
+          if (reason === null) return;
+          if (!String(reason).trim()) {
+            ToastService.error("Vui lòng nhập lý do hủy đầu việc.");
+            return;
+          }
+          if (!window.confirm("Xác nhận hủy đầu việc đã duyệt và đưa đầu việc trở lại danh mục lựa chọn?")) return;
+
+          button.disabled = true;
+          try {
+            await TaskRegistrationService.cancelApprovedRegistration(registration, reason);
+            ToastService.success("Đã hủy đầu việc đã duyệt. Đầu việc đã trở lại danh mục để lựa chọn.");
+            reloadRoute();
+          } catch (error) {
+            ToastService.error(error.message || "Không hủy được đầu việc đã duyệt.");
+            button.disabled = false;
+          }
+        });
+      });
+
       document.querySelectorAll("[data-edit-standard-task]").forEach(button => {
         button.addEventListener("click", () => {
           const item = catalogItems.find(task => task.id === button.dataset.editStandardTask);
@@ -198,7 +229,7 @@ export async function renderStandardTasksView(outlet) {
       });
 
       listContainer.innerHTML = registrationMode
-        ? renderRegistrationWorkspace(visibleItems, registeredMap, registrationOpen, catalogAccess.canManage)
+        ? renderRegistrationWorkspace(visibleItems, registeredMap, registrationOpen, catalogAccess.canManage, approvedCancellationMap)
         : renderCatalogList(visibleItems, catalogAccess.canManage);
       bindListActions();
     };
@@ -233,7 +264,7 @@ export async function renderStandardTasksView(outlet) {
   }
 }
 
-function renderRegistrationWorkspace(items, registeredMap, registrationOpen, canManageCatalog) {
+function renderRegistrationWorkspace(items, registeredMap, registrationOpen, canManageCatalog, approvedCancellationMap = {}) {
   const availableItems = items.filter(item => !findRegistration(item, registeredMap));
   const registeredItems = items.filter(item => findRegistration(item, registeredMap));
 
@@ -259,13 +290,13 @@ function renderRegistrationWorkspace(items, registeredMap, registrationOpen, can
         <div class="registration-column-icon" aria-hidden="true">✅</div>
         <div>
           <h3>Đã đăng ký</h3>
-          <p>${registrationOpen ? "Theo dõi trạng thái và hủy mục chưa được duyệt." : "Kế hoạch đã khóa; người đăng ký không thể tự hủy đầu việc."}</p>
+          <p>Theo dõi trạng thái các đầu việc đã chọn trong kỳ.</p>
         </div>
         <span class="registration-column-count">${registeredItems.length}</span>
       </header>
       <div class="registration-column-list">
         ${registeredItems.length
-          ? registeredItems.map(item => renderRegisteredTask(item, findRegistration(item, registeredMap), registrationOpen, canManageCatalog)).join("")
+          ? registeredItems.map(item => renderRegisteredTask(item, findRegistration(item, registeredMap), registrationOpen, canManageCatalog, approvedCancellationMap)).join("")
           : compactEmpty("Chưa có đầu việc đã đăng ký", "Đầu việc được chọn ở cột bên trái sẽ xuất hiện tại đây.")}
       </div>
     </section>
@@ -292,7 +323,7 @@ function renderAvailableTask(item, registrationOpen, canManageCatalog) {
   </article>`;
 }
 
-function renderRegisteredTask(item, registration, registrationOpen, canManageCatalog) {
+function renderRegisteredTask(item, registration, registrationOpen, canManageCatalog, approvedCancellationMap = {}) {
   const status = ({
     PENDING: "Chờ duyệt",
     APPROVED: "Đã duyệt",
@@ -309,6 +340,10 @@ function renderRegisteredTask(item, registration, registrationOpen, canManageCat
     registrationOpen &&
     Permissions.canCancelOwnRegistration(registration, false)
   );
+  const canCancelApproved = Boolean(
+    registration?.status === "APPROVED" &&
+    approvedCancellationMap?.[registration.id] === true
+  );
 
   return `<article class="registration-row registration-row-registered">
     <div class="registration-state-mark" aria-hidden="true">${registration?.status === "APPROVED" ? "✓" : registration?.status === "REJECTED" ? "↩" : "⌛"}</div>
@@ -322,6 +357,7 @@ function renderRegisteredTask(item, registration, registrationOpen, canManageCat
       <span class="status-pill ${statusClass}">${escapeHtml(status)}</span>
       <small>Điểm tối đa: ${formatNumber(item.maximumConvertedScore || 0)}</small>
       ${canDelete ? `<button class="registration-delete-button" type="button" data-delete-registration="${escapeHtml(registration.id)}">Hủy đăng ký</button>` : ""}
+      ${canCancelApproved ? `<button class="registration-cancel-approved-button" type="button" data-cancel-approved-registration="${escapeHtml(registration.id)}">Hủy đầu việc</button>` : ""}
       ${canManageCatalog ? `<button class="catalog-edit-button" type="button" data-edit-standard-task="${escapeHtml(item.id)}">Sửa danh mục</button>` : ""}
     </div>
   </article>`;
