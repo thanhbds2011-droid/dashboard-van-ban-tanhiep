@@ -1,7 +1,8 @@
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260731.V1_1_14";
+import { Permissions } from "../core/permissions.js?v=20260731.V1_1_18";
 import { TaskLogService } from "./task-log-service.js";
+import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260731.V1_1_18";
 
 const clean = value => String(value ?? "").trim();
 const upper = value => clean(value).toUpperCase();
@@ -215,6 +216,8 @@ function taskPayload(registration, reviewer, due, options = {}) {
       maximumConvertedScore: Number(registration.maximumConvertedScore || 0),
       mandatoryEvidence: registration.mandatoryEvidence || "",
       trackingMode: String(registration.trackingMode || "FINAL_OUTPUT").toUpperCase() === "ITEMIZED" ? "ITEMIZED" : "FINAL_OUTPUT",
+      workItemType: String(registration.workItemType || "GENERIC").toUpperCase(),
+      quantityUnit: String(registration.quantityUnit || "").trim(),
       confirmer: reviewer.fullName || "",
       scoringVersion: "KPI_2026_V1",
       periodId: registration.periodId,
@@ -374,6 +377,9 @@ export const TaskRegistrationService = Object.freeze({
     const registrations = [];
 
     for (const item of items) {
+      if (!StandardTaskReadService.canRegisterItem(item, user)) {
+        throw new Error(`Vai trò hiện tại không thuộc đối tượng đăng ký đầu việc ${item.code || item.id || ""}.`);
+      }
       const id = registrationId(period.id, user.uid, item.id || item.code);
       const workType = standardWorkType(item.workType);
       const registration = {
@@ -406,6 +412,8 @@ export const TaskRegistrationService = Object.freeze({
         maximumConvertedScore: Number(item.maximumConvertedScore || item.baseScore || 0),
         mandatoryEvidence: item.mandatoryEvidence || "",
         trackingMode: String(item.trackingMode || "FINAL_OUTPUT").toUpperCase() === "ITEMIZED" ? "ITEMIZED" : "FINAL_OUTPUT",
+        workItemType: String(item.workItemType || "GENERIC").toUpperCase(),
+        quantityUnit: String(item.quantityUnit || "").trim(),
         status: "PENDING",
         taskId: null,
         active: true,

@@ -6,15 +6,16 @@
  */
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260731.V1_1_15";
+import { Permissions } from "../core/permissions.js?v=20260731.V1_1_18";
 
-const SYNC_VERSION = "20260731.V1_1_17";
+const SYNC_VERSION = "20260731.V1_1_18";
 const STANDARD_TASK_COLLECTION = "standardTasks";
 const SEQUENCE_COLLECTION = "standardTaskSequences";
 const VALID_COEFFICIENTS = Object.freeze([1, 1.1, 1.2]);
 const DEPARTMENT_AUDIENCES = Object.freeze(["ALL_DEPARTMENT", "MANAGEMENT"]);
 const CDTN_AUDIENCES = Object.freeze(["CDTN_SECRETARY", "CDTN_EXECUTIVE", "CDTN_MEMBER"]);
 const TRACKING_MODES = Object.freeze(["FINAL_OUTPUT", "ITEMIZED"]);
+const WORK_ITEM_TYPES = Object.freeze(["GENERIC", "DOCUMENT", "QUANTITY", "ATTENDANCE"]);
 
 function clean(value) {
   return String(value ?? "").trim();
@@ -89,6 +90,12 @@ function normalizeAudienceType(value, departmentId, legacyManagement = false) {
 function normalizeTrackingMode(value) {
   const mode = upper(value || "FINAL_OUTPUT");
   return TRACKING_MODES.includes(mode) ? mode : "FINAL_OUTPUT";
+}
+
+function normalizeWorkItemType(value, trackingMode) {
+  if (trackingMode !== undefined && normalizeTrackingMode(trackingMode) !== "ITEMIZED") return "GENERIC";
+  const type = upper(value || "GENERIC");
+  return WORK_ITEM_TYPES.includes(type) ? type : "GENERIC";
 }
 
 function canManageDepartment(user, departmentId, delegation = null) {
@@ -189,6 +196,12 @@ function taskPayload({ data, user, departmentId, code, sequence, existing = fals
   const isManagementTask = audienceType === "MANAGEMENT";
   const isCoreTaskDefault = isManagementTask ? false : data.isCoreTaskDefault === true;
   const maximumConvertedScore = Math.round(baseScore * difficultyCoefficient * 10) / 10;
+  const trackingMode = normalizeTrackingMode(data.trackingMode);
+  const workItemType = normalizeWorkItemType(data.workItemType, trackingMode);
+  const quantityUnit = workItemType === "QUANTITY" ? clean(data.quantityUnit) : "";
+  if (workItemType === "QUANTITY" && !quantityUnit) {
+    throw new Error("Hãy nhập đơn vị sản lượng, ví dụ: kg rau.");
+  }
 
   return {
     code,
@@ -199,7 +212,9 @@ function taskPayload({ data, user, departmentId, code, sequence, existing = fals
     outputRequirement: clean(data.outputRequirement),
     mandatoryEvidence: clean(data.mandatoryEvidence),
     arisingEvidence: clean(data.arisingEvidence),
-    trackingMode: normalizeTrackingMode(data.trackingMode),
+    trackingMode,
+    workItemType,
+    quantityUnit,
     baseScore,
     difficultyCoefficient,
     maximumConvertedScore,
@@ -492,5 +507,6 @@ export const StandardTaskWriteService = Object.freeze({
   },
 
   todayKey: dateKey,
-  normalizeAudienceType
+  normalizeAudienceType,
+  normalizeWorkItemType
 });

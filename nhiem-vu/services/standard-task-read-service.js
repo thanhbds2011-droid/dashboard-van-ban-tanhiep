@@ -1,7 +1,7 @@
 /** Dịch vụ đọc danh mục đầu việc chuẩn. */
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js";
+import { Permissions } from "../core/permissions.js?v=20260731.V1_1_18";
 
 function clean(value) {
   return String(value ?? "").trim();
@@ -58,31 +58,76 @@ function normalize(items = []) {
     .sort((a, b) => Number(a.order || 9999) - Number(b.order || 9999) || String(a.code || a.id).localeCompare(String(b.code || b.id), "vi"));
 }
 
-function sourceReference() {
+function canRegisterItem(item, user = UserContext.requireUser()) {
+  const departmentId = clean(item?.departmentId).toUpperCase();
+  const audience = clean(
+    item?.audienceType || (item?.isManagementTask ? "MANAGEMENT" : "ALL_DEPARTMENT")
+  ).toUpperCase();
+
+  if (departmentId === "CDTN") {
+    if (audience === "CDTN_SECRETARY") return Permissions.isCdtnSecretary();
+    if (audience === "CDTN_EXECUTIVE") return Permissions.isCdtnExecutiveMember();
+    return Permissions.isCdtnMember();
+  }
+
+  if (departmentId !== clean(user.departmentId).toUpperCase()) return false;
+  if (audience === "MANAGEMENT") {
+    return Permissions.isDepartmentLeader() || Permissions.isDirector();
+  }
+  return true;
+}
+
+function sourceReferences() {
   const user = UserContext.requireUser();
   const reference = FirebaseService.collection(FirebaseService.db, "standardTasks");
-  return Permissions.canViewAllDepartments()
-    ? reference
-    : FirebaseService.query(reference, FirebaseService.where("departmentId", "==", user.departmentId));
+  if (Permissions.canViewAllDepartments()) return [reference];
+
+  const references = [
+    FirebaseService.query(reference, FirebaseService.where("departmentId", "==", user.departmentId))
+  ];
+  if (Permissions.isCdtnMember()) {
+    references.push(
+      FirebaseService.query(reference, FirebaseService.where("departmentId", "==", "CDTN"))
+    );
+  }
+  return references;
+}
+
+async function readAllReferences() {
+  const snapshots = await Promise.all(sourceReferences().map(reference => FirebaseService.getDocs(reference)));
+  return normalize(snapshots.flatMap(mapSnapshot));
 }
 
 export const StandardTaskReadService = Object.freeze({
   async list() {
-    const snapshot = await FirebaseService.getDocs(sourceReference());
-    return normalize(mapSnapshot(snapshot));
+    return readAllReferences();
   },
 
   subscribe(onData, onError) {
     if (typeof onData !== "function") throw new Error("Thiếu hàm nhận dữ liệu danh mục công việc.");
-    return FirebaseService.onSnapshot(
-      sourceReference(),
-      snapshot => onData(normalize(mapSnapshot(snapshot))),
+    const references = sourceReferences();
+    const stores = references.map(() => []);
+    const initialized = references.map(() => false);
+    const emit = () => {
+      if (initialized.some(value => value !== true)) return;
+      onData(normalize(stores.flat()));
+    };
+    const unsubscribers = references.map((reference, index) => FirebaseService.onSnapshot(
+      reference,
+      snapshot => {
+        stores[index] = mapSnapshot(snapshot);
+        initialized[index] = true;
+        emit();
+      },
       error => {
         console.error("Không thể theo dõi danh mục công việc theo thời gian thực:", error);
         onError?.(error);
       }
-    );
+    ));
+    return () => unsubscribers.forEach(unsubscribe => unsubscribe?.());
   },
+
+  canRegisterItem,
 
   summarize(items = []) {
     const regular = items.filter(item => String(item.workType || "").toUpperCase() === "THUONG_XUYEN").length;

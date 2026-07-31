@@ -1,8 +1,9 @@
 /** Tạo, phân công, tiếp nhận, cập nhật tiến độ và hoàn thành nhiệm vụ. */
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260730.V1_1_10";
+import { Permissions } from "../core/permissions.js?v=20260731.V1_1_18";
 import { TaskLogService } from "./task-log-service.js";
+import { TaskWorkItemService } from "./task-work-item-service.js?v=20260731.V1_1_18";
 
 const MAX_CODE_SCAN = 1000;
 
@@ -148,6 +149,16 @@ export const TaskWriteService = Object.freeze({
     const coefficient = Number(data.difficultyCoefficient || 1);
     const baseScore = Number(data.baseScore || 12);
     const maximumConvertedScore = Math.round(baseScore * coefficient * 100) / 100;
+    const trackingMode = String(data.trackingMode || "FINAL_OUTPUT").toUpperCase() === "ITEMIZED"
+      ? "ITEMIZED"
+      : "FINAL_OUTPUT";
+    const workItemType = trackingMode === "ITEMIZED"
+      ? TaskWorkItemService.normalizeWorkItemType(data.workItemType)
+      : "GENERIC";
+    const quantityUnit = workItemType === "QUANTITY" ? String(data.quantityUnit || "").trim() : "";
+    if (workItemType === "QUANTITY" && !quantityUnit) {
+      throw new Error("Hãy nhập đơn vị sản lượng, ví dụ: kg rau.");
+    }
 
     const result = await FirebaseService.runTransaction(
       FirebaseService.db,
@@ -195,7 +206,9 @@ export const TaskWriteService = Object.freeze({
           difficultyCoefficient: coefficient,
           maximumConvertedScore,
           mandatoryEvidence: data.mandatoryEvidence || "",
-          trackingMode: String(data.trackingMode || "FINAL_OUTPUT").toUpperCase() === "ITEMIZED" ? "ITEMIZED" : "FINAL_OUTPUT",
+          trackingMode,
+          workItemType,
+          quantityUnit,
           confirmer: data.confirmer || user.fullName || "",
           scoringVersion: "KPI_2026_V1",
           periodId: activePeriod?.id || "",
@@ -347,6 +360,159 @@ export const TaskWriteService = Object.freeze({
       before: snapshotTask(task),
       after: { ...snapshotTask(task), ...payload, updatedAt: null, completedAt: null },
       note: changes.progressNote || ""
+    }));
+    await batch.commit();
+  },
+
+  async requestNoOccurrence(task, reason) {
+    const user = UserContext.requireUser();
+    const normalizedReason = String(reason || "").replace(/\s+/g, " ").trim().slice(0, 2000);
+    if (task.ownerUserId !== user.uid) {
+      throw new Error("Chỉ người thực hiện mới được đề nghị xác nhận không phát sinh.");
+    }
+    if (String(task.trackingMode || "").toUpperCase() !== "ITEMIZED") {
+      throw new Error("Chỉ đầu việc theo từng lượt phát sinh mới áp dụng quy trình này.");
+    }
+    if (!normalizedReason) throw new Error("Hãy nêu lý do đầu việc không phát sinh trong kỳ.");
+    if (task.scoreLocked === true || String(task.scoringStatus || "").toUpperCase() === "CONFIRMED") {
+      throw new Error("Đánh giá đã khóa nên không thể gửi đề nghị.");
+    }
+    const items = await TaskWorkItemService.list(task.id);
+    if (items.length) {
+      throw new Error("Đầu việc đã có lượt phát sinh nên không thể đề nghị “Không phát sinh”.");
+    }
+
+    const payload = {
+      noOccurrenceStatus: "REQUESTED",
+      noOccurrenceReason: normalizedReason,
+      noOccurrenceRequestedAt: FirebaseService.serverTimestamp(),
+      noOccurrenceRequestedByUserId: user.uid,
+      noOccurrenceRequestedByName: user.fullName || "",
+      noOccurrenceConfirmedAt: null,
+      noOccurrenceConfirmedByUserId: "",
+      noOccurrenceConfirmedByName: "",
+      noOccurrenceRejectionReason: "",
+      updatedAt: FirebaseService.serverTimestamp(),
+      updatedByUserId: user.uid,
+      updatedByName: user.fullName || ""
+    };
+    const batch = FirebaseService.writeBatch(FirebaseService.db);
+    batch.update(taskRef(task.id), payload);
+    batch.set(logRef(), TaskLogService.buildTaskLog({
+      taskId: task.id,
+      taskCode: task.taskCode,
+      action: "NO_OCCURRENCE_REQUESTED",
+      before: snapshotTask(task),
+      after: {
+        noOccurrenceStatus: "REQUESTED",
+        noOccurrenceReason: normalizedReason,
+        includedInA: task.includedInA !== false
+      },
+      note: normalizedReason
+    }));
+    await batch.commit();
+  },
+
+  async confirmNoOccurrence(task) {
+    const user = UserContext.requireUser();
+    if (task.ownerUserId === user.uid) {
+      throw new Error("Người thực hiện không được tự xác nhận đề nghị “Không phát sinh” của chính mình.");
+    }
+    const sameDepartmentLeader = Permissions.isDepartmentHead() &&
+      String(task.primaryDepartmentId || "") === String(user.departmentId || "");
+    const otherDirectorForBgd = Permissions.isDirector() &&
+      String(task.primaryDepartmentId || "") === "BGD";
+    if (!(Permissions.isAdmin() || sameDepartmentLeader || otherDirectorForBgd)) {
+      throw new Error("Chỉ Trưởng phòng, thành viên Ban Giám đốc phù hợp hoặc Admin được xác nhận.");
+    }
+    if (String(task.noOccurrenceStatus || "").toUpperCase() !== "REQUESTED") {
+      throw new Error("Đầu việc chưa có đề nghị “Không phát sinh” đang chờ xác nhận.");
+    }
+    const items = await TaskWorkItemService.list(task.id);
+    if (items.length) {
+      throw new Error("Đầu việc đã có lượt phát sinh; không thể loại khỏi điểm A.");
+    }
+
+    const payload = {
+      noOccurrenceStatus: "CONFIRMED",
+      noOccurrenceConfirmedAt: FirebaseService.serverTimestamp(),
+      noOccurrenceConfirmedByUserId: user.uid,
+      noOccurrenceConfirmedByName: user.fullName || "",
+      noOccurrenceRejectionReason: "",
+      includedInA: false,
+      scoringEnabled: false,
+      scoringStatus: "NO_OCCURRENCE_CONFIRMED",
+      recognized: false,
+      selfExecutionScore: null,
+      selfActualScore: null,
+      confirmedExecutionScore: null,
+      confirmedActualScore: null,
+      updatedAt: FirebaseService.serverTimestamp(),
+      updatedByUserId: user.uid,
+      updatedByName: user.fullName || ""
+    };
+    const batch = FirebaseService.writeBatch(FirebaseService.db);
+    batch.update(taskRef(task.id), payload);
+    batch.set(logRef(), TaskLogService.buildTaskLog({
+      taskId: task.id,
+      taskCode: task.taskCode,
+      action: "NO_OCCURRENCE_CONFIRMED",
+      before: {
+        noOccurrenceStatus: task.noOccurrenceStatus || "",
+        includedInA: task.includedInA !== false,
+        scoringEnabled: task.scoringEnabled !== false
+      },
+      after: {
+        noOccurrenceStatus: "CONFIRMED",
+        includedInA: false,
+        scoringEnabled: false,
+        scoringStatus: "NO_OCCURRENCE_CONFIRMED"
+      },
+      note: "Đã xác nhận không phát sinh; loại đầu việc khỏi A và không cộng vào B của kỳ."
+    }));
+    await batch.commit();
+  },
+
+  async rejectNoOccurrence(task, reason) {
+    const user = UserContext.requireUser();
+    const normalizedReason = String(reason || "").replace(/\s+/g, " ").trim().slice(0, 2000);
+    if (!normalizedReason) throw new Error("Hãy nêu lý do không chấp thuận.");
+    if (task.ownerUserId === user.uid) {
+      throw new Error("Người thực hiện không được tự xử lý đề nghị của chính mình.");
+    }
+    const sameDepartmentLeader = Permissions.isDepartmentHead() &&
+      String(task.primaryDepartmentId || "") === String(user.departmentId || "");
+    const otherDirectorForBgd = Permissions.isDirector() &&
+      String(task.primaryDepartmentId || "") === "BGD";
+    if (!(Permissions.isAdmin() || sameDepartmentLeader || otherDirectorForBgd)) {
+      throw new Error("Tài khoản không có quyền xử lý đề nghị này.");
+    }
+    if (String(task.noOccurrenceStatus || "").toUpperCase() !== "REQUESTED") {
+      throw new Error("Đầu việc không còn ở trạng thái chờ xác nhận.");
+    }
+
+    const payload = {
+      noOccurrenceStatus: "REJECTED",
+      noOccurrenceRejectionReason: normalizedReason,
+      noOccurrenceRejectedAt: FirebaseService.serverTimestamp(),
+      noOccurrenceRejectedByUserId: user.uid,
+      noOccurrenceRejectedByName: user.fullName || "",
+      includedInA: true,
+      scoringEnabled: true,
+      scoringStatus: "NOT_ASSESSED",
+      updatedAt: FirebaseService.serverTimestamp(),
+      updatedByUserId: user.uid,
+      updatedByName: user.fullName || ""
+    };
+    const batch = FirebaseService.writeBatch(FirebaseService.db);
+    batch.update(taskRef(task.id), payload);
+    batch.set(logRef(), TaskLogService.buildTaskLog({
+      taskId: task.id,
+      taskCode: task.taskCode,
+      action: "NO_OCCURRENCE_REJECTED",
+      before: { noOccurrenceStatus: task.noOccurrenceStatus || "" },
+      after: { noOccurrenceStatus: "REJECTED", includedInA: true, scoringEnabled: true },
+      note: normalizedReason
     }));
     await batch.commit();
   }
