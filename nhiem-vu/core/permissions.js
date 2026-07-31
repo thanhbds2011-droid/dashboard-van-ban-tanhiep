@@ -178,6 +178,23 @@ export const Permissions = Object.freeze({
     );
   },
 
+  canCancelOwnApprovedRegistration(registration, hasDelegation = false) {
+    const user = UserContext.getUser();
+    const sameDepartment = clean(registration?.departmentId).toUpperCase() === clean(user?.departmentId).toUpperCase();
+    const authorizedLeader = this.isDepartmentHead(user)
+      || (this.isDepartmentDeputy(user) && hasDelegation === true);
+
+    return Boolean(
+      activeUser(user) &&
+      registration &&
+      registration.userId === user.uid &&
+      clean(registration.status).toUpperCase() === "APPROVED" &&
+      Boolean(clean(registration.taskId)) &&
+      sameDepartment &&
+      authorizedLeader
+    );
+  },
+
   canCancelRegistrationForEmployee(registration, planLocked = false, hasDelegation = false) {
     const user = UserContext.getUser();
     const hasTask = Boolean(clean(registration?.taskId));
