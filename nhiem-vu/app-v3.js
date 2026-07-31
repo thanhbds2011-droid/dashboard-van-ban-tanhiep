@@ -7,7 +7,7 @@ import { FirebaseService } from "./core/firebase-service.js";
 
 import { renderDashboardView } from "./modules/dashboard/dashboard-view.js?v=20260730.V1_1_11";
 import { renderTasksView } from "./modules/tasks/tasks-view.js?v=20260731.V1_1_12";
-import { renderStandardTasksView } from "./modules/standard-tasks/standard-tasks-view.js?v=20260730.V1_1_11";
+import { renderStandardTasksView } from "./modules/standard-tasks/standard-tasks-view.js?v=20260731.V1_1_13";
 import { renderPeriodsView } from "./modules/periods/periods-view.js?v=20260730.V1_1_11";
 import { renderPlansView } from "./modules/plans/plans-view.js?v=20260730.V1_1_11";
 import { renderEvaluationsView } from "./modules/evaluations/evaluations-view.js?v=20260730.V1_1_11";
