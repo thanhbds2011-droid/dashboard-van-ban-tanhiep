@@ -423,3 +423,47 @@ button,input,select,textarea{font-size:16px}
   .task-ai-header{align-items:stretch;flex-direction:column}
   .task-ai-header .task-ai-button{width:100%;min-height:46px}
 }
+
+
+/* V1.1.11 — Tóm tắt nhiệm vụ gọn, cân đối */
+.task-detail-summary {
+  gap: 14px;
+}
+
+.task-detail-summary .detail-item {
+  min-height: 96px;
+  padding: 15px 16px;
+  border-color: #d3e2ec;
+  background: linear-gradient(145deg, #ffffff 0%, #f5f9fc 100%);
+  box-shadow: 0 4px 14px rgba(22, 64, 91, .045);
+}
+
+.task-detail-summary .detail-item span {
+  margin-bottom: 8px;
+  font-size: .84rem;
+}
+
+.task-detail-summary .detail-item strong {
+  display: block;
+  color: #0d3048;
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
+@media (max-width: 720px) {
+  .task-detail-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+  }
+
+  .task-detail-summary .detail-item {
+    min-height: 88px;
+    padding: 12px;
+  }
+}
+
+@media (max-width: 390px) {
+  .task-detail-summary {
+    grid-template-columns: 1fr;
+  }
+}

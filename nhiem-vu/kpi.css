@@ -1295,3 +1295,40 @@
   font-size: 12px;
   line-height: 1.45;
 }
+
+
+/* V1.1.11 — Hủy đầu việc đã duyệt trước khi tiếp nhận */
+.registration-cancel-approved-button {
+  min-height: 34px;
+  border: 1px solid #e7b8b1;
+  border-radius: 8px;
+  padding: 6px 10px;
+  background: #fff7f5;
+  color: #9f2d24;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background .16s ease, border-color .16s ease, transform .16s ease;
+}
+
+.registration-cancel-approved-button:hover {
+  border-color: #d98478;
+  background: #fff0ed;
+  transform: translateY(-1px);
+}
+
+.registration-cancel-approved-button:disabled {
+  opacity: .58;
+  cursor: wait;
+  transform: none;
+}
+
+@media (max-width: 720px) {
+  .registration-cancel-approved-button,
+  .registration-delete-button,
+  .catalog-edit-button {
+    width: 100%;
+    min-height: 40px;
+  }
+}
