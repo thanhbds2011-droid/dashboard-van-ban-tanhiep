@@ -1,10 +1,10 @@
 import { UserContext } from "../../core/user-context.js";
-import { Permissions } from "../../core/permissions.js?v=20260731.V1_1_14";
+import { Permissions } from "../../core/permissions.js?v=20260731.V1_1_18";
 import { ToastService } from "../../core/toast-service.js";
-import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260731.V1_1_14";
-import { PeriodReadService } from "../../services/period-read-service.js?v=20260731.V1_1_14";
-import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260731.V1_1_17";
-import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260731.V1_1_17";
+import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260731.V1_1_18";
+import { PeriodReadService } from "../../services/period-read-service.js?v=20260731.V1_1_18";
+import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260731.V1_1_18";
+import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260731.V1_1_18";
 
 let stopStandardRealtime = () => {};
 let standardRealtimeTimer = null;
@@ -72,7 +72,10 @@ export async function renderStandardTasksView(outlet) {
 
     const plan = period ? await TaskRegistrationService.getDepartmentPlan(period.id) : null;
     currentCatalogAccess = catalogAccess || { canManage: false, manageableDepartmentIds: [] };
-    const catalogItems = items;
+    const catalogItems = items.map(item => ({
+      ...item,
+      _registrationEligible: StandardTaskReadService.canRegisterItem(item, user)
+    }));
     const registrationMode = Permissions.canRegisterStandardTasks();
     const registrations = registrationMode && period
       ? await TaskRegistrationService.listForCurrentUser(period.id)
@@ -83,7 +86,9 @@ export async function renderStandardTasksView(outlet) {
       : {};
     const registrationOpen = Boolean(period && plan?.locked !== true);
     const registeredCount = catalogItems.filter(item => findRegistration(item, registeredMap)).length;
-    const availableCount = Math.max(catalogItems.length - registeredCount, 0);
+    const availableCount = catalogItems.filter(item => (
+      item._registrationEligible && !findRegistration(item, registeredMap)
+    )).length;
     const regularCount = catalogItems.filter(item => !isUnexpectedTask(item)).length;
     const unexpectedCount = catalogItems.filter(isUnexpectedTask).length;
 
@@ -315,15 +320,17 @@ function renderRegistrationWorkspace(items, registeredMap, registrationOpen, can
 
 function renderAvailableTask(item, registrationOpen, canManageCatalog) {
   const key = taskKey(item);
+  const registrationEligible = item._registrationEligible !== false;
   return `<article class="registration-row registration-row-available">
     <label class="registration-check" title="Chọn đầu việc">
-      <input type="checkbox" data-registration-check value="${escapeHtml(key)}" ${registrationOpen ? "" : "disabled"}>
+      <input type="checkbox" data-registration-check value="${escapeHtml(key)}" ${registrationOpen && registrationEligible ? "" : "disabled"}>
       <span></span>
     </label>
     <div class="data-row-main">
       <strong>${escapeHtml(item.code || item.id)} — ${escapeHtml(item.name || "")}</strong>
       <small>${escapeHtml(item.outputRequirement || "")}</small>
-      <div class="standard-task-tags">${workTypeBadge(item)}${trackingModeBadge(item)}${classificationBadge(item)}${audienceBadge(item)}${item.frequency ? `<span class="status-pill neutral">${escapeHtml(item.frequency)}</span>` : ""}</div>
+      <div class="standard-task-tags">${workTypeBadge(item)}${trackingModeBadge(item)}${workItemTypeBadge(item)}${classificationBadge(item)}${audienceBadge(item)}${item.frequency ? `<span class="status-pill neutral">${escapeHtml(item.frequency)}</span>` : ""}</div>
+      ${registrationEligible ? "" : '<small class="registration-restriction">Đầu việc này chỉ hiển thị để tra cứu; vai trò hiện tại không thuộc đối tượng đăng ký.</small>'}
     </div>
     <div class="data-row-meta">
       <span class="status-pill neutral">Chưa đăng ký</span>
@@ -360,7 +367,7 @@ function renderRegisteredTask(item, registration, registrationOpen, canManageCat
     <div class="data-row-main">
       <strong>${escapeHtml(item.code || item.id)} — ${escapeHtml(item.name || "")}</strong>
       <small>${escapeHtml(item.outputRequirement || "")}</small>
-      <div class="standard-task-tags">${workTypeBadge(item)}${trackingModeBadge(item)}${classificationBadge(item)}${audienceBadge(item)}${item.frequency ? `<span class="status-pill neutral">${escapeHtml(item.frequency)}</span>` : ""}</div>
+      <div class="standard-task-tags">${workTypeBadge(item)}${trackingModeBadge(item)}${workItemTypeBadge(item)}${classificationBadge(item)}${audienceBadge(item)}${item.frequency ? `<span class="status-pill neutral">${escapeHtml(item.frequency)}</span>` : ""}</div>
       ${registration?.rejectionReason ? `<small class="text-danger">Lý do trả lại: ${escapeHtml(registration.rejectionReason)}</small>` : ""}
     </div>
     <div class="data-row-meta">
@@ -380,7 +387,7 @@ function renderCatalogList(items, canManageCatalog) {
     <div class="data-row-main">
       <strong>${escapeHtml(item.code || item.id)} — ${escapeHtml(item.name || "")}</strong>
       <small>${escapeHtml(item.outputRequirement || "")}</small>
-      <div class="standard-task-tags">${workTypeBadge(item)}${trackingModeBadge(item)}${classificationBadge(item)}${audienceBadge(item)}${item.frequency ? `<span class="status-pill neutral">${escapeHtml(item.frequency)}</span>` : ""}</div>
+      <div class="standard-task-tags">${workTypeBadge(item)}${trackingModeBadge(item)}${workItemTypeBadge(item)}${classificationBadge(item)}${audienceBadge(item)}${item.frequency ? `<span class="status-pill neutral">${escapeHtml(item.frequency)}</span>` : ""}</div>
     </div>
     <div class="data-row-meta">
       <small>Điểm tối đa: ${formatNumber(item.maximumConvertedScore || 0)}</small>
@@ -456,6 +463,9 @@ async function openTaskEditor(item) {
   const currentTrackingMode = String(item?.trackingMode || "FINAL_OUTPUT").toUpperCase() === "ITEMIZED"
     ? "ITEMIZED"
     : "FINAL_OUTPUT";
+  const currentWorkItemType = StandardTaskWriteService.normalizeWorkItemType(
+    item?.workItemType || "GENERIC"
+  );
   const currentAudience = String(
     item?.audienceType || (item?.isManagementTask === true ? "MANAGEMENT" : initialDepartmentId === "CDTN" ? "CDTN_MEMBER" : "ALL_DEPARTMENT")
   ).toUpperCase();
@@ -486,6 +496,13 @@ async function openTaskEditor(item) {
         <option value="FINAL_OUTPUT" ${currentTrackingMode === "FINAL_OUTPUT" ? "selected" : ""}>Theo sản phẩm/kết quả cuối cùng</option>
         <option value="ITEMIZED" ${currentTrackingMode === "ITEMIZED" ? "selected" : ""}>Theo từng lượt công việc phát sinh</option>
       </select><small class="field-help">Chọn “Theo từng lượt” cho văn bản, hồ sơ, hoạt động phát sinh nhiều lần trong kỳ. Chọn “Theo sản phẩm cuối cùng” cho báo cáo, đề án hoặc nhiệm vụ chỉ cần nghiệm thu kết quả cuối kỳ.</small></label>
+      <label id="catalogWorkItemTypeField" class="kpi-field full"><span>Nội dung chi tiết cần theo dõi</span><select id="catalogTaskWorkItemType">
+        <option value="GENERIC" ${currentWorkItemType === "GENERIC" ? "selected" : ""}>Công việc phát sinh thông thường</option>
+        <option value="DOCUMENT" ${currentWorkItemType === "DOCUMENT" ? "selected" : ""}>Văn bản/hồ sơ được giao</option>
+        <option value="QUANTITY" ${currentWorkItemType === "QUANTITY" ? "selected" : ""}>Sản lượng theo tháng và kết quả quý</option>
+        <option value="ATTENDANCE" ${currentWorkItemType === "ATTENDANCE" ? "selected" : ""}>Buổi hoạt động và tình trạng tham dự</option>
+      </select><small class="field-help">Mỗi kiểu sẽ hiển thị đúng trường cần nhập trong chi tiết nhiệm vụ.</small></label>
+      <label id="catalogQuantityUnitField" class="kpi-field full"><span>Đơn vị sản lượng</span><input id="catalogTaskQuantityUnit" value="${escapeHtml(item?.quantityUnit || "")}" placeholder="Ví dụ: kg rau, suất ăn, hồ sơ"></label>
       <label class="kpi-field full"><span>Minh chứng bắt buộc</span><textarea id="catalogTaskEvidence" rows="2" placeholder="Nêu loại hồ sơ, báo cáo hoặc tài liệu bắt buộc">${escapeHtml(item?.mandatoryEvidence || "")}</textarea></label>
       <label class="kpi-field full"><span>Minh chứng phát sinh</span><textarea id="catalogTaskArisingEvidence" rows="2" placeholder="Không bắt buộc; chỉ nhập khi có loại minh chứng phát sinh">${escapeHtml(item?.arisingEvidence || "")}</textarea></label>
       <label class="kpi-field"><span>Điểm chuẩn</span><input id="catalogTaskBaseScore" type="number" value="${escapeHtml(item?.baseScore ?? (currentWorkType === "DOT_XUAT" ? 12 : 10))}" readonly></label>
@@ -514,6 +531,10 @@ async function openTaskEditor(item) {
   const managementInput = document.getElementById("catalogTaskManagement");
   const departmentAudience = document.getElementById("catalogDepartmentAudience");
   const cdtnAudienceField = document.getElementById("catalogCdtnAudienceField");
+  const trackingModeInput = document.getElementById("catalogTaskTrackingMode");
+  const workItemTypeInput = document.getElementById("catalogTaskWorkItemType");
+  const workItemTypeField = document.getElementById("catalogWorkItemTypeField");
+  const quantityUnitField = document.getElementById("catalogQuantityUnitField");
 
   const recalculate = () => {
     const base = Number(document.getElementById("catalogTaskBaseScore")?.value || 0);
@@ -527,6 +548,16 @@ async function openTaskEditor(item) {
     const baseInput = document.getElementById("catalogTaskBaseScore");
     if (baseInput) baseInput.value = workType === "DOT_XUAT" ? "12" : "10";
     recalculate();
+  };
+
+  const syncTrackingFields = () => {
+    const isItemized = trackingModeInput?.value === "ITEMIZED";
+    workItemTypeField?.classList.toggle("hidden", !isItemized);
+    if (!isItemized && workItemTypeInput) workItemTypeInput.value = "GENERIC";
+    quantityUnitField?.classList.toggle(
+      "hidden",
+      !isItemized || workItemTypeInput?.value !== "QUANTITY"
+    );
   };
 
   const syncAudienceFields = async (refreshCode = false) => {
@@ -555,7 +586,10 @@ async function openTaskEditor(item) {
   departmentInput?.addEventListener("change", () => syncAudienceFields(true));
   document.getElementById("catalogTaskWorkType")?.addEventListener("change", syncBaseScoreWithWorkType);
   document.getElementById("catalogTaskCoefficient")?.addEventListener("change", recalculate);
+  trackingModeInput?.addEventListener("change", syncTrackingFields);
+  workItemTypeInput?.addEventListener("change", syncTrackingFields);
   await syncAudienceFields(false);
+  syncTrackingFields();
   recalculate();
 
   root.querySelector("#saveCatalogTask")?.addEventListener("click", async event => {
@@ -577,6 +611,8 @@ async function openTaskEditor(item) {
         mandatoryEvidence: document.getElementById("catalogTaskEvidence")?.value,
         arisingEvidence: document.getElementById("catalogTaskArisingEvidence")?.value,
         trackingMode: document.getElementById("catalogTaskTrackingMode")?.value,
+        workItemType: document.getElementById("catalogTaskWorkItemType")?.value,
+        quantityUnit: document.getElementById("catalogTaskQuantityUnit")?.value,
         baseScore: document.getElementById("catalogTaskBaseScore")?.value,
         difficultyCoefficient: document.getElementById("catalogTaskCoefficient")?.value,
         audienceType,
@@ -736,6 +772,18 @@ function trackingModeBadge(item) {
   return String(item?.trackingMode || "FINAL_OUTPUT").toUpperCase() === "ITEMIZED"
     ? '<span class="status-pill info">Theo từng lượt</span>'
     : '<span class="status-pill neutral">Theo sản phẩm cuối</span>';
+}
+
+function workItemTypeBadge(item) {
+  if (String(item?.trackingMode || "FINAL_OUTPUT").toUpperCase() !== "ITEMIZED") return "";
+  const labels = {
+    GENERIC: "Lượt công việc",
+    DOCUMENT: "Văn bản/hồ sơ",
+    QUANTITY: "Sản lượng",
+    ATTENDANCE: "Buổi tham dự"
+  };
+  const type = StandardTaskWriteService.normalizeWorkItemType(item?.workItemType);
+  return `<span class="status-pill neutral">${labels[type]}</span>`;
 }
 
 function classificationBadge(item) {
