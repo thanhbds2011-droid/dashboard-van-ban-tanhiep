@@ -1,8 +1,8 @@
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260731.V1_1_18";
+import { Permissions } from "../core/permissions.js?v=20260731.V1_1_19";
 import { TaskLogService } from "./task-log-service.js";
-import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260731.V1_1_18";
+import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260731.V1_1_19";
 
 const clean = value => String(value ?? "").trim();
 const upper = value => clean(value).toUpperCase();

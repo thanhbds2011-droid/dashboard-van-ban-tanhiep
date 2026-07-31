@@ -1,7 +1,7 @@
 /** Dịch vụ đọc danh mục đầu việc chuẩn. */
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260731.V1_1_18";
+import { Permissions } from "../core/permissions.js?v=20260731.V1_1_19";
 
 function clean(value) {
   return String(value ?? "").trim();
