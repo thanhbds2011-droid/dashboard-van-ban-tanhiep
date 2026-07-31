@@ -3,19 +3,23 @@ import { NOTIFICATION_WEB_APP_URL } from "./notification-config.js?v=20260718.20
 import { UserContext } from "./core/user-context.js";
 
 /* =========================================================
- * AI MODULE V3 — HYBRID CALLBACK + MOBILE POLLING — TRỢ LÝ GỢI Ý NỘI DUNG THEO TINH THẦN 6 RÕ
+ * AI MODULE V4 — HEALTH CHECK + CALLBACK + MOBILE POLLING — TRỢ LÝ GỢI Ý NỘI DUNG THEO TINH THẦN 6 RÕ
  *
  * Mô-đun độc lập, được nạp cuối cùng.
  * Muốn gỡ AI: xóa dòng nạp ai-assistant.css/js trong index.html
- * và xóa nhánh AI_SUGGEST_TASK cùng khối AI MODULE V3 — HYBRID CALLBACK + MOBILE POLLING trong Code.gs.
+ * và xóa nhánh AI_SUGGEST_TASK cùng khối AI MODULE V4 — HEALTH CHECK + CALLBACK + MOBILE POLLING trong Code.gs.
  * ========================================================= */
 
-const AI_REQUEST_TIMEOUT_MS = 75000;
+const AI_CLIENT_VERSION = "4.0.0";
+const AI_REQUEST_TIMEOUT_MS = 55000;
 const AI_SOURCE = "TASK_AI_SUGGESTION";
+const AI_HEALTH_ACTION = "AI_HEALTH";
 const AI_POLL_ACTION = "AI_GET_RESULT";
-const AI_POLL_INTERVAL_MS = 1200;
-const AI_POLL_FIRST_DELAY_MS = 700;
-const AI_JSONP_TIMEOUT_MS = 12000;
+const AI_HEALTH_CACHE_MS = 5 * 60 * 1000;
+const AI_HEALTH_TIMEOUT_MS = 8000;
+const AI_POLL_INTERVAL_MS = 1000;
+const AI_POLL_FIRST_DELAY_MS = 500;
+const AI_JSONP_TIMEOUT_MS = 7000;
 
 let elements = resolveElements(document);
 
@@ -37,6 +41,7 @@ function resolveElements(root = document) {
 let pendingRequestId = "";
 let pendingRequestCancel = null;
 let currentSuggestion = null;
+let aiHealthCache = { checkedAt: 0, data: null };
 
 function clean(value, maxLength = 3000) {
   return String(value || "")
@@ -259,48 +264,29 @@ function validateTaskContext(context) {
 }
 
 async function submitAiRequest(context) {
-  if (
-    !NOTIFICATION_WEB_APP_URL ||
-    NOTIFICATION_WEB_APP_URL.includes("DAN_LINK_WEB_APP")
-  ) {
-    throw new Error("Chưa cấu hình đường dẫn Google Apps Script.");
-  }
-
-  if (!auth.currentUser) {
-    throw new Error("Phiên đăng nhập đã hết hạn. Hãy đăng nhập lại.");
-  }
+  assertAiEnvironment();
+  await ensureAiServiceReady();
 
   if (pendingRequestId) {
     throw new Error("AI đang xử lý một yêu cầu khác. Vui lòng chờ.");
   }
 
-  const requestId = [
-    "AI_V3",
-    Date.now(),
-    randomSecureToken(12)
-  ].join("_");
+  const requestId = ["AI_V4", Date.now(), randomSecureToken(12)].join("_");
   const pollToken = randomSecureToken(32);
-
   pendingRequestId = requestId;
 
   let settled = false;
   let timeoutId = null;
-  let progressTimerId = null;
   let iframe = null;
   let form = null;
   let activeJsonpCleanup = null;
+  const progressTimers = [];
 
   return new Promise(async (resolve, reject) => {
     const cleanup = () => {
       window.removeEventListener("message", onMessage);
-
-      if (timeoutId) {
-        window.clearTimeout(timeoutId);
-      }
-
-      if (progressTimerId) {
-        window.clearTimeout(progressTimerId);
-      }
+      if (timeoutId) window.clearTimeout(timeoutId);
+      progressTimers.forEach(timerId => window.clearTimeout(timerId));
 
       if (activeJsonpCleanup) {
         activeJsonpCleanup();
@@ -311,13 +297,11 @@ async function submitAiRequest(context) {
       form?.remove();
       pendingRequestId = "";
       pendingRequestCancel = null;
+      setAssistantBusyState(false);
     };
 
     const finish = (data, error) => {
-      if (settled) {
-        return;
-      }
-
+      if (settled) return;
       settled = true;
       cleanup();
 
@@ -332,12 +316,9 @@ async function submitAiRequest(context) {
 
     function onMessage(event) {
       const data = event.data;
+      if (!isAllowedGoogleScriptOrigin(event.origin)) return;
 
-      if (
-        !data ||
-        data.source !== AI_SOURCE ||
-        data.requestId !== requestId
-      ) {
+      if (!data || data.source !== AI_SOURCE || data.requestId !== requestId) {
         return;
       }
 
@@ -345,30 +326,32 @@ async function submitAiRequest(context) {
     }
 
     pendingRequestCancel = () => {
-      finish(
-        null,
-        new Error("Đã hủy yêu cầu gợi ý AI.")
-      );
+      finish(null, new Error("Đã hủy yêu cầu gợi ý AI."));
     };
 
     window.addEventListener("message", onMessage);
+    setAssistantBusyState(true);
 
     timeoutId = window.setTimeout(() => {
       finish(
         null,
         new Error(
-          "AI chưa phản hồi sau 75 giây. Nội dung đã nhập vẫn được giữ nguyên; vui lòng kiểm tra kết nối và thử lại."
+          "Dịch vụ AI chưa trả kết quả. Hãy kiểm tra phiên bản Web App và cấu hình Gemini, sau đó thử lại."
         )
       );
     }, AI_REQUEST_TIMEOUT_MS);
 
-    progressTimerId = window.setTimeout(() => {
-      if (!settled) {
-        updatePendingMessage(
-          "AI đang phân tích nội dung. Kết quả sẽ tự hiển thị khi hoàn tất; bạn không cần bấm lại."
-        );
-      }
-    }, 8000);
+    progressTimers.push(window.setTimeout(() => {
+      if (!settled) updatePendingMessage("AI đang đọc và chuẩn hóa nội dung theo 6 rõ...");
+    }, 6000));
+
+    progressTimers.push(window.setTimeout(() => {
+      if (!settled) updatePendingMessage("AI đang hoàn thiện gợi ý. Bạn không cần bấm lại.");
+    }, 16000));
+
+    progressTimers.push(window.setTimeout(() => {
+      if (!settled) updatePendingMessage("Dịch vụ đang phản hồi chậm; hệ thống vẫn tiếp tục chờ kết quả.");
+    }, 32000));
 
     try {
       const idToken = await auth.currentUser.getIdToken(false);
@@ -390,6 +373,7 @@ async function submitAiRequest(context) {
       payloadInput.name = "payload";
       payloadInput.value = JSON.stringify({
         action: "AI_SUGGEST_TASK",
+        clientVersion: AI_CLIENT_VERSION,
         requestId,
         pollToken,
         idToken,
@@ -407,7 +391,7 @@ async function submitAiRequest(context) {
             const pollResult = await pollAiResultOnce(
               requestId,
               pollToken,
-              (cleanupFn) => {
+              cleanupFn => {
                 activeJsonpCleanup = cleanupFn;
               }
             );
@@ -419,7 +403,7 @@ async function submitAiRequest(context) {
               return;
             }
           } catch (pollError) {
-            console.warn("AI mobile polling tạm thời lỗi:", pollError);
+            console.warn("Kênh nhận kết quả AI tạm thời chậm:", pollError);
           }
 
           await wait(AI_POLL_INTERVAL_MS);
@@ -429,6 +413,81 @@ async function submitAiRequest(context) {
       finish(null, error);
     }
   });
+}
+
+function assertAiEnvironment() {
+  if (!navigator.onLine) {
+    throw new Error("Thiết bị đang ngoại tuyến. Hãy kiểm tra kết nối mạng.");
+  }
+
+  if (!NOTIFICATION_WEB_APP_URL || NOTIFICATION_WEB_APP_URL.includes("DAN_LINK_WEB_APP")) {
+    throw new Error("Chưa cấu hình đường dẫn Google Apps Script.");
+  }
+
+  if (!auth.currentUser) {
+    throw new Error("Phiên đăng nhập đã hết hạn. Hãy đăng nhập lại.");
+  }
+}
+
+async function ensureAiServiceReady(force = false) {
+  const now = Date.now();
+
+  if (
+    !force &&
+    aiHealthCache.data &&
+    now - aiHealthCache.checkedAt < AI_HEALTH_CACHE_MS
+  ) {
+    validateAiHealthResponse(aiHealthCache.data);
+    return aiHealthCache.data;
+  }
+
+  updatePendingMessage("Đang kiểm tra dịch vụ AI...");
+
+  let data;
+  try {
+    data = await requestJsonp(
+      buildAiHealthUrl(),
+      AI_HEALTH_TIMEOUT_MS
+    );
+  } catch (error) {
+    throw new Error(
+      "Dịch vụ AI chưa sẵn sàng. Hãy triển khai lại Google Apps Script Web App và kiểm tra quyền truy cập."
+    );
+  }
+
+  aiHealthCache = {
+    checkedAt: now,
+    data
+  };
+
+  validateAiHealthResponse(data);
+  return data;
+}
+
+function validateAiHealthResponse(data) {
+  if (!data || data.source !== AI_SOURCE || data.action !== AI_HEALTH_ACTION) {
+    throw new Error(
+      "Google Apps Script đang chạy phiên bản cũ. Hãy tạo phiên bản triển khai Web App mới."
+    );
+  }
+
+  if (data.ok !== true || data.ready !== true) {
+    throw new Error(data.error || "Dịch vụ AI chưa sẵn sàng.");
+  }
+
+  if (data.geminiConfigured !== true) {
+    throw new Error(
+      "Chưa cấu hình GEMINI_API_KEY trong Script Properties của Apps Script."
+    );
+  }
+}
+
+function buildAiHealthUrl() {
+  const url = new URL(NOTIFICATION_WEB_APP_URL);
+  url.searchParams.set("action", AI_HEALTH_ACTION);
+  url.searchParams.set("clientVersion", AI_CLIENT_VERSION);
+  url.searchParams.set("_", String(Date.now()));
+  return url.toString();
 }
 
 function randomSecureToken(byteLength = 24) {
@@ -443,12 +502,12 @@ function randomSecureToken(byteLength = 24) {
   }
 
   return Array.from(bytes)
-    .map((value) => value.toString(16).padStart(2, "0"))
+    .map(value => value.toString(16).padStart(2, "0"))
     .join("");
 }
 
 function wait(milliseconds) {
-  return new Promise((resolve) => {
+  return new Promise(resolve => {
     window.setTimeout(resolve, milliseconds);
   });
 }
@@ -466,67 +525,88 @@ function updatePendingMessage(message) {
   }
 }
 
+function setAssistantBusyState(busy) {
+  ["taskAiAssistant", "resultAiAssistant"].forEach(id => {
+    const panel = document.getElementById(id);
+    if (!panel) return;
+    panel.classList.toggle("is-busy", busy);
+    panel.setAttribute("aria-busy", busy ? "true" : "false");
+  });
+}
+
+function isAllowedGoogleScriptOrigin(origin) {
+  if (!origin || origin === "null") return true;
+
+  try {
+    const host = new URL(origin).hostname.toLowerCase();
+    return host === "script.google.com" || host.endsWith(".googleusercontent.com");
+  } catch (_) {
+    return false;
+  }
+}
+
 function pollAiResultOnce(requestId, pollToken, registerCleanup) {
+  const url = buildAiPollUrl(requestId, pollToken);
+  return requestJsonp(url, AI_JSONP_TIMEOUT_MS, registerCleanup);
+}
+
+function requestJsonp(urlValue, timeoutMs, registerCleanup) {
   return new Promise((resolve, reject) => {
-    const callbackName = `__aiV3Jsonp_${Date.now()}_${randomSecureToken(5)}`;
+    const callbackName = `__aiV4Jsonp_${Date.now()}_${randomSecureToken(5)}`;
     const script = document.createElement("script");
     let completed = false;
     let timerId = null;
 
     const cleanup = () => {
-      if (completed) {
-        return;
-      }
-
+      if (completed) return;
       completed = true;
 
-      if (timerId) {
-        window.clearTimeout(timerId);
-      }
-
+      if (timerId) window.clearTimeout(timerId);
       script.remove();
 
       try {
         delete window[callbackName];
-      } catch (error) {
+      } catch (_) {
         window[callbackName] = undefined;
       }
     };
 
     registerCleanup?.(cleanup);
 
-    window[callbackName] = (data) => {
+    window[callbackName] = data => {
       cleanup();
       resolve(data || null);
     };
 
+    const url = new URL(urlValue);
+    url.searchParams.set("callback", callbackName);
+    url.searchParams.set("_", String(Date.now()));
+
     script.async = true;
-    script.src = buildAiPollUrl(requestId, pollToken, callbackName);
+    script.src = url.toString();
     script.onerror = () => {
       cleanup();
-      reject(new Error("Không kết nối được kênh nhận kết quả AI."));
+      reject(new Error("Không kết nối được dịch vụ AI."));
     };
 
     timerId = window.setTimeout(() => {
       cleanup();
-      reject(new Error("Kênh nhận kết quả AI phản hồi chậm."));
-    }, AI_JSONP_TIMEOUT_MS);
+      reject(new Error("Dịch vụ AI không phản hồi kênh kiểm tra."));
+    }, timeoutMs);
 
     document.head.appendChild(script);
   });
 }
 
-function buildAiPollUrl(requestId, pollToken, callbackName) {
+function buildAiPollUrl(requestId, pollToken) {
   const url = new URL(NOTIFICATION_WEB_APP_URL);
-
   url.searchParams.set("action", AI_POLL_ACTION);
   url.searchParams.set("requestId", requestId);
   url.searchParams.set("pollToken", pollToken);
-  url.searchParams.set("callback", callbackName);
-  url.searchParams.set("_", String(Date.now()));
-
+  url.searchParams.set("clientVersion", AI_CLIENT_VERSION);
   return url.toString();
 }
+
 
 async function requestTaskSuggestion() {
   hideMessage("taskAiMessage");
