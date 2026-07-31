@@ -1,6 +1,6 @@
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260730.V1_1_10";
+import { Permissions } from "../core/permissions.js?v=20260730.V1_1_11";
 import { TaskLogService } from "./task-log-service.js";
 
 const clean = value => String(value ?? "").trim();
@@ -117,6 +117,56 @@ function canApprove(registration, reviewer) {
 function endOfPeriod(period) {
   const parsed = dateAtEnd(period?.endDate);
   return parsed || new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0, 17, 0, 0);
+}
+
+
+function emptyTaskField(value) {
+  return value === null || value === undefined || clean(value) === "";
+}
+
+function isUntouchedApprovedTask(task) {
+  if (!task || task.active === false) return false;
+
+  const status = upper(task.status);
+  const assignmentStatus = upper(task.assignmentStatus);
+  const scoringStatus = upper(task.scoringStatus);
+
+  return (
+    Number(task.progress || 0) === 0 &&
+    assignmentStatus !== "DA_TIEP_NHAN" &&
+    ["MOI_TIEP_NHAN", "CHO_PHAN_CONG", "DA_PHAN_CONG"].includes(status) &&
+    emptyTaskField(task.acceptedAt) &&
+    emptyTaskField(task.completedAt) &&
+    emptyTaskField(task.result) &&
+    emptyTaskField(task.resultSummary) &&
+    emptyTaskField(task.evidenceUrl) &&
+    emptyTaskField(task.evidenceLink) &&
+    emptyTaskField(task.evidenceText) &&
+    emptyTaskField(task.evidenceFileName) &&
+    emptyTaskField(task.evidenceStoragePath) &&
+    ["", "NOT_ASSESSED"].includes(scoringStatus)
+  );
+}
+
+async function canCancelApprovedOwnRegistration(user, registration) {
+  if (!registration || registration.userId !== user.uid) return false;
+  if (upper(registration.status) !== "APPROVED" || !clean(registration.taskId)) return false;
+  if (upper(registration.departmentId) !== upper(user.departmentId)) return false;
+  if (!Permissions.isDepartmentLeader()) return false;
+  if (Permissions.isDepartmentHead(user)) return true;
+
+  return Permissions.isDepartmentDeputy(user)
+    && await hasDelegation(user, registration.departmentId, "APPROVE_REGISTRATIONS");
+}
+
+function cancellationTaskSnapshot(task) {
+  const fields = [
+    "active", "status", "assignmentStatus", "progress", "ownerUserId", "ownerName",
+    "primaryDepartmentId", "periodId", "registrationId", "includedInA",
+    "scoringEnabled", "scoringStatus", "result", "resultSummary", "evidenceUrl",
+    "evidenceText", "evidenceFileName"
+  ];
+  return Object.fromEntries(fields.map(key => [key, task?.[key] ?? null]));
 }
 
 function taskPayload(registration, reviewer, due, options = {}) {
@@ -403,6 +453,119 @@ export const TaskRegistrationService = Object.freeze({
     return selected.length;
   },
 
+  async getApprovedCancellationMap(registrations = []) {
+    const user = UserContext.requireUser();
+    const candidates = (registrations || []).filter(registration => (
+      registration?.userId === user.uid &&
+      upper(registration?.status) === "APPROVED" &&
+      Boolean(clean(registration?.taskId)) &&
+      upper(registration?.departmentId) === upper(user.departmentId)
+    ));
+
+    if (!candidates.length) return {};
+
+    const authorized = Permissions.isDepartmentHead(user)
+      || (
+        Permissions.isDepartmentDeputy(user) &&
+        await hasDelegation(user, user.departmentId, "APPROVE_REGISTRATIONS")
+      );
+
+    if (!authorized) return {};
+
+    const entries = await Promise.all(candidates.map(async registration => {
+      try {
+        const snapshot = await FirebaseService.getDoc(
+          FirebaseService.doc(FirebaseService.db, "tasks", registration.taskId)
+        );
+        const task = snapshot.exists() ? { id: snapshot.id, ...snapshot.data() } : null;
+        return [registration.id, isUntouchedApprovedTask(task)];
+      } catch (error) {
+        console.warn("Không kiểm tra được điều kiện hủy đầu việc đã duyệt:", error);
+        return [registration.id, false];
+      }
+    }));
+
+    return Object.fromEntries(entries);
+  },
+
+  async cancelApprovedRegistration(registration, reason) {
+    const user = UserContext.requireUser();
+    const cancellationReason = clean(reason);
+
+    if (!registration?.id) throw new Error("Không tìm thấy đăng ký cần hủy.");
+    if (!cancellationReason) throw new Error("Vui lòng nhập lý do hủy đầu việc.");
+    if (!(await canCancelApprovedOwnRegistration(user, registration))) {
+      throw new Error("Tài khoản không có quyền hủy đầu việc đã duyệt này.");
+    }
+
+    const taskReference = FirebaseService.doc(
+      FirebaseService.db,
+      "tasks",
+      registration.taskId
+    );
+    const taskSnapshot = await FirebaseService.getDoc(taskReference);
+
+    if (!taskSnapshot.exists()) {
+      throw new Error("Không tìm thấy nhiệm vụ đã hình thành từ đăng ký này.");
+    }
+
+    const task = { id: taskSnapshot.id, ...taskSnapshot.data() };
+    if (!isUntouchedApprovedTask(task)) {
+      throw new Error(
+        "Chỉ được hủy khi nhiệm vụ chưa được tiếp nhận, chưa cập nhật tiến độ, kết quả hoặc minh chứng."
+      );
+    }
+
+    const now = FirebaseService.serverTimestamp();
+    const taskAfter = {
+      active: false,
+      status: "HUY",
+      planApprovalStatus: "CANCELLED",
+      includedInA: false,
+      scoringEnabled: false,
+      scoringStatus: "CANCELLED",
+      deletedReason: cancellationReason,
+      deletedAt: now,
+      deletedByUserId: user.uid,
+      deletedByName: user.fullName || "",
+      updatedAt: now,
+      updatedByUserId: user.uid,
+      updatedByName: user.fullName || ""
+    };
+
+    const batch = FirebaseService.writeBatch(FirebaseService.db);
+    batch.update(
+      FirebaseService.doc(FirebaseService.db, "taskRegistrations", registration.id),
+      {
+        active: false,
+        status: "CANCELLED",
+        cancelReason: cancellationReason,
+        cancelledAt: now,
+        cancelledByUserId: user.uid,
+        cancelledByName: user.fullName || "",
+        updatedAt: now
+      }
+    );
+    batch.update(taskReference, taskAfter);
+    batch.set(taskLogRef(), TaskLogService.buildTaskLog({
+      taskId: task.id,
+      taskCode: task.taskCode || registration.taskCode || "",
+      action: "TASK_REGISTRATION_CANCELLED",
+      before: cancellationTaskSnapshot(task),
+      after: {
+        ...cancellationTaskSnapshot(task),
+        active: false,
+        status: "HUY",
+        includedInA: false,
+        scoringEnabled: false,
+        scoringStatus: "CANCELLED"
+      },
+      note: `Hủy đầu việc đã duyệt trước khi tiếp nhận. Lý do: ${cancellationReason}`
+    }));
+
+    await batch.commit();
+  },
+
   async cancelRegistration(registration, options = {}) {
     const user = UserContext.requireUser();
     if (!registration?.id) throw new Error("Không tìm thấy đăng ký cần hủy.");
@@ -434,35 +597,6 @@ export const TaskRegistrationService = Object.freeze({
     await FirebaseService.deleteDoc(
       FirebaseService.doc(FirebaseService.db, "taskRegistrations", registration.id)
     );
-  },
-
-  async softDeleteApproved(registration, reason) {
-    const user = UserContext.requireUser();
-    if (!(Permissions.isAdmin() || (Permissions.isDepartmentHead() && upper(registration.departmentId) === upper(user.departmentId)))) {
-      throw new Error("Chỉ quản trị viên hoặc Trưởng phòng được hủy đầu việc đã duyệt.");
-    }
-    const batch = FirebaseService.writeBatch(FirebaseService.db);
-    batch.update(FirebaseService.doc(FirebaseService.db, "taskRegistrations", registration.id), {
-      active: false,
-      status: "CANCELLED",
-      cancelReason: clean(reason),
-      cancelledAt: FirebaseService.serverTimestamp(),
-      cancelledByUserId: user.uid,
-      updatedAt: FirebaseService.serverTimestamp()
-    });
-    if (registration.taskId) {
-      batch.update(FirebaseService.doc(FirebaseService.db, "tasks", registration.taskId), {
-        active: false,
-        status: "HUY",
-        deletedReason: clean(reason),
-        deletedAt: FirebaseService.serverTimestamp(),
-        deletedByUserId: user.uid,
-        deletedByName: user.fullName || "",
-        updatedAt: FirebaseService.serverTimestamp(),
-        updatedByUserId: user.uid
-      });
-    }
-    await batch.commit();
   },
 
   async approve(registration, options = {}) {

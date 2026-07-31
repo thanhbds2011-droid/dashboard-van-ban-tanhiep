@@ -9,11 +9,18 @@ function uniqueById(items) {
   return [...map.values()];
 }
 
+function isActiveTask(task) {
+  const status = String(task?.status || "").trim().toUpperCase();
+  return task?.active !== false && !["HUY", "CANCELLED", "DELETED"].includes(status);
+}
+
 function mapSnapshot(snapshot) {
-  return snapshot.docs.map(documentSnapshot => ({
-    id: documentSnapshot.id,
-    ...documentSnapshot.data()
-  }));
+  return snapshot.docs
+    .map(documentSnapshot => ({
+      id: documentSnapshot.id,
+      ...documentSnapshot.data()
+    }))
+    .filter(isActiveTask);
 }
 
 function scopedReferences() {
