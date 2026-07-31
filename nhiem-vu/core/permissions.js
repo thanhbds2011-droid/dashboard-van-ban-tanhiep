@@ -275,7 +275,7 @@ export const Permissions = Object.freeze({
   },
 
   canViewAllDepartments() {
-    return this.isAdmin() || this.isDirector() || this.isTchcCoordinator();
+    return this.isAdmin() || this.isDirector() || this.isTchcCoordinator() || this.canManageEvaluationPeriods();
   },
 
   canViewOwnKpi() {
