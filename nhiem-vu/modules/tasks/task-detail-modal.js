@@ -1,11 +1,11 @@
 /** Chi tiết, phân công và các lượt công việc phát sinh của nhiệm vụ. */
 import { UserContext } from "../../core/user-context.js";
-import { Permissions } from "../../core/permissions.js?v=20260731.V1_1_18";
+import { Permissions } from "../../core/permissions.js?v=20260731.V1_1_19";
 import { UserReadService } from "../../services/user-read-service.js";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260731.V1_1_18";
-import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260731.V1_1_18";
-import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260731.V1_1_18";
-import { openTaskProgressModal } from "./task-progress-modal.js?v=20260731.V1_1_18";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260731.V1_1_19";
+import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260731.V1_1_19";
+import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260731.V1_1_19";
+import { openTaskProgressModal } from "./task-progress-modal.js?v=20260731.V1_1_19";
 
 const TEAM_LABELS = Object.freeze({
   BAO_VE: "Tổ Bảo vệ",
@@ -205,15 +205,60 @@ function workItemSummaryHtml(items, task) {
          <div><span>Tổng thực tế</span><strong>${numberVi(summary.totalActualQuantity)} ${escapeHtml(task.quantityUnit || "")}</strong></div>`
       : "";
 
+  const incomplete = summary.incompleteCount > 0
+    ? `<div class="is-warning"><span>Chưa hoàn thành</span><strong>${summary.incompleteCount}</strong></div>`
+    : "";
+
   return `<div class="task-work-item-summary">
     <div><span>Tổng lượt hợp lệ (N)</span><strong>${summary.count}</strong></div>
     <div><span>Đã ghi nhận đầy đủ</span><strong>${summary.completedCount}/${summary.count}</strong></div>
+    ${incomplete}
     <div><span>${progressLabel}</span><strong>${summary.onTimeCount}/${summary.count}</strong></div>
     <div><span>${resultLabel}</span><strong>${summary.qualifiedCount}/${summary.count}</strong></div>
     ${typeSpecific}
     <div><span>Tiến độ thực tế T/N</span><strong>${numberVi(summary.actualProgressRate)}%</strong></div>
     <div><span>Kết quả thực tế K/N</span><strong>${numberVi(summary.actualResultRate)}%</strong></div>
     <div class="is-applied"><span>Mức KPI áp dụng</span><strong>${summary.appliedProgressRate}% tiến độ · ${summary.appliedResultRate}% kết quả</strong></div>
+  </div>`;
+}
+
+function scoringMethodHtml(task) {
+  const type = workItemType(task);
+  const methods = {
+    GENERIC: {
+      title: "Công việc phát sinh nhiều lượt",
+      n: "Tổng số lượt công việc được giao hợp lệ",
+      t: "Số lượt hoàn thành đúng hạn",
+      k: "Số lượt hoàn thành đạt yêu cầu từ 80% trở lên"
+    },
+    DOCUMENT: {
+      title: "Văn bản/hồ sơ phát sinh nhiều lượt",
+      n: "Tổng số văn bản hoặc hồ sơ được giao hợp lệ",
+      t: "Số văn bản hoặc hồ sơ hoàn thành đúng hạn",
+      k: "Số văn bản hoặc hồ sơ đạt yêu cầu từ 80% trở lên"
+    },
+    QUANTITY: {
+      title: "Sản lượng ghi nhận theo tháng",
+      n: "Tổng số tháng/sản phẩm phải ghi nhận trong kỳ",
+      t: "Số lượt cập nhật, hoàn thành đúng hạn",
+      k: "Số lượt đạt sản lượng kế hoạch và chất lượng từ 80% trở lên"
+    },
+    ATTENDANCE: {
+      title: "Hoạt động và điểm danh theo buổi",
+      n: "Tổng số buổi phải tham gia trong kỳ",
+      t: "Số buổi có mặt",
+      k: "Số buổi có mặt và mức tham gia đạt yêu cầu từ 80% trở lên"
+    }
+  };
+  const method = methods[type] || methods.GENERIC;
+  return `<div class="scoring-method-card">
+    <div class="scoring-method-heading"><span>Cách tính điểm đầu việc</span><strong>${escapeHtml(method.title)}</strong></div>
+    <div class="scoring-method-steps">
+      <div><b>N</b><span>${escapeHtml(method.n)}</span></div>
+      <div><b>T</b><span>${escapeHtml(method.t)}</span></div>
+      <div><b>K</b><span>${escapeHtml(method.k)}</span></div>
+    </div>
+    <p>Tỷ lệ thực tế = T/N và K/N. Hệ thống quy về mức áp dụng 100%–80%–60%–0%, sau đó chấm <strong>một lần cho toàn đầu việc</strong> theo công thức Phụ lục 04. Mỗi lượt không có điểm chuẩn riêng và không được cộng điểm riêng.</p>
   </div>`;
 }
 
@@ -245,7 +290,7 @@ function editorFields(task, item) {
     return `
       <label><span>Tháng ghi nhận</span><input id="workItemReportingPeriod" type="month" value="${escapeHtml(item?.reportingPeriod || localToday().slice(0, 7))}"></label>
       <label><span>Sản phẩm</span><input id="workItemProductName" maxlength="300" value="${escapeHtml(item?.productName || "")}" placeholder="Ví dụ: Rau xanh thu hoạch"></label>
-      <label><span>Sản lượng kế hoạch</span><input id="workItemPlannedQuantity" type="number" min="0" step="0.01" value="${escapeHtml(item?.plannedQuantity ?? "")}"></label>
+      <label><span>Sản lượng kế hoạch</span><input id="workItemPlannedQuantity" type="number" min="0.01" step="0.01" required value="${escapeHtml(item?.plannedQuantity ?? "")}"></label>
       <label><span>Sản lượng thực tế</span><input id="workItemActualQuantity" type="number" min="0" step="0.01" value="${escapeHtml(item?.actualQuantity ?? "")}"></label>
       <label class="field-full"><span>Đơn vị tính</span><input id="workItemQuantityUnit" maxlength="80" value="${escapeHtml(item?.quantityUnit || task.quantityUnit || "")}" placeholder="Ví dụ: kg rau"></label>
       <input id="workItemTitle" type="hidden" value="${escapeHtml(item?.title || "")}">
@@ -261,7 +306,7 @@ function editorFields(task, item) {
         <option value="EXCUSED" ${item?.attendanceStatus === "EXCUSED" ? "selected" : ""}>Vắng có phép</option>
         <option value="ABSENT" ${item?.attendanceStatus === "ABSENT" ? "selected" : ""}>Vắng mặt</option>
       </select></label>
-      <label class="field-full"><span>Mức tham gia/kết quả</span><select id="workItemResultRate">${resultRateOptions(item?.resultRate)}</select><small>Chọn theo mức độ tham gia và hoàn thành nội dung được giao trong buổi hoạt động.</small></label>
+      <label class="field-full"><span>Mức tham gia/kết quả</span><select id="workItemResultRate">${resultRateOptions(item?.resultRate)}</select><small id="attendanceResultHelp">Chỉ áp dụng khi có mặt; nếu vắng, hệ thống tự ghi nhận kết quả 0%.</small></label>
       <label class="field-full"><span>Ghi chú tham dự</span><textarea id="workItemParticipationNote" rows="2" maxlength="1000" placeholder="Nêu lý do vắng hoặc phần việc đã tham gia">${escapeHtml(item?.participationNote || "")}</textarea></label>`;
   }
   return `
@@ -293,6 +338,16 @@ function openWorkItemEditor(task, item, onSaved) {
   document.body.appendChild(overlay);
   const close = () => overlay.remove();
   overlay.querySelectorAll("[data-close-work-item]").forEach(button => button.addEventListener("click", close));
+  const attendanceStatus = overlay.querySelector("#workItemAttendanceStatus");
+  const resultRate = overlay.querySelector("#workItemResultRate");
+  const syncAttendanceResult = () => {
+    if (!attendanceStatus || !resultRate) return;
+    const present = attendanceStatus.value === "PRESENT";
+    resultRate.disabled = !present;
+    if (!present) resultRate.value = "0";
+  };
+  attendanceStatus?.addEventListener("change", syncAttendanceResult);
+  syncAttendanceResult();
   overlay.querySelector("#saveWorkItemButton")?.addEventListener("click", async event => {
     const button = event.currentTarget;
     try {
@@ -382,7 +437,7 @@ export async function openTaskDetailModal(task, { onSaved }) {
   const overlay = document.createElement("div");
   overlay.className = "modal-backdrop";
   overlay.innerHTML = `
-    <section class="modal-panel modal-large" role="dialog" aria-modal="true">
+    <section class="modal-panel modal-large task-detail-modal" role="dialog" aria-modal="true">
       <div class="modal-header">
         <div>
           <span class="page-eyebrow">${escapeHtml(task.taskCode || task.id)}</span>
@@ -406,11 +461,12 @@ export async function openTaskDetailModal(task, { onSaved }) {
         </div>
         <section class="detail-section"><h3>Nội dung thực hiện</h3><p>${escapeHtml(task.description || "Chưa có nội dung chi tiết.")}</p></section>
         ${isItemizedTask(task) ? `<section class="detail-section task-work-items-section">
-          <div class="detail-section-heading"><div><h3>${labels.name}</h3><p>Mỗi lượt hợp lệ được ghi riêng để tính N, T, K và quy đổi điểm theo Phụ lục 4.</p></div>${canEditWorkItems ? `<button id="addWorkItemButton" class="primary-button compact-button" type="button">+ ${labels.add}</button>` : ""}</div>
+          <div class="detail-section-heading"><div><h3>${labels.name}</h3><p>Các lượt được ghi riêng để tạo tỷ lệ N–T–K; không cộng điểm riêng cho từng lượt.</p></div>${canEditWorkItems ? `<button id="addWorkItemButton" class="primary-button compact-button" type="button">+ ${labels.add}</button>` : ""}</div>
+          ${scoringMethodHtml(task)}
           <div id="taskNoOccurrence">${noOccurrenceHtml(task, workItems, isOwner)}</div>
           <div id="taskWorkItemSummary">${workItemSummaryHtml(workItems, task)}</div>
           <div id="taskWorkItemList">${workItemRows(workItems, canEditWorkItems, task)}</div>
-        </section>` : `<div class="info-banner final-output-banner"><strong>Đánh giá theo sản phẩm cuối cùng</strong><span>Đầu việc này không cần nhập từng lượt phát sinh. Khi hoàn thành, cập nhật kết quả và minh chứng cuối cùng tại nút “Cập nhật nhiệm vụ”.</span></div>`}
+        </section>` : `<div class="info-banner final-output-banner"><strong>Đánh giá trực tiếp theo Phụ lục 04</strong><span>Đầu việc này có một sản phẩm/kết quả cuối cùng nên không tạo lượt chi tiết. Khi hoàn thành, hệ thống chấm một lần theo tiến độ, kết quả, điểm chuẩn và hệ số độ khó của chính đầu việc.</span></div>`}
         <section class="detail-section"><h3>Kết quả và minh chứng cuối cùng</h3><p>${escapeHtml(task.resultSummary || task.result || "Chưa ghi nhận kết quả.")}</p>${safeExternalUrl(task.evidenceUrl) ? `<a class="primary-link" target="_blank" rel="noopener" href="${escapeHtml(safeExternalUrl(task.evidenceUrl))}">📎 ${escapeHtml(task.evidenceFileName || "Mở tệp minh chứng")}</a>` : ""}${task.evidenceText ? `<p>${escapeHtml(task.evidenceText)}</p>` : ""}</section>
         ${isOwner && !accepted && !completed ? '<div class="info-banner">Bạn cần xác nhận đã nhận nhiệm vụ trước khi cập nhật tiến độ, kết quả hoặc minh chứng.</div>' : ""}
         ${canAssign(task) ? `<section class="detail-section"><h3>Phân công nội bộ</h3><div class="inline-form assignment-inline-form">

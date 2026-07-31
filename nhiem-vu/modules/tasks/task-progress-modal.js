@@ -1,8 +1,8 @@
 /** Cập nhật tiến độ, kết quả và minh chứng nhiệm vụ. */
 import { UserContext } from "../../core/user-context.js";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260731.V1_1_18";
-import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260731.V1_1_18";
-import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260731.V1_1_18";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260731.V1_1_19";
+import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260731.V1_1_19";
+import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260731.V1_1_19";
 import { validateProgressInput, cleanText } from "./task-form-validator.js";
 
 function mayUpdate(task) {
@@ -26,7 +26,7 @@ export async function openTaskProgressModal(task, { onSaved }) {
     <section class="modal-panel modal-large" role="dialog" aria-modal="true">
       <div class="modal-header"><div><span class="page-eyebrow">${escapeHtml(task.taskCode || task.id)}</span><h2>Cập nhật nhiệm vụ</h2><p>${escapeHtml(task.title || "")}</p></div><button class="icon-button" type="button" data-close>✕</button></div>
       <div class="modal-body task-form-grid">
-        ${itemized ? `<div class="field-full info-banner task-progress-tracking-note"><strong>Theo dõi theo từng lượt công việc</strong><span>Văn bản, hồ sơ hoặc hoạt động được thêm tại Chi tiết nhiệm vụ → Công việc phát sinh trong kỳ. Hiện có ${workItemSummary.count} lượt, hoàn thành ${workItemSummary.completedCount}/${workItemSummary.count || 0}.</span></div>` : `<div class="field-full info-banner final-output-banner"><strong>Đánh giá theo sản phẩm cuối cùng</strong><span>Không cần nhập từng lượt công việc. Hãy cập nhật kết quả và minh chứng cuối cùng bên dưới.</span></div>`}
+        ${itemized ? `<div class="field-full info-banner task-progress-tracking-note"><strong>Theo dõi theo từng lượt công việc</strong><span>Hiện có ${workItemSummary.count} lượt, đã hoàn thành/ghi nhận ${workItemSummary.completedCount}/${workItemSummary.count || 0}. Các lượt tạo tỷ lệ N–T–K; điểm của toàn đầu việc vẫn chỉ được tính một lần theo Phụ lục 04.</span>${workItemSummary.incompleteCount > 0 ? `<small>${workItemSummary.incompleteCount} lượt chưa hoàn thành sẽ vẫn nằm trong N và không được tính vào T/K khi đánh giá cuối kỳ.</small>` : ""}</div>` : `<div class="field-full info-banner final-output-banner"><strong>Đánh giá theo sản phẩm cuối cùng</strong><span>Không cần nhập từng lượt công việc. Hãy cập nhật kết quả và minh chứng cuối cùng bên dưới để chấm trực tiếp theo Phụ lục 04.</span></div>`}
         <label><span>Trạng thái</span><select id="progressStatus"><option value="DANG_XU_LY">Đang xử lý</option><option value="TAM_DUNG">Tạm dừng</option><option value="HOAN_THANH">Hoàn thành</option></select></label>
         <label><span>Tiến độ (%)</span><input id="progressValue" type="number" min="0" max="100" step="10" value="${Number(task.progress || 0)}"></label>
         <label class="field-full"><span>Nội dung cập nhật</span><textarea id="progressNote" rows="3" maxlength="3000"></textarea></label>
@@ -136,9 +136,6 @@ export async function openTaskProgressModal(task, { onSaved }) {
       if ($("progressStatus").value === "HOAN_THANH" && itemized) {
         if (workItemSummary.count === 0) {
           throw new Error("Chưa có lượt phát sinh nên không thể chấm hoàn thành. Hãy thêm nội dung chi tiết; nếu cả kỳ không phát sinh, dùng nút “Đề nghị Không phát sinh” tại Chi tiết nhiệm vụ.");
-        }
-        if (!workItemSummary.readyForAssessment) {
-          throw new Error(`Còn ${workItemSummary.count - workItemSummary.completedCount} lượt công việc chưa có ngày hoàn thành. Hãy cập nhật đầy đủ trước khi hoàn thành nhiệm vụ.`);
         }
       }
 
