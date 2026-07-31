@@ -3,13 +3,13 @@ import {
   addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, onSnapshot, query,
   serverTimestamp, setDoc, Timestamp, updateDoc, where
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
-import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260731.V1_1_18';
-import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260731.V1_1_18';
-import { Permissions } from '../../core/permissions.js?v=20260731.V1_1_18';
+import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260731.V1_1_19';
+import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260731.V1_1_19';
+import { Permissions } from '../../core/permissions.js?v=20260731.V1_1_19';
 import {
   KPI2B as KPI2C, COMMON_CRITERIA, calculateTaskScore, calculateKpiSummary,
   proposedRating, ratingName, round2, progressRateFromDates
-} from '../../kpi-engine.js?v=20260731.V1_1_18';
+} from '../../kpi-engine.js?v=20260731.V1_1_19';
 
 export const KpiWorkflowState = {
   user: null,
@@ -175,6 +175,14 @@ const fmt = (n) => Number(n || 0).toLocaleString('vi-VN', { maximumFractionDigit
 const coefficientPercent = (value) => `${Math.round(Number(value || 1) * 100)}%`;
 const dateVi = (key) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(clean(key)); return m ? `${m[3]}/${m[2]}/${m[1]}` : clean(key); };
 const normalizeDepartment = (value) => clean(value).toUpperCase();
+
+function assessmentRate(value, label) {
+  const rate = Number(value);
+  if (!Number.isFinite(rate) || rate < 0 || rate > 100) {
+    throw new Error(`${label} phải là số từ 0% đến 100%.`);
+  }
+  return Math.round(rate * 100) / 100;
+}
 const normalizeUserRecord = (data = {}, documentId = '') => {
   const id = clean(documentId || data.id || data.uid);
   return {
@@ -1175,19 +1183,22 @@ async function openSelfAssessment(taskId) {
       alert('Đầu việc chưa có lượt phát sinh nên không được chấm 0% hoặc 100%. Hãy cập nhật lượt chi tiết; nếu cả kỳ không phát sinh, gửi đề nghị “Không phát sinh” tại Chi tiết nhiệm vụ.');
       return;
     }
-    if (!workSummary.readyForAssessment) {
-      alert(`Còn ${workSummary.count - workSummary.completedCount} lượt công việc chưa có ngày hoàn thành. Hãy cập nhật đầy đủ trước khi tự đánh giá.`);
-      return;
-    }
   }
 
-  const rates = [100,80,60,0];
+  const suggestedFinalProgress = progressRateFromDates(
+    task.deadline || task.dueDate,
+    task.completedAt || task.completedDate,
+    true
+  );
   const initialProgress = itemized
     ? Number(workSummary.appliedProgressRate)
-    : Number(ev.selfProgressRate ?? 100);
+    : Number(ev.selfProgressRate ?? suggestedFinalProgress);
   const initialResult = itemized
     ? Number(workSummary.appliedResultRate)
     : Number(ev.selfResultRate ?? 100);
+  const incompleteWarning = itemized && workSummary.incompleteCount > 0
+    ? `<div class="kpi-work-item-incomplete-note"><strong>${workSummary.incompleteCount} lượt chưa hoàn thành vẫn được tính trong N.</strong><span>Các lượt này không thuộc T hoặc K, vì vậy tỷ lệ cuối kỳ phản ánh đúng cả phần việc còn tồn.</span></div>`
+    : '';
   const workSummaryHtml = itemized ? `<div class="kpi-field full"><div class="kpi-work-item-evaluation-summary">
     <div><span>Tổng lượt ghi nhận (N)</span><strong>${workSummary.count}</strong></div>
     <div><span>Đã hoàn thành</span><strong>${workSummary.completedCount}/${workSummary.count}</strong></div>
@@ -1196,22 +1207,26 @@ async function openSelfAssessment(taskId) {
     <div><span>Tiến độ thực tế</span><strong>${fmt(workSummary.actualProgressRate)}%</strong></div>
     <div><span>Kết quả thực tế</span><strong>${fmt(workSummary.actualResultRate)}%</strong></div>
     <div class="is-applied"><span>Quy đổi theo thang KPI</span><strong>${workSummary.appliedProgressRate}% tiến độ · ${workSummary.appliedResultRate}% kết quả</strong></div>
-  </div><p class="kpi-small">Tiến độ thực tế = T/N × 100%; kết quả thực tế = K/N × 100%; sau đó quy đổi theo các mức 100% – 80% – 60% – 0%.</p></div>` : '';
+  </div>${incompleteWarning}<p class="kpi-small">Tiến độ thực tế = T/N × 100%; kết quả thực tế = K/N × 100%; sau đó quy đổi theo các mức 100% – 80% – 60% – 0%. Các lượt chỉ tạo tỷ lệ, không có điểm riêng.</p></div>` : '';
 
   const node = modal('Tự đánh giá nhiệm vụ', `<form id="kpiSelfForm" class="kpi-form-grid">
-    <div class="kpi-field full"><strong>${esc(task.taskCode || '')} — ${esc(task.title)}</strong><span>Điểm tối đa: ${fmt(task.maximumConvertedScore)} · Minh chứng bắt buộc: ${esc(task.standardTaskMandatoryEvidence || task.mandatoryEvidence || 'Theo nhiệm vụ')}</span></div>
+    <div class="kpi-field full kpi-assessment-task-heading"><strong>${esc(task.taskCode || '')} — ${esc(task.title)}</strong><span>Điểm tối đa: ${fmt(task.maximumConvertedScore)} · Minh chứng bắt buộc: ${esc(task.standardTaskMandatoryEvidence || task.mandatoryEvidence || 'Theo nhiệm vụ')}</span></div>
     ${workSummaryHtml}
-    <div class="kpi-field"><label>Tiến độ tự chấm</label><select id="kpiSelfProgress" ${itemized?'disabled':''}>${rates.map(r=>`<option value="${r}" ${initialProgress===r?'selected':''}>${r}%</option>`).join('')}</select>${itemized?'<small>Tự động quy đổi từ công việc phát sinh.</small>':''}</div>
-    <div class="kpi-field"><label>Kết quả tự chấm</label><select id="kpiSelfResult" ${itemized?'disabled':''}>${rates.map(r=>`<option value="${r}" ${initialResult===r?'selected':''}>${r}%</option>`).join('')}</select>${itemized?'<small>Tự động quy đổi từ công việc phát sinh.</small>':''}</div>
+    <div class="kpi-field"><label>Tiến độ áp dụng</label><div class="kpi-rate-input"><input id="kpiSelfProgress" type="number" min="0" max="100" step="0.01" value="${initialProgress}" ${itemized?'readonly':''}><span>%</span></div><small>${itemized?'Tự động từ T/N; không chỉnh thủ công.':`Hệ thống đề xuất ${suggestedFinalProgress}% theo hạn và ngày hoàn thành. Có thể nhập tỷ lệ cụ thể 0–100% khi có giải trình.`}</small></div>
+    <div class="kpi-field"><label>Kết quả áp dụng</label><div class="kpi-rate-input"><input id="kpiSelfResult" type="number" min="0" max="100" step="0.01" value="${initialResult}" ${itemized?'readonly':''}><span>%</span></div><small>${itemized?'Tự động từ K/N; không chỉnh thủ công.':'Tham chiếu 100%–80%–60%–0%; có thể nhập tỷ lệ cụ thể 0–100% kèm nhận xét/minh chứng.'}</small></div>
     <div class="kpi-field full"><label>Nhận xét kết quả, thành tích và hạn chế</label><textarea id="kpiSelfComment" rows="5" required>${esc(ev.selfComment || '')}</textarea></div>
     <div class="kpi-field full"><label class="kpi-checkbox-line"><input id="kpiExceeded" type="checkbox" ${ev.isExceededRequirement===true?'checked':''}> Đề nghị ghi nhận hoàn thành vượt mức yêu cầu</label><textarea id="kpiExceededText" rows="3" placeholder="Nêu rõ sản phẩm, khối lượng, chất lượng hoặc giá trị bổ sung...">${esc(ev.exceededRequirementDescription || '')}</textarea></div>
     <div class="kpi-field full"><div id="kpiSelfScore"></div></div>
   </form>`, '<button class="kpi-button secondary" data-kpi-close type="button">Hủy</button><button id="kpiSubmitSelf" class="kpi-button" type="button">Gửi xác nhận</button>');
   const recalc=()=>{ const x=calculateTaskScore(task.baseScore,task.difficultyCoefficient,el('kpiSelfProgress').value,el('kpiSelfResult').value); el('kpiSelfScore').innerHTML=scoreBreakdownHtml(task,x,{title:'Điểm tự đánh giá',actualProgressRate:itemized?workSummary.actualProgressRate:x.progressRate,actualResultRate:itemized?workSummary.actualResultRate:x.resultRate}); };
-  el('kpiSelfProgress').addEventListener('change',recalc); el('kpiSelfResult').addEventListener('change',recalc); recalc();
+  el('kpiSelfProgress').addEventListener('input',recalc); el('kpiSelfResult').addEventListener('input',recalc); recalc();
   el('kpiSubmitSelf').addEventListener('click', async()=>{
     const comment=clean(el('kpiSelfComment').value); if(!comment){alert('Vui lòng nhập nhận xét.');return;}
-    const progress=Number(el('kpiSelfProgress').value), result=Number(el('kpiSelfResult').value);
+    let progress, result;
+    try {
+      progress=assessmentRate(el('kpiSelfProgress').value,'Tiến độ áp dụng');
+      result=assessmentRate(el('kpiSelfResult').value,'Kết quả áp dụng');
+    } catch(error) { alert(error.message); return; }
     const score=calculateTaskScore(task.baseScore,task.difficultyCoefficient,progress,result);
     const reviewer=reviewerForOwner(KpiWorkflowState.user.uid);
     const exceeded=el('kpiExceeded').checked, exceededText=clean(el('kpiExceededText').value);
@@ -1221,7 +1236,7 @@ async function openSelfAssessment(taskId) {
       trackingMode:itemized?'ITEMIZED':'FINAL_OUTPUT', actualWorkItemCount:itemized?workSummary.count:null, actualCompletedCount:itemized?workSummary.completedCount:null, actualOnTimeCount:itemized?workSummary.onTimeCount:null, actualQualifiedCount:itemized?workSummary.qualifiedCount:null, actualProgressRate:itemized?workSummary.actualProgressRate:null, actualResultRate:itemized?workSummary.actualResultRate:null,
       selfProgressRate:progress,selfResultRate:result,selfExecutionScore:score.execution,selfActualScore:score.actual,selfComment:comment,
       confirmedProgressRate:null,confirmedResultRate:null,confirmedExecutionScore:null,confirmedActualScore:null,reviewerEmail:reviewer.email,reviewerUserId:reviewer.uid,reviewerName:reviewer.name,
-      isExceededRequirement:exceeded,exceededRequirementDescription:exceededText,status:'PENDING_REVIEW',formulaVersion:'KPI_2026_PHU_LUC_4_V2',updatedAt:serverTimestamp(),createdAt:ev.createdAt||serverTimestamp()
+      isExceededRequirement:exceeded,exceededRequirementDescription:exceededText,status:'PENDING_REVIEW',formulaVersion:'KPI_2026_PHU_LUC_4_NTK_V3',updatedAt:serverTimestamp(),createdAt:ev.createdAt||serverTimestamp()
     },{merge:true});
     await audit('SUBMIT_SELF_ASSESSMENT',{taskId, trackingMode:itemized?'ITEMIZED':'FINAL_OUTPUT', actualWorkItemCount:itemized?workSummary.count:null, selfExecutionScore:score.execution, selfActualScore:score.actual}); closeModal(); await loadAll();
   });
@@ -1229,18 +1244,17 @@ async function openSelfAssessment(taskId) {
 
 function openReview(evalId) {
   const ev=KpiWorkflowState.evaluations.find(e=>e.id===evalId); const task=KpiWorkflowState.tasks.find(t=>t.id===ev?.taskId); if(!ev||!task||!canReviewEvaluation(ev,task))return;
-  const rates=[100,80,60,0];
-  modal('Xác nhận điểm nhiệm vụ', `<form class="kpi-form-grid"><div class="kpi-field full"><strong>${esc(task.ownerName)} · ${esc(task.title)}</strong><span>Tự chấm: tiến độ ${ev.selfProgressRate}%, kết quả ${ev.selfResultRate}%, điểm thực hiện ${fmt(ev.selfExecutionScore)}, điểm quy đổi thực tế ${fmt(ev.selfActualScore)}</span>${ev.trackingMode==='ITEMIZED'?`<small>Thực tế: ${ev.actualWorkItemCount||0} lượt · Tiến độ ${fmt(ev.actualProgressRate)}% · Kết quả ${fmt(ev.actualResultRate)}% · Đã quy đổi theo thang KPI.</small>`:''}</div>
-    <div class="kpi-field"><label>Tiến độ xác nhận</label><select id="kpiConfirmProgress">${rates.map(r=>`<option value="${r}" ${Number(ev.confirmedProgressRate??ev.selfProgressRate)===r?'selected':''}>${r}%</option>`).join('')}</select></div>
-    <div class="kpi-field"><label>Kết quả xác nhận</label><select id="kpiConfirmResult">${rates.map(r=>`<option value="${r}" ${Number(ev.confirmedResultRate??ev.selfResultRate)===r?'selected':''}>${r}%</option>`).join('')}</select></div>
+  modal('Xác nhận điểm nhiệm vụ', `<form class="kpi-form-grid"><div class="kpi-field full kpi-assessment-task-heading"><strong>${esc(task.ownerName)} · ${esc(task.title)}</strong><span>Tự chấm: tiến độ ${ev.selfProgressRate}%, kết quả ${ev.selfResultRate}%, điểm thực hiện ${fmt(ev.selfExecutionScore)}, điểm quy đổi thực tế ${fmt(ev.selfActualScore)}</span>${ev.trackingMode==='ITEMIZED'?`<small>Căn cứ N–T–K: ${ev.actualWorkItemCount||0} lượt · Tiến độ thực tế ${fmt(ev.actualProgressRate)}% · Kết quả thực tế ${fmt(ev.actualResultRate)}%.</small>`:''}</div>
+    <div class="kpi-field"><label>Tiến độ xác nhận</label><div class="kpi-rate-input"><input id="kpiConfirmProgress" type="number" min="0" max="100" step="0.01" value="${Number(ev.confirmedProgressRate??ev.selfProgressRate)}"><span>%</span></div><small>Được xác định cụ thể từ 0–100% theo Phụ lục 04.</small></div>
+    <div class="kpi-field"><label>Kết quả xác nhận</label><div class="kpi-rate-input"><input id="kpiConfirmResult" type="number" min="0" max="100" step="0.01" value="${Number(ev.confirmedResultRate??ev.selfResultRate)}"><span>%</span></div><small>Nếu điều chỉnh khác tự chấm, phải nêu căn cứ.</small></div>
     <div class="kpi-field full"><label>Nhận xét/căn cứ</label><textarea id="kpiReviewerComment" rows="4">${esc(ev.reviewerComment||'')}</textarea></div>
     <div class="kpi-field full"><div id="kpiConfirmScore"></div></div>
     <div class="kpi-field full"><div class="kpi-confirm-once"><strong>Xác nhận một lần</strong><span>Sau khi xác nhận, điểm trở thành điểm chính thức và không thể chỉnh sửa.</span></div></div></form>`,
     '<button id="kpiNeedRevision" class="kpi-button secondary" type="button">Yêu cầu bổ sung</button><button class="kpi-button secondary" data-kpi-close type="button">Hủy</button><button id="kpiConfirmEvaluation" class="kpi-button" type="button">Xác nhận điểm</button>');
   const recalc=()=>{const x=calculateTaskScore(task.baseScore,task.difficultyCoefficient,el('kpiConfirmProgress').value,el('kpiConfirmResult').value);el('kpiConfirmScore').innerHTML=scoreBreakdownHtml(task,x,{title:'Điểm xác nhận'});};
-  el('kpiConfirmProgress').addEventListener('change',recalc);el('kpiConfirmResult').addEventListener('change',recalc);recalc();
+  el('kpiConfirmProgress').addEventListener('input',recalc);el('kpiConfirmResult').addEventListener('input',recalc);recalc();
   el('kpiNeedRevision').addEventListener('click',async()=>{const note=clean(el('kpiReviewerComment').value);if(!note){alert('Nhập nội dung cần bổ sung.');return;}await updateDoc(doc(db,'taskEvaluations',ev.id),{status:'NEEDS_REVISION',reviewerComment:note,reviewedByUserId:KpiWorkflowState.user.uid,reviewedByName:KpiWorkflowState.profile.fullName||'',updatedAt:serverTimestamp()});closeModal();await loadAll();});
-  el('kpiConfirmEvaluation').addEventListener('click',async()=>{const p=Number(el('kpiConfirmProgress').value),r=Number(el('kpiConfirmResult').value),note=clean(el('kpiReviewerComment').value);if((p!==Number(ev.selfProgressRate)||r!==Number(ev.selfResultRate))&&!note){alert('Khi điều chỉnh khác tự chấm phải nhập lý do.');return;}const x=calculateTaskScore(task.baseScore,task.difficultyCoefficient,p,r);if(!confirm(`Xác nhận điểm thực hiện ${fmt(x.execution)} và điểm quy đổi thực tế ${fmt(x.actual)} là kết quả chính thức? Sau thao tác này không thể chỉnh sửa.`))return;await updateDoc(doc(db,'taskEvaluations',ev.id),{confirmedProgressRate:p,confirmedResultRate:r,confirmedExecutionScore:x.execution,confirmedActualScore:x.actual,reviewerComment:note,status:'CONFIRMED',scoreLocked:true,reviewedByUserId:KpiWorkflowState.user.uid,reviewedByName:KpiWorkflowState.profile.fullName||'',confirmedAt:serverTimestamp(),updatedAt:serverTimestamp()});await updateDoc(doc(db,'tasks',task.id),{scoringStatus:'CONFIRMED',scoreLocked:true,confirmedActualScore:x.actual,updatedAt:serverTimestamp()});await audit('CONFIRM_TASK_SCORE',{taskId:task.id,confirmedExecutionScore:x.execution,confirmedActualScore:x.actual});closeModal();await loadAll();});
+  el('kpiConfirmEvaluation').addEventListener('click',async()=>{let p,r;try{p=assessmentRate(el('kpiConfirmProgress').value,'Tiến độ xác nhận');r=assessmentRate(el('kpiConfirmResult').value,'Kết quả xác nhận');}catch(error){alert(error.message);return;}const note=clean(el('kpiReviewerComment').value);if((p!==Number(ev.selfProgressRate)||r!==Number(ev.selfResultRate))&&!note){alert('Khi điều chỉnh khác tự chấm phải nhập lý do.');return;}const x=calculateTaskScore(task.baseScore,task.difficultyCoefficient,p,r);if(!confirm(`Xác nhận điểm thực hiện ${fmt(x.execution)} và điểm quy đổi thực tế ${fmt(x.actual)} là kết quả chính thức? Sau thao tác này không thể chỉnh sửa.`))return;await updateDoc(doc(db,'taskEvaluations',ev.id),{confirmedProgressRate:p,confirmedResultRate:r,confirmedExecutionScore:x.execution,confirmedActualScore:x.actual,reviewerComment:note,status:'CONFIRMED',scoreLocked:true,reviewedByUserId:KpiWorkflowState.user.uid,reviewedByName:KpiWorkflowState.profile.fullName||'',confirmedAt:serverTimestamp(),updatedAt:serverTimestamp()});await updateDoc(doc(db,'tasks',task.id),{scoringStatus:'CONFIRMED',scoreLocked:true,confirmedActualScore:x.actual,updatedAt:serverTimestamp()});await audit('CONFIRM_TASK_SCORE',{taskId:task.id,confirmedExecutionScore:x.execution,confirmedActualScore:x.actual});closeModal();await loadAll();});
 }
 
 function openTaskInfo(taskId){
@@ -1540,10 +1554,25 @@ async function createPeriodFromForm(){
 }
 async function completePeriod(){
   if(!Permissions.canManageEvaluationPeriods()||!KpiWorkflowState.period)return;
-  const participantIds = [...new Set(KpiWorkflowState.tasks
-    .filter(task => task.active !== false && task.planApprovalStatus === 'APPROVED')
+  const periodTasks = KpiWorkflowState.tasks.filter(task => (
+    task.active !== false &&
+    task.planApprovalStatus === 'APPROVED' &&
+    !['HUY','CANCELLED'].includes(clean(task.status).toUpperCase())
+  ));
+  const participantIds = [...new Set(periodTasks
     .map(task => clean(task.ownerUserId))
     .filter(Boolean))];
+
+  const pendingRegistrations = KpiWorkflowState.registrations.filter(item => (
+    item.active !== false
+    && ['PENDING', 'REJECTED'].includes(clean(item.status).toUpperCase())
+    && !clean(item.taskId)
+  ));
+  if (pendingRegistrations.length) {
+    alert(`Không thể kết thúc kỳ vì còn ${pendingRegistrations.length} đăng ký kế hoạch chưa được duyệt hoặc trả lại.`);
+    return;
+  }
+
   const withoutBasis = participantIds.filter(userId => !summaryForUser(userId).hasCalculationBasis);
   if (withoutBasis.length) {
     const names = withoutBasis.map(userId => {
@@ -1553,6 +1582,41 @@ async function completePeriod(){
     alert(`Không thể kết thúc kỳ vì ${names.length} cá nhân có A = 0, chưa đủ cơ sở tính KPI: ${names.join(', ')}.`);
     return;
   }
+
+  const incompletePeople = participantIds.map(userId => {
+    const user = KpiWorkflowState.users.find(item => item.id === userId);
+    const name = user?.fullName || user?.email || userId;
+    const tasks = periodTasks.filter(task => clean(task.ownerUserId) === userId);
+    const unresolvedTasks = tasks.filter(task => {
+      const noOccurrenceConfirmed = clean(task.noOccurrenceStatus).toUpperCase() === 'CONFIRMED'
+        || clean(task.scoringStatus).toUpperCase() === 'NO_OCCURRENCE_CONFIRMED';
+      if (noOccurrenceConfirmed) return false;
+      const evaluation = KpiWorkflowState.evaluations.find(item => item.taskId === task.id);
+      return evaluation?.status !== 'CONFIRMED' || evaluation?.scoreLocked !== true;
+    });
+    const common = KpiWorkflowState.commonAll.find(item => item.userId === userId);
+    const commonConfirmed = common?.status === 'CONFIRMED' && Number.isFinite(Number(common.confirmedTotal));
+    return {
+      name,
+      taskCount: unresolvedTasks.length,
+      commonMissing: !commonConfirmed
+    };
+  }).filter(item => item.taskCount > 0 || item.commonMissing);
+
+  if (incompletePeople.length) {
+    const details = incompletePeople.slice(0, 8).map(item => {
+      const parts = [];
+      if (item.taskCount) parts.push(`${item.taskCount} nhiệm vụ chưa xác nhận điểm`);
+      if (item.commonMissing) parts.push('chưa xác nhận 30 điểm tiêu chí chung');
+      return `${item.name}: ${parts.join(', ')}`;
+    });
+    const remaining = incompletePeople.length > details.length
+      ? `; và ${incompletePeople.length - details.length} người khác`
+      : '';
+    alert(`Không thể kết thúc kỳ. Hồ sơ đánh giá chưa hoàn tất: ${details.join('; ')}${remaining}.`);
+    return;
+  }
+
   if(!confirm('Xác nhận đã in và lưu hồ sơ giấy, sau đó kết thúc kỳ?'))return;
   await updateDoc(doc(db,'evaluationPeriods',KpiWorkflowState.period.id),{status:'COMPLETED',active:false,completedByUserId:KpiWorkflowState.user.uid,completedAt:serverTimestamp(),updatedAt:serverTimestamp()});
   await audit('COMPLETE_PERIOD',{periodId:KpiWorkflowState.period.id});
