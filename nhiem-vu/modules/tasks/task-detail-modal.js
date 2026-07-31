@@ -1,9 +1,9 @@
 /** Chi tiết và phân công nhiệm vụ. */
 import { UserContext } from "../../core/user-context.js";
-import { Permissions } from "../../core/permissions.js?v=20260730.V1_1_10";
+import { Permissions } from "../../core/permissions.js?v=20260730.V1_1_11";
 import { UserReadService } from "../../services/user-read-service.js";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260730.V1_1_10";
-import { openTaskProgressModal } from "./task-progress-modal.js?v=20260730.V1_1_10";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260730.V1_1_11";
+import { openTaskProgressModal } from "./task-progress-modal.js?v=20260730.V1_1_11";
 
 const TEAM_LABELS = Object.freeze({
   BAO_VE: "Tổ Bảo vệ",
@@ -83,7 +83,7 @@ export async function openTaskDetailModal(task, { onSaved }) {
         <button class="icon-button" type="button" data-close>✕</button>
       </div>
       <div class="modal-body">
-        <div class="detail-grid">
+        <div class="detail-grid task-detail-summary">
           ${detail("Người giao", task.createdByName || task.assignedByName || "—")}
           ${detail("Người phụ trách", task.ownerName || "Chưa phân công")}
           ${detail("Tổ/Nhóm", task.teamId ? teamLabel(task.teamId) : "Không áp dụng")}
@@ -93,7 +93,6 @@ export async function openTaskDetailModal(task, { onSaved }) {
           ${detail("Điểm chuẩn", numberVi(task.baseScore || 0))}
           ${detail("Hệ số độ khó", coefficientLabel(task.difficultyCoefficient))}
           ${detail("Điểm tối đa", numberVi(task.maximumConvertedScore || 0))}
-          ${detail("Tính vào A", task.includedInA === true ? "Có" : "Chưa")}
         </div>
         <section class="detail-section"><h3>Nội dung thực hiện</h3><p>${escapeHtml(task.description || "Chưa có nội dung chi tiết.")}</p></section>
         <section class="detail-section"><h3>Kết quả và minh chứng</h3><p>${escapeHtml(task.resultSummary || task.result || "Chưa ghi nhận kết quả.")}</p>${task.evidenceUrl ? `<a class="primary-link" target="_blank" rel="noopener" href="${escapeHtml(task.evidenceUrl)}">📎 ${escapeHtml(task.evidenceFileName || "Mở tệp minh chứng")}</a>` : ""}${task.evidenceText ? `<p>${escapeHtml(task.evidenceText)}</p>` : ""}</section>
