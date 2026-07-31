@@ -1,10 +1,10 @@
 import { UserContext } from "../../core/user-context.js";
-import { Permissions } from "../../core/permissions.js?v=20260730.V1_1_11";
+import { Permissions } from "../../core/permissions.js?v=20260731.V1_1_13";
 import { ToastService } from "../../core/toast-service.js";
-import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260730.V1_1_11";
-import { PeriodReadService } from "../../services/period-read-service.js?v=20260730.V1_1_11";
-import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260730.V1_1_11";
-import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260730.V1_1_11";
+import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260731.V1_1_13";
+import { PeriodReadService } from "../../services/period-read-service.js?v=20260731.V1_1_13";
+import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260731.V1_1_13";
+import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260731.V1_1_13";
 
 let stopStandardRealtime = () => {};
 let standardRealtimeTimer = null;
@@ -213,6 +213,14 @@ export async function renderStandardTasksView(outlet) {
         });
       });
 
+      document.querySelectorAll("[data-delete-standard-task]").forEach(button => {
+        button.addEventListener("click", async () => {
+          const item = catalogItems.find(task => task.id === button.dataset.deleteStandardTask);
+          if (!item) return;
+          await confirmAndRemoveStandardTask(item, button);
+        });
+      });
+
       updateCount();
     };
 
@@ -318,7 +326,7 @@ function renderAvailableTask(item, registrationOpen, canManageCatalog) {
     <div class="data-row-meta">
       <span class="status-pill neutral">Chưa đăng ký</span>
       <small>Điểm tối đa: ${formatNumber(item.maximumConvertedScore || 0)}</small>
-      ${canManageCatalog ? `<button class="catalog-edit-button" type="button" data-edit-standard-task="${escapeHtml(item.id)}">Sửa danh mục</button>` : ""}
+      ${catalogActionButtons(item, canManageCatalog)}
     </div>
   </article>`;
 }
@@ -358,7 +366,7 @@ function renderRegisteredTask(item, registration, registrationOpen, canManageCat
       <small>Điểm tối đa: ${formatNumber(item.maximumConvertedScore || 0)}</small>
       ${canDelete ? `<button class="registration-delete-button" type="button" data-delete-registration="${escapeHtml(registration.id)}">Hủy đăng ký</button>` : ""}
       ${canCancelApproved ? `<button class="registration-cancel-approved-button" type="button" data-cancel-approved-registration="${escapeHtml(registration.id)}">Hủy đầu việc</button>` : ""}
-      ${canManageCatalog ? `<button class="catalog-edit-button" type="button" data-edit-standard-task="${escapeHtml(item.id)}">Sửa danh mục</button>` : ""}
+      ${catalogActionButtons(item, canManageCatalog)}
     </div>
   </article>`;
 }
@@ -374,31 +382,78 @@ function renderCatalogList(items, canManageCatalog) {
     </div>
     <div class="data-row-meta">
       <small>Điểm tối đa: ${formatNumber(item.maximumConvertedScore || 0)}</small>
-      ${canManageCatalog ? `<button class="catalog-edit-button" type="button" data-edit-standard-task="${escapeHtml(item.id)}">Sửa danh mục</button>` : ""}
+      ${catalogActionButtons(item, canManageCatalog)}
     </div>
   </article>`).join("")}</div>`;
 }
 
+function catalogActionButtons(item, canManageCatalog) {
+  if (!canManageCatalog) return "";
+  return `<div class="catalog-row-actions">
+    <button class="catalog-edit-button" type="button" data-edit-standard-task="${escapeHtml(item.id)}">Sửa</button>
+    <button class="catalog-delete-button" type="button" data-delete-standard-task="${escapeHtml(item.id)}">Xóa</button>
+  </div>`;
+}
+
+async function confirmAndRemoveStandardTask(item, button = null, modalRoot = null) {
+  const code = item?.code || item?.id || "đầu việc";
+  if (!window.confirm(
+    `Xóa ${code} khỏi danh mục đang sử dụng?
+
+` +
+    "Nếu đầu việc chưa phát sinh đăng ký hoặc nhiệm vụ, dữ liệu sẽ được xóa. " +
+    "Nếu đã có lịch sử, hệ thống chỉ đưa ra khỏi danh mục hiện hành để không làm mất báo cáo cũ."
+  )) return false;
+
+  if (button) button.disabled = true;
+  try {
+    const result = await StandardTaskWriteService.removeTask(item);
+    modalRoot && closeStandardModal(modalRoot);
+    ToastService.success(
+      result.mode === "DELETED"
+        ? "Đã xóa đầu việc khỏi danh mục và Firestore."
+        : "Đã đưa đầu việc khỏi danh mục hiện hành; lịch sử cũ vẫn được giữ."
+    );
+    reloadRoute();
+    return true;
+  } catch (error) {
+    ToastService.error(error.message || "Không xóa được đầu việc.");
+    if (button) button.disabled = false;
+    return false;
+  }
+}
+
 function openTaskEditor(item) {
   const editing = Boolean(item?.id);
+  const currentWorkType = String(item?.workType || "THUONG_XUYEN").toUpperCase() === "DOT_XUAT"
+    ? "DOT_XUAT"
+    : "THUONG_XUYEN";
   const root = openStandardModal(
     editing ? "Cập nhật đầu việc chuẩn" : "Thêm đầu việc chuẩn",
-    `<div class="kpi-form-grid standard-task-editor-form">
-      <label class="kpi-field"><span>Mã đầu việc</span><input id="catalogTaskCode" value="${escapeHtml(item?.code || "")}" ${editing ? "disabled" : ""} placeholder="Ví dụ: TCHC01"></label>
-      <label class="kpi-field"><span>Loại công việc</span><select id="catalogTaskWorkType"><option value="THUONG_XUYEN" ${String(item?.workType || "THUONG_XUYEN").toUpperCase() === "THUONG_XUYEN" ? "selected" : ""}>Thường xuyên</option><option value="DOT_XUAT" ${String(item?.workType || "").toUpperCase() === "DOT_XUAT" ? "selected" : ""}>Đột xuất</option></select></label>
+    `<div class="standard-task-editor-intro">
+      <strong>${editing ? "Cập nhật trực tiếp trên hệ thống" : "Tạo đầu việc mới cho Phòng/Khu"}</strong>
+      <span>Dữ liệu được lưu vào Firestore. Google Sheet có thể nhận lại bằng chức năng đồng bộ từ Firestore hoặc lịch đồng bộ tự động.</span>
+    </div>
+    <div class="kpi-form-grid standard-task-editor-form">
+      <label class="kpi-field"><span>Mã đầu việc</span><input id="catalogTaskCode" value="${escapeHtml(item?.code || "")}" ${editing ? "disabled" : ""} placeholder="Ví dụ: TCHC29"></label>
+      <label class="kpi-field"><span>Tính chất</span><select id="catalogTaskWorkType"><option value="THUONG_XUYEN" ${currentWorkType === "THUONG_XUYEN" ? "selected" : ""}>Thường xuyên</option><option value="DOT_XUAT" ${currentWorkType === "DOT_XUAT" ? "selected" : ""}>Đột xuất</option></select></label>
       <label class="kpi-field full"><span>Tên đầu việc</span><input id="catalogTaskName" value="${escapeHtml(item?.name || "")}" placeholder="Nhập tên đầu việc"></label>
-      <label class="kpi-field full"><span>Sản phẩm đầu ra/Yêu cầu hoàn thành</span><textarea id="catalogTaskOutput" rows="3">${escapeHtml(item?.outputRequirement || "")}</textarea></label>
-      <label class="kpi-field full"><span>Minh chứng bắt buộc</span><textarea id="catalogTaskEvidence" rows="2">${escapeHtml(item?.mandatoryEvidence || "")}</textarea></label>
-      <label class="kpi-field"><span>Điểm chuẩn</span><input id="catalogTaskBaseScore" type="number" value="${escapeHtml(item?.baseScore ?? (String(item?.workType || "THUONG_XUYEN").toUpperCase() === "DOT_XUAT" ? 12 : 10))}" readonly></label>
+      <label class="kpi-field full"><span>Kết quả đầu ra/Yêu cầu hoàn thành</span><textarea id="catalogTaskOutput" rows="3" placeholder="Nêu sản phẩm hoặc kết quả phải đạt">${escapeHtml(item?.outputRequirement || "")}</textarea></label>
+      <label class="kpi-field full"><span>Chu kỳ/Tần suất</span><input id="catalogTaskFrequency" value="${escapeHtml(item?.frequency || "")}" placeholder="Ví dụ: Theo tháng, theo hồ sơ, khi phát sinh"></label>
+      <label class="kpi-field full"><span>Minh chứng bắt buộc</span><textarea id="catalogTaskEvidence" rows="2" placeholder="Nêu loại hồ sơ, báo cáo hoặc tài liệu bắt buộc">${escapeHtml(item?.mandatoryEvidence || "")}</textarea></label>
+      <label class="kpi-field full"><span>Minh chứng phát sinh</span><textarea id="catalogTaskArisingEvidence" rows="2" placeholder="Không bắt buộc; chỉ nhập khi có loại minh chứng phát sinh">${escapeHtml(item?.arisingEvidence || "")}</textarea></label>
+      <label class="kpi-field"><span>Điểm chuẩn</span><input id="catalogTaskBaseScore" type="number" value="${escapeHtml(item?.baseScore ?? (currentWorkType === "DOT_XUAT" ? 12 : 10))}" readonly></label>
       <label class="kpi-field"><span>Hệ số độ khó</span><select id="catalogTaskCoefficient">
         <option value="1" ${Math.abs(Number(item?.difficultyCoefficient ?? 1) - 1) < 0.000001 ? "selected" : ""}>100%</option>
         <option value="1.1" ${Math.abs(Number(item?.difficultyCoefficient ?? 1) - 1.1) < 0.000001 ? "selected" : ""}>110%</option>
         <option value="1.2" ${Math.abs(Number(item?.difficultyCoefficient ?? 1) - 1.2) < 0.000001 ? "selected" : ""}>120%</option>
       </select></label>
       <label class="kpi-field"><span>Thứ tự hiển thị</span><input id="catalogTaskOrder" type="number" min="1" step="1" value="${escapeHtml(item?.order ?? 9999)}"></label>
-      <div class="kpi-field"><span>Điểm tối đa dự kiến</span><strong id="catalogTaskMaximum">${formatNumber(Number(item?.baseScore || 1) * Number(item?.difficultyCoefficient || 1))}</strong></div>
+      <div class="kpi-field standard-task-score-preview"><span>Điểm tối đa</span><strong id="catalogTaskMaximum">${formatNumber(Number(item?.baseScore || (currentWorkType === "DOT_XUAT" ? 12 : 10)) * Number(item?.difficultyCoefficient || 1))}</strong></div>
+      <label class="standard-task-check"><input id="catalogTaskCore" type="checkbox" ${item?.isCoreTaskDefault === true ? "checked" : ""}><span>Đầu việc cốt lõi</span></label>
+      <label class="standard-task-check"><input id="catalogTaskManagement" type="checkbox" ${item?.isManagementTask === true ? "checked" : ""}><span>Dành cho lãnh đạo, quản lý</span></label>
     </div>`,
-    `<button class="kpi-button secondary" data-standard-close type="button">Đóng</button><button id="saveCatalogTask" class="kpi-button" type="button">Lưu đầu việc</button>`
+    `${editing ? '<button id="deleteCatalogTask" class="kpi-button danger" type="button">Xóa danh mục</button>' : ""}<button class="kpi-button secondary" data-standard-close type="button">Đóng</button><button id="saveCatalogTask" class="kpi-button" type="button">Lưu đầu việc</button>`
   );
 
   const recalculate = () => {
@@ -415,7 +470,7 @@ function openTaskEditor(item) {
   };
   document.getElementById("catalogTaskWorkType")?.addEventListener("change", syncBaseScoreWithWorkType);
   document.getElementById("catalogTaskCoefficient")?.addEventListener("change", recalculate);
-  syncBaseScoreWithWorkType();
+  recalculate();
 
   root.querySelector("#saveCatalogTask")?.addEventListener("click", async event => {
     const button = event.currentTarget;
@@ -424,13 +479,16 @@ function openTaskEditor(item) {
       await StandardTaskWriteService.saveTask({
         code: document.getElementById("catalogTaskCode")?.value,
         name: document.getElementById("catalogTaskName")?.value,
+        frequency: document.getElementById("catalogTaskFrequency")?.value,
         workType: document.getElementById("catalogTaskWorkType")?.value,
         outputRequirement: document.getElementById("catalogTaskOutput")?.value,
         mandatoryEvidence: document.getElementById("catalogTaskEvidence")?.value,
+        arisingEvidence: document.getElementById("catalogTaskArisingEvidence")?.value,
         baseScore: document.getElementById("catalogTaskBaseScore")?.value,
         difficultyCoefficient: document.getElementById("catalogTaskCoefficient")?.value,
         order: document.getElementById("catalogTaskOrder")?.value,
-        active: true
+        isCoreTaskDefault: document.getElementById("catalogTaskCore")?.checked === true,
+        isManagementTask: document.getElementById("catalogTaskManagement")?.checked === true
       }, item?.id || "");
       closeStandardModal(root);
       ToastService.success(editing ? "Đã cập nhật đầu việc." : "Đã thêm đầu việc vào danh mục.");
@@ -441,7 +499,9 @@ function openTaskEditor(item) {
     }
   });
 
-
+  root.querySelector("#deleteCatalogTask")?.addEventListener("click", async event => {
+    await confirmAndRemoveStandardTask(item, event.currentTarget, root);
+  });
 }
 
 async function openCatalogDelegation(currentDelegation, period) {
