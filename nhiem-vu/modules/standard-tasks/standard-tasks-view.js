@@ -1,10 +1,10 @@
 import { UserContext } from "../../core/user-context.js";
-import { Permissions } from "../../core/permissions.js?v=20260731.V1_1_18";
+import { Permissions } from "../../core/permissions.js?v=20260731.V1_1_19";
 import { ToastService } from "../../core/toast-service.js";
-import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260731.V1_1_18";
-import { PeriodReadService } from "../../services/period-read-service.js?v=20260731.V1_1_18";
-import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260731.V1_1_18";
-import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260731.V1_1_18";
+import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260731.V1_1_19";
+import { PeriodReadService } from "../../services/period-read-service.js?v=20260731.V1_1_19";
+import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260731.V1_1_19";
+import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260731.V1_1_19";
 
 let stopStandardRealtime = () => {};
 let standardRealtimeTimer = null;
@@ -486,12 +486,14 @@ async function openTaskEditor(item) {
       <span>Mã đầu việc lấy số còn trống nhỏ nhất trong đúng Phòng/Khu. Ví dụ đã có TCHC01 và TCHC03 thì mã tiếp theo là TCHC02; các đơn vị có dãy số độc lập.</span>
     </div>
     <div class="kpi-form-grid standard-task-editor-form">
+      <div class="standard-form-section-title full"><span>1</span><div><strong>Thông tin đầu việc</strong><small>Xác định đúng tên, kết quả đầu ra và chu kỳ thực hiện.</small></div></div>
       ${departmentField}
       <label class="kpi-field"><span>Mã đầu việc</span><div class="standard-task-code-box"><input id="catalogTaskCode" value="${escapeHtml(previewCode)}" readonly autocomplete="off" spellcheck="false" aria-readonly="true"><small>Tự động tăng dần; không nhập thủ công.</small></div></label>
       <label class="kpi-field"><span>Tính chất</span><select id="catalogTaskWorkType"><option value="THUONG_XUYEN" ${currentWorkType === "THUONG_XUYEN" ? "selected" : ""}>Thường xuyên</option><option value="DOT_XUAT" ${currentWorkType === "DOT_XUAT" ? "selected" : ""}>Đột xuất</option></select></label>
       <label class="kpi-field full"><span>Tên đầu việc</span><input id="catalogTaskName" value="${escapeHtml(item?.name || "")}" placeholder="Nhập tên đầu việc"></label>
       <label class="kpi-field full"><span>Kết quả đầu ra/Yêu cầu hoàn thành</span><textarea id="catalogTaskOutput" rows="3" placeholder="Nêu sản phẩm hoặc kết quả phải đạt">${escapeHtml(item?.outputRequirement || "")}</textarea></label>
       <label class="kpi-field full"><span>Chu kỳ/Tần suất</span><input id="catalogTaskFrequency" value="${escapeHtml(item?.frequency || "")}" placeholder="Ví dụ: Theo tháng, theo hồ sơ, khi phát sinh"></label>
+      <div class="standard-form-section-title full"><span>2</span><div><strong>Cách theo dõi và căn cứ đánh giá</strong><small>Chọn theo sản phẩm cuối cùng hoặc theo nhiều lượt phát sinh trong kỳ.</small></div></div>
       <label class="kpi-field full"><span>Cách theo dõi trong kỳ</span><select id="catalogTaskTrackingMode">
         <option value="FINAL_OUTPUT" ${currentTrackingMode === "FINAL_OUTPUT" ? "selected" : ""}>Theo sản phẩm/kết quả cuối cùng</option>
         <option value="ITEMIZED" ${currentTrackingMode === "ITEMIZED" ? "selected" : ""}>Theo từng lượt công việc phát sinh</option>
@@ -503,15 +505,19 @@ async function openTaskEditor(item) {
         <option value="ATTENDANCE" ${currentWorkItemType === "ATTENDANCE" ? "selected" : ""}>Buổi hoạt động và tình trạng tham dự</option>
       </select><small class="field-help">Mỗi kiểu sẽ hiển thị đúng trường cần nhập trong chi tiết nhiệm vụ.</small></label>
       <label id="catalogQuantityUnitField" class="kpi-field full"><span>Đơn vị sản lượng</span><input id="catalogTaskQuantityUnit" value="${escapeHtml(item?.quantityUnit || "")}" placeholder="Ví dụ: kg rau, suất ăn, hồ sơ"></label>
+      <div id="catalogScoringMethodPreview" class="standard-scoring-method-preview full"></div>
       <label class="kpi-field full"><span>Minh chứng bắt buộc</span><textarea id="catalogTaskEvidence" rows="2" placeholder="Nêu loại hồ sơ, báo cáo hoặc tài liệu bắt buộc">${escapeHtml(item?.mandatoryEvidence || "")}</textarea></label>
       <label class="kpi-field full"><span>Minh chứng phát sinh</span><textarea id="catalogTaskArisingEvidence" rows="2" placeholder="Không bắt buộc; chỉ nhập khi có loại minh chứng phát sinh">${escapeHtml(item?.arisingEvidence || "")}</textarea></label>
-      <label class="kpi-field"><span>Điểm chuẩn</span><input id="catalogTaskBaseScore" type="number" value="${escapeHtml(item?.baseScore ?? (currentWorkType === "DOT_XUAT" ? 12 : 10))}" readonly></label>
-      <label class="kpi-field"><span>Hệ số độ khó</span><select id="catalogTaskCoefficient">
-        <option value="1" ${Math.abs(Number(item?.difficultyCoefficient ?? 1) - 1) < 0.000001 ? "selected" : ""}>100%</option>
-        <option value="1.1" ${Math.abs(Number(item?.difficultyCoefficient ?? 1) - 1.1) < 0.000001 ? "selected" : ""}>110%</option>
-        <option value="1.2" ${Math.abs(Number(item?.difficultyCoefficient ?? 1) - 1.2) < 0.000001 ? "selected" : ""}>120%</option>
-      </select></label>
-      <div class="kpi-field standard-task-score-preview"><span>Điểm tối đa</span><strong id="catalogTaskMaximum">${formatNumber(Number(item?.baseScore || (currentWorkType === "DOT_XUAT" ? 12 : 10)) * Number(item?.difficultyCoefficient || 1))}</strong></div>
+      <div class="standard-form-section-title full"><span>3</span><div><strong>Điểm và đối tượng áp dụng</strong><small>Điểm của toàn đầu việc được tính một lần theo đúng Phụ lục 04.</small></div></div>
+      <div class="standard-task-score-grid full">
+        <label class="kpi-field"><span>Điểm chuẩn</span><input id="catalogTaskBaseScore" type="number" value="${escapeHtml(item?.baseScore ?? (currentWorkType === "DOT_XUAT" ? 12 : 10))}" readonly></label>
+        <label class="kpi-field"><span>Hệ số độ khó</span><select id="catalogTaskCoefficient">
+          <option value="1" ${Math.abs(Number(item?.difficultyCoefficient ?? 1) - 1) < 0.000001 ? "selected" : ""}>100%</option>
+          <option value="1.1" ${Math.abs(Number(item?.difficultyCoefficient ?? 1) - 1.1) < 0.000001 ? "selected" : ""}>110%</option>
+          <option value="1.2" ${Math.abs(Number(item?.difficultyCoefficient ?? 1) - 1.2) < 0.000001 ? "selected" : ""}>120%</option>
+        </select></label>
+        <div class="kpi-field standard-task-score-preview"><span>Điểm quy đổi tối đa</span><strong id="catalogTaskMaximum">${formatNumber(Number(item?.baseScore || (currentWorkType === "DOT_XUAT" ? 12 : 10)) * Number(item?.difficultyCoefficient || 1))}</strong></div>
+      </div>
       <div id="catalogDepartmentAudience" class="standard-task-audience-grid full">
         <label class="standard-task-check"><input id="catalogTaskCore" type="checkbox" ${currentCore ? "checked" : ""}><span><strong>Đầu việc cốt lõi</strong><small>Trưởng/Phó phòng và nhân viên cùng Phòng/Khu đều nhìn thấy.</small></span></label>
         <label class="standard-task-check"><input id="catalogTaskManagement" type="checkbox" ${currentManagement ? "checked" : ""}><span><strong>Chỉ dành cho lãnh đạo, quản lý</strong><small>Chỉ Trưởng/Phó phòng hoặc Ban Giám đốc nhìn thấy để đăng ký.</small></span></label>
@@ -535,6 +541,7 @@ async function openTaskEditor(item) {
   const workItemTypeInput = document.getElementById("catalogTaskWorkItemType");
   const workItemTypeField = document.getElementById("catalogWorkItemTypeField");
   const quantityUnitField = document.getElementById("catalogQuantityUnitField");
+  const scoringMethodPreview = document.getElementById("catalogScoringMethodPreview");
 
   const recalculate = () => {
     const base = Number(document.getElementById("catalogTaskBaseScore")?.value || 0);
@@ -558,6 +565,11 @@ async function openTaskEditor(item) {
       "hidden",
       !isItemized || workItemTypeInput?.value !== "QUANTITY"
     );
+    if (scoringMethodPreview) {
+      scoringMethodPreview.innerHTML = scoringMethodDescription(
+        isItemized ? workItemTypeInput?.value : "FINAL_OUTPUT"
+      );
+    }
   };
 
   const syncAudienceFields = async (refreshCode = false) => {
@@ -784,6 +796,27 @@ function workItemTypeBadge(item) {
   };
   const type = StandardTaskWriteService.normalizeWorkItemType(item?.workItemType);
   return `<span class="status-pill neutral">${labels[type]}</span>`;
+}
+
+function scoringMethodDescription(typeValue) {
+  const type = String(typeValue || "FINAL_OUTPUT").toUpperCase();
+  if (type === "FINAL_OUTPUT") {
+    return `<strong>Chấm trực tiếp theo sản phẩm/kết quả cuối cùng</strong>
+      <p>Tiến độ và kết quả được đánh giá trên thang 0–100%. Hệ thống tính một lần: Điểm chuẩn × (30% tiến độ + 70% kết quả) × Hệ số độ khó.</p>`;
+  }
+
+  const definitions = {
+    GENERIC: ["Tổng lượt công việc", "Lượt hoàn thành đúng hạn", "Lượt đạt yêu cầu từ 80%"],
+    DOCUMENT: ["Tổng văn bản/hồ sơ được giao", "Văn bản/hồ sơ đúng hạn", "Văn bản/hồ sơ đạt yêu cầu từ 80%"],
+    QUANTITY: ["Tổng lượt/tháng phải ghi nhận", "Lượt hoàn thành đúng hạn", "Lượt đạt sản lượng kế hoạch và chất lượng từ 80%"],
+    ATTENDANCE: ["Tổng số buổi phải tham gia", "Số buổi có mặt", "Số buổi có mặt và tham gia đạt yêu cầu từ 80%"]
+  };
+  const [n, t, k] = definitions[type] || definitions.GENERIC;
+  return `<strong>Tổng hợp N–T–K trước khi chấm điểm đầu việc</strong>
+    <div class="standard-scoring-variables">
+      <span><b>N</b>${escapeHtml(n)}</span><span><b>T</b>${escapeHtml(t)}</span><span><b>K</b>${escapeHtml(k)}</span>
+    </div>
+    <p>Tính T/N và K/N, quy về mức áp dụng 100%–80%–60%–0%, rồi chấm một lần cho toàn đầu việc theo Phụ lục 04. Không cộng điểm riêng từng lượt.</p>`;
 }
 
 function classificationBadge(item) {
