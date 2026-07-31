@@ -5,7 +5,7 @@ import { TaskWriteService } from "../../services/task-write-service.js?v=2026073
 import { UserReadService } from "../../services/user-read-service.js";
 import { DepartmentReadService } from "../../services/department-read-service.js";
 import { validateTaskCreateInput, cleanText } from "./task-form-validator.js?v=20260730.V1_1_10";
-import { mountTaskAiAssistant } from "../../ai-assistant.js?v=20260730.V1_1_10";
+import { mountTaskAiAssistant } from "../../ai-assistant.js?v=20260731.V1_1_12";
 import { ToastService } from "../../core/toast-service.js";
 
 const DIRECT_TASK_BASE_SCORE = 12;
