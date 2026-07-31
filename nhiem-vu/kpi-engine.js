@@ -1,5 +1,5 @@
 export const KPI2B = Object.freeze({
-  VERSION: 'FINAL-2026.07',
+  VERSION: 'FINAL-2026.07-FORMULA-2STEP',
   PILOT_PERIOD_ID: '2026-Q3',
   PILOT_PERIOD_NAME: 'Quý III năm 2026',
   PILOT_START: '2026-07-01',
@@ -39,15 +39,44 @@ export function round2(value) {
   return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 }
 
+export function normalizeDifficultyCoefficient(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number <= 0) return 0;
+  return number > 10 ? number / 100 : number;
+}
+
+/**
+ * Tính điểm nhiệm vụ theo đúng hai bước của Phụ lục 4:
+ * 1) Điểm thực hiện = Điểm chuẩn × (30% tiến độ + 70% kết quả).
+ * 2) Điểm quy đổi thực tế = Điểm thực hiện × Hệ số độ khó.
+ * Điểm quy đổi thực tế không vượt quá Điểm quy đổi tối đa.
+ */
 export function calculateTaskScore(baseScore, coefficient, progressRate, resultRate) {
-  const base = Number(baseScore || 0);
-  const coef = Number(coefficient || 0);
-  const progress = clampRate(progressRate) / 100;
-  const result = clampRate(resultRate) / 100;
+  const base = Math.max(0, Number(baseScore || 0));
+  const coef = normalizeDifficultyCoefficient(coefficient);
+  const normalizedProgressRate = clampRate(progressRate);
+  const normalizedResultRate = clampRate(resultRate);
+  const progress = normalizedProgressRate / 100;
+  const result = normalizedResultRate / 100;
+
   const maximum = round2(base * coef);
-  const execution = round2(base * (KPI2B.PROGRESS_WEIGHT * progress + KPI2B.RESULT_WEIGHT * result));
+  const execution = round2(
+    base * (KPI2B.PROGRESS_WEIGHT * progress + KPI2B.RESULT_WEIGHT * result)
+  );
   const actual = round2(Math.min(execution * coef, maximum));
-  return { maximum, execution, actual };
+
+  return {
+    baseScore: base,
+    coefficient: coef,
+    progressRate: normalizedProgressRate,
+    resultRate: normalizedResultRate,
+    maximum,
+    maximumConvertedScore: maximum,
+    execution,
+    executionScore: execution,
+    actual,
+    convertedActualScore: actual
+  };
 }
 
 export function calculateKpiSummary(tasks, commonScore) {

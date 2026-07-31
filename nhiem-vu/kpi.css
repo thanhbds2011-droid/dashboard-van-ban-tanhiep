@@ -1332,3 +1332,88 @@
     min-height: 40px;
   }
 }
+
+
+/* ===== BẢNG PHÂN TÍCH ĐIỂM THEO PHỤ LỤC 4 ===== */
+.kpi-score-breakdown {
+  width: 100%;
+  border: 1px solid #c9d8ea;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #f8fbff 0%, #f2f7fc 100%);
+  overflow: hidden;
+  box-shadow: 0 8px 22px rgba(31, 78, 120, 0.08);
+}
+.kpi-score-breakdown-title {
+  padding: 12px 14px;
+  font-weight: 800;
+  color: #1f4e78;
+  background: #eaf2fb;
+  border-bottom: 1px solid #d5e1ee;
+}
+.kpi-score-breakdown-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  padding: 14px;
+}
+.kpi-score-breakdown-grid > div {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid #dbe6f1;
+  border-radius: 10px;
+  background: #fff;
+}
+.kpi-score-breakdown-grid span {
+  display: block;
+  margin-bottom: 4px;
+  color: #60758a;
+  font-size: .82rem;
+}
+.kpi-score-breakdown-grid strong {
+  color: #173f63;
+  font-size: 1.05rem;
+}
+.kpi-score-breakdown-grid .is-execution {
+  background: #fff9ec;
+  border-color: #efd9a4;
+}
+.kpi-score-breakdown-grid .is-execution strong { color: #8a5a00; }
+.kpi-score-breakdown-grid .is-converted {
+  background: #edf9f2;
+  border-color: #b9dfc9;
+}
+.kpi-score-breakdown-grid .is-converted strong {
+  color: #17633a;
+  font-size: 1.18rem;
+}
+.kpi-score-formula {
+  display: grid;
+  gap: 6px;
+  padding: 0 14px 14px;
+  color: #465d72;
+  font-size: .84rem;
+  line-height: 1.5;
+}
+.kpi-score-formula span {
+  padding: 9px 11px;
+  border-radius: 9px;
+  background: rgba(255,255,255,.76);
+}
+.kpi-score-breakdown.is-compact .kpi-score-breakdown-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+@media (max-width: 820px) {
+  .kpi-score-breakdown-grid,
+  .kpi-score-breakdown.is-compact .kpi-score-breakdown-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 520px) {
+  .kpi-score-breakdown-grid,
+  .kpi-score-breakdown.is-compact .kpi-score-breakdown-grid {
+    grid-template-columns: 1fr;
+  }
+  .kpi-score-breakdown-title { padding: 11px 12px; }
+  .kpi-score-breakdown-grid { padding: 12px; }
+  .kpi-score-formula { padding: 0 12px 12px; }
+}
