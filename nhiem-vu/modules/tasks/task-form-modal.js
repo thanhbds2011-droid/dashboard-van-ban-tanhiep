@@ -1,10 +1,10 @@
 /** Biểu mẫu giao nhiệm vụ phát sinh/đột xuất. */
 import { UserContext } from "../../core/user-context.js";
-import { Permissions } from "../../core/permissions.js?v=20260730.V1_1_10";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260730.V1_1_10";
+import { Permissions } from "../../core/permissions.js?v=20260731.V1_1_18";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260731.V1_1_18";
 import { UserReadService } from "../../services/user-read-service.js";
 import { DepartmentReadService } from "../../services/department-read-service.js";
-import { validateTaskCreateInput, cleanText } from "./task-form-validator.js?v=20260730.V1_1_10";
+import { validateTaskCreateInput, cleanText } from "./task-form-validator.js?v=20260731.V1_1_18";
 import { mountTaskAiAssistant } from "../../ai-assistant.js?v=20260731.V1_1_12";
 import { ToastService } from "../../core/toast-service.js";
 
@@ -115,6 +115,9 @@ export async function openTaskCreateModal({ onSaved }) {
         <label><span>Người phụ trách</span><select id="ownerUserId"><option value="">— Giao cấp Phòng/Khu —</option></select></label>
         <label><span>Hạn xử lý *</span><input id="deadline" type="date" value="${dateInputValue(deadline)}" required></label>
         <label><span>Hệ số độ khó *</span><select id="difficultyCoefficient">${DIFFICULTY_OPTIONS.map(item => option(item.value, item.label, item.value === 1)).join("")}</select></label>
+        <label class="field-full"><span>Cách theo dõi trong kỳ</span><select id="trackingMode"><option value="FINAL_OUTPUT">Theo sản phẩm/kết quả cuối cùng</option><option value="ITEMIZED">Theo từng lượt công việc phát sinh</option></select></label>
+        <label id="workItemTypeField" class="field-full" hidden><span>Nội dung chi tiết cần theo dõi</span><select id="workItemType"><option value="GENERIC">Công việc phát sinh thông thường</option><option value="DOCUMENT">Văn bản/hồ sơ được giao</option><option value="QUANTITY">Sản lượng theo tháng và kết quả quý</option><option value="ATTENDANCE">Buổi hoạt động và tình trạng tham dự</option></select></label>
+        <label id="quantityUnitField" class="field-full" hidden><span>Đơn vị sản lượng</span><input id="quantityUnit" maxlength="80" placeholder="Ví dụ: kg rau, suất ăn, hồ sơ"></label>
         <div class="task-score-preview">
           <span>Điểm chuẩn nhiệm vụ đột xuất</span>
           <strong id="directTaskScore">${formatScore(DIRECT_TASK_BASE_SCORE)}</strong>
@@ -138,6 +141,8 @@ export async function openTaskCreateModal({ onSaved }) {
   const teamField = $("teamField");
   const ownerSelect = $("ownerUserId");
   const coefficientSelect = $("difficultyCoefficient");
+  const trackingModeSelect = $("trackingMode");
+  const workItemTypeSelect = $("workItemType");
 
   const refreshCodeHint = () => {
     const prefix = departmentPrefix(departmentSelect.value || defaultDepartment);
@@ -196,11 +201,18 @@ export async function openTaskCreateModal({ onSaved }) {
     $("directTaskScore").textContent = formatScore(DIRECT_TASK_BASE_SCORE * coefficient);
   };
 
+  const refreshTrackingFields = () => {
+    const itemized = trackingModeSelect.value === "ITEMIZED";
+    $("workItemTypeField").hidden = !itemized;
+    $("quantityUnitField").hidden = !itemized || workItemTypeSelect.value !== "QUANTITY";
+  };
+
   refreshCodeHint();
   refreshTeams();
   refreshUsers();
   refreshSupportDepartments();
   refreshScore();
+  refreshTrackingFields();
 
   departmentSelect.addEventListener("change", () => {
     refreshCodeHint();
@@ -219,6 +231,8 @@ export async function openTaskCreateModal({ onSaved }) {
     }
   });
   coefficientSelect.addEventListener("change", refreshScore);
+  trackingModeSelect.addEventListener("change", refreshTrackingFields);
+  workItemTypeSelect.addEventListener("change", refreshTrackingFields);
 
   const unmountAi = mountTaskAiAssistant(overlay);
 
@@ -261,6 +275,9 @@ export async function openTaskCreateModal({ onSaved }) {
         difficultyCoefficient: coefficient,
         maximumConvertedScore: Math.round(DIRECT_TASK_BASE_SCORE * coefficient * 100) / 100,
         mandatoryEvidence: "",
+        trackingMode: trackingModeSelect.value,
+        workItemType: workItemTypeSelect.value,
+        quantityUnit: cleanText($("quantityUnit").value, 80),
         confirmer: current.fullName || ""
       };
 

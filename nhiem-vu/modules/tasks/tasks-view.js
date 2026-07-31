@@ -1,8 +1,8 @@
-import { Permissions } from "../../core/permissions.js?v=20260730.V1_1_11";
+import { Permissions } from "../../core/permissions.js?v=20260731.V1_1_18";
 import { ToastService } from "../../core/toast-service.js";
 import { TaskReadService } from "../../services/task-read-service.js?v=20260730.V1_1_11";
-import { openTaskCreateModal } from "./task-form-modal.js?v=20260731.V1_1_12";
-import { openTaskDetailModal } from "./task-detail-modal.js?v=20260731.V1_1_17";
+import { openTaskCreateModal } from "./task-form-modal.js?v=20260731.V1_1_18";
+import { openTaskDetailModal } from "./task-detail-modal.js?v=20260731.V1_1_18";
 
 let renderSequence = 0;
 let stopRealtime = () => {};

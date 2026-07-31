@@ -1,8 +1,8 @@
 /** Cập nhật tiến độ, kết quả và minh chứng nhiệm vụ. */
 import { UserContext } from "../../core/user-context.js";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260730.V1_1_10";
-import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260730.V1_1_10";
-import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260731.V1_1_17";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260731.V1_1_18";
+import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260731.V1_1_18";
+import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260731.V1_1_18";
 import { validateProgressInput, cleanText } from "./task-form-validator.js";
 
 function mayUpdate(task) {
@@ -19,7 +19,7 @@ export async function openTaskProgressModal(task, { onSaved }) {
   if (!mayUpdate(task)) throw new Error("Bạn cần xác nhận đã nhận nhiệm vụ trước khi cập nhật.");
   const itemized = String(task.trackingMode || "FINAL_OUTPUT").toUpperCase() === "ITEMIZED";
   const workItems = itemized ? await TaskWorkItemService.list(task.id) : [];
-  const workItemSummary = TaskWorkItemService.calculateSummary(workItems);
+  const workItemSummary = TaskWorkItemService.calculateSummary(workItems, task.workItemType);
   const overlay = document.createElement("div");
   overlay.className = "modal-backdrop";
   overlay.innerHTML = `
@@ -135,7 +135,7 @@ export async function openTaskProgressModal(task, { onSaved }) {
 
       if ($("progressStatus").value === "HOAN_THANH" && itemized) {
         if (workItemSummary.count === 0) {
-          throw new Error("Chưa có công việc phát sinh trong kỳ. Hãy mở Chi tiết nhiệm vụ và thêm các văn bản, hồ sơ hoặc hoạt động đã được giao.");
+          throw new Error("Chưa có lượt phát sinh nên không thể chấm hoàn thành. Hãy thêm nội dung chi tiết; nếu cả kỳ không phát sinh, dùng nút “Đề nghị Không phát sinh” tại Chi tiết nhiệm vụ.");
         }
         if (!workItemSummary.readyForAssessment) {
           throw new Error(`Còn ${workItemSummary.count - workItemSummary.completedCount} lượt công việc chưa có ngày hoàn thành. Hãy cập nhật đầy đủ trước khi hoàn thành nhiệm vụ.`);
