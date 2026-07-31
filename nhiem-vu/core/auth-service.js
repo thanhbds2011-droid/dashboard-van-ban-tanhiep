@@ -39,6 +39,11 @@ function normalizeDepartment(value) {
   return clean(value).toUpperCase();
 }
 
+function normalizeAdditionalRoles(value) {
+  const roles = Array.isArray(value) ? value : [];
+  return [...new Set(roles.map(normalizeRole).filter(Boolean))].sort();
+}
+
 function hasOwn(object, key) {
   return Object.prototype.hasOwnProperty.call(object || {}, key);
 }
@@ -83,6 +88,9 @@ function buildProfileFromAccess(firebaseUser, accessEmail, access, existingProfi
     role,
     teamId: clean(access.teamId) || clean(existingProfile?.teamId),
     employeeCode: clean(access.employeeCode) || clean(existingProfile?.employeeCode),
+    additionalRoles: hasOwn(access, "additionalRoles")
+      ? normalizeAdditionalRoles(access.additionalRoles)
+      : normalizeAdditionalRoles(existingProfile?.additionalRoles),
     taskNotificationCoordinator: access.taskNotificationCoordinator === true,
     active: true
   };
@@ -130,6 +138,10 @@ function profileNeedsSync(existingProfile, desiredProfile) {
 
   if (existingProfile.active !== true) return true;
   if ((existingProfile.taskNotificationCoordinator === true) !== (desiredProfile.taskNotificationCoordinator === true)) return true;
+  if (
+    JSON.stringify(normalizeAdditionalRoles(existingProfile.additionalRoles))
+    !== JSON.stringify(normalizeAdditionalRoles(desiredProfile.additionalRoles))
+  ) return true;
 
   const existingHead = typeof existingProfile.isDepartmentHead === "boolean" ? existingProfile.isDepartmentHead : null;
   const desiredHead = typeof desiredProfile.isDepartmentHead === "boolean" ? desiredProfile.isDepartmentHead : null;
@@ -223,6 +235,7 @@ export const AuthService = Object.freeze({
       employeeCode: profile.employeeCode || "",
       leaderLevel: profile.leaderLevel || "",
       isDepartmentHead: typeof profile.isDepartmentHead === "boolean" ? profile.isDepartmentHead : null,
+      additionalRoles: profile.additionalRoles || [],
       active: profile.active === true
     });
   },

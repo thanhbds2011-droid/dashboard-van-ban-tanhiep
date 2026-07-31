@@ -78,6 +78,34 @@ export const Permissions = Object.freeze({
     return UserContext.hasRole("TCHC_COORDINATOR");
   },
 
+  hasAdditionalRole(...roles) {
+    return UserContext.hasAdditionalRole(...roles);
+  },
+
+  isCdtnSecretary() {
+    return this.hasAdditionalRole("CDTN_BI_THU");
+  },
+
+  isCdtnDeputySecretary() {
+    return this.hasAdditionalRole("CDTN_PHO_BI_THU");
+  },
+
+  isCdtnExecutiveMember() {
+    return this.hasAdditionalRole(
+      "CDTN_BI_THU",
+      "CDTN_PHO_BI_THU",
+      "CDTN_UY_VIEN_BCH"
+    );
+  },
+
+  isCdtnMember() {
+    return this.isCdtnExecutiveMember() || this.hasAdditionalRole("CDTN_DOAN_VIEN");
+  },
+
+  isCdtnCatalogManager() {
+    return this.isCdtnSecretary() || this.isCdtnDeputySecretary();
+  },
+
   isDepartmentHead(user = UserContext.getUser()) {
     return Boolean(
       activeUser(user) &&
@@ -109,12 +137,31 @@ export const Permissions = Object.freeze({
   },
 
   canRegisterStandardTasks() {
-    return this.isStaff() || this.isDepartmentLeader();
+    return this.isStaff() || this.isDepartmentLeader() || this.isDirector() || this.isTchcCoordinator();
   },
 
-  canManageStandardTasks(hasDelegation = false) {
-    return this.isDepartmentHead()
-      || (this.isStaff() && hasDelegation === true);
+  canManageStandardTasks(departmentId = "", hasDelegation = false) {
+    const user = UserContext.getUser();
+    let targetDepartment = clean(departmentId).toUpperCase();
+    let delegated = hasDelegation === true;
+
+    // Tương thích các lời gọi cũ chỉ truyền một giá trị boolean.
+    if (typeof departmentId === "boolean") {
+      delegated = departmentId === true;
+      targetDepartment = clean(user?.departmentId).toUpperCase();
+    }
+    if (!targetDepartment) targetDepartment = clean(user?.departmentId).toUpperCase();
+
+    if (targetDepartment === "CDTN") return this.isCdtnCatalogManager();
+    if (targetDepartment === "BGD") {
+      return this.isDirector() && clean(user?.departmentId).toUpperCase() === "BGD";
+    }
+
+    const sameDepartment = targetDepartment === clean(user?.departmentId).toUpperCase();
+    return sameDepartment && (
+      this.isDepartmentHead(user)
+      || (this.isStaff() && delegated)
+    );
   },
 
   canCreateUnexpectedTask() {
