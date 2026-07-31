@@ -81,13 +81,21 @@ export function calculateTaskScore(baseScore, coefficient, progressRate, resultR
 
 export function calculateKpiSummary(tasks, commonScore) {
   const all = (tasks || []).filter((item) => item.active !== false && item.status !== 'HUY' && item.status !== 'CANCELLED');
-  const plan = all.filter((item) => item.includedInA === true && item.planApprovalStatus === 'APPROVED');
-  const recognized = all.filter((item) => item.recognized === true);
+  const eligible = all.filter((item) => (
+    String(item.noOccurrenceStatus || '').toUpperCase() !== 'CONFIRMED' &&
+    String(item.scoringStatus || '').toUpperCase() !== 'NO_OCCURRENCE_CONFIRMED'
+  ));
+  const plan = eligible.filter((item) => item.includedInA === true && item.planApprovalStatus === 'APPROVED');
+  const recognized = eligible.filter((item) => item.recognized === true);
   const A = round2(plan.reduce((sum, item) => sum + Number(item.maximumConvertedScore || item.maximumScore || 0), 0));
   const B = round2(recognized.reduce((sum, item) => sum + Number(item.confirmedActualScore || 0), 0));
-  const kpi70 = A > 0 ? round2(Math.min((B / A) * 70, 70)) : 0;
+  const hasCalculationBasis = A > 0;
+  const kpi70 = hasCalculationBasis ? round2(Math.min((B / A) * 70, 70)) : null;
   const common30 = round2(Math.max(0, Math.min(Number(commonScore || 0), 30)));
-  return { A, B, kpi70, common30, total100: round2(Math.min(kpi70 + common30, 100)) };
+  const total100 = hasCalculationBasis
+    ? round2(Math.min(kpi70 + common30, 100))
+    : null;
+  return { A, B, kpi70, common30, total100, hasCalculationBasis };
 }
 
 export function parseDate(value) {
@@ -104,7 +112,15 @@ export function countWorkingDaysLate(deadlineValue, completedValue) {
   deadline.setHours(0, 0, 0, 0);
   completed.setHours(0, 0, 0, 0);
   if (completed <= deadline) return 0;
-  return Math.ceil((completed.getTime() - deadline.getTime()) / 86400000);
+  let days = 0;
+  const cursor = new Date(deadline);
+  cursor.setDate(cursor.getDate() + 1);
+  while (cursor <= completed) {
+    const weekday = cursor.getDay();
+    if (weekday !== 0 && weekday !== 6) days += 1;
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return days;
 }
 
 export function progressRateFromDates(deadlineValue, completedValue, isCompleted = true) {
@@ -117,6 +133,7 @@ export function progressRateFromDates(deadlineValue, completedValue, isCompleted
 }
 
 export function proposedRating(total) {
+  if (total === null || total === undefined || total === '') return 'NO_BASIS';
   const score = Number(total || 0);
   if (score >= 90) return 'HOAN_THANH_XUAT_SAC';
   if (score >= 80) return 'HOAN_THANH_TOT';
@@ -126,6 +143,7 @@ export function proposedRating(total) {
 
 export function ratingName(code) {
   const names = {
+    NO_BASIS: 'Chưa đủ cơ sở tính',
     HOAN_THANH_XUAT_SAC: 'Hoàn thành xuất sắc nhiệm vụ',
     HOAN_THANH_TOT: 'Hoàn thành tốt nhiệm vụ',
     HOAN_THANH: 'Hoàn thành nhiệm vụ',

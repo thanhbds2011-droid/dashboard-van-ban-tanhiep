@@ -96,7 +96,7 @@ body.modal-open{overflow:hidden}
  * PRODUCTION FINAL 3 — DESKTOP + MOBILE RESPONSIVE
  * Font hệ thống ổn định, không phụ thuộc tải font ngoài.
  * ========================================================= */
-:root{--app-font:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif}
+:root{--app-font:"Be Vietnam Pro",ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif}
 html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 body,input,button,select,textarea{font-family:var(--app-font)!important}
 .v3-body{font-size:15px;line-height:1.5;overflow-x:hidden}
@@ -580,4 +580,67 @@ button,input,select,textarea{font-size:16px}
   .task-work-item-summary { grid-template-columns: 1fr; }
   .task-work-item-card { padding: 12px; }
   .task-work-item-meta { display: grid; gap: 4px; }
+}
+
+/* ===== V1.1.18 — Chi tiết đầu việc theo nghiệp vụ và Không phát sinh ===== */
+.registration-restriction {
+  display: block;
+  color: #8a5a00 !important;
+  font-weight: 650;
+  line-height: 1.45;
+}
+.task-work-item-quantity {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding: 9px 11px;
+  border: 1px solid #cfe2ec;
+  border-radius: 10px;
+  background: #f3f9fc;
+  color: #49677a;
+  font-size: 13px;
+}
+.task-work-item-quantity strong { color: #0f557c; }
+.task-work-item-main .primary-link {
+  width: fit-content;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.compact-info-banner { margin: 0; }
+.task-work-item-upload-status {
+  min-height: 20px;
+  color: #17633a;
+  font-size: 13px;
+  font-weight: 700;
+}
+.no-occurrence-banner {
+  display: grid;
+  gap: 7px;
+  margin-bottom: 12px;
+}
+.no-occurrence-banner.is-pending {
+  border-color: #ead493;
+  background: #fff9e8;
+}
+.no-occurrence-banner.is-confirmed {
+  border-color: #b6dbc4;
+  background: #eff9f3;
+}
+.no-occurrence-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 3px;
+}
+.task-form-grid input,
+.task-form-grid select,
+.task-form-grid textarea,
+.task-work-item-card,
+.task-work-item-main { max-width: 100%; }
+
+@media (max-width: 600px) {
+  .task-work-item-quantity { display: grid; }
+  .no-occurrence-actions { display: grid; }
+  .no-occurrence-actions button,
+  .no-occurrence-banner > button { width: 100%; }
 }

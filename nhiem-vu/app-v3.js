@@ -1,17 +1,17 @@
 /** Ứng dụng quản lý nhiệm vụ và đánh giá KPI. */
 import { Router } from "./core/router.js";
-import { AuthService } from "./core/auth-service.js?v=20260731.V1_1_14";
-import { Permissions } from "./core/permissions.js?v=20260731.V1_1_14";
+import { AuthService } from "./core/auth-service.js?v=20260731.V1_1_18";
+import { Permissions } from "./core/permissions.js?v=20260731.V1_1_18";
 import { ToastService } from "./core/toast-service.js";
 import { FirebaseService } from "./core/firebase-service.js";
 
-import { renderDashboardView } from "./modules/dashboard/dashboard-view.js?v=20260731.V1_1_14";
-import { renderTasksView } from "./modules/tasks/tasks-view.js?v=20260731.V1_1_17";
-import { renderStandardTasksView } from "./modules/standard-tasks/standard-tasks-view.js?v=20260731.V1_1_17";
-import { renderPeriodsView } from "./modules/periods/periods-view.js?v=20260731.V1_1_17";
-import { renderPlansView } from "./modules/plans/plans-view.js?v=20260731.V1_1_17";
-import { renderEvaluationsView } from "./modules/evaluations/evaluations-view.js?v=20260731.V1_1_17";
-import { renderReportsView } from "./modules/reports/reports-view.js?v=20260731.V1_1_17";
+import { renderDashboardView } from "./modules/dashboard/dashboard-view.js?v=20260731.V1_1_18";
+import { renderTasksView } from "./modules/tasks/tasks-view.js?v=20260731.V1_1_18";
+import { renderStandardTasksView } from "./modules/standard-tasks/standard-tasks-view.js?v=20260731.V1_1_18";
+import { renderPeriodsView } from "./modules/periods/periods-view.js?v=20260731.V1_1_18";
+import { renderPlansView } from "./modules/plans/plans-view.js?v=20260731.V1_1_18";
+import { renderEvaluationsView } from "./modules/evaluations/evaluations-view.js?v=20260731.V1_1_18";
+import { renderReportsView } from "./modules/reports/reports-view.js?v=20260731.V1_1_18";
 import { renderAdminView } from "./modules/admin/admin-view.js";
 
 async function bootstrap() {
