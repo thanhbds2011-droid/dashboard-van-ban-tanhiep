@@ -1,10 +1,20 @@
 /**
  * Dịch vụ quản lý danh mục công việc chuẩn tại ứng dụng.
- * Trưởng phòng quản lý trực tiếp hoặc ủy quyền cho một nhân viên cùng Phòng/Khu.
+ * - Mã đầu việc được cấp tự động, tăng dần theo từng Phòng/Khu hoặc đoàn thể.
+ * - Trưởng phòng quản lý danh mục đơn vị mình; có thể ủy quyền cho một nhân viên.
+ * - Bí thư/Phó Bí thư Chi đoàn quản lý danh mục CDTN theo vai trò kiêm nhiệm.
  */
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260731.V1_1_13";
+import { Permissions } from "../core/permissions.js?v=20260731.V1_1_15";
+
+const SYNC_VERSION = "20260731.V1_1_17";
+const STANDARD_TASK_COLLECTION = "standardTasks";
+const SEQUENCE_COLLECTION = "standardTaskSequences";
+const VALID_COEFFICIENTS = Object.freeze([1, 1.1, 1.2]);
+const DEPARTMENT_AUDIENCES = Object.freeze(["ALL_DEPARTMENT", "MANAGEMENT"]);
+const CDTN_AUDIENCES = Object.freeze(["CDTN_SECRETARY", "CDTN_EXECUTIVE", "CDTN_MEMBER"]);
+const TRACKING_MODES = Object.freeze(["FINAL_OUTPUT", "ITEMIZED"]);
 
 function clean(value) {
   return String(value ?? "").trim();
@@ -21,6 +31,20 @@ function normalizedCode(value) {
     .replace(/Đ/g, "D")
     .replace(/[^A-Z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "");
+}
+
+function numericSuffix(value, prefix = "") {
+  const code = normalizedCode(value);
+  const normalizedPrefix = normalizedCode(prefix);
+  if (normalizedPrefix && !code.startsWith(normalizedPrefix)) return 0;
+  const match = /(\d+)$/.exec(code);
+  return match ? Number(match[1]) : 0;
+}
+
+function formatTaskCode(departmentId, numberValue) {
+  const prefix = normalizedCode(departmentId);
+  const sequence = Math.max(1, Math.trunc(Number(numberValue || 1)));
+  return `${prefix}${String(sequence).padStart(2, "0")}`;
 }
 
 function dateKey(date = new Date()) {
@@ -42,18 +66,6 @@ function delegationDocumentId(departmentId) {
   return `${upper(departmentId)}_STANDARD_TASK_EDITOR`;
 }
 
-/*
- * Document ID chuẩn là chính mã đầu việc, ví dụ TCHC29.
- * Các bản cũ từng dùng dạng TCHC_TCHC29 vẫn được đọc và chỉnh sửa bằng existingId.
- */
-function taskDocumentId(code) {
-  return normalizedCode(code);
-}
-
-function legacyTaskDocumentId(departmentId, code) {
-  return `${upper(departmentId)}_${taskDocumentId(code)}`;
-}
-
 function delegationIsActive(data, user) {
   if (!data || data.active !== true || data.delegateUserId !== user.uid) return false;
   if (upper(data.departmentId) !== upper(user.departmentId)) return false;
@@ -62,6 +74,27 @@ function delegationIsActive(data, user) {
   const start = data.startAt?.toDate?.()?.getTime?.() ?? null;
   const end = data.endAt?.toDate?.()?.getTime?.() ?? null;
   return (start === null || start <= now) && (end === null || end >= now);
+}
+
+function normalizeAudienceType(value, departmentId, legacyManagement = false) {
+  const department = upper(departmentId);
+  const requested = upper(value);
+  const allowed = department === "CDTN" ? CDTN_AUDIENCES : DEPARTMENT_AUDIENCES;
+
+  if (allowed.includes(requested)) return requested;
+  if (department === "CDTN") return legacyManagement ? "CDTN_SECRETARY" : "CDTN_MEMBER";
+  return legacyManagement ? "MANAGEMENT" : "ALL_DEPARTMENT";
+}
+
+function normalizeTrackingMode(value) {
+  const mode = upper(value || "FINAL_OUTPUT");
+  return TRACKING_MODES.includes(mode) ? mode : "FINAL_OUTPUT";
+}
+
+function canManageDepartment(user, departmentId, delegation = null) {
+  const target = upper(departmentId);
+  const delegated = delegationIsActive(delegation, user);
+  return Permissions.canManageStandardTasks(target, delegated);
 }
 
 async function queryHasDocument(collectionName, fieldName, value) {
@@ -87,6 +120,107 @@ async function taskHasHistory(task) {
   return checks.some(Boolean);
 }
 
+async function listDepartmentTasks(departmentId) {
+  const snapshot = await FirebaseService.getDocs(
+    FirebaseService.query(
+      FirebaseService.collection(FirebaseService.db, STANDARD_TASK_COLLECTION),
+      FirebaseService.where("departmentId", "==", upper(departmentId))
+    )
+  );
+  return snapshot.docs.map(item => ({ id: item.id, ...item.data() }));
+}
+
+function departmentSequenceNumbers(items, departmentId) {
+  const department = upper(departmentId);
+  return new Set(
+    (items || [])
+      .map(item => numericSuffix(item.code || item.id, department))
+      .filter(numberValue => Number.isInteger(numberValue) && numberValue > 0)
+  );
+}
+
+function smallestAvailableNumber(usedNumbers, startAt = 1) {
+  let candidate = Math.max(1, Math.trunc(Number(startAt || 1)));
+  while (usedNumbers.has(candidate)) candidate += 1;
+  return candidate;
+}
+
+async function observedSequenceState(departmentId) {
+  const department = upper(departmentId);
+  const items = await listDepartmentTasks(department);
+  const usedNumbers = departmentSequenceNumbers(items, department);
+  const nextAvailableNumber = smallestAvailableNumber(usedNumbers, 1);
+  const highestExistingNumber = usedNumbers.size ? Math.max(...usedNumbers) : 0;
+  return { items, usedNumbers, nextAvailableNumber, highestExistingNumber };
+}
+
+async function updateSequenceHint(departmentId, user) {
+  const department = upper(departmentId);
+  const state = await observedSequenceState(department);
+  const reference = FirebaseService.doc(
+    FirebaseService.db,
+    SEQUENCE_COLLECTION,
+    department
+  );
+  await FirebaseService.setDoc(reference, {
+    departmentId: department,
+    allocationMode: "LOWEST_AVAILABLE_PER_DEPARTMENT",
+    nextAvailableNumber: state.nextAvailableNumber,
+    nextAvailableCode: formatTaskCode(department, state.nextAvailableNumber),
+    highestExistingNumber: state.highestExistingNumber,
+    updatedAt: FirebaseService.serverTimestamp(),
+    updatedByUserId: user.uid,
+    updatedByName: user.fullName || ""
+  }, { merge: true });
+  return state;
+}
+
+function taskPayload({ data, user, departmentId, code, sequence, existing = false }) {
+  const workType = upper(data.workType || "THUONG_XUYEN") === "DOT_XUAT"
+    ? "DOT_XUAT"
+    : "THUONG_XUYEN";
+  const baseScore = workType === "DOT_XUAT" ? 12 : 10;
+  const difficultyCoefficient = Number(data.difficultyCoefficient || 1);
+  const audienceType = normalizeAudienceType(
+    data.audienceType,
+    departmentId,
+    data.isManagementTask === true
+  );
+  const isManagementTask = audienceType === "MANAGEMENT";
+  const isCoreTaskDefault = isManagementTask ? false : data.isCoreTaskDefault === true;
+  const maximumConvertedScore = Math.round(baseScore * difficultyCoefficient * 10) / 10;
+
+  return {
+    code,
+    name: clean(data.name),
+    departmentId,
+    frequency: clean(data.frequency),
+    workType,
+    outputRequirement: clean(data.outputRequirement),
+    mandatoryEvidence: clean(data.mandatoryEvidence),
+    arisingEvidence: clean(data.arisingEvidence),
+    trackingMode: normalizeTrackingMode(data.trackingMode),
+    baseScore,
+    difficultyCoefficient,
+    maximumConvertedScore,
+    audienceType,
+    isCoreTaskDefault,
+    isManagementTask,
+    order: Math.max(1, Math.trunc(Number(sequence || numericSuffix(code, departmentId) || 1))),
+    active: true,
+    syncSource: "WEB_APP_STANDARD_TASKS",
+    syncVersion: SYNC_VERSION,
+    updatedAt: FirebaseService.serverTimestamp(),
+    updatedByUserId: user.uid,
+    updatedByName: user.fullName || "",
+    ...(existing ? {} : {
+      createdAt: FirebaseService.serverTimestamp(),
+      createdByUserId: user.uid,
+      createdByName: user.fullName || ""
+    })
+  };
+}
+
 export const StandardTaskWriteService = Object.freeze({
   async getEditorDelegation() {
     const user = UserContext.requireUser();
@@ -107,14 +241,35 @@ export const StandardTaskWriteService = Object.freeze({
     } catch (error) {
       console.warn("Không đọc được ủy quyền nhập danh mục:", error);
     }
-    if (Permissions.isDepartmentHead(user)) {
-      return { canManage: true, isDepartmentHead: true, delegation };
+
+    const manageableDepartmentIds = [];
+    if (canManageDepartment(user, user.departmentId, delegation)) {
+      manageableDepartmentIds.push(upper(user.departmentId));
     }
+    if (Permissions.isCdtnCatalogManager(user) && !manageableDepartmentIds.includes("CDTN")) {
+      manageableDepartmentIds.push("CDTN");
+    }
+
     return {
-      canManage: Permissions.canManageStandardTasks(delegationIsActive(delegation, user)),
-      isDepartmentHead: false,
+      canManage: manageableDepartmentIds.length > 0,
+      isDepartmentHead: Permissions.isDepartmentHead(user),
+      isCdtnCatalogManager: Permissions.isCdtnCatalogManager(user),
+      manageableDepartmentIds,
       delegation
     };
+  },
+
+  async getNextCode(departmentId) {
+    const user = UserContext.requireUser();
+    const access = await this.getAccess();
+    const department = upper(departmentId || access.manageableDepartmentIds[0]);
+
+    if (!access.manageableDepartmentIds.includes(department)) {
+      throw new Error("Tài khoản không có quyền cấp mã cho danh mục này.");
+    }
+
+    const state = await observedSequenceState(department);
+    return formatTaskCode(department, state.nextAvailableNumber);
   },
 
   async listDelegationCandidates() {
@@ -203,86 +358,112 @@ export const StandardTaskWriteService = Object.freeze({
   async saveTask(data, existingId = "") {
     const user = UserContext.requireUser();
     const access = await this.getAccess();
-    if (!access.canManage) throw new Error("Tài khoản không có quyền quản lý danh mục công việc.");
+    const departmentId = upper(data.departmentId || user.departmentId);
 
-    const departmentId = upper(user.departmentId);
-    const code = taskDocumentId(data.code);
-    const name = clean(data.name);
-    const baseScore = Number(data.baseScore);
-    const difficultyCoefficient = Number(data.difficultyCoefficient);
-    const order = Number(data.order || 9999);
-    const workType = upper(data.workType || "THUONG_XUYEN") === "DOT_XUAT"
-      ? "DOT_XUAT"
-      : "THUONG_XUYEN";
-
-    if (!code || !name) throw new Error("Mã đầu việc và tên đầu việc là bắt buộc.");
-    if (!code.startsWith(departmentId)) {
-      throw new Error(`Mã đầu việc phải bắt đầu bằng mã Phòng/Khu ${departmentId}, ví dụ ${departmentId}01.`);
+    if (!access.manageableDepartmentIds.includes(departmentId)) {
+      throw new Error("Tài khoản không có quyền quản lý danh mục của Phòng/Khu hoặc đoàn thể đã chọn.");
     }
-    if (!(baseScore > 0)) throw new Error("Điểm chuẩn phải lớn hơn 0.");
-    if (![1, 1.1, 1.2].some(value => Math.abs(value - difficultyCoefficient) < 0.000001)) {
+
+    const name = clean(data.name);
+    const difficultyCoefficient = Number(data.difficultyCoefficient || 1);
+    if (!name) throw new Error("Tên đầu việc là bắt buộc.");
+    if (!clean(data.outputRequirement)) throw new Error("Hãy nhập kết quả đầu ra hoặc yêu cầu hoàn thành.");
+    if (!clean(data.frequency)) throw new Error("Hãy nhập chu kỳ hoặc tần suất thực hiện.");
+    if (!clean(data.mandatoryEvidence)) throw new Error("Hãy nhập loại minh chứng bắt buộc.");
+    if (!VALID_COEFFICIENTS.some(value => Math.abs(value - difficultyCoefficient) < 0.000001)) {
       throw new Error("Hệ số độ khó chỉ được dùng 100%, 110% hoặc 120%.");
     }
 
-    const documentId = existingId || taskDocumentId(code);
-    const reference = FirebaseService.doc(FirebaseService.db, "standardTasks", documentId);
-    if (!existingId) {
-      const [duplicate, legacyDuplicate] = await Promise.all([
-        FirebaseService.getDoc(reference),
-        FirebaseService.getDoc(
-          FirebaseService.doc(FirebaseService.db, "standardTasks", legacyTaskDocumentId(departmentId, code))
-        )
-      ]);
-      if (duplicate.exists() || legacyDuplicate.exists()) {
-        throw new Error("Mã đầu việc đã tồn tại trong Phòng/Khu.");
+    if (existingId) {
+      const reference = FirebaseService.doc(FirebaseService.db, STANDARD_TASK_COLLECTION, existingId);
+      const snapshot = await FirebaseService.getDoc(reference);
+      if (!snapshot.exists()) throw new Error("Đầu việc không còn tồn tại.");
+      const existing = snapshot.data() || {};
+      if (upper(existing.departmentId) !== departmentId) {
+        throw new Error("Không được chuyển đầu việc sang Phòng/Khu khác sau khi đã tạo.");
       }
+      const code = normalizedCode(existing.code || existingId);
+      const sequence = numericSuffix(code, departmentId) || Number(existing.order || 1);
+      await FirebaseService.setDoc(
+        reference,
+        taskPayload({ data, user, departmentId, code, sequence, existing: true }),
+        { merge: true }
+      );
+      return { documentId: existingId, code, mode: "UPDATED" };
     }
 
-    const maximumConvertedScore = Math.round(baseScore * difficultyCoefficient * 10) / 10;
-    await FirebaseService.setDoc(reference, {
-      code,
-      name,
-      departmentId,
-      frequency: clean(data.frequency),
-      workType,
-      outputRequirement: clean(data.outputRequirement),
-      mandatoryEvidence: clean(data.mandatoryEvidence),
-      arisingEvidence: clean(data.arisingEvidence),
-      baseScore,
-      difficultyCoefficient,
-      maximumConvertedScore,
-      isCoreTaskDefault: data.isCoreTaskDefault === true,
-      isManagementTask: data.isManagementTask === true,
-      order: Number.isFinite(order) && order > 0 ? Math.trunc(order) : 9999,
-      active: true,
-      syncSource: "WEB_APP_STANDARD_TASKS",
-      syncVersion: "20260731.V1_1_13",
-      updatedAt: FirebaseService.serverTimestamp(),
-      updatedByUserId: user.uid,
-      updatedByName: user.fullName || "",
-      ...(existingId ? {} : {
-        createdAt: FirebaseService.serverTimestamp(),
-        createdByUserId: user.uid,
-        createdByName: user.fullName || ""
-      })
-    }, { merge: true });
+    const observedState = await observedSequenceState(departmentId);
+    const usedNumbers = new Set(observedState.usedNumbers);
+    const firstCandidate = observedState.nextAvailableNumber;
+    const sequenceReference = FirebaseService.doc(FirebaseService.db, SEQUENCE_COLLECTION, departmentId);
 
-    return { documentId, code, mode: existingId ? "UPDATED" : "CREATED" };
+    return FirebaseService.runTransaction(FirebaseService.db, async transaction => {
+      let sequence = firstCandidate;
+      let code = "";
+      let reference = null;
+
+      /*
+       * Cấp số nhỏ nhất đang còn trống trong chính Phòng/Khu.
+       * Ví dụ TCHC01 và TCHC03 đang tồn tại thì mã mới là TCHC02.
+       * Giao dịch kiểm tra lại document để tránh hai người lưu trùng mã cùng lúc.
+       */
+      for (let attempt = 0; attempt < 500; attempt += 1) {
+        sequence = smallestAvailableNumber(usedNumbers, sequence);
+        code = formatTaskCode(departmentId, sequence);
+        reference = FirebaseService.doc(FirebaseService.db, STANDARD_TASK_COLLECTION, code);
+        const existingSnapshot = await transaction.get(reference);
+        if (!existingSnapshot.exists()) break;
+        usedNumbers.add(sequence);
+        sequence += 1;
+        reference = null;
+      }
+
+      if (!reference) {
+        throw new Error("Không thể cấp mã đầu việc mới. Hãy đồng bộ lại dữ liệu và thử lại.");
+      }
+
+      const numbersAfterCreate = new Set(usedNumbers);
+      numbersAfterCreate.add(sequence);
+      const nextAvailableNumber = smallestAvailableNumber(numbersAfterCreate, 1);
+      const highestExistingNumber = numbersAfterCreate.size
+        ? Math.max(...numbersAfterCreate)
+        : sequence;
+
+      transaction.set(sequenceReference, {
+        departmentId,
+        allocationMode: "LOWEST_AVAILABLE_PER_DEPARTMENT",
+        lastNumber: sequence,
+        lastCode: code,
+        nextAvailableNumber,
+        nextAvailableCode: formatTaskCode(departmentId, nextAvailableNumber),
+        highestExistingNumber,
+        updatedAt: FirebaseService.serverTimestamp(),
+        updatedByUserId: user.uid,
+        updatedByName: user.fullName || ""
+      }, { merge: true });
+
+      transaction.set(
+        reference,
+        taskPayload({ data, user, departmentId, code, sequence, existing: false }),
+        { merge: false }
+      );
+
+      return { documentId: code, code, mode: "CREATED" };
+    });
   },
 
   async removeTask(task) {
     const user = UserContext.requireUser();
     const access = await this.getAccess();
-    if (!access.canManage) throw new Error("Tài khoản không có quyền xóa danh mục công việc.");
-
     const taskId = clean(task?.id);
     const departmentId = upper(task?.departmentId);
+
     if (!taskId || !departmentId) throw new Error("Không xác định được đầu việc cần xóa.");
-    if (departmentId !== upper(user.departmentId)) {
-      throw new Error("Chỉ được xóa đầu việc thuộc đúng Phòng/Khu của tài khoản.");
+    if (!access.manageableDepartmentIds.includes(departmentId)) {
+      throw new Error("Tài khoản không có quyền xóa đầu việc thuộc danh mục này.");
     }
 
-    const reference = FirebaseService.doc(FirebaseService.db, "standardTasks", taskId);
+    const reference = FirebaseService.doc(FirebaseService.db, STANDARD_TASK_COLLECTION, taskId);
     const hasHistory = await taskHasHistory(task);
 
     if (hasHistory) {
@@ -299,8 +480,17 @@ export const StandardTaskWriteService = Object.freeze({
     }
 
     await FirebaseService.deleteDoc(reference);
+
+    /* Cập nhật gợi ý mã ngay sau khi xóa thật; lỗi cập nhật gợi ý không làm hỏng thao tác xóa. */
+    try {
+      await updateSequenceHint(departmentId, user);
+    } catch (error) {
+      console.warn("Đã xóa đầu việc nhưng chưa cập nhật được gợi ý mã kế tiếp:", error);
+    }
+
     return { mode: "DELETED" };
   },
 
-  todayKey: dateKey
+  todayKey: dateKey,
+  normalizeAudienceType
 });

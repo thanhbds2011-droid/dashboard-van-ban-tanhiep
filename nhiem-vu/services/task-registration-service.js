@@ -1,6 +1,6 @@
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260730.V1_1_11";
+import { Permissions } from "../core/permissions.js?v=20260731.V1_1_14";
 import { TaskLogService } from "./task-log-service.js";
 
 const clean = value => String(value ?? "").trim();
@@ -152,6 +152,7 @@ async function canCancelApprovedOwnRegistration(user, registration) {
   if (!registration || registration.userId !== user.uid) return false;
   if (upper(registration.status) !== "APPROVED" || !clean(registration.taskId)) return false;
   if (upper(registration.departmentId) !== upper(user.departmentId)) return false;
+  if (Permissions.isDirector() && upper(user.departmentId) === "BGD") return true;
   if (!Permissions.isDepartmentLeader()) return false;
   if (Permissions.isDepartmentHead(user)) return true;
 
@@ -213,6 +214,7 @@ function taskPayload(registration, reviewer, due, options = {}) {
       difficultyCoefficient: Number(registration.difficultyCoefficient || 1),
       maximumConvertedScore: Number(registration.maximumConvertedScore || 0),
       mandatoryEvidence: registration.mandatoryEvidence || "",
+      trackingMode: String(registration.trackingMode || "FINAL_OUTPUT").toUpperCase() === "ITEMIZED" ? "ITEMIZED" : "FINAL_OUTPUT",
       confirmer: reviewer.fullName || "",
       scoringVersion: "KPI_2026_V1",
       periodId: registration.periodId,
@@ -220,7 +222,11 @@ function taskPayload(registration, reviewer, due, options = {}) {
       planType: isUnexpected ? "DOT_XUAT" : "KE_HOACH",
       planApprovalStatus: "APPROVED",
       includedInA: true,
-      isCoreTask: Boolean(options.isCoreTask),
+      isCoreTask: registration.isCoreTaskDefault === true,
+      isManagementTask: registration.isManagementTask === true,
+      audienceType: registration.audienceType || "ALL_DEPARTMENT",
+      standardTaskDepartmentId: registration.standardTaskDepartmentId || registration.departmentId,
+      organizationId: registration.standardTaskDepartmentId === "CDTN" ? "CDTN" : "",
       scoringEnabled: true,
       scoringStatus: "NOT_ASSESSED",
       result: "",
@@ -363,7 +369,7 @@ export const TaskRegistrationService = Object.freeze({
     const plan = await departmentPlan(period.id, user.departmentId);
     if (plan?.locked === true) throw new Error("Đăng ký kế hoạch của Phòng/Khu đã được khóa.");
 
-    const autoApprove = Permissions.isDepartmentHead(user);
+    const autoApprove = Permissions.isDepartmentHead(user) || Permissions.isDirector();
     const batch = FirebaseService.writeBatch(FirebaseService.db);
     const registrations = [];
 
@@ -378,6 +384,10 @@ export const TaskRegistrationService = Object.freeze({
         standardTaskId: item.id || item.code,
         standardTaskCode: item.code || item.id,
         standardTaskName: item.name || "",
+        standardTaskDepartmentId: item.departmentId || user.departmentId || "",
+        audienceType: item.audienceType || (item.isManagementTask === true ? "MANAGEMENT" : "ALL_DEPARTMENT"),
+        isCoreTaskDefault: item.isCoreTaskDefault === true,
+        isManagementTask: item.isManagementTask === true,
         title: item.name || "",
         description: item.outputRequirement || "",
         departmentId: user.departmentId || "",
@@ -395,6 +405,7 @@ export const TaskRegistrationService = Object.freeze({
         difficultyCoefficient: Number(item.difficultyCoefficient || 1),
         maximumConvertedScore: Number(item.maximumConvertedScore || item.baseScore || 0),
         mandatoryEvidence: item.mandatoryEvidence || "",
+        trackingMode: String(item.trackingMode || "FINAL_OUTPUT").toUpperCase() === "ITEMIZED" ? "ITEMIZED" : "FINAL_OUTPUT",
         status: "PENDING",
         taskId: null,
         active: true,
@@ -464,7 +475,8 @@ export const TaskRegistrationService = Object.freeze({
 
     if (!candidates.length) return {};
 
-    const authorized = Permissions.isDepartmentHead(user)
+    const authorized = Permissions.isDirector()
+      || Permissions.isDepartmentHead(user)
       || (
         Permissions.isDepartmentDeputy(user) &&
         await hasDelegation(user, user.departmentId, "APPROVE_REGISTRATIONS")

@@ -195,6 +195,7 @@ export const TaskWriteService = Object.freeze({
           difficultyCoefficient: coefficient,
           maximumConvertedScore,
           mandatoryEvidence: data.mandatoryEvidence || "",
+          trackingMode: String(data.trackingMode || "FINAL_OUTPUT").toUpperCase() === "ITEMIZED" ? "ITEMIZED" : "FINAL_OUTPUT",
           confirmer: data.confirmer || user.fullName || "",
           scoringVersion: "KPI_2026_V1",
           periodId: activePeriod?.id || "",
