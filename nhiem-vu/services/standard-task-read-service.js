@@ -3,12 +3,57 @@ import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
 import { Permissions } from "../core/permissions.js";
 
+function clean(value) {
+  return String(value ?? "").trim();
+}
+
 function mapSnapshot(snapshot) {
   return snapshot.docs.map(documentSnapshot => ({ id: documentSnapshot.id, ...documentSnapshot.data() }));
 }
 
+function timestampValue(value) {
+  if (value?.toMillis) return value.toMillis();
+  if (value?.toDate) return value.toDate().getTime();
+  const parsed = Date.parse(value || "");
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+/*
+ * Một số bản cũ tạo document ID dạng TCHC_TCHC29 trong khi Google Sheet
+ * dùng TCHC29. Dedupe theo trường code để giao diện không hiển thị hai lần.
+ * Ưu tiên document có ID trùng code, sau đó ưu tiên bản cập nhật mới hơn.
+ */
+function deduplicateByCode(items = []) {
+  const map = new Map();
+
+  for (const item of items) {
+    const key = clean(item.code || item.id).toUpperCase();
+    if (!key) continue;
+
+    const existing = map.get(key);
+    if (!existing) {
+      map.set(key, item);
+      continue;
+    }
+
+    const currentExact = clean(item.id).toUpperCase() === key;
+    const existingExact = clean(existing.id).toUpperCase() === key;
+
+    if (currentExact && !existingExact) {
+      map.set(key, item);
+      continue;
+    }
+
+    if (currentExact === existingExact && timestampValue(item.updatedAt) > timestampValue(existing.updatedAt)) {
+      map.set(key, item);
+    }
+  }
+
+  return [...map.values()];
+}
+
 function normalize(items = []) {
-  return items
+  return deduplicateByCode(items)
     .filter(item => item.active !== false)
     .sort((a, b) => Number(a.order || 9999) - Number(b.order || 9999) || String(a.code || a.id).localeCompare(String(b.code || b.id), "vi"));
 }

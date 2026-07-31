@@ -4,7 +4,7 @@
  */
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260728.V1_1_4";
+import { Permissions } from "../core/permissions.js?v=20260731.V1_1_13";
 
 function clean(value) {
   return String(value ?? "").trim();
@@ -12,6 +12,15 @@ function clean(value) {
 
 function upper(value) {
   return clean(value).toUpperCase();
+}
+
+function normalizedCode(value) {
+  return upper(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/Đ/g, "D")
+    .replace(/[^A-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
 }
 
 function dateKey(date = new Date()) {
@@ -33,14 +42,16 @@ function delegationDocumentId(departmentId) {
   return `${upper(departmentId)}_STANDARD_TASK_EDITOR`;
 }
 
-function taskDocumentId(departmentId, code) {
-  const safeCode = upper(code)
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/Đ/g, "D")
-    .replace(/[^A-Z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "");
-  return `${upper(departmentId)}_${safeCode}`;
+/*
+ * Document ID chuẩn là chính mã đầu việc, ví dụ TCHC29.
+ * Các bản cũ từng dùng dạng TCHC_TCHC29 vẫn được đọc và chỉnh sửa bằng existingId.
+ */
+function taskDocumentId(code) {
+  return normalizedCode(code);
+}
+
+function legacyTaskDocumentId(departmentId, code) {
+  return `${upper(departmentId)}_${taskDocumentId(code)}`;
 }
 
 function delegationIsActive(data, user) {
@@ -51,6 +62,29 @@ function delegationIsActive(data, user) {
   const start = data.startAt?.toDate?.()?.getTime?.() ?? null;
   const end = data.endAt?.toDate?.()?.getTime?.() ?? null;
   return (start === null || start <= now) && (end === null || end >= now);
+}
+
+async function queryHasDocument(collectionName, fieldName, value) {
+  if (!clean(value)) return false;
+  const snapshot = await FirebaseService.getDocs(
+    FirebaseService.query(
+      FirebaseService.collection(FirebaseService.db, collectionName),
+      FirebaseService.where(fieldName, "==", value),
+      FirebaseService.limit(1)
+    )
+  );
+  return !snapshot.empty;
+}
+
+async function taskHasHistory(task) {
+  const id = clean(task?.id);
+  const code = upper(task?.code || task?.id);
+  const checks = await Promise.all([
+    queryHasDocument("taskRegistrations", "standardTaskId", id),
+    queryHasDocument("taskRegistrations", "standardTaskCode", code),
+    queryHasDocument("tasks", "standardTaskCode", code)
+  ]);
+  return checks.some(Boolean);
 }
 
 export const StandardTaskWriteService = Object.freeze({
@@ -168,37 +202,61 @@ export const StandardTaskWriteService = Object.freeze({
 
   async saveTask(data, existingId = "") {
     const user = UserContext.requireUser();
+    const access = await this.getAccess();
+    if (!access.canManage) throw new Error("Tài khoản không có quyền quản lý danh mục công việc.");
+
     const departmentId = upper(user.departmentId);
-    const code = upper(data.code);
+    const code = taskDocumentId(data.code);
     const name = clean(data.name);
     const baseScore = Number(data.baseScore);
     const difficultyCoefficient = Number(data.difficultyCoefficient);
     const order = Number(data.order || 9999);
+    const workType = upper(data.workType || "THUONG_XUYEN") === "DOT_XUAT"
+      ? "DOT_XUAT"
+      : "THUONG_XUYEN";
 
     if (!code || !name) throw new Error("Mã đầu việc và tên đầu việc là bắt buộc.");
+    if (!code.startsWith(departmentId)) {
+      throw new Error(`Mã đầu việc phải bắt đầu bằng mã Phòng/Khu ${departmentId}, ví dụ ${departmentId}01.`);
+    }
     if (!(baseScore > 0)) throw new Error("Điểm chuẩn phải lớn hơn 0.");
-    if (!(difficultyCoefficient > 0)) throw new Error("Hệ số khó phải lớn hơn 0.");
-
-    const documentId = existingId || taskDocumentId(departmentId, code);
-    const reference = FirebaseService.doc(FirebaseService.db, "standardTasks", documentId);
-    if (!existingId) {
-      const duplicate = await FirebaseService.getDoc(reference);
-      if (duplicate.exists()) throw new Error("Mã đầu việc đã tồn tại trong Phòng/Khu.");
+    if (![1, 1.1, 1.2].some(value => Math.abs(value - difficultyCoefficient) < 0.000001)) {
+      throw new Error("Hệ số độ khó chỉ được dùng 100%, 110% hoặc 120%.");
     }
 
-    const maximumConvertedScore = Math.round(baseScore * difficultyCoefficient * 100) / 100;
+    const documentId = existingId || taskDocumentId(code);
+    const reference = FirebaseService.doc(FirebaseService.db, "standardTasks", documentId);
+    if (!existingId) {
+      const [duplicate, legacyDuplicate] = await Promise.all([
+        FirebaseService.getDoc(reference),
+        FirebaseService.getDoc(
+          FirebaseService.doc(FirebaseService.db, "standardTasks", legacyTaskDocumentId(departmentId, code))
+        )
+      ]);
+      if (duplicate.exists() || legacyDuplicate.exists()) {
+        throw new Error("Mã đầu việc đã tồn tại trong Phòng/Khu.");
+      }
+    }
+
+    const maximumConvertedScore = Math.round(baseScore * difficultyCoefficient * 10) / 10;
     await FirebaseService.setDoc(reference, {
       code,
       name,
       departmentId,
-      workType: upper(data.workType || "THUONG_XUYEN"),
+      frequency: clean(data.frequency),
+      workType,
       outputRequirement: clean(data.outputRequirement),
       mandatoryEvidence: clean(data.mandatoryEvidence),
+      arisingEvidence: clean(data.arisingEvidence),
       baseScore,
       difficultyCoefficient,
       maximumConvertedScore,
-      order: Number.isFinite(order) ? order : 9999,
-      active: data.active !== false,
+      isCoreTaskDefault: data.isCoreTaskDefault === true,
+      isManagementTask: data.isManagementTask === true,
+      order: Number.isFinite(order) && order > 0 ? Math.trunc(order) : 9999,
+      active: true,
+      syncSource: "WEB_APP_STANDARD_TASKS",
+      syncVersion: "20260731.V1_1_13",
       updatedAt: FirebaseService.serverTimestamp(),
       updatedByUserId: user.uid,
       updatedByName: user.fullName || "",
@@ -209,24 +267,39 @@ export const StandardTaskWriteService = Object.freeze({
       })
     }, { merge: true });
 
-    return documentId;
+    return { documentId, code, mode: existingId ? "UPDATED" : "CREATED" };
   },
 
-  async deactivateTask(taskId) {
+  async removeTask(task) {
     const user = UserContext.requireUser();
-    if (!clean(taskId)) throw new Error("Không xác định được đầu việc cần ngừng sử dụng.");
-    await FirebaseService.updateDoc(
-      FirebaseService.doc(FirebaseService.db, "standardTasks", taskId),
-      {
+    const access = await this.getAccess();
+    if (!access.canManage) throw new Error("Tài khoản không có quyền xóa danh mục công việc.");
+
+    const taskId = clean(task?.id);
+    const departmentId = upper(task?.departmentId);
+    if (!taskId || !departmentId) throw new Error("Không xác định được đầu việc cần xóa.");
+    if (departmentId !== upper(user.departmentId)) {
+      throw new Error("Chỉ được xóa đầu việc thuộc đúng Phòng/Khu của tài khoản.");
+    }
+
+    const reference = FirebaseService.doc(FirebaseService.db, "standardTasks", taskId);
+    const hasHistory = await taskHasHistory(task);
+
+    if (hasHistory) {
+      await FirebaseService.updateDoc(reference, {
         active: false,
-        deactivatedAt: FirebaseService.serverTimestamp(),
-        deactivatedByUserId: user.uid,
-        deactivatedByName: user.fullName || "",
+        removedFromCatalogAt: FirebaseService.serverTimestamp(),
+        removedFromCatalogByUserId: user.uid,
+        removedFromCatalogByName: user.fullName || "",
         updatedAt: FirebaseService.serverTimestamp(),
         updatedByUserId: user.uid,
         updatedByName: user.fullName || ""
-      }
-    );
+      });
+      return { mode: "ARCHIVED" };
+    }
+
+    await FirebaseService.deleteDoc(reference);
+    return { mode: "DELETED" };
   },
 
   todayKey: dateKey
