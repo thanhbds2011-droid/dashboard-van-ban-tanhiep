@@ -3,7 +3,8 @@ import {
   addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, onSnapshot, query,
   serverTimestamp, setDoc, Timestamp, updateDoc, where
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
-import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260731.V1_1_14';
+import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260731.V1_1_17';
+import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260731.V1_1_17';
 import { Permissions } from '../../core/permissions.js?v=20260731.V1_1_14';
 import {
   KPI2B as KPI2C, COMMON_CRITERIA, calculateTaskScore, calculateKpiSummary,
@@ -786,7 +787,7 @@ function renderPlanDashboard(){
   target.innerHTML=`<div class="kpi-table-wrap"><table class="kpi-table"><thead><tr><th>STT</th><th>Họ và tên</th><th>Đầu việc đăng ký</th><th>Tổng điểm</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>${people.map((u,i)=>{const regs=regsForPerson(u.id),tasks=rowsForPerson(u.id),approved=tasks.filter(t=>t.includedInA===true),score=approved.reduce((a,t)=>a+Number(t.maximumConvertedScore||0),0),pending=regs.filter(r=>r.status==='PENDING').length;return `<tr><td>${i+1}</td><td><strong>${esc(u.fullName||u.email||u.id)}</strong><br><span class="kpi-small">${esc(u.position||'')}</span></td><td>${regs.length||tasks.length}</td><td>${fmt(score)}</td><td><span class="kpi-status">${pending?`${pending} chờ duyệt`:'Đã cập nhật'}</span></td><td><button class="kpi-button secondary" data-person-detail="${esc(u.id)}">Chi tiết</button></td></tr>`;}).join('')}</tbody></table></div>`;
   target.querySelectorAll('[data-person-detail]').forEach(b=>b.addEventListener('click',()=>openPersonPlanDetail(b.dataset.personDetail)));
   const completed = KpiWorkflowState.tasks.filter(taskForCurrentUser).filter(t => ['HOAN_THANH','COMPLETED','DA_HOAN_THANH'].includes(clean(t.status).toUpperCase()) || t.completedAt);
-  target.insertAdjacentHTML('beforeend', `<div class="kpi-subsection"><h3>Đánh giá nhiệm vụ đã hoàn thành</h3><p class="kpi-small">Tiến độ được xác định theo thời hạn nhiệm vụ; người thực hiện tự đánh giá kết quả và cấp có thẩm quyền xác nhận.</p>${completed.length ? `<div class="kpi-table-wrap"><table class="kpi-table"><thead><tr><th>Nhiệm vụ</th><th>Người thực hiện</th><th>Tiến độ tự động</th><th>Chất lượng</th><th>Điểm thực hiện</th><th>Điểm quy đổi thực tế</th><th>Thao tác</th></tr></thead><tbody>${completed.map(t=>{const ev=evaluationFor(t.id)||{};const applied=evaluationScoreSnapshot(ev);const progress=progressRateFromDates(t.deadline||t.dueDate,t.completedAt,true);const own=t.ownerUserId===KpiWorkflowState.user.uid;const locked=ev.status==='CONFIRMED'||ev.scoreLocked===true;return `<tr><td><strong>${esc(t.taskCode||'')}</strong><br>${esc(t.title||'')}</td><td>${esc(t.ownerName||'')}</td><td>${progress}%</td><td>${ev.confirmedResultRate??ev.selfResultRate??'—'}%</td><td>${applied.hasScore?fmt(applied.executionScore):'—'}</td><td><strong>${applied.hasScore?fmt(applied.convertedActualScore):'—'}</strong></td><td>${own?(locked?'Đã xác nhận':`<button class="kpi-button" data-kpi-self="${t.id}">${ev.id?'Cập nhật đề xuất':'Tự đánh giá'}</button>`):canReviewEvaluation(ev,t)?`<button class="kpi-button" data-kpi-review="${ev?.id||''}">Xác nhận</button>`:'Chỉ xem'}</td></tr>`;}).join('')}</tbody></table></div>`:'<div class="kpi-empty">Chưa có nhiệm vụ hoàn thành để đánh giá.</div>'}</div>`);
+  target.insertAdjacentHTML('beforeend', `<div class="kpi-subsection"><h3>Đánh giá nhiệm vụ đã hoàn thành</h3><p class="kpi-small">Tiến độ được xác định theo thời hạn nhiệm vụ; người thực hiện tự đánh giá kết quả và cấp có thẩm quyền xác nhận.</p>${completed.length ? `<div class="kpi-table-wrap"><table class="kpi-table"><thead><tr><th>Nhiệm vụ</th><th>Người thực hiện</th><th>Tiến độ áp dụng</th><th>Chất lượng</th><th>Điểm thực hiện</th><th>Điểm quy đổi thực tế</th><th>Thao tác</th></tr></thead><tbody>${completed.map(t=>{const ev=evaluationFor(t.id)||{};const applied=evaluationScoreSnapshot(ev);const progress=ev.confirmedProgressRate??ev.selfProgressRate??progressRateFromDates(t.deadline||t.dueDate,t.completedAt,true);const own=t.ownerUserId===KpiWorkflowState.user.uid;const locked=ev.status==='CONFIRMED'||ev.scoreLocked===true;return `<tr><td><strong>${esc(t.taskCode||'')}</strong><br>${esc(t.title||'')}</td><td>${esc(t.ownerName||'')}</td><td>${progress}%</td><td>${ev.confirmedResultRate??ev.selfResultRate??'—'}%</td><td>${applied.hasScore?fmt(applied.executionScore):'—'}</td><td><strong>${applied.hasScore?fmt(applied.convertedActualScore):'—'}</strong></td><td>${own?(locked?'Đã xác nhận':`<button class="kpi-button" data-kpi-self="${t.id}">${ev.id?'Cập nhật đề xuất':'Tự đánh giá'}</button>`):canReviewEvaluation(ev,t)?`<button class="kpi-button" data-kpi-review="${ev?.id||''}">Xác nhận</button>`:'Chỉ xem'}</td></tr>`;}).join('')}</tbody></table></div>`:'<div class="kpi-empty">Chưa có nhiệm vụ hoàn thành để đánh giá.</div>'}</div>`);
   target.querySelectorAll('[data-kpi-self]').forEach(b=>b.addEventListener('click',()=>openSelfAssessment(b.dataset.kpiSelf)));
   target.querySelectorAll('[data-kpi-review]').forEach(b=>b.addEventListener('click',()=>openReview(b.dataset.kpiReview)));
 }
@@ -1133,18 +1134,57 @@ function scoreBreakdownHtml(task, score, options = {}) {
   </div>`;
 }
 
-function openSelfAssessment(taskId) {
+async function openSelfAssessment(taskId) {
   const task = KpiWorkflowState.tasks.find(t=>t.id===taskId); if (!task) return;
   const ev = evaluationFor(taskId) || {};
   if (ev.status === 'CONFIRMED' || ev.scoreLocked === true) {
     alert('Kết quả nhiệm vụ đã được xác nhận và không thể chỉnh sửa.');
     return;
   }
+
+  const itemized = String(task.trackingMode || 'FINAL_OUTPUT').toUpperCase() === 'ITEMIZED';
+  let workItems = [];
+  let workSummary = null;
+  if (itemized) {
+    try {
+      workItems = await TaskWorkItemService.list(task.id);
+      workSummary = TaskWorkItemService.calculateSummary(workItems);
+    } catch (error) {
+      alert(error?.message || 'Không đọc được các công việc phát sinh trong kỳ.');
+      return;
+    }
+    if (!workSummary.count) {
+      alert('Đầu việc này theo dõi theo từng lượt nhưng chưa có công việc phát sinh. Hãy vào Nhiệm vụ → Chi tiết → Công việc phát sinh trong kỳ để cập nhật trước khi tự đánh giá.');
+      return;
+    }
+    if (!workSummary.readyForAssessment) {
+      alert(`Còn ${workSummary.count - workSummary.completedCount} lượt công việc chưa có ngày hoàn thành. Hãy cập nhật đầy đủ trước khi tự đánh giá.`);
+      return;
+    }
+  }
+
   const rates = [100,80,60,0];
+  const initialProgress = itemized
+    ? Number(workSummary.appliedProgressRate)
+    : Number(ev.selfProgressRate ?? 100);
+  const initialResult = itemized
+    ? Number(workSummary.appliedResultRate)
+    : Number(ev.selfResultRate ?? 100);
+  const workSummaryHtml = itemized ? `<div class="kpi-field full"><div class="kpi-work-item-evaluation-summary">
+    <div><span>Tổng lượt ghi nhận (N)</span><strong>${workSummary.count}</strong></div>
+    <div><span>Đã hoàn thành</span><strong>${workSummary.completedCount}/${workSummary.count}</strong></div>
+    <div><span>Đúng hạn (T)</span><strong>${workSummary.onTimeCount}/${workSummary.count}</strong></div>
+    <div><span>Đạt yêu cầu (K)</span><strong>${workSummary.qualifiedCount}/${workSummary.count}</strong></div>
+    <div><span>Tiến độ thực tế</span><strong>${fmt(workSummary.actualProgressRate)}%</strong></div>
+    <div><span>Kết quả thực tế</span><strong>${fmt(workSummary.actualResultRate)}%</strong></div>
+    <div class="is-applied"><span>Quy đổi theo thang KPI</span><strong>${workSummary.appliedProgressRate}% tiến độ · ${workSummary.appliedResultRate}% kết quả</strong></div>
+  </div><p class="kpi-small">Tỷ lệ thực tế được tổng hợp từ từng lượt công việc; điểm vẫn tính theo đúng các mức KPI 100% – 80% – 60% – 0%.</p></div>` : '';
+
   const node = modal('Tự đánh giá nhiệm vụ', `<form id="kpiSelfForm" class="kpi-form-grid">
-    <div class="kpi-field full"><strong>${esc(task.taskCode || '')} — ${esc(task.title)}</strong><span>Điểm tối đa: ${fmt(task.maximumConvertedScore)} · Minh chứng bắt buộc: ${esc(task.standardTaskMandatoryEvidence || 'Theo nhiệm vụ')}</span></div>
-    <div class="kpi-field"><label>Tiến độ tự chấm</label><select id="kpiSelfProgress">${rates.map(r=>`<option value="${r}" ${Number(ev.selfProgressRate??100)===r?'selected':''}>${r}%</option>`).join('')}</select></div>
-    <div class="kpi-field"><label>Kết quả tự chấm</label><select id="kpiSelfResult">${rates.map(r=>`<option value="${r}" ${Number(ev.selfResultRate??100)===r?'selected':''}>${r}%</option>`).join('')}</select></div>
+    <div class="kpi-field full"><strong>${esc(task.taskCode || '')} — ${esc(task.title)}</strong><span>Điểm tối đa: ${fmt(task.maximumConvertedScore)} · Minh chứng bắt buộc: ${esc(task.standardTaskMandatoryEvidence || task.mandatoryEvidence || 'Theo nhiệm vụ')}</span></div>
+    ${workSummaryHtml}
+    <div class="kpi-field"><label>Tiến độ tự chấm</label><select id="kpiSelfProgress" ${itemized?'disabled':''}>${rates.map(r=>`<option value="${r}" ${initialProgress===r?'selected':''}>${r}%</option>`).join('')}</select>${itemized?'<small>Tự động quy đổi từ công việc phát sinh.</small>':''}</div>
+    <div class="kpi-field"><label>Kết quả tự chấm</label><select id="kpiSelfResult" ${itemized?'disabled':''}>${rates.map(r=>`<option value="${r}" ${initialResult===r?'selected':''}>${r}%</option>`).join('')}</select>${itemized?'<small>Tự động quy đổi từ công việc phát sinh.</small>':''}</div>
     <div class="kpi-field full"><label>Nhận xét kết quả, thành tích và hạn chế</label><textarea id="kpiSelfComment" rows="5" required>${esc(ev.selfComment || '')}</textarea></div>
     <div class="kpi-field full"><label class="kpi-checkbox-line"><input id="kpiExceeded" type="checkbox" ${ev.isExceededRequirement===true?'checked':''}> Đề nghị ghi nhận hoàn thành vượt mức yêu cầu</label><textarea id="kpiExceededText" rows="3" placeholder="Nêu rõ sản phẩm, khối lượng, chất lượng hoặc giá trị bổ sung...">${esc(ev.exceededRequirementDescription || '')}</textarea></div>
     <div class="kpi-field full"><div id="kpiSelfScore"></div></div>
@@ -1160,18 +1200,19 @@ function openSelfAssessment(taskId) {
     if(exceeded && !exceededText){alert('Vui lòng nêu căn cứ vượt mức yêu cầu.');return;}
     await setDoc(doc(db,'taskEvaluations',`${KpiWorkflowState.period.id}_${task.id}`),{
       periodId:KpiWorkflowState.period.id, taskId:task.id, taskCode:task.taskCode||'', ownerUserId:KpiWorkflowState.user.uid, ownerName:KpiWorkflowState.profile.fullName||'', ownerRole:KpiWorkflowState.profile.role||'', departmentId:KpiWorkflowState.profile.departmentId||'',
+      trackingMode:itemized?'ITEMIZED':'FINAL_OUTPUT', actualWorkItemCount:itemized?workSummary.count:null, actualCompletedCount:itemized?workSummary.completedCount:null, actualOnTimeCount:itemized?workSummary.onTimeCount:null, actualQualifiedCount:itemized?workSummary.qualifiedCount:null, actualProgressRate:itemized?workSummary.actualProgressRate:null, actualResultRate:itemized?workSummary.actualResultRate:null,
       selfProgressRate:progress,selfResultRate:result,selfExecutionScore:score.execution,selfActualScore:score.actual,selfComment:comment,
-      confirmedProgressRate:null,confirmedResultRate:null,confirmedActualScore:null,reviewerEmail:reviewer.email,reviewerUserId:reviewer.uid,reviewerName:reviewer.name,
+      confirmedProgressRate:null,confirmedResultRate:null,confirmedExecutionScore:null,confirmedActualScore:null,reviewerEmail:reviewer.email,reviewerUserId:reviewer.uid,reviewerName:reviewer.name,
       isExceededRequirement:exceeded,exceededRequirementDescription:exceededText,status:'PENDING_REVIEW',formulaVersion:'KPI_2026_PHU_LUC_4_V2',updatedAt:serverTimestamp(),createdAt:ev.createdAt||serverTimestamp()
     },{merge:true});
-    await audit('SUBMIT_SELF_ASSESSMENT',{taskId, selfExecutionScore:score.execution, selfActualScore:score.actual}); closeModal(); await loadAll();
+    await audit('SUBMIT_SELF_ASSESSMENT',{taskId, trackingMode:itemized?'ITEMIZED':'FINAL_OUTPUT', actualWorkItemCount:itemized?workSummary.count:null, selfExecutionScore:score.execution, selfActualScore:score.actual}); closeModal(); await loadAll();
   });
 }
 
 function openReview(evalId) {
   const ev=KpiWorkflowState.evaluations.find(e=>e.id===evalId); const task=KpiWorkflowState.tasks.find(t=>t.id===ev?.taskId); if(!ev||!task||!canReviewEvaluation(ev,task))return;
   const rates=[100,80,60,0];
-  modal('Xác nhận điểm nhiệm vụ', `<form class="kpi-form-grid"><div class="kpi-field full"><strong>${esc(task.ownerName)} · ${esc(task.title)}</strong><span>Tự chấm: tiến độ ${ev.selfProgressRate}%, kết quả ${ev.selfResultRate}%, điểm thực hiện ${fmt(ev.selfExecutionScore)}, điểm quy đổi thực tế ${fmt(ev.selfActualScore)}</span></div>
+  modal('Xác nhận điểm nhiệm vụ', `<form class="kpi-form-grid"><div class="kpi-field full"><strong>${esc(task.ownerName)} · ${esc(task.title)}</strong><span>Tự chấm: tiến độ ${ev.selfProgressRate}%, kết quả ${ev.selfResultRate}%, điểm thực hiện ${fmt(ev.selfExecutionScore)}, điểm quy đổi thực tế ${fmt(ev.selfActualScore)}</span>${ev.trackingMode==='ITEMIZED'?`<small>Thực tế: ${ev.actualWorkItemCount||0} lượt · Tiến độ ${fmt(ev.actualProgressRate)}% · Kết quả ${fmt(ev.actualResultRate)}% · Đã quy đổi theo thang KPI.</small>`:''}</div>
     <div class="kpi-field"><label>Tiến độ xác nhận</label><select id="kpiConfirmProgress">${rates.map(r=>`<option value="${r}" ${Number(ev.confirmedProgressRate??ev.selfProgressRate)===r?'selected':''}>${r}%</option>`).join('')}</select></div>
     <div class="kpi-field"><label>Kết quả xác nhận</label><select id="kpiConfirmResult">${rates.map(r=>`<option value="${r}" ${Number(ev.confirmedResultRate??ev.selfResultRate)===r?'selected':''}>${r}%</option>`).join('')}</select></div>
     <div class="kpi-field full"><label>Nhận xét/căn cứ</label><textarea id="kpiReviewerComment" rows="4">${esc(ev.reviewerComment||'')}</textarea></div>
