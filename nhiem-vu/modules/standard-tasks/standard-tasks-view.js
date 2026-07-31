@@ -1,14 +1,15 @@
 import { UserContext } from "../../core/user-context.js";
-import { Permissions } from "../../core/permissions.js?v=20260731.V1_1_13";
+import { Permissions } from "../../core/permissions.js?v=20260731.V1_1_14";
 import { ToastService } from "../../core/toast-service.js";
-import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260731.V1_1_13";
-import { PeriodReadService } from "../../services/period-read-service.js?v=20260731.V1_1_13";
-import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260731.V1_1_13";
-import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260731.V1_1_13";
+import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260731.V1_1_14";
+import { PeriodReadService } from "../../services/period-read-service.js?v=20260731.V1_1_14";
+import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260731.V1_1_17";
+import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260731.V1_1_17";
 
 let stopStandardRealtime = () => {};
 let standardRealtimeTimer = null;
 let standardRouteCleanupBound = false;
+let currentCatalogAccess = { canManage: false, manageableDepartmentIds: [] };
 
 function bindStandardRouteCleanup() {
   if (standardRouteCleanupBound) return;
@@ -70,6 +71,7 @@ export async function renderStandardTasksView(outlet) {
     ]);
 
     const plan = period ? await TaskRegistrationService.getDepartmentPlan(period.id) : null;
+    currentCatalogAccess = catalogAccess || { canManage: false, manageableDepartmentIds: [] };
     const catalogItems = items;
     const registrationMode = Permissions.canRegisterStandardTasks();
     const registrations = registrationMode && period
@@ -321,7 +323,7 @@ function renderAvailableTask(item, registrationOpen, canManageCatalog) {
     <div class="data-row-main">
       <strong>${escapeHtml(item.code || item.id)} — ${escapeHtml(item.name || "")}</strong>
       <small>${escapeHtml(item.outputRequirement || "")}</small>
-      <div class="standard-task-tags">${workTypeBadge(item)}${item.frequency ? `<span class="status-pill neutral">${escapeHtml(item.frequency)}</span>` : ""}</div>
+      <div class="standard-task-tags">${workTypeBadge(item)}${trackingModeBadge(item)}${classificationBadge(item)}${audienceBadge(item)}${item.frequency ? `<span class="status-pill neutral">${escapeHtml(item.frequency)}</span>` : ""}</div>
     </div>
     <div class="data-row-meta">
       <span class="status-pill neutral">Chưa đăng ký</span>
@@ -358,7 +360,7 @@ function renderRegisteredTask(item, registration, registrationOpen, canManageCat
     <div class="data-row-main">
       <strong>${escapeHtml(item.code || item.id)} — ${escapeHtml(item.name || "")}</strong>
       <small>${escapeHtml(item.outputRequirement || "")}</small>
-      <div class="standard-task-tags">${workTypeBadge(item)}${item.frequency ? `<span class="status-pill neutral">${escapeHtml(item.frequency)}</span>` : ""}</div>
+      <div class="standard-task-tags">${workTypeBadge(item)}${trackingModeBadge(item)}${classificationBadge(item)}${audienceBadge(item)}${item.frequency ? `<span class="status-pill neutral">${escapeHtml(item.frequency)}</span>` : ""}</div>
       ${registration?.rejectionReason ? `<small class="text-danger">Lý do trả lại: ${escapeHtml(registration.rejectionReason)}</small>` : ""}
     </div>
     <div class="data-row-meta">
@@ -378,7 +380,7 @@ function renderCatalogList(items, canManageCatalog) {
     <div class="data-row-main">
       <strong>${escapeHtml(item.code || item.id)} — ${escapeHtml(item.name || "")}</strong>
       <small>${escapeHtml(item.outputRequirement || "")}</small>
-      <div class="standard-task-tags">${workTypeBadge(item)}${item.frequency ? `<span class="status-pill neutral">${escapeHtml(item.frequency)}</span>` : ""}</div>
+      <div class="standard-task-tags">${workTypeBadge(item)}${trackingModeBadge(item)}${classificationBadge(item)}${audienceBadge(item)}${item.frequency ? `<span class="status-pill neutral">${escapeHtml(item.frequency)}</span>` : ""}</div>
     </div>
     <div class="data-row-meta">
       <small>Điểm tối đa: ${formatNumber(item.maximumConvertedScore || 0)}</small>
@@ -388,7 +390,8 @@ function renderCatalogList(items, canManageCatalog) {
 }
 
 function catalogActionButtons(item, canManageCatalog) {
-  if (!canManageCatalog) return "";
+  const allowedDepartments = currentCatalogAccess?.manageableDepartmentIds || [];
+  if (!canManageCatalog || !allowedDepartments.includes(String(item?.departmentId || "").toUpperCase())) return "";
   return `<div class="catalog-row-actions">
     <button class="catalog-edit-button" type="button" data-edit-standard-task="${escapeHtml(item.id)}">Sửa</button>
     <button class="catalog-delete-button" type="button" data-delete-standard-task="${escapeHtml(item.id)}">Xóa</button>
@@ -423,23 +426,66 @@ async function confirmAndRemoveStandardTask(item, button = null, modalRoot = nul
   }
 }
 
-function openTaskEditor(item) {
+async function openTaskEditor(item) {
   const editing = Boolean(item?.id);
+  const manageableDepartmentIds = Array.isArray(currentCatalogAccess?.manageableDepartmentIds)
+    ? currentCatalogAccess.manageableDepartmentIds
+    : [];
+  const initialDepartmentId = String(
+    item?.departmentId || manageableDepartmentIds[0] || UserContext.getUser()?.departmentId || ""
+  ).toUpperCase();
+
+  if (!initialDepartmentId) {
+    ToastService.error("Không xác định được danh mục Phòng/Khu được phép cập nhật.");
+    return;
+  }
+
+  let previewCode = item?.code || item?.id || "";
+  if (!editing) {
+    try {
+      previewCode = await StandardTaskWriteService.getNextCode(initialDepartmentId);
+    } catch (error) {
+      ToastService.error(error.message || "Không xác định được mã đầu việc tiếp theo.");
+      return;
+    }
+  }
+
   const currentWorkType = String(item?.workType || "THUONG_XUYEN").toUpperCase() === "DOT_XUAT"
     ? "DOT_XUAT"
     : "THUONG_XUYEN";
+  const currentTrackingMode = String(item?.trackingMode || "FINAL_OUTPUT").toUpperCase() === "ITEMIZED"
+    ? "ITEMIZED"
+    : "FINAL_OUTPUT";
+  const currentAudience = String(
+    item?.audienceType || (item?.isManagementTask === true ? "MANAGEMENT" : initialDepartmentId === "CDTN" ? "CDTN_MEMBER" : "ALL_DEPARTMENT")
+  ).toUpperCase();
+  const currentCore = item?.isCoreTaskDefault === true;
+  const currentManagement = currentAudience === "MANAGEMENT";
+
+  const departmentOptions = manageableDepartmentIds
+    .map(departmentId => `<option value="${escapeHtml(departmentId)}" ${departmentId === initialDepartmentId ? "selected" : ""}>${escapeHtml(departmentName(departmentId))}</option>`)
+    .join("");
+  const departmentField = editing || manageableDepartmentIds.length <= 1
+    ? `<label class="kpi-field"><span>Danh mục áp dụng</span><input id="catalogTaskDepartmentDisplay" value="${escapeHtml(departmentName(initialDepartmentId))}" disabled><input id="catalogTaskDepartment" type="hidden" value="${escapeHtml(initialDepartmentId)}"></label>`
+    : `<label class="kpi-field"><span>Danh mục áp dụng</span><select id="catalogTaskDepartment">${departmentOptions}</select></label>`;
+
   const root = openStandardModal(
     editing ? "Cập nhật đầu việc chuẩn" : "Thêm đầu việc chuẩn",
     `<div class="standard-task-editor-intro">
-      <strong>${editing ? "Cập nhật trực tiếp trên hệ thống" : "Tạo đầu việc mới cho Phòng/Khu"}</strong>
-      <span>Dữ liệu được lưu vào Firestore. Google Sheet có thể nhận lại bằng chức năng đồng bộ từ Firestore hoặc lịch đồng bộ tự động.</span>
+      <strong>${editing ? "Cập nhật trực tiếp trên hệ thống" : "Tạo đầu việc mới và cấp mã tự động"}</strong>
+      <span>Mã đầu việc lấy số còn trống nhỏ nhất trong đúng Phòng/Khu. Ví dụ đã có TCHC01 và TCHC03 thì mã tiếp theo là TCHC02; các đơn vị có dãy số độc lập.</span>
     </div>
     <div class="kpi-form-grid standard-task-editor-form">
-      <label class="kpi-field"><span>Mã đầu việc</span><input id="catalogTaskCode" value="${escapeHtml(item?.code || "")}" ${editing ? "disabled" : ""} placeholder="Ví dụ: TCHC29"></label>
+      ${departmentField}
+      <label class="kpi-field"><span>Mã đầu việc</span><div class="standard-task-code-box"><input id="catalogTaskCode" value="${escapeHtml(previewCode)}" readonly autocomplete="off" spellcheck="false" aria-readonly="true"><small>Tự động tăng dần; không nhập thủ công.</small></div></label>
       <label class="kpi-field"><span>Tính chất</span><select id="catalogTaskWorkType"><option value="THUONG_XUYEN" ${currentWorkType === "THUONG_XUYEN" ? "selected" : ""}>Thường xuyên</option><option value="DOT_XUAT" ${currentWorkType === "DOT_XUAT" ? "selected" : ""}>Đột xuất</option></select></label>
       <label class="kpi-field full"><span>Tên đầu việc</span><input id="catalogTaskName" value="${escapeHtml(item?.name || "")}" placeholder="Nhập tên đầu việc"></label>
       <label class="kpi-field full"><span>Kết quả đầu ra/Yêu cầu hoàn thành</span><textarea id="catalogTaskOutput" rows="3" placeholder="Nêu sản phẩm hoặc kết quả phải đạt">${escapeHtml(item?.outputRequirement || "")}</textarea></label>
       <label class="kpi-field full"><span>Chu kỳ/Tần suất</span><input id="catalogTaskFrequency" value="${escapeHtml(item?.frequency || "")}" placeholder="Ví dụ: Theo tháng, theo hồ sơ, khi phát sinh"></label>
+      <label class="kpi-field full"><span>Cách theo dõi trong kỳ</span><select id="catalogTaskTrackingMode">
+        <option value="FINAL_OUTPUT" ${currentTrackingMode === "FINAL_OUTPUT" ? "selected" : ""}>Theo sản phẩm/kết quả cuối cùng</option>
+        <option value="ITEMIZED" ${currentTrackingMode === "ITEMIZED" ? "selected" : ""}>Theo từng lượt công việc phát sinh</option>
+      </select><small class="field-help">Chọn “Theo từng lượt” cho văn bản, hồ sơ, hoạt động phát sinh nhiều lần trong kỳ. Chọn “Theo sản phẩm cuối cùng” cho báo cáo, đề án hoặc nhiệm vụ chỉ cần nghiệm thu kết quả cuối kỳ.</small></label>
       <label class="kpi-field full"><span>Minh chứng bắt buộc</span><textarea id="catalogTaskEvidence" rows="2" placeholder="Nêu loại hồ sơ, báo cáo hoặc tài liệu bắt buộc">${escapeHtml(item?.mandatoryEvidence || "")}</textarea></label>
       <label class="kpi-field full"><span>Minh chứng phát sinh</span><textarea id="catalogTaskArisingEvidence" rows="2" placeholder="Không bắt buộc; chỉ nhập khi có loại minh chứng phát sinh">${escapeHtml(item?.arisingEvidence || "")}</textarea></label>
       <label class="kpi-field"><span>Điểm chuẩn</span><input id="catalogTaskBaseScore" type="number" value="${escapeHtml(item?.baseScore ?? (currentWorkType === "DOT_XUAT" ? 12 : 10))}" readonly></label>
@@ -448,13 +494,26 @@ function openTaskEditor(item) {
         <option value="1.1" ${Math.abs(Number(item?.difficultyCoefficient ?? 1) - 1.1) < 0.000001 ? "selected" : ""}>110%</option>
         <option value="1.2" ${Math.abs(Number(item?.difficultyCoefficient ?? 1) - 1.2) < 0.000001 ? "selected" : ""}>120%</option>
       </select></label>
-      <label class="kpi-field"><span>Thứ tự hiển thị</span><input id="catalogTaskOrder" type="number" min="1" step="1" value="${escapeHtml(item?.order ?? 9999)}"></label>
       <div class="kpi-field standard-task-score-preview"><span>Điểm tối đa</span><strong id="catalogTaskMaximum">${formatNumber(Number(item?.baseScore || (currentWorkType === "DOT_XUAT" ? 12 : 10)) * Number(item?.difficultyCoefficient || 1))}</strong></div>
-      <label class="standard-task-check"><input id="catalogTaskCore" type="checkbox" ${item?.isCoreTaskDefault === true ? "checked" : ""}><span>Đầu việc cốt lõi</span></label>
-      <label class="standard-task-check"><input id="catalogTaskManagement" type="checkbox" ${item?.isManagementTask === true ? "checked" : ""}><span>Dành cho lãnh đạo, quản lý</span></label>
+      <div id="catalogDepartmentAudience" class="standard-task-audience-grid full">
+        <label class="standard-task-check"><input id="catalogTaskCore" type="checkbox" ${currentCore ? "checked" : ""}><span><strong>Đầu việc cốt lõi</strong><small>Trưởng/Phó phòng và nhân viên cùng Phòng/Khu đều nhìn thấy.</small></span></label>
+        <label class="standard-task-check"><input id="catalogTaskManagement" type="checkbox" ${currentManagement ? "checked" : ""}><span><strong>Chỉ dành cho lãnh đạo, quản lý</strong><small>Chỉ Trưởng/Phó phòng hoặc Ban Giám đốc nhìn thấy để đăng ký.</small></span></label>
+      </div>
+      <label id="catalogCdtnAudienceField" class="kpi-field full hidden"><span>Đối tượng Chi đoàn</span><select id="catalogTaskCdtnAudience">
+        <option value="CDTN_SECRETARY" ${currentAudience === "CDTN_SECRETARY" ? "selected" : ""}>Bí thư Chi đoàn</option>
+        <option value="CDTN_EXECUTIVE" ${currentAudience === "CDTN_EXECUTIVE" ? "selected" : ""}>Ban Chấp hành Chi đoàn</option>
+        <option value="CDTN_MEMBER" ${currentAudience === "CDTN_MEMBER" ? "selected" : ""}>Đoàn viên Chi đoàn</option>
+      </select><small class="field-help">Danh mục này được lọc theo vai trò kiêm nhiệm trong hồ sơ tài khoản, không làm thay đổi Phòng/Khu công tác chính.</small></label>
     </div>`,
     `${editing ? '<button id="deleteCatalogTask" class="kpi-button danger" type="button">Xóa danh mục</button>' : ""}<button class="kpi-button secondary" data-standard-close type="button">Đóng</button><button id="saveCatalogTask" class="kpi-button" type="button">Lưu đầu việc</button>`
   );
+
+  const departmentInput = document.getElementById("catalogTaskDepartment");
+  const codeInput = document.getElementById("catalogTaskCode");
+  const coreInput = document.getElementById("catalogTaskCore");
+  const managementInput = document.getElementById("catalogTaskManagement");
+  const departmentAudience = document.getElementById("catalogDepartmentAudience");
+  const cdtnAudienceField = document.getElementById("catalogCdtnAudienceField");
 
   const recalculate = () => {
     const base = Number(document.getElementById("catalogTaskBaseScore")?.value || 0);
@@ -462,36 +521,70 @@ function openTaskEditor(item) {
     const target = document.getElementById("catalogTaskMaximum");
     if (target) target.textContent = formatNumber(base * coefficient);
   };
+
   const syncBaseScoreWithWorkType = () => {
     const workType = String(document.getElementById("catalogTaskWorkType")?.value || "THUONG_XUYEN").toUpperCase();
     const baseInput = document.getElementById("catalogTaskBaseScore");
     if (baseInput) baseInput.value = workType === "DOT_XUAT" ? "12" : "10";
     recalculate();
   };
+
+  const syncAudienceFields = async (refreshCode = false) => {
+    const departmentId = String(departmentInput?.value || initialDepartmentId).toUpperCase();
+    const isCdtn = departmentId === "CDTN";
+    departmentAudience?.classList.toggle("hidden", isCdtn);
+    cdtnAudienceField?.classList.toggle("hidden", !isCdtn);
+
+    if (refreshCode && !editing && codeInput) {
+      codeInput.value = "Đang cấp mã…";
+      try {
+        codeInput.value = await StandardTaskWriteService.getNextCode(departmentId);
+      } catch (error) {
+        codeInput.value = "";
+        ToastService.error(error.message || "Không cấp được mã đầu việc.");
+      }
+    }
+  };
+
+  coreInput?.addEventListener("change", () => {
+    if (coreInput.checked && managementInput) managementInput.checked = false;
+  });
+  managementInput?.addEventListener("change", () => {
+    if (managementInput.checked && coreInput) coreInput.checked = false;
+  });
+  departmentInput?.addEventListener("change", () => syncAudienceFields(true));
   document.getElementById("catalogTaskWorkType")?.addEventListener("change", syncBaseScoreWithWorkType);
   document.getElementById("catalogTaskCoefficient")?.addEventListener("change", recalculate);
+  await syncAudienceFields(false);
   recalculate();
 
   root.querySelector("#saveCatalogTask")?.addEventListener("click", async event => {
     const button = event.currentTarget;
     button.disabled = true;
     try {
-      await StandardTaskWriteService.saveTask({
-        code: document.getElementById("catalogTaskCode")?.value,
+      const departmentId = String(departmentInput?.value || initialDepartmentId).toUpperCase();
+      const isCdtn = departmentId === "CDTN";
+      const audienceType = isCdtn
+        ? document.getElementById("catalogTaskCdtnAudience")?.value
+        : (managementInput?.checked === true ? "MANAGEMENT" : "ALL_DEPARTMENT");
+
+      const result = await StandardTaskWriteService.saveTask({
+        departmentId,
         name: document.getElementById("catalogTaskName")?.value,
         frequency: document.getElementById("catalogTaskFrequency")?.value,
         workType: document.getElementById("catalogTaskWorkType")?.value,
         outputRequirement: document.getElementById("catalogTaskOutput")?.value,
         mandatoryEvidence: document.getElementById("catalogTaskEvidence")?.value,
         arisingEvidence: document.getElementById("catalogTaskArisingEvidence")?.value,
+        trackingMode: document.getElementById("catalogTaskTrackingMode")?.value,
         baseScore: document.getElementById("catalogTaskBaseScore")?.value,
         difficultyCoefficient: document.getElementById("catalogTaskCoefficient")?.value,
-        order: document.getElementById("catalogTaskOrder")?.value,
-        isCoreTaskDefault: document.getElementById("catalogTaskCore")?.checked === true,
-        isManagementTask: document.getElementById("catalogTaskManagement")?.checked === true
+        audienceType,
+        isCoreTaskDefault: coreInput?.checked === true,
+        isManagementTask: audienceType === "MANAGEMENT"
       }, item?.id || "");
       closeStandardModal(root);
-      ToastService.success(editing ? "Đã cập nhật đầu việc." : "Đã thêm đầu việc vào danh mục.");
+      ToastService.success(editing ? `Đã cập nhật ${result.code}.` : `Đã tạo ${result.code} và đồng bộ vào Firestore.`);
       reloadRoute();
     } catch (error) {
       ToastService.error(error.message || "Không lưu được đầu việc.");
@@ -502,6 +595,33 @@ function openTaskEditor(item) {
   root.querySelector("#deleteCatalogTask")?.addEventListener("click", async event => {
     await confirmAndRemoveStandardTask(item, event.currentTarget, root);
   });
+}
+
+function departmentName(departmentId) {
+  return ({
+    BGD: "Ban Giám đốc",
+    TCHC: "Phòng Tổ chức - Hành chính",
+    CTXH: "Phòng Công tác xã hội",
+    KHTC: "Phòng Kế hoạch - Tài chính",
+    YT: "Phòng Y tế",
+    KI: "Khu I",
+    KII: "Khu II",
+    KIII: "Khu III",
+    CDTN: "Chi đoàn Trung tâm"
+  })[String(departmentId || "").toUpperCase()] || departmentId || "Phòng/Khu";
+}
+
+function audienceBadge(item) {
+  const audience = String(item?.audienceType || (item?.isManagementTask ? "MANAGEMENT" : "ALL_DEPARTMENT")).toUpperCase();
+  const labels = {
+    ALL_DEPARTMENT: ["Toàn Phòng/Khu", "neutral"],
+    MANAGEMENT: ["Lãnh đạo, quản lý", "info"],
+    CDTN_SECRETARY: ["Bí thư Chi đoàn", "info"],
+    CDTN_EXECUTIVE: ["Ban Chấp hành", "info"],
+    CDTN_MEMBER: ["Đoàn viên", "neutral"]
+  };
+  const [label, style] = labels[audience] || labels.ALL_DEPARTMENT;
+  return `<span class="status-pill ${style}">${escapeHtml(label)}</span>`;
 }
 
 async function openCatalogDelegation(currentDelegation, period) {
@@ -610,6 +730,18 @@ function workTypeBadge(item) {
   return isUnexpectedTask(item)
     ? '<span class="status-pill warning">Đột xuất</span>'
     : '<span class="status-pill success">Thường xuyên</span>';
+}
+
+function trackingModeBadge(item) {
+  return String(item?.trackingMode || "FINAL_OUTPUT").toUpperCase() === "ITEMIZED"
+    ? '<span class="status-pill info">Theo từng lượt</span>'
+    : '<span class="status-pill neutral">Theo sản phẩm cuối</span>';
+}
+
+function classificationBadge(item) {
+  return item?.isCoreTaskDefault === true
+    ? '<span class="status-pill core">Cốt lõi</span>'
+    : '';
 }
 
 function createRegistrationMap(registrations) {
