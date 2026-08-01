@@ -18,33 +18,33 @@ test("Điểm quy đổi thực tế không vượt điểm quy đổi tối đa
   assert.equal(score.maximum, 12);
 });
 
-test("Văn bản nhiều lượt tính theo N–T–K rồi mới áp dụng Phụ lục 04", () => {
+test("Văn bản nhiều lượt chấm từng lượt, lấy trung bình rồi áp dụng Phụ lục 04", () => {
   const items = [
-    { completedDateKey: "2026-07-02", deadlineDateKey: "2026-07-03", resultRate: 100 },
-    { completedDateKey: "2026-07-04", deadlineDateKey: "2026-07-04", resultRate: 80 },
-    { completedDateKey: "2026-07-05", deadlineDateKey: "2026-07-06", resultRate: 100 },
-    { completedDateKey: "2026-07-08", deadlineDateKey: "2026-07-07", resultRate: 60 },
-    { completedDateKey: "2026-07-09", deadlineDateKey: "2026-07-09", resultRate: 0 }
+    { completedDateKey: "2026-07-02", deadlineDateKey: "2026-07-03", progressRate: 100, resultRate: 100 },
+    { completedDateKey: "2026-07-04", deadlineDateKey: "2026-07-04", progressRate: 100, resultRate: 80 },
+    { completedDateKey: "2026-07-05", deadlineDateKey: "2026-07-06", progressRate: 100, resultRate: 100 },
+    { completedDateKey: "2026-07-08", deadlineDateKey: "2026-07-07", progressRate: 80, resultRate: 60 },
+    { completedDateKey: "2026-07-09", deadlineDateKey: "2026-07-09", progressRate: 100, resultRate: 0 }
   ];
   const summary = calculateWorkItemSummary(items, "DOCUMENT");
   assert.equal(summary.count, 5);
   assert.equal(summary.onTimeCount, 4);
   assert.equal(summary.qualifiedCount, 3);
-  assert.equal(summary.actualProgressRate, 80);
-  assert.equal(summary.actualResultRate, 60);
-  assert.equal(summary.appliedProgressRate, 80);
-  assert.equal(summary.appliedResultRate, 60);
+  assert.equal(summary.actualProgressRate, 96);
+  assert.equal(summary.actualResultRate, 68);
+  assert.equal(summary.appliedProgressRate, 96);
+  assert.equal(summary.appliedResultRate, 68);
 
   const score = calculateTaskScore(10, 1.1, summary.appliedProgressRate, summary.appliedResultRate);
-  assert.equal(score.execution, 6.6);
-  assert.equal(score.actual, 7.26);
+  assert.equal(score.execution, 7.64);
+  assert.equal(score.actual, 8.4);
 });
 
 test("Lượt chưa hoàn thành vẫn nằm trong N và không nằm trong T/K", () => {
   const items = [
-    { completedDateKey: "2026-07-02", deadlineDateKey: "2026-07-03", resultRate: 100 },
-    { completedDateKey: "2026-07-08", deadlineDateKey: "2026-07-07", resultRate: 80 },
-    { completedDateKey: "", deadlineDateKey: "2026-07-09", resultRate: 100 }
+    { completedDateKey: "2026-07-02", deadlineDateKey: "2026-07-03", progressRate: 100, resultRate: 100 },
+    { completedDateKey: "2026-07-08", deadlineDateKey: "2026-07-07", progressRate: 80, resultRate: 80 },
+    { completedDateKey: "", deadlineDateKey: "2026-07-09", progressRate: 0, resultRate: 100 }
   ];
   const summary = calculateWorkItemSummary(items, "GENERIC");
   assert.equal(summary.count, 3);
@@ -52,11 +52,24 @@ test("Lượt chưa hoàn thành vẫn nằm trong N và không nằm trong T/K"
   assert.equal(summary.incompleteCount, 1);
   assert.equal(summary.onTimeCount, 1);
   assert.equal(summary.qualifiedCount, 2);
-  assert.equal(summary.actualProgressRate, 33.33);
-  assert.equal(summary.actualResultRate, 66.67);
-  assert.equal(summary.appliedProgressRate, 0);
+  assert.equal(summary.actualProgressRate, 60);
+  assert.equal(summary.actualResultRate, 60);
+  assert.equal(summary.appliedProgressRate, 60);
   assert.equal(summary.appliedResultRate, 60);
   assert.equal(summary.readyForAssessment, true);
+});
+
+test("Một trong hai văn bản đạt 100% giữ trung bình 50%, không bị quy về 0%", () => {
+  const summary = calculateWorkItemSummary([
+    { completedDateKey: "2026-07-02", deadlineDateKey: "2026-07-03", progressRate: 100, resultRate: 100 },
+    { completedDateKey: "", deadlineDateKey: "2026-07-04", progressRate: 0, resultRate: 0 }
+  ], "DOCUMENT");
+  assert.equal(summary.actualProgressRate, 50);
+  assert.equal(summary.actualResultRate, 50);
+  assert.equal(summary.appliedProgressRate, 50);
+  assert.equal(summary.appliedResultRate, 50);
+  const score = calculateTaskScore(10, 1, summary.appliedProgressRate, summary.appliedResultRate);
+  assert.equal(score.actual, 5);
 });
 
 test("Điểm danh: vắng có phép và vắng mặt đều được thống kê, không tính là có mặt", () => {
@@ -74,7 +87,9 @@ test("Điểm danh: vắng có phép và vắng mặt đều được thống k�
   assert.equal(summary.onTimeCount, 2);
   assert.equal(summary.qualifiedCount, 1);
   assert.equal(summary.actualProgressRate, 50);
-  assert.equal(summary.actualResultRate, 25);
+  assert.equal(summary.actualResultRate, 40);
+  assert.equal(summary.appliedProgressRate, 50);
+  assert.equal(summary.appliedResultRate, 40);
 });
 
 test("Sản lượng chỉ đạt K khi đạt kế hoạch và chất lượng từ 80%", () => {
