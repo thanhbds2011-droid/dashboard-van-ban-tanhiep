@@ -1,6 +1,6 @@
-import { Permissions } from "../../core/permissions.js?v=20260801.V1_3_0";
+import { Permissions } from "../../core/permissions.js?v=20260801.V1_3_1";
 import { ToastService } from "../../core/toast-service.js";
-import { TaskReadService } from "../../services/task-read-service.js?v=20260801.V1_3_0";
+import { TaskReadService } from "../../services/task-read-service.js?v=20260801.V1_3_1";
 import { openTaskCreateModal } from "./task-form-modal.js?v=20260801.V1_3_0";
 import { openTaskDetailModal } from "./task-detail-modal.js?v=20260801.V1_3_0";
 
@@ -19,8 +19,32 @@ export async function renderTasksView(outlet) {
     mountTasksPage(outlet);
     updateTasksPage(currentTasks);
   } catch (error) {
-    outlet.innerHTML = errorCard("Không thể tải nhiệm vụ", error);
+    renderTaskLoadError(outlet, error);
   }
+}
+
+function renderTaskLoadError(outlet, error) {
+  outlet.innerHTML = `<section class="page-card error-card">
+    <h2>Chưa tải được nhiệm vụ</h2>
+    <p>${escapeHtml(userFacingLoadError(error))}</p>
+    <div class="page-actions">
+      <button id="retryTaskLoad" class="primary-button" type="button">↻ Thử lại</button>
+    </div>
+  </section>`;
+  document.getElementById("retryTaskLoad")?.addEventListener("click", () => {
+    TaskReadService.invalidate();
+    void renderTasksView(outlet);
+  });
+}
+
+function userFacingLoadError(error) {
+  const code = String(error?.code || "").toLowerCase();
+  const detail = String(error?.message || "");
+  if (["permission-denied", "firestore/permission-denied"].includes(code)
+      || /missing or insufficient permissions/i.test(detail)) {
+    return "Chưa tải được dữ liệu theo phạm vi tài khoản. Vui lòng thử lại; nếu lỗi vẫn còn, liên hệ quản trị viên.";
+  }
+  return "Không thể tải dữ liệu nhiệm vụ vào lúc này. Vui lòng kiểm tra kết nối và thử lại.";
 }
 
 function mountTasksPage(outlet) {
@@ -44,7 +68,7 @@ function mountTasksPage(outlet) {
       currentTasks = await TaskReadService.list({ force: true });
       updateTasksPage(currentTasks);
     } catch (error) {
-      ToastService.error(error?.message || "Không tải lại được danh sách nhiệm vụ.");
+      ToastService.error(userFacingLoadError(error));
     } finally {
       if (button) button.disabled = false;
     }
@@ -127,5 +151,4 @@ function setText(id, value) {
 function formatDate(date){return date instanceof Date ? new Intl.DateTimeFormat("vi-VN").format(date) : "Không có hạn";}
 function card(label,value,id){return `<article class="summary-card"><span>${label}</span><strong id="${id}">${value}</strong></article>`;}
 function loadingCard(message){return `<section class="page-card"><div class="empty-state"><div class="empty-icon">⏳</div><strong>${escapeHtml(message)}</strong></div></section>`;}
-function errorCard(title,error){return `<section class="page-card error-card"><h2>${escapeHtml(title)}</h2><p>${escapeHtml(error?.message || "Lỗi không xác định")}</p></section>`;}
 function escapeHtml(value){return String(value??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");}
