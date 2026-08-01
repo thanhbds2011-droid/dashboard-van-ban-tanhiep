@@ -1,7 +1,7 @@
 import { UserContext } from "../../core/user-context.js";
 import { Permissions } from "../../core/permissions.js";
 import { ToastService } from "../../core/toast-service.js";
-import { DashboardReadService } from "../../services/dashboard-read-service.js?v=20260731.V1_1_19";
+import { DashboardReadService } from "../../services/dashboard-read-service.js?v=20260801.V1_2_0";
 import { TaskReadService } from "../../services/task-read-service.js?v=20260728.V1_1_7";
 import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260728.V1_1_7";
 import { PeriodReadService } from "../../services/period-read-service.js?v=20260728.V1_1_7";
