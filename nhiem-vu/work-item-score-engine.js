@@ -31,12 +31,10 @@ export function normalizeWorkItemType(value) {
   return Object.hasOwn(WORK_ITEM_TYPES, type) ? type : WORK_ITEM_TYPES.GENERIC;
 }
 
-/**
- * Chuẩn hóa tỷ lệ thực tế. Từ V1.2.0 không ép tỷ lệ trung bình về bốn bậc
- * 100–80–60–0: từng lượt được chấm trước, sau đó lấy trung bình chính xác.
- */
+/** Giữ nguyên tỷ lệ N–T–K thực tế để không làm sai trường hợp 1/2 = 50%. */
 export function convertActualRate(actualRate) {
-  return round2(Math.max(0, Math.min(100, finiteNumber(actualRate))));
+  const value = Math.max(0, Math.min(100, finiteNumber(actualRate)));
+  return round2(value);
 }
 
 /**
@@ -82,8 +80,6 @@ export function calculateWorkItemSummary(items, requestedType = "") {
   let presentCount = 0;
   let excusedCount = 0;
   let absentCount = 0;
-  let totalProgressRate = 0;
-  let totalResultRate = 0;
 
   const totalPlannedQuantity = activeItems.reduce(
     (sum, item) => sum + Math.max(0, finiteNumber(item?.plannedQuantity)),
@@ -95,7 +91,6 @@ export function calculateWorkItemSummary(items, requestedType = "") {
   );
 
   for (const item of activeItems) {
-    const progressRate = Math.max(0, Math.min(100, finiteNumber(item?.progressRate)));
     const resultRate = Math.max(0, Math.min(100, finiteNumber(item?.resultRate)));
 
     if (workItemType === WORK_ITEM_TYPES.ATTENDANCE) {
@@ -107,8 +102,6 @@ export function calculateWorkItemSummary(items, requestedType = "") {
         presentCount += 1;
         onTimeCount += 1;
         if (resultRate >= WORK_ITEM_RESULT_PASS_RATE) qualifiedCount += 1;
-        totalProgressRate += 100;
-        totalResultRate += resultRate;
       } else if (status === "EXCUSED") {
         excusedCount += 1;
       } else if (status === "ABSENT") {
@@ -118,8 +111,6 @@ export function calculateWorkItemSummary(items, requestedType = "") {
     }
 
     const completed = Boolean(item?.completedDateKey);
-    totalProgressRate += completed ? progressRate : 0;
-    totalResultRate += completed ? resultRate : 0;
     if (completed) completedCount += 1;
     if (completed && item?.deadlineDateKey && item.completedDateKey <= item.deadlineDateKey) {
       onTimeCount += 1;
@@ -135,8 +126,8 @@ export function calculateWorkItemSummary(items, requestedType = "") {
     }
   }
 
-  const actualProgressRate = round2(totalProgressRate / count);
-  const actualResultRate = round2(totalResultRate / count);
+  const actualProgressRate = round2((onTimeCount / count) * 100);
+  const actualResultRate = round2((qualifiedCount / count) * 100);
   return {
     workItemType,
     count,
@@ -154,6 +145,6 @@ export function calculateWorkItemSummary(items, requestedType = "") {
     presentCount,
     excusedCount,
     absentCount,
-    scoringBasis: "ITEM_AVERAGE"
+    scoringBasis: "NTK"
   };
 }
