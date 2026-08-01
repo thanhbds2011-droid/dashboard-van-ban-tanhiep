@@ -1,15 +1,17 @@
 import { auth, db } from '../../firebase-config.js';
 import {
-  addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, onSnapshot, query,
-  serverTimestamp, setDoc, Timestamp, updateDoc, where
+  addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, query,
+  serverTimestamp, setDoc, Timestamp, updateDoc, where, limit
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
-import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260801.V1_2_0';
-import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260801.V1_2_0';
-import { Permissions } from '../../core/permissions.js?v=20260801.V1_2_0';
+import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260801.V1_3_0';
+import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260801.V1_3_0';
+import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260801.V1_3_0';
+import { PeriodReadService } from '../../services/period-read-service.js?v=20260801.V1_3_0';
+import { Permissions } from '../../core/permissions.js?v=20260801.V1_3_0';
 import {
   KPI2B as KPI2C, COMMON_CRITERIA, calculateTaskScore, calculateKpiSummary,
   proposedRating, ratingName, round2, progressRateFromDates
-} from '../../kpi-engine.js?v=20260801.V1_2_0';
+} from '../../kpi-engine.js?v=20260801.V1_3_0';
 
 export const KpiWorkflowState = {
   user: null,
@@ -30,143 +32,7 @@ export const KpiWorkflowState = {
   kpiProfile: null
 };
 
-let stopKpiRealtime = () => {};
-let kpiRealtimeTimer = null;
-let kpiRealtimePending = false;
-let kpiRouteCleanupBound = false;
 let kpiPeriodReloading = false;
-
-function isKpiRoute(route = window.location.hash) {
-  return ['#/kpi', '#/kpi/periods', '#/kpi/evaluations', '#/reports'].includes(route);
-}
-
-function bindKpiRouteCleanup() {
-  if (kpiRouteCleanupBound) return;
-  kpiRouteCleanupBound = true;
-  document.addEventListener('v3:route-changed', event => {
-    if (!isKpiRoute(event.detail?.route)) {
-      stopKpiRealtime();
-      stopKpiRealtime = () => {};
-      window.clearTimeout(kpiRealtimeTimer);
-      kpiRealtimePending = false;
-    }
-  });
-}
-
-function scheduleKpiRealtimeRender() {
-  if (!isKpiRoute()) return;
-  if (el('kpiModalRoot')) {
-    kpiRealtimePending = true;
-    return;
-  }
-  window.clearTimeout(kpiRealtimeTimer);
-  kpiRealtimeTimer = window.setTimeout(() => {
-    if (!isKpiRoute() || !el('kpiSection')) return;
-    kpiRealtimePending = false;
-    render();
-  }, 120);
-}
-
-function kpiScopeQueries(periodId, departmentId) {
-  const reportDepartmentScope = KpiWorkflowState.mode === 'reports' && isLeader();
-  const taskDepartmentScope = globalRole() || isDepartmentHead() || reportDepartmentScope
-    || hasActiveApprovalDelegation('APPROVE_REGISTRATIONS')
-    || hasActiveApprovalDelegation('CONFIRM_EVALUATIONS')
-    || hasActiveApprovalDelegation('LOCK_PLAN');
-  const registrationDepartmentScope = globalRole() || isDepartmentHead() || reportDepartmentScope
-    || hasActiveApprovalDelegation('APPROVE_REGISTRATIONS');
-  const evaluationDepartmentScope = globalRole() || isDepartmentHead() || reportDepartmentScope
-    || hasActiveApprovalDelegation('CONFIRM_EVALUATIONS');
-
-  return {
-    taskQuery: globalRole()
-      ? query(collection(db, 'tasks'), where('periodId', '==', periodId))
-      : taskDepartmentScope
-        ? query(collection(db, 'tasks'), where('periodId', '==', periodId), where('primaryDepartmentId', '==', departmentId))
-        : query(collection(db, 'tasks'), where('periodId', '==', periodId), where('ownerUserId', '==', KpiWorkflowState.user.uid)),
-    registrationQuery: globalRole()
-      ? query(collection(db, 'taskRegistrations'), where('periodId', '==', periodId))
-      : registrationDepartmentScope
-        ? query(collection(db, 'taskRegistrations'), where('periodId', '==', periodId), where('departmentId', '==', departmentId))
-        : query(collection(db, 'taskRegistrations'), where('periodId', '==', periodId), where('userId', '==', KpiWorkflowState.user.uid)),
-    evaluationQuery: globalRole()
-      ? query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId))
-      : evaluationDepartmentScope
-        ? query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId), where('departmentId', '==', departmentId))
-        : query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId), where('ownerUserId', '==', KpiWorkflowState.user.uid)),
-    commonQuery: globalRole()
-      ? query(collection(db, 'commonCriteriaAssessments'), where('periodId', '==', periodId))
-      : evaluationDepartmentScope
-        ? query(collection(db, 'commonCriteriaAssessments'), where('periodId', '==', periodId), where('departmentId', '==', departmentId))
-        : query(collection(db, 'commonCriteriaAssessments'), where('periodId', '==', periodId), where('userId', '==', KpiWorkflowState.user.uid))
-  };
-}
-
-function setupKpiRealtime() {
-  stopKpiRealtime();
-  const unsubscribers = [];
-  const onError = error => console.warn('Theo dõi dữ liệu KPI bị gián đoạn:', error);
-
-  unsubscribers.push(onSnapshot(collection(db, 'evaluationPeriods'), snapshot => {
-    const periods = snapshot.docs.map(item => ({ id: item.id, ...item.data() }));
-    const nextPeriod = periods.find(period => period.active === true && period.status !== 'DELETED') || null;
-    const currentId = KpiWorkflowState.period?.id || '';
-    const nextId = nextPeriod?.id || '';
-    KpiWorkflowState.periods = periods;
-    if (currentId !== nextId && !kpiPeriodReloading) {
-      kpiPeriodReloading = true;
-      loadAll().finally(() => { kpiPeriodReloading = false; });
-    }
-  }, onError));
-
-  if (KpiWorkflowState.period && KpiWorkflowState.user && KpiWorkflowState.profile) {
-    const periodId = KpiWorkflowState.period.id;
-    const departmentId = normalizeDepartment(KpiWorkflowState.profile.departmentId);
-    const scopes = kpiScopeQueries(periodId, departmentId);
-
-    unsubscribers.push(onSnapshot(scopes.taskQuery, snapshot => {
-      KpiWorkflowState.tasks = snapshot.docs.map(item => ({ id: item.id, ...item.data() }));
-      scheduleKpiRealtimeRender();
-    }, onError));
-    unsubscribers.push(onSnapshot(scopes.registrationQuery, snapshot => {
-      KpiWorkflowState.registrations = snapshot.docs.map(item => ({ id: item.id, ...item.data() }));
-      scheduleKpiRealtimeRender();
-    }, onError));
-    unsubscribers.push(onSnapshot(scopes.evaluationQuery, snapshot => {
-      KpiWorkflowState.evaluations = snapshot.docs.map(item => ({ id: item.id, ...item.data() }));
-      scheduleKpiRealtimeRender();
-    }, onError));
-    unsubscribers.push(onSnapshot(scopes.commonQuery, snapshot => {
-      KpiWorkflowState.commonAll = snapshot.docs.map(item => ({ id: item.id, ...item.data() }));
-      KpiWorkflowState.common = KpiWorkflowState.commonAll.find(item => item.userId === KpiWorkflowState.user.uid) || null;
-      scheduleKpiRealtimeRender();
-    }, onError));
-    unsubscribers.push(onSnapshot(doc(db, 'kpiPlans', `${periodId}_${departmentId}`), snapshot => {
-      KpiWorkflowState.plan = snapshot.exists() ? { id: snapshot.id, ...snapshot.data() } : null;
-      scheduleKpiRealtimeRender();
-    }, onError));
-    unsubscribers.push(onSnapshot(query(collection(db, 'kpiProfiles'), where('userId', '==', KpiWorkflowState.user.uid)), snapshot => {
-      const profiles = snapshot.docs.map(item => ({ id: item.id, ...item.data() }));
-      KpiWorkflowState.kpiProfile = profiles.find(item => item.periodId === periodId) || profiles[0] || null;
-      scheduleKpiRealtimeRender();
-    }, onError));
-
-    if (isDeputyLeader() || isDepartmentHead()) {
-      unsubscribers.push(onSnapshot(doc(db, 'approvalDelegations', `${departmentId}_ACTIVE`), snapshot => {
-        if (!snapshot.exists()) KpiWorkflowState.delegations = [];
-        else {
-          const delegation = { id: snapshot.id, ...snapshot.data() };
-          KpiWorkflowState.delegations = isDepartmentHead() || delegation.delegateUserId === KpiWorkflowState.user.uid ? [delegation] : [];
-        }
-        scheduleKpiRealtimeRender();
-      }, onError));
-    }
-  }
-
-  stopKpiRealtime = () => unsubscribers.forEach(unsubscribe => {
-    try { unsubscribe?.(); } catch (_) { /* Không cần xử lý khi đổi trang. */ }
-  });
-}
 
 const el = (id) => document.getElementById(id);
 const clean = (value) => String(value ?? '').trim();
@@ -319,10 +185,10 @@ function mount() {
       <div id="kpiReviewList" class="kpi-hidden"></div>
     </div>
     <section id="kpiAdminBox" class="kpi-card kpi-admin-danger kpi-hidden kpi-no-print">
-      <h3>Quản lý dữ liệu kỳ đánh giá</h3>
-      <p>Chỉ sử dụng khi cần hủy dữ liệu nghiệp vụ sau khi đã sao lưu đầy đủ.</p>
+      <h3>Lưu trữ và dọn dữ liệu kỳ đánh giá</h3>
+      <p>Hệ thống lưu toàn bộ hồ sơ kỳ thành tệp JSON trên Google Drive, kiểm tra mã SHA-256, sau đó mới xóa dữ liệu vận hành khỏi Firestore. Minh chứng trên Drive được giữ nguyên.</p>
       <div class="kpi-actions">
-        <button id="kpiDeletePeriod" class="kpi-button danger" type="button">Hủy dữ liệu nghiệp vụ trong kỳ</button>
+        <button id="kpiDeletePeriod" class="kpi-button danger" type="button">Lưu Drive và dọn Firestore</button>
       </div>
     </section>`;
   wireEvents();
@@ -397,7 +263,7 @@ function modal(title, body, footer='') {
   });
   return node;
 }
-function closeModal(){ el('kpiModalRoot')?.remove(); if (kpiRealtimePending) scheduleKpiRealtimeRender(); }
+function closeModal(){ el('kpiModalRoot')?.remove(); }
 
 function wireEvents() {
   el('kpiRefresh')?.addEventListener('click', loadAll);
@@ -413,6 +279,7 @@ function wireEvents() {
 function periodStatusLabel(period) {
   if (period?.active === true) return 'Đang hoạt động';
   if (period?.status === 'COMPLETED') return 'Đã kết thúc';
+  if (period?.status === 'PURGED') return 'Đã lưu Drive và dọn dữ liệu';
   if (period?.status === 'DRAFT') return 'Bản nháp';
   return period?.status || 'Không xác định';
 }
@@ -426,8 +293,8 @@ function openPeriodManager() {
       <td>${dateVi(period.startDate)}<br>${dateVi(period.endDate)}</td>
       <td><span class="kpi-status">${esc(periodStatusLabel(period))}</span></td>
       <td><div class="kpi-actions">
-        <button class="kpi-button secondary" type="button" data-period-edit="${esc(period.id)}">Sửa</button>
-        ${period.active === true ? `<button class="kpi-button danger" type="button" data-period-complete="${esc(period.id)}">Kết thúc</button>` : period.status !== 'COMPLETED' ? `<button class="kpi-button" type="button" data-period-activate="${esc(period.id)}">Kích hoạt</button>` : ''}
+        ${period.status==='PURGED'?'':`<button class="kpi-button secondary" type="button" data-period-edit="${esc(period.id)}">Sửa</button>`}
+        ${period.active === true ? `<button class="kpi-button danger" type="button" data-period-complete="${esc(period.id)}">Kết thúc</button>` : !['COMPLETED','PURGED'].includes(period.status) ? `<button class="kpi-button" type="button" data-period-activate="${esc(period.id)}">Kích hoạt</button>` : ''}
       </div></td>
     </tr>`).join('');
   const root = modal('Quản lý kỳ đánh giá', `
@@ -460,6 +327,7 @@ function openEditPeriod(periodId) {
     const endDate = clean(el('editPeriodEnd').value);
     if (!name || !startDate || !endDate || startDate > endDate) return alert('Thông tin kỳ chưa hợp lệ.');
     await updateDoc(doc(db,'evaluationPeriods',periodId), { name, startDate, endDate, updatedAt:serverTimestamp(), updatedByUserId:KpiWorkflowState.user.uid });
+    PeriodReadService.invalidate();
     await audit('UPDATE_PERIOD',{periodId,startDate,endDate});
     closeModal(); await loadAll(); openPeriodManager();
   });
@@ -469,16 +337,19 @@ async function activatePeriod(periodId) {
   if (!Permissions.canManageEvaluationPeriods()) return;
   if (KpiWorkflowState.periods.some(period => period.active === true && period.id !== periodId)) return alert('Đang có một kỳ hoạt động. Hãy kết thúc kỳ đó trước.');
   await updateDoc(doc(db,'evaluationPeriods',periodId), { active:true, status:'ACTIVE', activatedAt:serverTimestamp(), activatedByUserId:KpiWorkflowState.user.uid, updatedAt:serverTimestamp() });
+  PeriodReadService.invalidate();
   await audit('ACTIVATE_PERIOD',{periodId});
   closeModal(); await loadAll(); openPeriodManager();
 }
 
 async function completePeriodById(periodId) {
   if (!Permissions.canManageEvaluationPeriods()) return;
-  if (!confirm(`Kết thúc kỳ ${periodId}? Sau khi kết thúc, nhiệm vụ mới sẽ không được gắn vào kỳ này.`)) return;
-  await updateDoc(doc(db,'evaluationPeriods',periodId), { active:false, status:'COMPLETED', completedAt:serverTimestamp(), completedByUserId:KpiWorkflowState.user.uid, updatedAt:serverTimestamp() });
-  await audit('COMPLETE_PERIOD',{periodId});
-  closeModal(); await loadAll(); openPeriodManager();
+  if (KpiWorkflowState.period?.id !== periodId || KpiWorkflowState.period?.active !== true) {
+    alert('Chỉ có thể kết thúc kỳ đang hoạt động.');
+    return;
+  }
+  closeModal();
+  await completePeriod();
 }
 
 async function readProfile(uid) {
@@ -490,10 +361,15 @@ async function loadAll() {
   if (!KpiWorkflowState.user || !KpiWorkflowState.profile) return;
   try {
     message('Đang tải dữ liệu đánh giá...');
-    const periodSnapshot = await getDocs(collection(db, 'evaluationPeriods'));
+    const canBrowseCompletedPeriods = Permissions.canManageEvaluationPeriods() || activeRole('ADMIN');
+    const periodSnapshot = await getDocs(
+      canBrowseCompletedPeriods
+        ? collection(db, 'evaluationPeriods')
+        : query(collection(db, 'evaluationPeriods'), where('active', '==', true), limit(1))
+    );
     KpiWorkflowState.periods = periodSnapshot.docs.map(item => ({ id: item.id, ...item.data() }));
     KpiWorkflowState.period = KpiWorkflowState.periods.find(period => period.active === true && period.status !== 'DELETED')
-      || (Permissions.canManageEvaluationPeriods() ? KpiWorkflowState.periods.filter(period => period.status === 'COMPLETED').sort((a, b) => clean(b.endDate).localeCompare(clean(a.endDate)))[0] : null)
+      || (canBrowseCompletedPeriods ? KpiWorkflowState.periods.filter(period => period.status === 'COMPLETED').sort((a, b) => clean(b.endDate).localeCompare(clean(a.endDate)))[0] : null)
       || null;
 
     if (!KpiWorkflowState.period) {
@@ -508,7 +384,6 @@ async function loadAll() {
       KpiWorkflowState.kpiProfile = null;
       render();
       message(Permissions.canManageEvaluationPeriods() ? 'Chưa có kỳ đánh giá đang hoạt động. Trưởng phòng TCHC có thể tạo hoặc kích hoạt kỳ đánh giá.' : 'Chưa có kỳ đánh giá đang hoạt động.');
-      setupKpiRealtime();
       return;
     }
 
@@ -557,12 +432,12 @@ async function loadAll() {
       : evaluationDepartmentScope
         ? query(collection(db, 'commonCriteriaAssessments'), where('periodId', '==', periodId), where('departmentId', '==', departmentId))
         : query(collection(db, 'commonCriteriaAssessments'), where('periodId', '==', periodId), where('userId', '==', KpiWorkflowState.user.uid));
-    // Trưởng/Phó phòng cần đọc danh sách tài khoản rồi lọc theo Phòng/Khu ở phía ứng dụng.
-    // Không truy vấn departmentId tuyệt đối vì dữ liệu cũ có thể khác chữ hoa/thường hoặc có khoảng trắng.
-    const usersRequest = (globalRole() || userDepartmentScope)
+    const usersRequest = globalRole()
       ? getDocs(collection(db, 'users'))
+      : userDepartmentScope
+        ? getDocs(query(collection(db, 'users'), where('departmentId', '==', departmentId)))
       : Promise.resolve(null);
-    const profileRequest = getDocs(query(collection(db, 'kpiProfiles'), where('userId', '==', KpiWorkflowState.user.uid)));
+    const profileRequest = getDoc(doc(db, 'kpiProfiles', `${periodId}_${KpiWorkflowState.user.uid}`));
 
     const [usersSnapshot, tasksSnapshot, registrationsSnapshot, evaluationsSnapshot, commonSnapshot, planSnapshot, profileSnapshot] = await Promise.all([
       usersRequest,
@@ -574,9 +449,14 @@ async function loadAll() {
       profileRequest
     ]);
 
-    const loadedUsers = usersSnapshot
+    let loadedUsers = usersSnapshot
       ? usersSnapshot.docs.map(item => normalizeUserRecord(item.data(), item.id))
       : [normalizeUserRecord(KpiWorkflowState.profile, KpiWorkflowState.user.uid)];
+    // Chỉ dùng truy vấn toàn bộ như đường lui cho dữ liệu cũ chưa chuẩn hóa mã Phòng/Khu.
+    if (!globalRole() && userDepartmentScope && usersSnapshot && loadedUsers.length === 0) {
+      const legacyUsersSnapshot = await getDocs(collection(db, 'users'));
+      loadedUsers = legacyUsersSnapshot.docs.map(item => normalizeUserRecord(item.data(), item.id));
+    }
 
     KpiWorkflowState.users = globalRole()
       ? loadedUsers
@@ -593,14 +473,12 @@ async function loadAll() {
     KpiWorkflowState.commonAll = commonSnapshot.docs.map(item => ({ id: item.id, ...item.data() }));
     KpiWorkflowState.common = KpiWorkflowState.commonAll.find(item => item.userId === KpiWorkflowState.user.uid) || null;
     KpiWorkflowState.plan = planSnapshot.exists() ? { id: planSnapshot.id, ...planSnapshot.data() } : null;
-    const profileRecords = profileSnapshot.docs.map(item => ({ id: item.id, ...item.data() }));
-    KpiWorkflowState.kpiProfile = profileRecords.find(item => item.periodId === periodId)
-      || profileRecords[0]
-      || null;
+    KpiWorkflowState.kpiProfile = profileSnapshot.exists()
+      ? { id: profileSnapshot.id, ...profileSnapshot.data() }
+      : null;
 
     render();
     message('');
-    setupKpiRealtime();
   } catch (error) {
     console.error(error);
     renderManagementToolbar();
@@ -781,6 +659,12 @@ function render() {
 
   renderManagementToolbar();
   el('kpiAdminBox')?.classList.toggle('kpi-hidden', !activeRole('ADMIN'));
+  const cleanupButton = el('kpiDeletePeriod');
+  if (cleanupButton) {
+    const canPurge = activeRole('ADMIN') && KpiWorkflowState.period?.status === 'COMPLETED' && KpiWorkflowState.period?.active !== true;
+    cleanupButton.disabled = !canPurge;
+    cleanupButton.title = canPurge ? 'Lưu hồ sơ kỳ lên Drive rồi dọn dữ liệu vận hành.' : 'Phải kết thúc kỳ trước khi dọn dữ liệu.';
+  }
   if (KpiWorkflowState.mode === 'plans') renderPlanDashboard();
   else if (KpiWorkflowState.mode === 'evaluations') renderEvaluationDashboard();
   else renderReportDashboard();
@@ -1204,16 +1088,16 @@ async function openSelfAssessment(taskId) {
     <div><span>Đã hoàn thành</span><strong>${workSummary.completedCount}/${workSummary.count}</strong></div>
     <div><span>${workSummary.workItemType === 'ATTENDANCE' ? 'Có mặt (T)' : 'Đúng hạn (T)'}</span><strong>${workSummary.onTimeCount}/${workSummary.count}</strong></div>
     <div><span>Đạt yêu cầu (K)</span><strong>${workSummary.qualifiedCount}/${workSummary.count}</strong></div>
-    <div><span>Tiến độ trung bình</span><strong>${fmt(workSummary.actualProgressRate)}%</strong></div>
-    <div><span>Kết quả trung bình</span><strong>${fmt(workSummary.actualResultRate)}%</strong></div>
-    <div class="is-applied"><span>Đưa vào Phụ lục 04</span><strong>${workSummary.appliedProgressRate}% tiến độ · ${workSummary.appliedResultRate}% kết quả</strong></div>
-  </div>${incompleteWarning}<p class="kpi-small">Chấm từng lượt, lấy trung bình chính xác rồi áp dụng một lần công thức Phụ lục 04. Không ép tỷ lệ trung bình về các bậc cứng 100% – 80% – 60% – 0%.</p></div>` : '';
+    <div><span>Tiến độ thực tế</span><strong>${fmt(workSummary.actualProgressRate)}%</strong></div>
+    <div><span>Kết quả thực tế</span><strong>${fmt(workSummary.actualResultRate)}%</strong></div>
+    <div class="is-applied"><span>Tỷ lệ đưa vào công thức KPI</span><strong>${workSummary.appliedProgressRate}% tiến độ · ${workSummary.appliedResultRate}% kết quả</strong></div>
+  </div>${incompleteWarning}<p class="kpi-small">Tiến độ = T/N × 100%; kết quả = K/N × 100%. Hệ thống giữ nguyên tỷ lệ thực tế, ví dụ 1/2 = 50%, rồi đưa trực tiếp vào công thức Phụ lục 04. Các lượt không có điểm riêng.</p></div>` : '';
 
   const node = modal('Tự đánh giá nhiệm vụ', `<form id="kpiSelfForm" class="kpi-form-grid">
     <div class="kpi-field full kpi-assessment-task-heading"><strong>${esc(task.taskCode || '')} — ${esc(task.title)}</strong><span>Điểm tối đa: ${fmt(task.maximumConvertedScore)} · Minh chứng bắt buộc: ${esc(task.standardTaskMandatoryEvidence || task.mandatoryEvidence || 'Theo nhiệm vụ')}</span></div>
     ${workSummaryHtml}
-    <div class="kpi-field"><label>Tiến độ áp dụng</label><div class="kpi-rate-input"><input id="kpiSelfProgress" type="number" min="0" max="100" step="0.01" value="${initialProgress}" ${itemized?'readonly':''}><span>%</span></div><small>${itemized?'Tự động từ trung bình tiến độ từng lượt; không chỉnh thủ công.':`Hệ thống đề xuất ${suggestedFinalProgress}% theo hạn và ngày hoàn thành. Có thể nhập tỷ lệ cụ thể 0–100% khi có giải trình.`}</small></div>
-    <div class="kpi-field"><label>Kết quả áp dụng</label><div class="kpi-rate-input"><input id="kpiSelfResult" type="number" min="0" max="100" step="0.01" value="${initialResult}" ${itemized?'readonly':''}><span>%</span></div><small>${itemized?'Tự động từ trung bình kết quả từng lượt; không chỉnh thủ công.':'Tham chiếu chất lượng thực tế; có thể nhập tỷ lệ cụ thể 0–100% kèm nhận xét/minh chứng.'}</small></div>
+    <div class="kpi-field"><label>Tiến độ áp dụng</label><div class="kpi-rate-input"><input id="kpiSelfProgress" type="number" min="0" max="100" step="0.01" value="${initialProgress}" ${itemized?'readonly':''}><span>%</span></div><small>${itemized?'Tự động từ T/N; không chỉnh thủ công.':`Hệ thống đề xuất ${suggestedFinalProgress}% theo hạn và ngày hoàn thành. Có thể nhập tỷ lệ cụ thể 0–100% khi có giải trình.`}</small></div>
+    <div class="kpi-field"><label>Kết quả áp dụng</label><div class="kpi-rate-input"><input id="kpiSelfResult" type="number" min="0" max="100" step="0.01" value="${initialResult}" ${itemized?'readonly':''}><span>%</span></div><small>${itemized?'Tự động từ K/N; không chỉnh thủ công.':'Tham chiếu 100%–80%–60%–0%; có thể nhập tỷ lệ cụ thể 0–100% kèm nhận xét/minh chứng.'}</small></div>
     <div class="kpi-field full"><label>Nhận xét kết quả, thành tích và hạn chế</label><textarea id="kpiSelfComment" rows="5" required>${esc(ev.selfComment || '')}</textarea></div>
     <div class="kpi-field full"><label class="kpi-checkbox-line"><input id="kpiExceeded" type="checkbox" ${ev.isExceededRequirement===true?'checked':''}> Đề nghị ghi nhận hoàn thành vượt mức yêu cầu</label><textarea id="kpiExceededText" rows="3" placeholder="Nêu rõ sản phẩm, khối lượng, chất lượng hoặc giá trị bổ sung...">${esc(ev.exceededRequirementDescription || '')}</textarea></div>
     <div class="kpi-field full"><div id="kpiSelfScore"></div></div>
@@ -1508,11 +1392,19 @@ function initializePilotPeriod(){
   if(!Permissions.canManageEvaluationPeriods()) return;
   const next = nextQuarterDefaults();
   modal('Tạo kỳ đánh giá', `<form id="kpiPeriodForm" class="kpi-form-grid">
+    <div class="kpi-field"><label>Loại kỳ</label><select id="kpiPeriodTypeInput"><option value="QUARTER">Theo quý</option><option value="MONTH">Theo tháng</option></select></div>
     <div class="kpi-field"><label>Mã kỳ</label><input id="kpiPeriodIdInput" value="${esc(next.id)}" required></div>
     <div class="kpi-field"><label>Tên kỳ</label><input id="kpiPeriodNameInput" value="${esc(next.name)}" required></div>
     <div class="kpi-field"><label>Từ ngày</label><input id="kpiPeriodStartInput" type="date" value="${next.start}" required></div>
     <div class="kpi-field"><label>Đến ngày</label><input id="kpiPeriodEndInput" type="date" value="${next.end}" required></div>
   </form>`, '<button class="kpi-button secondary" data-kpi-close type="button">Hủy</button><button id="kpiCreatePeriodSubmit" class="kpi-button" type="button">Tạo và mở kỳ</button>');
+  el('kpiPeriodTypeInput')?.addEventListener('change',event=>{
+    const defaults=event.target.value==='MONTH'?nextMonthDefaults():nextQuarterDefaults();
+    el('kpiPeriodIdInput').value=defaults.id;
+    el('kpiPeriodNameInput').value=defaults.name;
+    el('kpiPeriodStartInput').value=defaults.start;
+    el('kpiPeriodEndInput').value=defaults.end;
+  });
   el('kpiCreatePeriodSubmit').addEventListener('click', createPeriodFromForm);
 }
 
@@ -1534,21 +1426,47 @@ function nextQuarterDefaults(){
   return {id:KPI2C.PILOT_PERIOD_ID,name:KPI2C.PILOT_PERIOD_NAME,start:KPI2C.PILOT_START,end:KPI2C.PILOT_END,year:2026,quarter:3};
 }
 
+function nextMonthDefaults(){
+  const today=new Date();
+  const existing=KpiWorkflowState.periods.map(p=>clean(p.id));
+  let year=today.getFullYear(),month=today.getMonth()+1;
+  for(let i=0;i<36;i++){
+    const id=`${year}-M${String(month).padStart(2,'0')}`;
+    if(!existing.includes(id)){
+      const endDate=new Date(year,month,0);
+      return {
+        id,
+        name:`Tháng ${month} năm ${year}`,
+        start:`${year}-${String(month).padStart(2,'0')}-01`,
+        end:`${year}-${String(month).padStart(2,'0')}-${String(endDate.getDate()).padStart(2,'0')}`,
+        year,
+        month
+      };
+    }
+    month++;if(month>12){month=1;year++;}
+  }
+  return {id:`${today.getFullYear()}-M${String(today.getMonth()+1).padStart(2,'0')}`,name:`Tháng ${today.getMonth()+1} năm ${today.getFullYear()}`,start:todayKey(),end:todayKey(),year:today.getFullYear(),month:today.getMonth()+1};
+}
+
 async function createPeriodFromForm(){
   if (!Permissions.canManageEvaluationPeriods()) return;
   const periodId=clean(el('kpiPeriodIdInput').value).toUpperCase();
   const name=clean(el('kpiPeriodNameInput').value);
   const startDate=clean(el('kpiPeriodStartInput').value);
   const endDate=clean(el('kpiPeriodEndInput').value);
-  if(!/^\d{4}-Q[1-4]$/.test(periodId)){alert('Mã kỳ phải có dạng 2026-Q3.');return;}
+  const quarterMatch=/^(\d{4})-Q([1-4])$/.exec(periodId);
+  const monthMatch=/^(\d{4})-M(0[1-9]|1[0-2])$/.exec(periodId);
+  if(!quarterMatch&&!monthMatch){alert('Mã kỳ phải có dạng 2026-Q3 hoặc 2026-M08.');return;}
   if(!name||!startDate||!endDate||startDate>endDate){alert('Thông tin kỳ chưa hợp lệ.');return;}
   if(KpiWorkflowState.periods.some(p=>p.active===true)){alert('Đang có một kỳ hoạt động. Hãy kết thúc kỳ hiện tại trước khi mở kỳ mới.');return;}
-  const [yearText,quarterText]=periodId.split('-Q');
+  const year=Number((quarterMatch||monthMatch)[1]);
+  const periodType=quarterMatch?'QUARTER':'MONTH';
   await setDoc(doc(db,'evaluationPeriods',periodId),{
-    periodId,name,year:Number(yearText),quarter:Number(quarterText),startDate,endDate,recommendedPlanningDays:10,
+    periodId,name,periodType,year,quarter:quarterMatch?Number(quarterMatch[2]):null,month:monthMatch?Number(monthMatch[2]):null,startDate,endDate,recommendedPlanningDays:10,
     autoLockPlan:false,pilotMode:false,status:'ACTIVE',active:true,
     createdByUserId:KpiWorkflowState.user.uid,createdByName:KpiWorkflowState.profile.fullName||'',createdAt:serverTimestamp(),updatedAt:serverTimestamp()
   },{merge:false});
+  PeriodReadService.invalidate();
   await audit('CREATE_PERIOD',{periodId,startDate,endDate});
   closeModal(); await loadAll();
 }
@@ -1619,33 +1537,45 @@ async function completePeriod(){
 
   if(!confirm('Xác nhận đã in và lưu hồ sơ giấy, sau đó kết thúc kỳ?'))return;
   await updateDoc(doc(db,'evaluationPeriods',KpiWorkflowState.period.id),{status:'COMPLETED',active:false,completedByUserId:KpiWorkflowState.user.uid,completedAt:serverTimestamp(),updatedAt:serverTimestamp()});
+  PeriodReadService.invalidate();
   await audit('COMPLETE_PERIOD',{periodId:KpiWorkflowState.period.id});
   await loadAll();
 }
 async function deletePeriodData(){
   if(!activeRole('ADMIN')||!KpiWorkflowState.period)return;
-  const reason=prompt('Nhập lý do hủy dữ liệu nghiệp vụ trong kỳ:');if(!clean(reason))return;
-  const periodId=KpiWorkflowState.period.id;
-  const names=['taskRegistrations','tasks','kpiPlans','taskEvaluations','commonCriteriaAssessments'];
-  let count=0;
-  for(const name of names){
-    const snap=await getDocs(query(collection(db,name),where('periodId','==',periodId)));
-    for(const item of snap.docs){await updateDoc(item.ref,{active:false,status:'CANCELLED',cancelReason:clean(reason),cancelledAt:serverTimestamp(),cancelledByUserId:KpiWorkflowState.user.uid,updatedAt:serverTimestamp()});count++;}
+  const period=KpiWorkflowState.period;
+  if(period.active===true||period.status!=='COMPLETED'){
+    alert('Phải hoàn tất đánh giá và kết thúc kỳ trước khi lưu trữ, dọn dữ liệu.');
+    return;
   }
-  await setDoc(doc(db,'kpiDeletionLogs',`${periodId}_${Date.now()}`),{periodId,softDeletedCount:count,reason:clean(reason),deletedByUserId:KpiWorkflowState.user.uid,deletedByName:KpiWorkflowState.profile.fullName||'',deletedAt:serverTimestamp()});
-  await audit('SOFT_CLEAN_PERIOD',{periodId,count,reason:clean(reason)});alert(`Đã hủy mềm ${count} bản ghi trong kỳ. Dữ liệu được đánh dấu hủy để bảo đảm khả năng đối chiếu.`);await loadAll();
+  const confirmation=prompt(`Đây là thao tác xóa dữ liệu vận hành sau khi đã lưu lên Drive.\nNhập chính xác mã kỳ ${period.id} để tiếp tục:`);
+  if(clean(confirmation).toUpperCase()!==clean(period.id).toUpperCase()){
+    if(confirmation!==null)alert('Mã kỳ xác nhận không đúng. Hệ thống chưa thay đổi dữ liệu.');
+    return;
+  }
+  const progressRoot=modal('Lưu trữ và dọn dữ liệu kỳ',`
+    <div class="kpi-archive-progress"><div class="progress-track"><span id="kpiArchiveProgressBar" style="width:2%"></span></div><strong id="kpiArchiveProgressText">Đang chuẩn bị…</strong><p class="kpi-small">Không đóng trình duyệt cho đến khi hệ thống báo hoàn tất.</p></div>
+  `,'<span class="kpi-small">Đang xử lý an toàn theo từng bước…</span>');
+  progressRoot.querySelectorAll('[data-kpi-close]').forEach(button=>button.remove());
+  try{
+    const result=await PeriodArchiveService.archiveAndPurge(period.id,{onProgress:state=>{
+      const bar=el('kpiArchiveProgressBar');if(bar)bar.style.width=`${Math.max(2,Math.min(100,Number(state.percent||0)))}%`;
+      const text=el('kpiArchiveProgressText');if(text)text.textContent=state.message||'Đang xử lý…';
+    }});
+    PeriodReadService.invalidate();
+    closeModal();
+    alert(`Đã hoàn tất kỳ ${period.id}.\n- Đã lưu ${result.totalRecords} bản ghi lên Google Drive.\n- Đã dọn ${result.deleted} bản ghi khỏi Firestore.\n- Mã kiểm tra: ${result.sha256.slice(0,16)}…`);
+    await loadAll();
+  }catch(error){
+    closeModal();
+    alert(`Không thể hoàn tất quy trình: ${error?.message||error}\nDữ liệu chỉ bị xóa sau khi tệp Drive đã được xác nhận. Có thể chạy lại thao tác để tiếp tục.`);
+  }
 }
 
 function openReport() {
   if (!KpiWorkflowState.period) return;
 
-  const mine = KpiWorkflowState.tasks.filter(t => (
-    t.ownerUserId === KpiWorkflowState.user.uid &&
-    t.active !== false &&
-    t.scoringEnabled !== false &&
-    String(t.scoringStatus || '').toUpperCase() !== 'ADJUSTMENT_EXEMPT' &&
-    String(t.noOccurrenceStatus || '').toUpperCase() !== 'CONFIRMED'
-  ));
+  const mine = KpiWorkflowState.tasks.filter(t => t.ownerUserId === KpiWorkflowState.user.uid && t.active !== false);
   const commonScore = commonScoreSnapshot(KpiWorkflowState.common);
   const scoreState = scoreStateForUser(KpiWorkflowState.user.uid);
   const s = calculateKpiSummary(recognizedRowsForUser(), commonScore.total);
@@ -1730,7 +1660,7 @@ function openReport() {
       <td colspan="3">${esc(task.title || '')}</td>
       <td class="m01-center">${fmt(task.maximumConvertedScore || 0)}</td>
       <td class="m01-center">${applied.hasScore ? fmt(applied.actualScore) : ''}</td>
-      <td></td>
+      <td>${applied.hasScore ? esc(applied.shortLabel) : ''}</td>
     </tr>`;
   }).join('');
 
@@ -1775,7 +1705,7 @@ function openReport() {
         <tr class="m01-part-row"><td class="m01-center">B</td><td colspan="3">KẾT QUẢ THỰC HIỆN NHIỆM VỤ ĐƯỢC GIAO (70 ĐIỂM)</td><td class="m01-center">Điểm tối đa<br><small>(70 điểm)</small></td><td class="m01-center">Điểm đạt được</td><td>Ghi chú</td></tr>
         ${taskRows || '<tr class="m01-task-row"><td class="m01-center">—</td><td colspan="3">Chưa có nhiệm vụ trong kỳ.</td><td></td><td></td><td></td></tr>'}
         <tr class="m01-total-row"><td colspan="4">TỔNG (B) =</td><td class="m01-center">70</td><td class="m01-center">${s.hasCalculationBasis ? fmt(s.kpi70) : 'Chưa đủ cơ sở tính'}</td><td></td></tr>
-        <tr class="m01-grand-total"><td colspan="4">TỔNG (A + B) =</td><td class="m01-center">100</td><td class="m01-center">${s.hasCalculationBasis ? fmt(s.total100) : '—'}</td><td></td></tr>
+        <tr class="m01-grand-total"><td colspan="4">TỔNG (A + B) =</td><td class="m01-center">100</td><td class="m01-center">${s.hasCalculationBasis ? fmt(s.total100) : '—'}</td><td>${esc(s.hasCalculationBasis ? (scoreState.code === 'OFFICIAL' ? 'Điểm chính thức' : 'Điểm tự đánh giá') : 'Chưa đủ cơ sở tính')}</td></tr>
       </tbody>
     </table>
     <div class="m01-proposal"><strong>II. Tự đề xuất xếp loại mức chất lượng:</strong> ${esc(rating)}</div>
@@ -1825,9 +1755,6 @@ window.KPI2C = {
 
 
 export async function renderKpiWorkflow(outlet, options = {}) {
-  bindKpiRouteCleanup();
-  stopKpiRealtime();
-  stopKpiRealtime = () => {};
   KpiWorkflowState.mode = options.mode || 'plans';
   outlet.innerHTML = '<section id="kpiSection"></section>';
   KpiWorkflowState.user = auth.currentUser;
