@@ -1,10 +1,10 @@
 /** Biểu mẫu giao nhiệm vụ phát sinh/đột xuất. */
 import { UserContext } from "../../core/user-context.js";
-import { Permissions } from "../../core/permissions.js?v=20260801.V1_2_0";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260801.V1_2_0";
+import { Permissions } from "../../core/permissions.js?v=20260801.V1_3_0";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260801.V1_3_0";
 import { UserReadService } from "../../services/user-read-service.js";
 import { DepartmentReadService } from "../../services/department-read-service.js";
-import { validateTaskCreateInput, cleanText } from "./task-form-validator.js?v=20260801.V1_2_0";
+import { validateTaskCreateInput, cleanText } from "./task-form-validator.js?v=20260801.V1_3_0";
 import { mountTaskAiAssistant } from "../../ai-assistant.js?v=20260731.V1_1_12";
 import { ToastService } from "../../core/toast-service.js";
 
@@ -106,7 +106,7 @@ export async function openTaskCreateModal({ onSaved }) {
       </div>
       <form id="taskCreateForm" class="modal-body task-form-grid">
         <div id="taskCodeHint" class="field-full info-banner">
-          Mã nhiệm vụ đột xuất được cấp tự động theo Phòng/Khu, ví dụ TCHC-DX01.
+          Mã nhiệm vụ sẽ được cấp tự động theo Phòng/Khu, bắt đầu từ số tiếp theo sau danh mục hiện có.
         </div>
         <label class="field-full"><span>Tên nhiệm vụ *</span><input id="taskTitle" maxlength="300" required></label>
         <label class="field-full"><span>Nội dung/Yêu cầu thực hiện</span><textarea id="taskDescription" rows="4" maxlength="5000"></textarea></label>
@@ -148,7 +148,7 @@ export async function openTaskCreateModal({ onSaved }) {
     const prefix = departmentPrefix(departmentSelect.value || defaultDepartment);
     const hint = $("taskCodeHint");
     if (hint) {
-      hint.innerHTML = `Mã nhiệm vụ đột xuất sẽ được cấp tự động: <strong>${escapeHtml(prefix)}-DX…</strong> (ví dụ ${escapeHtml(prefix)}-DX01, ${escapeHtml(prefix)}-DX02).`;
+      hint.innerHTML = `Mã nhiệm vụ sẽ được cấp tự động theo Phòng/Khu: <strong>${escapeHtml(prefix)}…</strong> (ví dụ ${escapeHtml(prefix)}28, ${escapeHtml(prefix)}29).`;
     }
   };
 

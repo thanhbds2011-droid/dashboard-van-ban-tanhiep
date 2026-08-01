@@ -1,41 +1,23 @@
-import { Permissions } from "../../core/permissions.js?v=20260801.V1_2_0";
+import { Permissions } from "../../core/permissions.js?v=20260801.V1_3_0";
 import { ToastService } from "../../core/toast-service.js";
-import { TaskReadService } from "../../services/task-read-service.js?v=20260801.V1_2_0";
-import { openTaskCreateModal } from "./task-form-modal.js?v=20260801.V1_2_0";
-import { openTaskDetailModal } from "./task-detail-modal.js?v=20260801.V1_2_0";
+import { TaskReadService } from "../../services/task-read-service.js?v=20260801.V1_3_0";
+import { openTaskCreateModal } from "./task-form-modal.js?v=20260801.V1_3_0";
+import { openTaskDetailModal } from "./task-detail-modal.js?v=20260801.V1_3_0";
 
 let renderSequence = 0;
-let stopRealtime = () => {};
-let routeCleanupBound = false;
 let currentTasks = [];
 let currentOutlet = null;
 
-function bindRouteCleanup() {
-  if (routeCleanupBound) return;
-  routeCleanupBound = true;
-  document.addEventListener("v3:route-changed", event => {
-    if (event.detail?.route !== "#/tasks") {
-      stopRealtime();
-      stopRealtime = () => {};
-      currentOutlet = null;
-    }
-  });
-}
-
 export async function renderTasksView(outlet) {
-  bindRouteCleanup();
-  stopRealtime();
-  stopRealtime = () => {};
   currentOutlet = outlet;
   const sequence = ++renderSequence;
   outlet.innerHTML = loadingCard("Đang tải danh sách nhiệm vụ…");
 
   try {
-    currentTasks = await TaskReadService.list();
-    if (sequence !== renderSequence || currentOutlet !== outlet) return;
+    currentTasks = await TaskReadService.list({ force: false });
+    if (sequence !== renderSequence || currentOutlet !== outlet || window.location.hash !== "#/tasks") return;
     mountTasksPage(outlet);
     updateTasksPage(currentTasks);
-    startRealtime(outlet, sequence);
   } catch (error) {
     outlet.innerHTML = errorCard("Không thể tải nhiệm vụ", error);
   }
@@ -59,7 +41,7 @@ function mountTasksPage(outlet) {
     const button = document.getElementById("refreshTasks");
     if (button) button.disabled = true;
     try {
-      currentTasks = await TaskReadService.list();
+      currentTasks = await TaskReadService.list({ force: true });
       updateTasksPage(currentTasks);
     } catch (error) {
       ToastService.error(error?.message || "Không tải lại được danh sách nhiệm vụ.");
@@ -72,21 +54,6 @@ function mountTasksPage(outlet) {
   document.getElementById("refreshTasks")?.addEventListener("click", refreshOnce);
   document.getElementById("taskSearch")?.addEventListener("input", renderFilteredTasks);
   document.getElementById("taskStatusFilter")?.addEventListener("change", renderFilteredTasks);
-}
-
-function startRealtime(outlet, sequence) {
-  stopRealtime = TaskReadService.subscribe(
-    tasks => {
-      if (sequence !== renderSequence || currentOutlet !== outlet || window.location.hash !== "#/tasks") return;
-      currentTasks = tasks;
-      updateTasksPage(tasks);
-    },
-    error => {
-      if (error?.code !== "permission-denied") {
-        console.warn("Theo dõi nhiệm vụ bị gián đoạn:", error);
-      }
-    }
-  );
 }
 
 function updateTasksPage(tasks) {
@@ -128,7 +95,8 @@ function bindRows(tasks) {
       if (!task) return;
       openTaskDetailModal(task, {
         onSaved: async () => {
-          currentTasks = await TaskReadService.list();
+          TaskReadService.invalidate();
+          currentTasks = await TaskReadService.list({ force: true });
           updateTasksPage(currentTasks);
         }
       });
@@ -148,16 +116,7 @@ function renderTaskList(tasks) {
           : task._status === "MOI_TIEP_NHAN"
             ? { label: "Chờ tiếp nhận", className: "warning" }
             : { label: "Đang xử lý", className: "neutral" };
-    const adjustment = String(task.adjustmentStatus || "").toUpperCase();
-    const adjustmentBadge = adjustment === "REQUESTED"
-      ? '<span class="status-pill warning">Đang chờ điều chỉnh</span>'
-      : adjustment === "APPROVED"
-        ? `<span class="status-pill success">${escapeHtml(task.adjustmentLabel || "Đã điều chỉnh")}</span>`
-        : "";
-    const supplementaryBadge = task.isSupplementary === true
-      ? '<span class="status-pill info">Bổ sung phát sinh</span>'
-      : "";
-    return `<button type="button" class="data-row task-row-button" data-task-id="${escapeHtml(task.id)}"><div class="data-row-main"><strong>${escapeHtml(task.title || task.taskCode || "Nhiệm vụ không có tiêu đề")}</strong><small>${escapeHtml(task.taskCode || task.id)} • ${escapeHtml(task.primaryDepartmentId || "-")} • ${escapeHtml(task.ownerName || "Chưa phân công")}</small><div class="progress-track"><span style="width:${Math.min(100,Math.max(0,Number(task.progress || 0)))}%"></span></div></div><div class="data-row-meta"><span class="status-pill ${status.className}">${status.label}</span>${supplementaryBadge}${adjustmentBadge}<small>${formatDate(task._deadline)}</small><strong>${Number(task.progress || 0)}%</strong></div></button>`;
+    return `<button type="button" class="data-row task-row-button" data-task-id="${escapeHtml(task.id)}"><div class="data-row-main"><strong>${escapeHtml(task.title || task.taskCode || "Nhiệm vụ không có tiêu đề")}</strong><small>${escapeHtml(task.taskCode || task.id)} • ${escapeHtml(task.primaryDepartmentId || "-")} • ${escapeHtml(task.ownerName || "Chưa phân công")}</small><div class="progress-track"><span style="width:${Math.min(100,Math.max(0,Number(task.progress || 0)))}%"></span></div></div><div class="data-row-meta"><span class="status-pill ${status.className}">${status.label}</span><small>${formatDate(task._deadline)}</small><strong>${Number(task.progress || 0)}%</strong></div></button>`;
   }).join("")}</div>`;
 }
 
