@@ -1,11 +1,14 @@
 /** Chi tiết, phân công và các lượt công việc phát sinh của nhiệm vụ. */
 import { UserContext } from "../../core/user-context.js";
-import { Permissions } from "../../core/permissions.js?v=20260731.V1_1_19";
+import { Permissions } from "../../core/permissions.js?v=20260801.V1_2_0";
 import { UserReadService } from "../../services/user-read-service.js";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260731.V1_1_19";
-import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260731.V1_1_19";
-import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260731.V1_1_19";
-import { openTaskProgressModal } from "./task-progress-modal.js?v=20260731.V1_1_19";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260801.V1_2_0";
+import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260801.V1_2_0";
+import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260801.V1_2_0";
+import { TaskAdjustmentService } from "../../services/task-adjustment-service.js?v=20260801.V1_2_0";
+import { TaskLogService } from "../../services/task-log-service.js";
+import { CdtnAttendanceService } from "../../services/cdtn-attendance-service.js?v=20260801.V1_2_0";
+import { openTaskProgressModal } from "./task-progress-modal.js?v=20260801.V1_2_0";
 
 const TEAM_LABELS = Object.freeze({
   BAO_VE: "Tổ Bảo vệ",
@@ -67,6 +70,10 @@ function teamLabel(value) {
 
 function canAssign(task) {
   const user = UserContext.requireUser();
+  const executionStarted = task.assignmentStatus === "DA_TIEP_NHAN"
+    || Number(task.progress || 0) > 0
+    || Boolean(task.completedAt);
+  if (executionStarted) return false;
   return Permissions.isAdmin() || Permissions.isDirector() ||
     (Permissions.isDepartmentLeader() && task.primaryDepartmentId === user.departmentId);
 }
@@ -74,9 +81,7 @@ function canAssign(task) {
 function canReviewNoOccurrence(task) {
   const user = UserContext.requireUser();
   if (task.ownerUserId === user.uid) return false;
-  return Permissions.isAdmin() ||
-    (Permissions.isDepartmentHead() && task.primaryDepartmentId === user.departmentId) ||
-    (Permissions.isDirector() && task.primaryDepartmentId === "BGD");
+  return String(task.adjustmentApproverUserId || task.assignedByUserId || task.createdByUserId || "") === user.uid;
 }
 
 function coefficientLabel(value) {
@@ -216,9 +221,9 @@ function workItemSummaryHtml(items, task) {
     <div><span>${progressLabel}</span><strong>${summary.onTimeCount}/${summary.count}</strong></div>
     <div><span>${resultLabel}</span><strong>${summary.qualifiedCount}/${summary.count}</strong></div>
     ${typeSpecific}
-    <div><span>Tiến độ thực tế T/N</span><strong>${numberVi(summary.actualProgressRate)}%</strong></div>
-    <div><span>Kết quả thực tế K/N</span><strong>${numberVi(summary.actualResultRate)}%</strong></div>
-    <div class="is-applied"><span>Mức KPI áp dụng</span><strong>${summary.appliedProgressRate}% tiến độ · ${summary.appliedResultRate}% kết quả</strong></div>
+    <div><span>Tiến độ trung bình</span><strong>${numberVi(summary.actualProgressRate)}%</strong></div>
+    <div><span>Kết quả trung bình</span><strong>${numberVi(summary.actualResultRate)}%</strong></div>
+    <div class="is-applied"><span>Tỷ lệ đưa vào Phụ lục 04</span><strong>${summary.appliedProgressRate}% tiến độ · ${summary.appliedResultRate}% kết quả</strong></div>
   </div>`;
 }
 
@@ -258,8 +263,161 @@ function scoringMethodHtml(task) {
       <div><b>T</b><span>${escapeHtml(method.t)}</span></div>
       <div><b>K</b><span>${escapeHtml(method.k)}</span></div>
     </div>
-    <p>Tỷ lệ thực tế = T/N và K/N. Hệ thống quy về mức áp dụng 100%–80%–60%–0%, sau đó chấm <strong>một lần cho toàn đầu việc</strong> theo công thức Phụ lục 04. Mỗi lượt không có điểm chuẩn riêng và không được cộng điểm riêng.</p>
+    <p>Mỗi lượt được xác định tỷ lệ tiến độ và kết quả riêng. Hệ thống lấy trung bình chính xác của các lượt, sau đó chấm <strong>một lần cho toàn đầu việc</strong> theo công thức Phụ lục 04. Không ép tỷ lệ trung bình về bốn bậc và không cộng điểm chuẩn riêng cho từng lượt.</p>
   </div>`;
+}
+
+function adjustmentStatusHtml(task) {
+  const status = String(task.adjustmentStatus || "").toUpperCase();
+  const values = {
+    REQUESTED: ["Đang chờ điều chỉnh", "warning"],
+    APPROVED: [task.adjustmentLabel || "Đã điều chỉnh", "success"],
+    REJECTED: ["Đề nghị điều chỉnh không được duyệt", "danger"]
+  };
+  const value = values[status];
+  return value ? `<span class="status-pill ${value[1]}">${escapeHtml(value[0])}</span>` : "";
+}
+
+function timestampVi(value) {
+  const date = value?.toDate ? value.toDate() : value ? new Date(value) : null;
+  return date && !Number.isNaN(date.getTime())
+    ? new Intl.DateTimeFormat("vi-VN", { dateStyle: "short", timeStyle: "short" }).format(date)
+    : "—";
+}
+
+function adjustmentsHtml(task, adjustments) {
+  const canRequest = TaskAdjustmentService.canRequest(task);
+  const pending = adjustments.find(item => String(item.status || "").toUpperCase() === "PENDING");
+  return `<div class="adjustment-toolbar">
+    <div><strong>Điều chỉnh không làm mất bản đăng ký gốc</strong><span>Nhiệm vụ chỉ được đổi phạm vi hoặc loại khỏi KPI sau khi chính người giao phê duyệt. Hệ thống không tự chuyển việc hay chia điểm cho người khác.</span></div>
+    ${canRequest ? '<button id="requestAdjustmentButton" class="primary-button compact-button" type="button">Đề nghị điều chỉnh</button>' : ""}
+  </div>
+  ${pending && TaskAdjustmentService.canApprove(task, pending) ? `<div class="adjustment-decision-card">
+    <strong>Đề nghị đang chờ anh/chị xử lý</strong>
+    <span>${escapeHtml(pending.reason || "")}</span>
+    <div class="adjustment-decision-actions">
+      <button class="primary-button compact-button" data-approve-adjustment="ADJUST_SCOPE" data-adjustment-id="${escapeHtml(pending.id)}" type="button">Duyệt và chấm phần đã làm</button>
+      <button class="secondary-button compact-button" data-approve-adjustment="EXEMPT_FROM_SCORING" data-adjustment-id="${escapeHtml(pending.id)}" type="button">Duyệt không đánh giá</button>
+      <button class="secondary-button compact-button" data-reject-adjustment="${escapeHtml(pending.id)}" type="button">Không chấp thuận</button>
+    </div>
+  </div>` : ""}
+  <div class="adjustment-history">${adjustments.length ? adjustments.map(item => `<article class="adjustment-history-item">
+    <div><strong>${escapeHtml(item.adjustmentLabel || TaskAdjustmentService.label(item.adjustmentType))}</strong><span>${timestampVi(item.createdAt)} · ${escapeHtml(item.userName || "")}</span></div>
+    <span class="status-pill ${item.status === "APPROVED" ? "success" : item.status === "REJECTED" ? "danger" : "warning"}">${item.status === "APPROVED" ? "Đã duyệt" : item.status === "REJECTED" ? "Không duyệt" : "Chờ duyệt"}</span>
+    <p>${escapeHtml(item.reason || "")}</p>
+    ${item.proposedSnapshot?.adjustedWorkload ? `<small>Khối lượng đề nghị: ${escapeHtml(item.proposedSnapshot.adjustedWorkload)}</small>` : ""}
+    ${item.rejectionReason ? `<small class="text-danger">Lý do: ${escapeHtml(item.rejectionReason)}</small>` : ""}
+  </article>`).join("") : '<div class="task-work-item-empty"><strong>Chưa có điều chỉnh</strong><span>Bản kế hoạch hiện hành vẫn giữ nguyên.</span></div>'}</div>`;
+}
+
+function historyHtml(logs) {
+  const labels = {
+    TASK_CREATED: "Tạo nhiệm vụ", TASK_ASSIGNED: "Phân công", TASK_ACCEPTED: "Tiếp nhận",
+    PROGRESS_UPDATED: "Cập nhật tiến độ", TASK_COMPLETED: "Hoàn thành",
+    TASK_REGISTRATION_APPROVED: "Duyệt đăng ký", TASK_ADJUSTMENT_REQUESTED: "Đề nghị điều chỉnh",
+    TASK_ADJUSTMENT_APPROVED: "Duyệt điều chỉnh", TASK_ADJUSTMENT_REJECTED: "Không duyệt điều chỉnh"
+  };
+  return logs.length ? `<div class="task-history-list">${logs.map(item => `<article>
+    <span class="task-history-dot" aria-hidden="true"></span>
+    <div><strong>${escapeHtml(labels[item.action] || item.action || "Cập nhật")}</strong><span>${timestampVi(item.createdAt)} · ${escapeHtml(item.performedByName || "")}</span>${item.note ? `<p>${escapeHtml(item.note)}</p>` : ""}</div>
+  </article>`).join("")}</div>` : '<div class="task-work-item-empty"><strong>Chưa có nhật ký</strong><span>Các thao tác tiếp theo sẽ được lưu tại đây.</span></div>';
+}
+
+function openAdjustmentRequest(task, onSaved) {
+  const overlay = document.createElement("div");
+  overlay.className = "modal-backdrop nested-modal-backdrop";
+  overlay.innerHTML = `<section class="modal-panel modal-medium" role="dialog" aria-modal="true">
+    <div class="modal-header"><div><span class="page-eyebrow">${escapeHtml(task.taskCode || "")}</span><h2>Đề nghị điều chỉnh công việc</h2><p>Người giao nhiệm vụ sẽ quyết định chấm phần đã thực hiện hoặc không đánh giá toàn bộ.</p></div><button class="icon-button" data-close-adjustment type="button">✕</button></div>
+    <div class="modal-body task-form-grid">
+      <label class="field-full"><span>Phương án đề nghị</span><select id="adjustmentType"><option value="ADJUST_SCOPE">Điều chỉnh khối lượng và chấm phần đã thực hiện</option><option value="EXEMPT_FROM_SCORING">Không đánh giá do được điều động</option></select></label>
+      <label class="field-full"><span>Lý do *</span><textarea id="adjustmentReason" rows="4" maxlength="3000" placeholder="Nêu quyết định điều động, thời gian và ảnh hưởng đến nhiệm vụ đã đăng ký"></textarea></label>
+      <label class="field-full"><span>Khối lượng đã thực hiện/đề nghị điều chỉnh</span><input id="adjustedWorkload" maxlength="1000" placeholder="Ví dụ: Đã hoàn thành 4/10 hồ sơ trước ngày điều động"></label>
+      <label class="field-full"><span>Nội dung thực hiện sau điều chỉnh</span><textarea id="adjustmentDescription" rows="3" maxlength="5000">${escapeHtml(task.description || "")}</textarea></label>
+      <label><span>Hạn mới (nếu có)</span><input id="adjustmentDeadline" type="date" value="${escapeHtml(task.deadlineDateKey || "")}"></label>
+      <label><span>Minh chứng/căn cứ</span><input id="adjustmentEvidence" maxlength="3000" placeholder="Số quyết định, nội dung phân công, lịch trực..."></label>
+    </div>
+    <div class="modal-footer"><button class="secondary-button" data-close-adjustment type="button">Hủy</button><button id="submitAdjustmentButton" class="primary-button" type="button">Gửi người giao phê duyệt</button></div>
+  </section>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.querySelectorAll("[data-close-adjustment]").forEach(button => button.addEventListener("click", close));
+  overlay.querySelector("#submitAdjustmentButton")?.addEventListener("click", async event => {
+    const button = event.currentTarget;
+    try {
+      button.disabled = true;
+      button.textContent = "Đang gửi...";
+      await TaskAdjustmentService.request(task, {
+        adjustmentType: overlay.querySelector("#adjustmentType")?.value,
+        reason: overlay.querySelector("#adjustmentReason")?.value,
+        adjustedWorkload: overlay.querySelector("#adjustedWorkload")?.value,
+        description: overlay.querySelector("#adjustmentDescription")?.value,
+        deadlineDateKey: overlay.querySelector("#adjustmentDeadline")?.value,
+        evidenceText: overlay.querySelector("#adjustmentEvidence")?.value
+      });
+      close();
+      await onSaved?.();
+    } catch (error) {
+      window.alert(error?.message || "Không gửi được đề nghị điều chỉnh.");
+      button.disabled = false;
+      button.textContent = "Gửi người giao phê duyệt";
+    }
+  });
+}
+
+async function openAttendanceDelegation(onSaved) {
+  const [candidates, delegation] = await Promise.all([
+    CdtnAttendanceService.listCandidates(),
+    CdtnAttendanceService.getDelegation().catch(() => null)
+  ]);
+  const today = localToday();
+  const end = new Date();
+  end.setMonth(end.getMonth() + 3);
+  const endKey = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`;
+  const overlay = document.createElement("div");
+  overlay.className = "modal-backdrop nested-modal-backdrop";
+  overlay.innerHTML = `<section class="modal-panel modal-medium" role="dialog" aria-modal="true">
+    <div class="modal-header"><div><span class="page-eyebrow">CHI ĐOÀN</span><h2>Ủy quyền điểm danh</h2><p>Người được ủy quyền có thể điểm danh trong thời hạn xác định; đoàn viên không được tự điểm danh.</p></div><button class="icon-button" data-close-delegation type="button">✕</button></div>
+    <div class="modal-body task-form-grid">
+      <label class="field-full"><span>Người được ủy quyền</span><select id="attendanceDelegate"><option value="">— Chọn thành viên —</option>${candidates.map(item => `<option value="${escapeHtml(item.id)}" ${delegation?.active && delegation.delegateUserId === item.id ? "selected" : ""}>${escapeHtml(item.fullName || item.email)} — ${escapeHtml(item.position || "Đoàn viên")}</option>`).join("")}</select></label>
+      <label><span>Từ ngày</span><input id="attendanceDelegateStart" type="date" value="${escapeHtml(delegation?.startDate || today)}"></label>
+      <label><span>Đến ngày</span><input id="attendanceDelegateEnd" type="date" value="${escapeHtml(delegation?.endDate || endKey)}"></label>
+      <label class="field-full"><span>Lý do/phạm vi</span><textarea id="attendanceDelegateReason" rows="3" maxlength="1000">${escapeHtml(delegation?.reason || "Điểm danh hoạt động Chi đoàn theo phân công")}</textarea></label>
+    </div>
+    <div class="modal-footer">${delegation?.active ? '<button id="revokeAttendanceDelegation" class="secondary-button" type="button">Thu hồi ủy quyền</button>' : ""}<button class="secondary-button" data-close-delegation type="button">Hủy</button><button id="saveAttendanceDelegation" class="primary-button" type="button">Lưu ủy quyền</button></div>
+  </section>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.querySelectorAll("[data-close-delegation]").forEach(button => button.addEventListener("click", close));
+  overlay.querySelector("#saveAttendanceDelegation")?.addEventListener("click", async event => {
+    const button = event.currentTarget;
+    try {
+      button.disabled = true;
+      await CdtnAttendanceService.saveDelegation({
+        delegateUserId: overlay.querySelector("#attendanceDelegate")?.value,
+        startDate: overlay.querySelector("#attendanceDelegateStart")?.value,
+        endDate: overlay.querySelector("#attendanceDelegateEnd")?.value,
+        reason: overlay.querySelector("#attendanceDelegateReason")?.value
+      });
+      close();
+      await onSaved?.();
+    } catch (error) {
+      window.alert(error?.message || "Không lưu được ủy quyền.");
+      button.disabled = false;
+    }
+  });
+  overlay.querySelector("#revokeAttendanceDelegation")?.addEventListener("click", async event => {
+    if (!window.confirm("Thu hồi quyền điểm danh đang áp dụng?")) return;
+    const button = event.currentTarget;
+    try {
+      button.disabled = true;
+      await CdtnAttendanceService.revokeDelegation();
+      close();
+      await onSaved?.();
+    } catch (error) {
+      window.alert(error?.message || "Không thu hồi được ủy quyền.");
+      button.disabled = false;
+    }
+  });
 }
 
 function resultRateOptions(selected) {
@@ -425,13 +583,23 @@ export async function openTaskDetailModal(task, { onSaved }) {
   const completed = task._completed === true ||
     ["HOAN_THANH", "COMPLETED", "DA_HOAN_THANH"].includes(String(task.status || "").toUpperCase()) ||
     Boolean(task.completedAt);
-  const users = canAssign(task) ? await UserReadService.listActive() : [];
+  const [users, initialWorkItems, adjustments, logs, canManageAttendance] = await Promise.all([
+    canAssign(task) ? UserReadService.listActive() : Promise.resolve([]),
+    isItemizedTask(task) ? TaskWorkItemService.list(task.id) : Promise.resolve([]),
+    TaskAdjustmentService.list(task.id),
+    TaskLogService.list(task.id),
+    String(task.organizationId || "").toUpperCase() === "CDTN" && workItemType(task) === "ATTENDANCE"
+      ? CdtnAttendanceService.canManage()
+      : Promise.resolve(false)
+  ]);
   const departmentUsers = users.filter(user => user.departmentId === task.primaryDepartmentId);
   const teams = departmentTeams(departmentUsers);
-  let workItems = isItemizedTask(task) ? await TaskWorkItemService.list(task.id) : [];
+  let workItems = initialWorkItems;
   const workItemsLocked = task.scoreLocked === true ||
     ["CONFIRMED", "NO_OCCURRENCE_CONFIRMED"].includes(String(task.scoringStatus || "").toUpperCase());
-  const canEditWorkItems = isItemizedTask(task) && TaskWorkItemService.mayManage(task) && !workItemsLocked;
+  const canEditWorkItems = isItemizedTask(task)
+    && (canManageAttendance || await TaskWorkItemService.mayEditItemAsync(task, null))
+    && !workItemsLocked;
   const labels = WORK_ITEM_LABELS[workItemType(task)];
 
   const overlay = document.createElement("div");
@@ -442,11 +610,19 @@ export async function openTaskDetailModal(task, { onSaved }) {
         <div>
           <span class="page-eyebrow">${escapeHtml(task.taskCode || task.id)}</span>
           <h2>${escapeHtml(task.title || "Nhiệm vụ")}</h2>
-          <p>${escapeHtml(task.primaryDepartmentId || "")} • ${escapeHtml(statusName(task))}</p>
+          <p>${escapeHtml(task.primaryDepartmentId || "")} • ${escapeHtml(statusName(task))} ${adjustmentStatusHtml(task)}</p>
         </div>
         <button class="icon-button" type="button" data-close>✕</button>
       </div>
-      <div class="modal-body">
+      <nav class="task-detail-tabs" aria-label="Chi tiết nhiệm vụ">
+        <button class="active" data-task-tab="registration" type="button">Thông tin đăng ký</button>
+        <button data-task-tab="process" type="button">Quá trình thực hiện</button>
+        <button data-task-tab="adjustment" type="button">Điều chỉnh công việc</button>
+        <button data-task-tab="evidence" type="button">Minh chứng</button>
+        <button data-task-tab="history" type="button">Lịch sử</button>
+      </nav>
+      <div class="modal-body task-detail-tab-body">
+        <section class="task-tab-panel active" data-task-panel="registration">
         <div class="detail-grid task-detail-summary">
           ${detail("Người giao", task.createdByName || task.assignedByName || "—")}
           ${detail("Người phụ trách", task.ownerName || "Chưa phân công")}
@@ -460,20 +636,27 @@ export async function openTaskDetailModal(task, { onSaved }) {
           ${detail("Điểm tối đa", numberVi(task.maximumConvertedScore || 0))}
         </div>
         <section class="detail-section"><h3>Nội dung thực hiện</h3><p>${escapeHtml(task.description || "Chưa có nội dung chi tiết.")}</p></section>
+        ${canAssign(task) ? `<section class="detail-section"><h3>Phân công nội bộ</h3><div class="inline-form assignment-inline-form">
+          <select id="assignTeam"><option value="">— Không chọn Tổ/Nhóm —</option>${teams.map(team => `<option value="${escapeHtml(team.id)}" ${team.id === normalizeTeamId(task.teamId) ? "selected" : ""}>${escapeHtml(team.label)}</option>`).join("")}</select>
+          <select id="assignOwner"><option value="">— Chưa phân công cá nhân —</option></select>
+          <button id="assignTaskButton" class="secondary-button" type="button">Lưu phân công</button>
+        </div><small>Thay đổi người thực hiện không tự động chuyển điểm; mỗi nhân sự được tính theo nhiệm vụ đã đăng ký hoặc bổ sung được phê duyệt.</small></section>` : ""}
+        </section>
+        <section class="task-tab-panel" data-task-panel="process" hidden>
         ${isItemizedTask(task) ? `<section class="detail-section task-work-items-section">
-          <div class="detail-section-heading"><div><h3>${labels.name}</h3><p>Các lượt được ghi riêng để tạo tỷ lệ N–T–K; không cộng điểm riêng cho từng lượt.</p></div>${canEditWorkItems ? `<button id="addWorkItemButton" class="primary-button compact-button" type="button">+ ${labels.add}</button>` : ""}</div>
+          <div class="detail-section-heading"><div><h3>${labels.name}</h3><p>Mỗi lượt được chấm riêng, sau đó lấy trung bình chính xác để tính một lần theo Phụ lục 04.</p></div><div class="detail-section-actions">${Permissions.isCdtnSecretary() || Permissions.isCdtnDeputySecretary() ? '<button id="delegateAttendanceButton" class="secondary-button compact-button" type="button">Ủy quyền điểm danh</button>' : ""}${canEditWorkItems ? `<button id="addWorkItemButton" class="primary-button compact-button" type="button">+ ${labels.add}</button>` : ""}</div></div>
           ${scoringMethodHtml(task)}
           <div id="taskNoOccurrence">${noOccurrenceHtml(task, workItems, isOwner)}</div>
           <div id="taskWorkItemSummary">${workItemSummaryHtml(workItems, task)}</div>
           <div id="taskWorkItemList">${workItemRows(workItems, canEditWorkItems, task)}</div>
         </section>` : `<div class="info-banner final-output-banner"><strong>Đánh giá trực tiếp theo Phụ lục 04</strong><span>Đầu việc này có một sản phẩm/kết quả cuối cùng nên không tạo lượt chi tiết. Khi hoàn thành, hệ thống chấm một lần theo tiến độ, kết quả, điểm chuẩn và hệ số độ khó của chính đầu việc.</span></div>`}
-        <section class="detail-section"><h3>Kết quả và minh chứng cuối cùng</h3><p>${escapeHtml(task.resultSummary || task.result || "Chưa ghi nhận kết quả.")}</p>${safeExternalUrl(task.evidenceUrl) ? `<a class="primary-link" target="_blank" rel="noopener" href="${escapeHtml(safeExternalUrl(task.evidenceUrl))}">📎 ${escapeHtml(task.evidenceFileName || "Mở tệp minh chứng")}</a>` : ""}${task.evidenceText ? `<p>${escapeHtml(task.evidenceText)}</p>` : ""}</section>
         ${isOwner && !accepted && !completed ? '<div class="info-banner">Bạn cần xác nhận đã nhận nhiệm vụ trước khi cập nhật tiến độ, kết quả hoặc minh chứng.</div>' : ""}
-        ${canAssign(task) ? `<section class="detail-section"><h3>Phân công nội bộ</h3><div class="inline-form assignment-inline-form">
-          <select id="assignTeam"><option value="">— Không chọn Tổ/Nhóm —</option>${teams.map(team => `<option value="${escapeHtml(team.id)}" ${team.id === normalizeTeamId(task.teamId) ? "selected" : ""}>${escapeHtml(team.label)}</option>`).join("")}</select>
-          <select id="assignOwner"><option value="">— Chưa phân công cá nhân —</option></select>
-          <button id="assignTaskButton" class="secondary-button" type="button">Lưu phân công</button>
-        </div></section>` : ""}
+        </section>
+        <section class="task-tab-panel" data-task-panel="adjustment" hidden>${adjustmentsHtml(task, adjustments)}</section>
+        <section class="task-tab-panel" data-task-panel="evidence" hidden>
+          <section class="detail-section evidence-focus-card"><h3>Kết quả và minh chứng cuối cùng</h3><p>${escapeHtml(task.resultSummary || task.result || "Chưa ghi nhận kết quả.")}</p>${safeExternalUrl(task.evidenceUrl) ? `<a class="primary-link" target="_blank" rel="noopener" href="${escapeHtml(safeExternalUrl(task.evidenceUrl))}">📎 ${escapeHtml(task.evidenceFileName || "Mở tệp minh chứng")}</a>` : ""}${task.evidenceText ? `<p>${escapeHtml(task.evidenceText)}</p>` : ""}</section>
+        </section>
+        <section class="task-tab-panel" data-task-panel="history" hidden>${historyHtml(logs)}</section>
       </div>
       <div class="modal-footer"><button class="secondary-button" type="button" data-close>Đóng</button>${isOwner && !accepted && !completed ? '<button id="acceptTaskButton" class="primary-button" type="button">Xác nhận đã nhận nhiệm vụ</button>' : ""}${isOwner && accepted && !completed && String(task.noOccurrenceStatus || "").toUpperCase() !== "CONFIRMED" ? '<button id="updateTaskButton" class="primary-button" type="button">Cập nhật nhiệm vụ</button>' : ""}</div>
     </section>`;
@@ -481,6 +664,58 @@ export async function openTaskDetailModal(task, { onSaved }) {
   document.body.appendChild(overlay);
   const close = () => overlay.remove();
   overlay.querySelectorAll("[data-close]").forEach(button => button.addEventListener("click", close));
+
+  overlay.querySelectorAll("[data-task-tab]").forEach(button => button.addEventListener("click", () => {
+    const selected = button.dataset.taskTab;
+    overlay.querySelectorAll("[data-task-tab]").forEach(item => item.classList.toggle("active", item === button));
+    overlay.querySelectorAll("[data-task-panel]").forEach(panel => {
+      const active = panel.dataset.taskPanel === selected;
+      panel.hidden = !active;
+      panel.classList.toggle("active", active);
+    });
+  }));
+
+  overlay.querySelector("#requestAdjustmentButton")?.addEventListener("click", () => {
+    openAdjustmentRequest(task, async () => {
+      close();
+      await onSaved?.();
+    });
+  });
+
+  overlay.querySelectorAll("[data-approve-adjustment]").forEach(button => button.addEventListener("click", async () => {
+    const adjustment = adjustments.find(item => item.id === button.dataset.adjustmentId);
+    if (!adjustment) return;
+    const type = button.dataset.approveAdjustment;
+    const message = type === "EXEMPT_FROM_SCORING"
+      ? "Phê duyệt không đánh giá: nhiệm vụ vẫn lưu trong lịch sử nhưng bị loại khỏi A và không chấm 0 điểm. Tiếp tục?"
+      : "Phê duyệt điều chỉnh khối lượng và chấm phần đã thực hiện?";
+    if (!window.confirm(message)) return;
+    try {
+      button.disabled = true;
+      await TaskAdjustmentService.approve(task, adjustment, type);
+      close();
+      await onSaved?.();
+    } catch (error) {
+      window.alert(error?.message || "Không phê duyệt được điều chỉnh.");
+      button.disabled = false;
+    }
+  }));
+
+  overlay.querySelectorAll("[data-reject-adjustment]").forEach(button => button.addEventListener("click", async () => {
+    const adjustment = adjustments.find(item => item.id === button.dataset.rejectAdjustment);
+    if (!adjustment) return;
+    const reason = window.prompt("Nêu lý do không chấp thuận đề nghị điều chỉnh:");
+    if (reason === null) return;
+    try {
+      button.disabled = true;
+      await TaskAdjustmentService.reject(task, adjustment, reason);
+      close();
+      await onSaved?.();
+    } catch (error) {
+      window.alert(error?.message || "Không xử lý được đề nghị.");
+      button.disabled = false;
+    }
+  }));
 
   const refreshWorkItems = async () => {
     workItems = await TaskWorkItemService.list(task.id);
@@ -513,6 +748,10 @@ export async function openTaskDetailModal(task, { onSaved }) {
   };
 
   overlay.querySelector("#addWorkItemButton")?.addEventListener("click", () => openWorkItemEditor(task, null, refreshWorkItems));
+  overlay.querySelector("#delegateAttendanceButton")?.addEventListener("click", () => openAttendanceDelegation(async () => {
+    close();
+    await onSaved?.();
+  }));
   bindWorkItemActions();
 
   overlay.querySelector("#requestNoOccurrenceButton")?.addEventListener("click", async () => {

@@ -1,8 +1,8 @@
-import { Permissions } from "../../core/permissions.js?v=20260731.V1_1_19";
+import { Permissions } from "../../core/permissions.js?v=20260801.V1_2_0";
 import { ToastService } from "../../core/toast-service.js";
-import { TaskReadService } from "../../services/task-read-service.js?v=20260731.V1_1_19";
-import { openTaskCreateModal } from "./task-form-modal.js?v=20260731.V1_1_19";
-import { openTaskDetailModal } from "./task-detail-modal.js?v=20260731.V1_1_19";
+import { TaskReadService } from "../../services/task-read-service.js?v=20260801.V1_2_0";
+import { openTaskCreateModal } from "./task-form-modal.js?v=20260801.V1_2_0";
+import { openTaskDetailModal } from "./task-detail-modal.js?v=20260801.V1_2_0";
 
 let renderSequence = 0;
 let stopRealtime = () => {};
@@ -148,7 +148,16 @@ function renderTaskList(tasks) {
           : task._status === "MOI_TIEP_NHAN"
             ? { label: "Chờ tiếp nhận", className: "warning" }
             : { label: "Đang xử lý", className: "neutral" };
-    return `<button type="button" class="data-row task-row-button" data-task-id="${escapeHtml(task.id)}"><div class="data-row-main"><strong>${escapeHtml(task.title || task.taskCode || "Nhiệm vụ không có tiêu đề")}</strong><small>${escapeHtml(task.taskCode || task.id)} • ${escapeHtml(task.primaryDepartmentId || "-")} • ${escapeHtml(task.ownerName || "Chưa phân công")}</small><div class="progress-track"><span style="width:${Math.min(100,Math.max(0,Number(task.progress || 0)))}%"></span></div></div><div class="data-row-meta"><span class="status-pill ${status.className}">${status.label}</span><small>${formatDate(task._deadline)}</small><strong>${Number(task.progress || 0)}%</strong></div></button>`;
+    const adjustment = String(task.adjustmentStatus || "").toUpperCase();
+    const adjustmentBadge = adjustment === "REQUESTED"
+      ? '<span class="status-pill warning">Đang chờ điều chỉnh</span>'
+      : adjustment === "APPROVED"
+        ? `<span class="status-pill success">${escapeHtml(task.adjustmentLabel || "Đã điều chỉnh")}</span>`
+        : "";
+    const supplementaryBadge = task.isSupplementary === true
+      ? '<span class="status-pill info">Bổ sung phát sinh</span>'
+      : "";
+    return `<button type="button" class="data-row task-row-button" data-task-id="${escapeHtml(task.id)}"><div class="data-row-main"><strong>${escapeHtml(task.title || task.taskCode || "Nhiệm vụ không có tiêu đề")}</strong><small>${escapeHtml(task.taskCode || task.id)} • ${escapeHtml(task.primaryDepartmentId || "-")} • ${escapeHtml(task.ownerName || "Chưa phân công")}</small><div class="progress-track"><span style="width:${Math.min(100,Math.max(0,Number(task.progress || 0)))}%"></span></div></div><div class="data-row-meta"><span class="status-pill ${status.className}">${status.label}</span>${supplementaryBadge}${adjustmentBadge}<small>${formatDate(task._deadline)}</small><strong>${Number(task.progress || 0)}%</strong></div></button>`;
   }).join("")}</div>`;
 }
 
