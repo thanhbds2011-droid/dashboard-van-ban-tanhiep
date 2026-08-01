@@ -19,4 +19,19 @@ export function buildTaskLog({ taskId, taskCode, action, before = null, after = 
   };
 }
 
-export const TaskLogService = Object.freeze({ buildTaskLog });
+export const TaskLogService = Object.freeze({
+  buildTaskLog,
+
+  async list(taskId) {
+    if (!taskId) return [];
+    const snapshot = await FirebaseService.getDocs(
+      FirebaseService.query(
+        FirebaseService.collection(FirebaseService.db, "taskLogs"),
+        FirebaseService.where("taskId", "==", taskId)
+      )
+    );
+    return snapshot.docs
+      .map(item => ({ id: item.id, ...item.data() }))
+      .sort((a, b) => Number(b.createdAt?.seconds || 0) - Number(a.createdAt?.seconds || 0));
+  }
+});

@@ -6,9 +6,9 @@
  */
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260731.V1_1_19";
+import { Permissions } from "../core/permissions.js?v=20260801.V1_2_0";
 
-const SYNC_VERSION = "20260731.V1_1_19";
+const SYNC_VERSION = "20260801.V1_2_0";
 const STANDARD_TASK_COLLECTION = "standardTasks";
 const SEQUENCE_COLLECTION = "standardTaskSequences";
 const VALID_COEFFICIENTS = Object.freeze([1, 1.1, 1.2]);
@@ -482,15 +482,31 @@ export const StandardTaskWriteService = Object.freeze({
     const hasHistory = await taskHasHistory(task);
 
     if (hasHistory) {
-      await FirebaseService.updateDoc(reference, {
-        active: false,
-        removedFromCatalogAt: FirebaseService.serverTimestamp(),
-        removedFromCatalogByUserId: user.uid,
-        removedFromCatalogByName: user.fullName || "",
-        updatedAt: FirebaseService.serverTimestamp(),
-        updatedByUserId: user.uid,
-        updatedByName: user.fullName || ""
+      const archiveReference = FirebaseService.doc(
+        FirebaseService.collection(FirebaseService.db, "kpiAdjustments")
+      );
+      const batch = FirebaseService.writeBatch(FirebaseService.db);
+      batch.set(archiveReference, {
+        recordType: "STANDARD_TASK_ARCHIVE",
+        adjustmentType: "CATALOG_ITEM_REMOVED",
+        status: "ARCHIVED",
+        standardTaskId: taskId,
+        standardTaskCode: upper(task.code || taskId),
+        departmentId,
+        userId: user.uid,
+        archivedSnapshot: { ...task, id: taskId },
+        reason: "Đầu việc được hủy khỏi danh mục; mã hiển thị được thu hồi để cấp lại.",
+        createdAt: FirebaseService.serverTimestamp(),
+        createdByUserId: user.uid,
+        createdByName: user.fullName || ""
       });
+      batch.delete(reference);
+      await batch.commit();
+      try {
+        await updateSequenceHint(departmentId, user);
+      } catch (error) {
+        console.warn("Đã lưu lịch sử đầu việc nhưng chưa cập nhật được gợi ý mã kế tiếp:", error);
+      }
       return { mode: "ARCHIVED" };
     }
 

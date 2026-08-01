@@ -1,8 +1,9 @@
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260731.V1_1_19";
+import { Permissions } from "../core/permissions.js?v=20260801.V1_2_0";
 import { TaskLogService } from "./task-log-service.js";
-import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260731.V1_1_19";
+import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260801.V1_2_0";
+import { TaskNotificationService } from "./task-notification-service.js?v=20260801.V1_2_0";
 
 const clean = value => String(value ?? "").trim();
 const upper = value => clean(value).toUpperCase();
@@ -27,11 +28,6 @@ function dateAtStart(value) {
 function dateAtEnd(value) {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(clean(value));
   return match ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 23, 59, 59) : null;
-}
-
-function createTaskCode() {
-  const now = new Date();
-  return `NV-${dateKey(now).replaceAll("-", "")}-${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}${String(now.getSeconds()).padStart(2, "0")}-${Math.random().toString(36).slice(2, 5).toUpperCase()}`;
 }
 
 function registrationId(periodId, uid, standardTaskId) {
@@ -172,9 +168,11 @@ function cancellationTaskSnapshot(task) {
 }
 
 function taskPayload(registration, reviewer, due, options = {}) {
-  const code = createTaskCode();
+  const code = upper(registration.standardTaskCode || registration.standardTaskId);
+  if (!code) throw new Error("Đầu việc đăng ký chưa có mã danh mục hợp lệ.");
   const workType = standardWorkType(registration.workType);
   const isUnexpected = workType === "DOT_XUAT";
+  const isSupplementary = upper(registration.registrationType) === "SUPPLEMENTARY";
   return {
     code,
     payload: {
@@ -182,12 +180,12 @@ function taskPayload(registration, reviewer, due, options = {}) {
       taskCode: code,
       title: registration.title || registration.standardTaskName,
       description: registration.description || "",
-      sourceType: "DANG_KY_KE_HOACH",
+      sourceType: isSupplementary ? "DANG_KY_BO_SUNG" : "DANG_KY_KE_HOACH",
       sourceReference: registration.standardTaskCode || "",
       sourceDetail: isUnexpected ? "Đầu việc đột xuất trong danh mục được cá nhân đăng ký, phê duyệt và tính vào A." : "Đầu việc thường xuyên do cá nhân đăng ký và được phê duyệt.",
       sourceDate: FirebaseService.Timestamp.fromDate(new Date()),
       sourceDateKey: dateKey(new Date()),
-      entryMode: "SELF_REGISTERED_APPROVED",
+      entryMode: isSupplementary ? "SELF_REGISTERED_SUPPLEMENTARY_APPROVED" : "SELF_REGISTERED_APPROVED",
       primaryDepartmentId: registration.departmentId,
       supportDepartmentIds: [],
       relatedDepartmentIds: [],
@@ -200,6 +198,8 @@ function taskPayload(registration, reviewer, due, options = {}) {
       assignedByUserId: reviewer.uid,
       assignedByName: reviewer.fullName || "",
       assignedByPosition: reviewer.position || "",
+      adjustmentApproverUserId: reviewer.uid,
+      adjustmentApproverName: reviewer.fullName || "",
       assignedAt: FirebaseService.serverTimestamp(),
       assignmentStatus: "DA_PHAN_CONG",
       status: "MOI_TIEP_NHAN",
@@ -222,7 +222,10 @@ function taskPayload(registration, reviewer, due, options = {}) {
       scoringVersion: "KPI_2026_V1",
       periodId: registration.periodId,
       periodName: registration.periodName || registration.periodId,
-      planType: isUnexpected ? "DOT_XUAT" : "KE_HOACH",
+      planType: isSupplementary ? "SUPPLEMENTARY" : (isUnexpected ? "DOT_XUAT" : "KE_HOACH"),
+      registrationType: isSupplementary ? "SUPPLEMENTARY" : "PLANNED",
+      isSupplementary,
+      taskCategoryLabel: isSupplementary ? "Bổ sung phát sinh" : "",
       planApprovalStatus: "APPROVED",
       includedInA: true,
       isCoreTask: registration.isCoreTaskDefault === true,
@@ -285,6 +288,7 @@ async function createApprovedTasks(registrations, reviewer, options = {}) {
   }
 
   await batch.commit();
+  taskIds.forEach(taskId => TaskNotificationService.send("TASK_CREATED", taskId));
   return taskIds;
 }
 
@@ -370,7 +374,7 @@ export const TaskRegistrationService = Object.freeze({
     if (!items?.length) throw new Error("Chưa chọn đầu việc để đăng ký.");
 
     const plan = await departmentPlan(period.id, user.departmentId);
-    if (plan?.locked === true) throw new Error("Đăng ký kế hoạch của Phòng/Khu đã được khóa.");
+    const supplementary = plan?.locked === true;
 
     const autoApprove = Permissions.isDepartmentHead(user) || Permissions.isDirector();
     const batch = FirebaseService.writeBatch(FirebaseService.db);
@@ -406,6 +410,8 @@ export const TaskRegistrationService = Object.freeze({
         userIsDepartmentHead: user.isDepartmentHead === true,
         workType,
         planType: workType === "DOT_XUAT" ? "DOT_XUAT" : "KE_HOACH",
+        registrationType: supplementary ? "SUPPLEMENTARY" : "PLANNED",
+        submittedAfterPlanLock: supplementary,
         includedInA: true,
         baseScore: Number(item.baseScore || 0),
         difficultyCoefficient: Number(item.difficultyCoefficient || 1),

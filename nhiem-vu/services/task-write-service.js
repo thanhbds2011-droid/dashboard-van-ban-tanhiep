@@ -1,9 +1,10 @@
 /** Tạo, phân công, tiếp nhận, cập nhật tiến độ và hoàn thành nhiệm vụ. */
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260731.V1_1_19";
+import { Permissions } from "../core/permissions.js?v=20260801.V1_2_0";
 import { TaskLogService } from "./task-log-service.js";
-import { TaskWorkItemService } from "./task-work-item-service.js?v=20260731.V1_1_19";
+import { TaskWorkItemService } from "./task-work-item-service.js?v=20260801.V1_2_0";
+import { TaskNotificationService } from "./task-notification-service.js?v=20260801.V1_2_0";
 
 const MAX_CODE_SCAN = 1000;
 
@@ -20,69 +21,47 @@ function normalizeDepartmentId(value) {
     .toUpperCase();
 }
 
-function parseDepartmentSequence(code, departmentId) {
+function parseUnexpectedSequence(code, departmentId) {
   const prefix = normalizeDepartmentId(departmentId);
   const text = String(code || "").trim().toUpperCase();
   if (!prefix || !text) return 0;
-  const match = new RegExp(`^${prefix}(\\d+)$`).exec(text);
+  const match = new RegExp(`^${prefix}-DX(\\d+)$`).exec(text);
   return match ? Number(match[1]) || 0 : 0;
 }
 
-function formatDepartmentTaskCode(departmentId, sequence) {
+function formatUnexpectedTaskCode(departmentId, sequence) {
   const prefix = normalizeDepartmentId(departmentId);
   if (!prefix) throw new Error("Không xác định được mã Phòng/Khu để cấp mã nhiệm vụ.");
   const value = Math.max(1, Number(sequence || 0));
   const width = Math.max(2, String(value).length);
-  return `${prefix}${String(value).padStart(width, "0")}`;
+  return `${prefix}-DX${String(value).padStart(width, "0")}`;
 }
 
-async function getStartingSequence(departmentId) {
+async function getUsedUnexpectedSequences(departmentId) {
   const normalizedDepartmentId = normalizeDepartmentId(departmentId);
-  const [standardSnapshot, taskSnapshot] = await Promise.all([
-    FirebaseService.getDocsFromServer(
-      FirebaseService.query(
-        FirebaseService.collection(FirebaseService.db, "standardTasks"),
-        FirebaseService.where("departmentId", "==", normalizedDepartmentId)
-      )
-    ),
-    FirebaseService.getDocsFromServer(
-      FirebaseService.query(
-        FirebaseService.collection(FirebaseService.db, "tasks"),
-        FirebaseService.where("primaryDepartmentId", "==", normalizedDepartmentId)
-      )
+  const taskSnapshot = await FirebaseService.getDocsFromServer(
+    FirebaseService.query(
+      FirebaseService.collection(FirebaseService.db, "tasks"),
+      FirebaseService.where("primaryDepartmentId", "==", normalizedDepartmentId)
     )
-  ]);
-
-  let maximum = 0;
-  standardSnapshot.docs.forEach(snapshot => {
-    const data = snapshot.data() || {};
-    maximum = Math.max(
-      maximum,
-      parseDepartmentSequence(data.code || snapshot.id, normalizedDepartmentId)
-    );
-  });
+  );
+  const used = new Set();
   taskSnapshot.docs.forEach(snapshot => {
     const data = snapshot.data() || {};
-    maximum = Math.max(
-      maximum,
-      parseDepartmentSequence(data.taskCode || snapshot.id, normalizedDepartmentId)
-    );
+    const sequence = parseUnexpectedSequence(data.taskCode || snapshot.id, normalizedDepartmentId);
+    if (sequence > 0) used.add(sequence);
   });
-
-  return maximum + 1;
+  return used;
 }
 
-async function reserveTaskReference(transaction, departmentId, startingSequence) {
-  for (let offset = 0; offset < MAX_CODE_SCAN; offset += 1) {
-    const sequence = startingSequence + offset;
-    const code = formatDepartmentTaskCode(departmentId, sequence);
+async function reserveTaskReference(transaction, departmentId, usedSequences) {
+  for (let sequence = 1; sequence <= MAX_CODE_SCAN; sequence += 1) {
+    if (usedSequences.has(sequence)) continue;
+    const code = formatUnexpectedTaskCode(departmentId, sequence);
     const reference = FirebaseService.doc(FirebaseService.db, "tasks", code);
-    const standardReference = FirebaseService.doc(FirebaseService.db, "standardTasks", code);
-    const [taskSnapshot, standardSnapshot] = await Promise.all([
-      transaction.get(reference),
-      transaction.get(standardReference)
-    ]);
-    if (!taskSnapshot.exists() && !standardSnapshot.exists()) return { code, reference };
+    const taskSnapshot = await transaction.get(reference);
+    if (!taskSnapshot.exists()) return { code, reference };
+    usedSequences.add(sequence);
   }
   throw new Error("Không thể cấp mã nhiệm vụ tiếp theo. Vui lòng thử lại.");
 }
@@ -124,9 +103,9 @@ export const TaskWriteService = Object.freeze({
     }
 
     const departmentId = normalizeDepartmentId(data.primaryDepartmentId);
-    const [activePeriod, startingSequence] = await Promise.all([
+    const [activePeriod, usedSequences] = await Promise.all([
       getActivePeriod(),
-      getStartingSequence(departmentId)
+      getUsedUnexpectedSequences(departmentId)
     ]);
 
     if (!activePeriod?.id) {
@@ -166,7 +145,7 @@ export const TaskWriteService = Object.freeze({
         const { code, reference } = await reserveTaskReference(
           transaction,
           departmentId,
-          startingSequence
+          usedSequences
         );
 
         const payload = {
@@ -192,6 +171,8 @@ export const TaskWriteService = Object.freeze({
           assignedByUserId: ownerUserId ? user.uid : "",
           assignedByName: ownerUserId ? (user.fullName || "") : "",
           assignedByPosition: ownerUserId ? (user.position || "") : "",
+          adjustmentApproverUserId: user.uid,
+          adjustmentApproverName: user.fullName || "",
           assignedAt: ownerUserId ? FirebaseService.serverTimestamp() : null,
           assignmentStatus,
           status,
@@ -256,11 +237,15 @@ export const TaskWriteService = Object.freeze({
       }
     );
 
+    TaskNotificationService.send("TASK_CREATED", result.id);
     return result;
   },
 
   async assign(task, assignment) {
     const user = UserContext.requireUser();
+    if (task.assignmentStatus === "DA_TIEP_NHAN" || Number(task.progress || 0) > 0 || task.completedAt) {
+      throw new Error("Nhiệm vụ đã được tiếp nhận hoặc thực hiện. Không đổi người để tránh chuyển điểm; người thực hiện thay cần đăng ký nhiệm vụ bổ sung.");
+    }
     const before = snapshotTask(task);
     const ownerUserId = assignment.ownerUserId || "";
     const payload = {
@@ -272,6 +257,11 @@ export const TaskWriteService = Object.freeze({
       assignedByUserId: user.uid,
       assignedByName: user.fullName || "",
       assignedByPosition: user.position || "",
+      internalAssignedByUserId: user.uid,
+      internalAssignedByName: user.fullName || "",
+      internalAssignedAt: FirebaseService.serverTimestamp(),
+      adjustmentApproverUserId: user.uid,
+      adjustmentApproverName: user.fullName || "",
       assignedAt: FirebaseService.serverTimestamp(),
       assignmentStatus: ownerUserId ? "DA_PHAN_CONG" : "CHO_PHAN_CONG",
       status: ownerUserId ? "MOI_TIEP_NHAN" : "CHO_PHAN_CONG",
@@ -289,6 +279,7 @@ export const TaskWriteService = Object.freeze({
       after: { ...before, ...payload, assignedAt: null, updatedAt: null }
     }));
     await batch.commit();
+    TaskNotificationService.send("TASK_INTERNAL_ASSIGNED", task.id);
   },
 
   async accept(task) {
@@ -362,6 +353,7 @@ export const TaskWriteService = Object.freeze({
       note: changes.progressNote || ""
     }));
     await batch.commit();
+    TaskNotificationService.send(changes.status === "HOAN_THANH" ? "TASK_COMPLETED" : "TASK_UPDATED", task.id);
   },
 
   async requestNoOccurrence(task, reason) {
@@ -418,12 +410,9 @@ export const TaskWriteService = Object.freeze({
     if (task.ownerUserId === user.uid) {
       throw new Error("Người thực hiện không được tự xác nhận đề nghị “Không phát sinh” của chính mình.");
     }
-    const sameDepartmentLeader = Permissions.isDepartmentHead() &&
-      String(task.primaryDepartmentId || "") === String(user.departmentId || "");
-    const otherDirectorForBgd = Permissions.isDirector() &&
-      String(task.primaryDepartmentId || "") === "BGD";
-    if (!(Permissions.isAdmin() || sameDepartmentLeader || otherDirectorForBgd)) {
-      throw new Error("Chỉ Trưởng phòng, thành viên Ban Giám đốc phù hợp hoặc Admin được xác nhận.");
+    const approverUserId = String(task.adjustmentApproverUserId || task.assignedByUserId || task.createdByUserId || "");
+    if (approverUserId !== user.uid) {
+      throw new Error("Chỉ người đã giao nhiệm vụ được xác nhận đề nghị này.");
     }
     if (String(task.noOccurrenceStatus || "").toUpperCase() !== "REQUESTED") {
       throw new Error("Đầu việc chưa có đề nghị “Không phát sinh” đang chờ xác nhận.");
@@ -480,12 +469,9 @@ export const TaskWriteService = Object.freeze({
     if (task.ownerUserId === user.uid) {
       throw new Error("Người thực hiện không được tự xử lý đề nghị của chính mình.");
     }
-    const sameDepartmentLeader = Permissions.isDepartmentHead() &&
-      String(task.primaryDepartmentId || "") === String(user.departmentId || "");
-    const otherDirectorForBgd = Permissions.isDirector() &&
-      String(task.primaryDepartmentId || "") === "BGD";
-    if (!(Permissions.isAdmin() || sameDepartmentLeader || otherDirectorForBgd)) {
-      throw new Error("Tài khoản không có quyền xử lý đề nghị này.");
+    const approverUserId = String(task.adjustmentApproverUserId || task.assignedByUserId || task.createdByUserId || "");
+    if (approverUserId !== user.uid) {
+      throw new Error("Chỉ người đã giao nhiệm vụ được xử lý đề nghị này.");
     }
     if (String(task.noOccurrenceStatus || "").toUpperCase() !== "REQUESTED") {
       throw new Error("Đầu việc không còn ở trạng thái chờ xác nhận.");
