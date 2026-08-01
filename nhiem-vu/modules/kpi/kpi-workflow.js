@@ -7,7 +7,7 @@ import { TaskRegistrationService } from '../../services/task-registration-servic
 import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260801.V1_3_0';
 import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260801.V1_3_0';
 import { PeriodReadService } from '../../services/period-read-service.js?v=20260801.V1_3_0';
-import { Permissions } from '../../core/permissions.js?v=20260801.V1_3_0';
+import { Permissions } from '../../core/permissions.js?v=20260801.V1_3_1';
 import {
   KPI2B as KPI2C, COMMON_CRITERIA, calculateTaskScore, calculateKpiSummary,
   proposedRating, ratingName, round2, progressRateFromDates
@@ -482,9 +482,11 @@ async function loadAll() {
   } catch (error) {
     console.error(error);
     renderManagementToolbar();
-    message(error?.code === 'permission-denied'
-      ? 'Tài khoản chưa được cấp quyền phù hợp để xem dữ liệu này. Vui lòng liên hệ quản trị viên.'
-      : 'Không thể tải dữ liệu đánh giá. Vui lòng cập nhật và thử lại.');
+    const permissionDenied = ['permission-denied', 'firestore/permission-denied'].includes(error?.code)
+      || /missing or insufficient permissions/i.test(clean(error?.message));
+    message(permissionDenied
+      ? 'Chưa tải được dữ liệu theo phạm vi tài khoản. Vui lòng bấm Cập nhật; nếu lỗi vẫn còn, liên hệ quản trị viên.'
+      : 'Không thể tải dữ liệu đánh giá. Vui lòng bấm Cập nhật và thử lại.');
   }
 }
 
