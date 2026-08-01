@@ -1,15 +1,25 @@
 import { UserContext } from "../../core/user-context.js";
-import { Permissions } from "../../core/permissions.js?v=20260731.V1_1_19";
+import { Permissions } from "../../core/permissions.js?v=20260801.V1_2_0";
 import { ToastService } from "../../core/toast-service.js";
-import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260731.V1_1_19";
-import { PeriodReadService } from "../../services/period-read-service.js?v=20260731.V1_1_19";
-import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260731.V1_1_19";
-import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260731.V1_1_19";
+import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260801.V1_2_0";
+import { PeriodReadService } from "../../services/period-read-service.js?v=20260801.V1_2_0";
+import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260801.V1_2_0";
+import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260801.V1_2_0";
 
 let stopStandardRealtime = () => {};
 let standardRealtimeTimer = null;
 let standardRouteCleanupBound = false;
 let currentCatalogAccess = { canManage: false, manageableDepartmentIds: [] };
+
+function visibleCatalogItem(item, user, catalogAccess) {
+  const departmentId = String(item?.departmentId || "").toUpperCase();
+  const canManageThisCatalog = (catalogAccess?.manageableDepartmentIds || []).includes(departmentId);
+  if (canManageThisCatalog || Permissions.isAdmin() || Permissions.isDirector() || Permissions.isDepartmentLeader()) {
+    return true;
+  }
+  if (departmentId === "CDTN") return StandardTaskReadService.canRegisterItem(item, user);
+  return item?.isCoreTaskDefault === true && StandardTaskReadService.canRegisterItem(item, user);
+}
 
 function bindStandardRouteCleanup() {
   if (standardRouteCleanupBound) return;
@@ -72,10 +82,12 @@ export async function renderStandardTasksView(outlet) {
 
     const plan = period ? await TaskRegistrationService.getDepartmentPlan(period.id) : null;
     currentCatalogAccess = catalogAccess || { canManage: false, manageableDepartmentIds: [] };
-    const catalogItems = items.map(item => ({
+    const catalogItems = items
+      .filter(item => visibleCatalogItem(item, user, catalogAccess))
+      .map(item => ({
       ...item,
       _registrationEligible: StandardTaskReadService.canRegisterItem(item, user)
-    }));
+      }));
     const registrationMode = Permissions.canRegisterStandardTasks();
     const registrations = registrationMode && period
       ? await TaskRegistrationService.listForCurrentUser(period.id)
@@ -84,7 +96,8 @@ export async function renderStandardTasksView(outlet) {
     const approvedCancellationMap = registrationMode && registrations.length
       ? await TaskRegistrationService.getApprovedCancellationMap(registrations)
       : {};
-    const registrationOpen = Boolean(period && plan?.locked !== true);
+    const registrationOpen = Boolean(period);
+    const supplementaryMode = Boolean(period && plan?.locked === true);
     const registeredCount = catalogItems.filter(item => findRegistration(item, registeredMap)).length;
     const availableCount = catalogItems.filter(item => (
       item._registrationEligible && !findRegistration(item, registeredMap)
@@ -110,7 +123,7 @@ export async function renderStandardTasksView(outlet) {
       <div class="info-banner standard-task-period-banner">
         <span>Phòng/Khu: <strong>${escapeHtml(user.departmentId || "Toàn hệ thống")}</strong></span>
         <span>${period ? `Kỳ hiện tại: <strong>${escapeHtml(period.name || period.id)}</strong>` : "<strong>Chưa có kỳ hoạt động.</strong>"}</span>
-        ${period ? `<span>Đăng ký: <strong>${registrationOpen ? "Đang mở" : "Đã khóa"}</strong></span>` : ""}
+        ${period ? `<span>Đăng ký: <strong>${supplementaryMode ? "Bổ sung trong kỳ" : "Đang mở"}</strong></span>` : ""}
         ${catalogAccess.canManage ? `<span>Quản lý danh mục: <strong>${catalogAccess.isDepartmentHead ? "Trưởng phòng" : "Được ủy quyền"}</strong></span>` : ""}
       </div>
 
@@ -135,9 +148,9 @@ export async function renderStandardTasksView(outlet) {
       ${registrationMode ? `<div class="registration-sticky">
         <div>
           <strong>Đã chọn: <span id="registrationSelectedCount">0</span> đầu việc · Điểm A dự kiến: <span id="registrationSelectedScore">0</span></strong>
-          <small>${registrationOpen ? "Kiểm tra đầu việc và tổng điểm dự kiến trước khi gửi đăng ký." : "Đăng ký kế hoạch của Phòng/Khu đang được khóa. Trưởng phòng cần mở lại đăng ký trước khi người dùng đăng ký."}</small>
+          <small>${supplementaryMode ? "Đầu việc gửi sau khi khóa kế hoạch được ghi là nhiệm vụ bổ sung và chỉ tính KPI sau khi lãnh đạo phê duyệt." : "Kiểm tra đầu việc và tổng điểm dự kiến trước khi gửi đăng ký."}</small>
         </div>
-        <button id="btnRegisterSelected" class="primary-button" type="button" ${registrationOpen ? "" : "disabled"}>Đăng ký đầu việc đã chọn</button>
+        <button id="btnRegisterSelected" class="primary-button" type="button" ${registrationOpen ? "" : "disabled"}>${supplementaryMode ? "Đăng ký nhiệm vụ bổ sung" : "Đăng ký đầu việc đã chọn"}</button>
       </div>` : ""}
     </section>`;
 
@@ -816,7 +829,7 @@ function scoringMethodDescription(typeValue) {
     <div class="standard-scoring-variables">
       <span><b>N</b>${escapeHtml(n)}</span><span><b>T</b>${escapeHtml(t)}</span><span><b>K</b>${escapeHtml(k)}</span>
     </div>
-    <p>Tính T/N và K/N, quy về mức áp dụng 100%–80%–60%–0%, rồi chấm một lần cho toàn đầu việc theo Phụ lục 04. Không cộng điểm riêng từng lượt.</p>`;
+    <p>Chấm tiến độ và kết quả của từng lượt, lấy trung bình chính xác rồi chấm một lần cho toàn đầu việc theo Phụ lục 04. Không ép trung bình về bậc cứng và không cộng điểm riêng từng lượt.</p>`;
 }
 
 function classificationBadge(item) {
