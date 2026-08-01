@@ -1,7 +1,7 @@
 /** Dịch vụ đọc danh mục đầu việc chuẩn. */
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260801.V1_3_0";
+import { Permissions } from "../core/permissions.js?v=20260801.V1_3_1";
 
 const CATALOG_CACHE_MS = 5 * 60 * 1000;
 let catalogCache = { key: "", items: [], loadedAt: 0 };

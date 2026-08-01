@@ -42,15 +42,11 @@ export const DashboardReadService = Object.freeze({
 
       warnings: [
         tasksResult.status === "rejected"
-          ? `Không đọc được tasks: ${
-              tasksResult.reason?.message || "Lỗi không xác định"
-            }`
+          ? "Chưa tải được số liệu nhiệm vụ. Vui lòng bấm Cập nhật; nếu lỗi vẫn còn, liên hệ quản trị viên."
           : "",
 
         activePeriodResult.status === "rejected"
-          ? `Không đọc được evaluationPeriods: ${
-              activePeriodResult.reason?.message || "Lỗi không xác định"
-            }`
+          ? "Chưa tải được thông tin kỳ đánh giá. Vui lòng bấm Cập nhật và thử lại."
           : ""
       ].filter(Boolean)
     };
