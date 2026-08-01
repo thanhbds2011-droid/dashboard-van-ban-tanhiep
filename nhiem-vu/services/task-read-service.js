@@ -1,8 +1,12 @@
-/** Dịch vụ đọc nhiệm vụ theo đúng phạm vi tài khoản. */
+/** Đọc nhiệm vụ theo kỳ hiện hành, phạm vi tài khoản và bộ nhớ đệm ngắn. */
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
 import { Permissions } from "../core/permissions.js";
-import { CdtnAttendanceService } from "./cdtn-attendance-service.js?v=20260801.V1_2_0";
+import { PeriodReadService } from "./period-read-service.js?v=20260801.V1_3_0";
+
+const TASK_CACHE_MS = 45 * 1000;
+let taskCache = { key: "", items: [], loadedAt: 0, period: null };
+let taskRequest = null;
 
 function uniqueById(items) {
   const map = new Map();
@@ -17,51 +21,55 @@ function isActiveTask(task) {
 
 function mapSnapshot(snapshot) {
   return snapshot.docs
-    .map(documentSnapshot => ({
-      id: documentSnapshot.id,
-      ...documentSnapshot.data()
-    }))
+    .map(documentSnapshot => ({ id: documentSnapshot.id, ...documentSnapshot.data() }))
     .filter(isActiveTask);
 }
 
-async function scopedReferences() {
+function scopedReferences(periodId) {
   const user = UserContext.requireUser();
   const reference = FirebaseService.collection(FirebaseService.db, "tasks");
+  const periodFilter = FirebaseService.where("periodId", "==", periodId);
 
   if (Permissions.canViewAllDepartments()) {
-    return [reference];
+    return [FirebaseService.query(reference, periodFilter, FirebaseService.limit(5000))];
   }
-
-  const mayManageCdtnAttendance = await CdtnAttendanceService.canManage();
-  const cdtnReference = mayManageCdtnAttendance
-    ? FirebaseService.query(reference, FirebaseService.where("organizationId", "==", "CDTN"))
-    : null;
 
   if (Permissions.isDepartmentLeader()) {
     const departmentId = user.departmentId;
     return [
-      FirebaseService.query(reference, FirebaseService.where("primaryDepartmentId", "==", departmentId)),
-      FirebaseService.query(reference, FirebaseService.where("visibleDepartmentIds", "array-contains", departmentId)),
-      FirebaseService.query(reference, FirebaseService.where("supportDepartmentIds", "array-contains", departmentId)),
-      cdtnReference
-    ].filter(Boolean);
+      FirebaseService.query(
+        reference,
+        periodFilter,
+        FirebaseService.where("primaryDepartmentId", "==", departmentId),
+        FirebaseService.limit(1000)
+      ),
+      FirebaseService.query(
+        reference,
+        periodFilter,
+        FirebaseService.where("visibleDepartmentIds", "array-contains", departmentId),
+        FirebaseService.limit(1000)
+      )
+    ];
   }
 
   return [
-    FirebaseService.query(reference, FirebaseService.where("ownerUserId", "==", user.uid)),
-    cdtnReference
-  ].filter(Boolean);
+    FirebaseService.query(
+      reference,
+      periodFilter,
+      FirebaseService.where("ownerUserId", "==", user.uid),
+      FirebaseService.limit(300)
+    )
+  ];
+}
+
+function cacheKey(periodId) {
+  const user = UserContext.requireUser();
+  return [user.uid, user.role, user.departmentId, periodId].join("|");
 }
 
 async function runReference(reference) {
   const snapshot = await FirebaseService.getDocs(reference);
   return mapSnapshot(snapshot);
-}
-
-async function loadScopedTasks() {
-  const references = await scopedReferences();
-  const resultSets = await Promise.all(references.map(runReference));
-  return uniqueById(resultSets.flat());
 }
 
 function timestampToDate(value) {
@@ -102,49 +110,90 @@ function enrichTask(task) {
   };
 }
 
+async function loadScopedTasks(options = {}) {
+  const force = options.force === true;
+  const period = await PeriodReadService.getActive({ force });
+  if (!period?.id) {
+    taskCache = { key: "NO_ACTIVE_PERIOD", items: [], loadedAt: Date.now(), period: null };
+    return [];
+  }
+
+  const key = cacheKey(period.id);
+  if (!force && taskCache.key === key && Date.now() - taskCache.loadedAt < TASK_CACHE_MS) {
+    return taskCache.items;
+  }
+  if (!force && taskRequest?.key === key) return taskRequest.promise;
+
+  const promise = (async () => {
+    const resultSets = await Promise.all(scopedReferences(period.id).map(runReference));
+    const items = uniqueById(resultSets.flat()).map(enrichTask);
+    taskCache = { key, items, loadedAt: Date.now(), period };
+    return items;
+  })();
+  taskRequest = { key, promise };
+
+  try {
+    return await promise;
+  } finally {
+    if (taskRequest?.promise === promise) taskRequest = null;
+  }
+}
+
 function subscribeScopedTasks(onData, onError) {
   if (typeof onData !== "function") throw new Error("Thiếu hàm nhận dữ liệu nhiệm vụ.");
+  let cancelled = false;
+  let unsubscribeAll = () => {};
 
-  let active = true;
-  const unsubscribers = [];
-
-  scopedReferences().then(references => {
-    if (!active) return;
+  PeriodReadService.getActive().then(period => {
+    if (cancelled) return;
+    if (!period?.id) {
+      onData([]);
+      return;
+    }
+    const references = scopedReferences(period.id);
     const stores = references.map(() => new Map());
     const initialized = references.map(() => false);
     const emit = () => {
-      if (!active || initialized.some(value => value !== true)) return;
+      if (cancelled || initialized.some(value => value !== true)) return;
       const merged = uniqueById(stores.flatMap(store => [...store.values()])).map(enrichTask);
+      taskCache = { key: cacheKey(period.id), items: merged, loadedAt: Date.now(), period };
       onData(merged);
     };
-    references.forEach((reference, index) => {
-      unsubscribers.push(FirebaseService.onSnapshot(
-        reference,
-        snapshot => {
-          stores[index] = new Map(mapSnapshot(snapshot).map(item => [item.id, item]));
-          initialized[index] = true;
-          emit();
-        },
-        error => {
-          console.error("Không thể theo dõi nhiệm vụ theo thời gian thực:", error);
-          onError?.(error);
-        }
-      ));
+    const unsubscribers = references.map((reference, index) => FirebaseService.onSnapshot(
+      reference,
+      snapshot => {
+        stores[index] = new Map(mapSnapshot(snapshot).map(item => [item.id, item]));
+        initialized[index] = true;
+        emit();
+      },
+      error => {
+        console.error("Không thể theo dõi nhiệm vụ:", error);
+        onError?.(error);
+      }
+    ));
+    unsubscribeAll = () => unsubscribers.forEach(unsubscribe => {
+      try { unsubscribe?.(); } catch (_) { /* Đóng listener an toàn. */ }
     });
   }).catch(error => onError?.(error));
 
   return () => {
-    active = false;
-    unsubscribers.forEach(unsubscribe => {
-      try { unsubscribe?.(); } catch (_) { /* Không cần xử lý khi đóng màn hình. */ }
-    });
+    cancelled = true;
+    unsubscribeAll();
   };
 }
 
 export const TaskReadService = Object.freeze({
-  async list() {
-    const tasks = await loadScopedTasks();
-    return tasks.map(enrichTask);
+  async list(options = {}) {
+    return loadScopedTasks(options);
+  },
+
+  currentPeriod() {
+    return taskCache.period;
+  },
+
+  invalidate() {
+    taskCache = { key: "", items: [], loadedAt: 0, period: null };
+    taskRequest = null;
   },
 
   subscribe(onData, onError) {

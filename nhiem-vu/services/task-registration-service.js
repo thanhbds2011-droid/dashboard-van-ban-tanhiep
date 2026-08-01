@@ -1,9 +1,9 @@
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260801.V1_2_0";
+import { Permissions } from "../core/permissions.js?v=20260801.V1_3_0";
 import { TaskLogService } from "./task-log-service.js";
-import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260801.V1_2_0";
-import { TaskNotificationService } from "./task-notification-service.js?v=20260801.V1_2_0";
+import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260801.V1_3_0";
+import { PeriodReadService } from "./period-read-service.js?v=20260801.V1_3_0";
 
 const clean = value => String(value ?? "").trim();
 const upper = value => clean(value).toUpperCase();
@@ -39,15 +39,7 @@ function taskLogRef() {
 }
 
 async function activePeriod() {
-  const snapshot = await FirebaseService.getDocs(
-    FirebaseService.query(
-      FirebaseService.collection(FirebaseService.db, "evaluationPeriods"),
-      FirebaseService.where("active", "==", true)
-    )
-  );
-  return snapshot.docs
-    .map(item => ({ id: item.id, ...item.data() }))
-    .find(period => upper(period.status) !== "DELETED") || null;
+  return PeriodReadService.getActive();
 }
 
 async function departmentPlan(periodId, departmentId) {
@@ -172,20 +164,20 @@ function taskPayload(registration, reviewer, due, options = {}) {
   if (!code) throw new Error("Đầu việc đăng ký chưa có mã danh mục hợp lệ.");
   const workType = standardWorkType(registration.workType);
   const isUnexpected = workType === "DOT_XUAT";
-  const isSupplementary = upper(registration.registrationType) === "SUPPLEMENTARY";
   return {
     code,
     payload: {
+      appVersion: "1.3.0",
       active: true,
       taskCode: code,
       title: registration.title || registration.standardTaskName,
       description: registration.description || "",
-      sourceType: isSupplementary ? "DANG_KY_BO_SUNG" : "DANG_KY_KE_HOACH",
+      sourceType: "DANG_KY_KE_HOACH",
       sourceReference: registration.standardTaskCode || "",
       sourceDetail: isUnexpected ? "Đầu việc đột xuất trong danh mục được cá nhân đăng ký, phê duyệt và tính vào A." : "Đầu việc thường xuyên do cá nhân đăng ký và được phê duyệt.",
       sourceDate: FirebaseService.Timestamp.fromDate(new Date()),
       sourceDateKey: dateKey(new Date()),
-      entryMode: isSupplementary ? "SELF_REGISTERED_SUPPLEMENTARY_APPROVED" : "SELF_REGISTERED_APPROVED",
+      entryMode: "SELF_REGISTERED_APPROVED",
       primaryDepartmentId: registration.departmentId,
       supportDepartmentIds: [],
       relatedDepartmentIds: [],
@@ -198,8 +190,6 @@ function taskPayload(registration, reviewer, due, options = {}) {
       assignedByUserId: reviewer.uid,
       assignedByName: reviewer.fullName || "",
       assignedByPosition: reviewer.position || "",
-      adjustmentApproverUserId: reviewer.uid,
-      adjustmentApproverName: reviewer.fullName || "",
       assignedAt: FirebaseService.serverTimestamp(),
       assignmentStatus: "DA_PHAN_CONG",
       status: "MOI_TIEP_NHAN",
@@ -222,10 +212,7 @@ function taskPayload(registration, reviewer, due, options = {}) {
       scoringVersion: "KPI_2026_V1",
       periodId: registration.periodId,
       periodName: registration.periodName || registration.periodId,
-      planType: isSupplementary ? "SUPPLEMENTARY" : (isUnexpected ? "DOT_XUAT" : "KE_HOACH"),
-      registrationType: isSupplementary ? "SUPPLEMENTARY" : "PLANNED",
-      isSupplementary,
-      taskCategoryLabel: isSupplementary ? "Bổ sung phát sinh" : "",
+      planType: isUnexpected ? "DOT_XUAT" : "KE_HOACH",
       planApprovalStatus: "APPROVED",
       includedInA: true,
       isCoreTask: registration.isCoreTaskDefault === true,
@@ -272,6 +259,7 @@ async function createApprovedTasks(registrations, reviewer, options = {}) {
       status: "APPROVED",
       taskId: taskReference.id,
       taskCode: code,
+      periodId: registration.periodId || "",
       approvedAt: FirebaseService.serverTimestamp(),
       approvedByUserId: reviewer.uid,
       approvedByName: reviewer.fullName || "",
@@ -280,6 +268,7 @@ async function createApprovedTasks(registrations, reviewer, options = {}) {
     batch.set(taskLogRef(), TaskLogService.buildTaskLog({
       taskId: taskReference.id,
       taskCode: code,
+      periodId: registration.periodId || "",
       action: "TASK_REGISTRATION_APPROVED",
       after: { ...payload, createdAt: null, updatedAt: null, assignedAt: null },
       note: `Duyệt ${registration.standardTaskCode || ""} của ${registration.userName || ""}.`
@@ -288,7 +277,6 @@ async function createApprovedTasks(registrations, reviewer, options = {}) {
   }
 
   await batch.commit();
-  taskIds.forEach(taskId => TaskNotificationService.send("TASK_CREATED", taskId));
   return taskIds;
 }
 
@@ -374,7 +362,7 @@ export const TaskRegistrationService = Object.freeze({
     if (!items?.length) throw new Error("Chưa chọn đầu việc để đăng ký.");
 
     const plan = await departmentPlan(period.id, user.departmentId);
-    const supplementary = plan?.locked === true;
+    if (plan?.locked === true) throw new Error("Đăng ký kế hoạch của Phòng/Khu đã được khóa.");
 
     const autoApprove = Permissions.isDepartmentHead(user) || Permissions.isDirector();
     const batch = FirebaseService.writeBatch(FirebaseService.db);
@@ -410,8 +398,6 @@ export const TaskRegistrationService = Object.freeze({
         userIsDepartmentHead: user.isDepartmentHead === true,
         workType,
         planType: workType === "DOT_XUAT" ? "DOT_XUAT" : "KE_HOACH",
-        registrationType: supplementary ? "SUPPLEMENTARY" : "PLANNED",
-        submittedAfterPlanLock: supplementary,
         includedInA: true,
         baseScore: Number(item.baseScore || 0),
         difficultyCoefficient: Number(item.difficultyCoefficient || 1),
@@ -576,6 +562,7 @@ export const TaskRegistrationService = Object.freeze({
     batch.set(taskLogRef(), TaskLogService.buildTaskLog({
       taskId: task.id,
       taskCode: task.taskCode || registration.taskCode || "",
+      periodId: task.periodId || registration.periodId || "",
       action: "TASK_REGISTRATION_CANCELLED",
       before: cancellationTaskSnapshot(task),
       after: {

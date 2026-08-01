@@ -3,20 +3,18 @@
  * Tổng hợp dữ liệu chỉ đọc cho Dashboard.
  */
 
-import { TaskReadService } from "./task-read-service.js?v=20260801.V1_2_0";
-import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260801.V1_2_0";
-import { PeriodReadService } from "./period-read-service.js?v=20260728.V1_1_7";
+import { TaskReadService } from "./task-read-service.js?v=20260801.V1_3_0";
+import { PeriodReadService } from "./period-read-service.js?v=20260801.V1_3_0";
 
 export const DashboardReadService = Object.freeze({
-  async load() {
+  async load(options = {}) {
+    const force = options.force === true;
     const [
       tasksResult,
-      standardTasksResult,
-      periodsResult
+      activePeriodResult
     ] = await Promise.allSettled([
-      TaskReadService.list(),
-      StandardTaskReadService.list(),
-      PeriodReadService.list()
+      TaskReadService.list({ force }),
+      PeriodReadService.getActive({ force })
     ]);
 
     const tasks =
@@ -24,15 +22,9 @@ export const DashboardReadService = Object.freeze({
         ? tasksResult.value
         : [];
 
-    const standardTasks =
-      standardTasksResult.status === "fulfilled"
-        ? standardTasksResult.value
-        : [];
-
-    const periods =
-      periodsResult.status === "fulfilled"
-        ? periodsResult.value
-        : [];
+    const activePeriod = activePeriodResult.status === "fulfilled"
+      ? activePeriodResult.value
+      : null;
 
     return {
       tasks,
@@ -40,15 +32,13 @@ export const DashboardReadService = Object.freeze({
       taskSummary:
         TaskReadService.summarize(tasks),
 
-      standardTasks,
+      // Danh mục chỉ được tải khi người dùng mở đúng phân hệ, không đọc ở Trang chủ.
+      standardTasks: [],
+      standardTaskSummary: null,
 
-      standardTaskSummary:
-        StandardTaskReadService.summarize(standardTasks),
+      periods: activePeriod ? [activePeriod] : [],
 
-      periods,
-
-      activePeriod:
-        PeriodReadService.active(periods),
+      activePeriod,
 
       warnings: [
         tasksResult.status === "rejected"
@@ -57,15 +47,9 @@ export const DashboardReadService = Object.freeze({
             }`
           : "",
 
-        standardTasksResult.status === "rejected"
-          ? `Không đọc được standardTasks: ${
-              standardTasksResult.reason?.message || "Lỗi không xác định"
-            }`
-          : "",
-
-        periodsResult.status === "rejected"
+        activePeriodResult.status === "rejected"
           ? `Không đọc được evaluationPeriods: ${
-              periodsResult.reason?.message || "Lỗi không xác định"
+              activePeriodResult.reason?.message || "Lỗi không xác định"
             }`
           : ""
       ].filter(Boolean)

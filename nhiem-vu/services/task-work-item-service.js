@@ -1,17 +1,15 @@
 /** Quản lý các lượt công việc phát sinh bên trong một nhiệm vụ KPI. */
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260801.V1_2_0";
-import { progressRateFromDates } from "../kpi-engine.js?v=20260801.V1_2_0";
-import { CdtnAttendanceService } from "./cdtn-attendance-service.js?v=20260801.V1_2_0";
-import { TaskNotificationService } from "./task-notification-service.js?v=20260801.V1_2_0";
+import { Permissions } from "../core/permissions.js?v=20260801.V1_3_0";
+import { progressRateFromDates } from "../kpi-engine.js?v=20260801.V1_3_0";
 import {
   ATTENDANCE_STATUSES,
   WORK_ITEM_TYPES,
   calculateWorkItemSummary,
   convertActualRate,
   normalizeWorkItemType
-} from "../work-item-score-engine.js?v=20260801.V1_2_0";
+} from "../work-item-score-engine.js?v=20260801.V1_3_0";
 
 const COLLECTION = "taskWorkItems";
 const ALLOWED_RATES = Object.freeze([100, 80, 60, 0]);
@@ -65,13 +63,6 @@ function mayEditItem(task, item) {
   if (!mayManage(task)) return false;
   if (Permissions.isAdmin() || Permissions.isDirector() || Permissions.isDepartmentLeader()) return true;
   return task.ownerUserId === user.uid && (!item || item.ownerUserId === user.uid);
-}
-
-async function mayEditItemAsync(task, item) {
-  const isCdtnAttendance = String(task?.organizationId || "").toUpperCase() === "CDTN"
-    && normalizeWorkItemType(task?.workItemType) === WORK_ITEM_TYPES.ATTENDANCE;
-  if (isCdtnAttendance) return CdtnAttendanceService.canManage();
-  return mayEditItem(task, item);
 }
 
 function inferredProgressRate(data) {
@@ -145,7 +136,6 @@ export const TaskWorkItemService = Object.freeze({
   ALLOWED_RATES,
   mayManage,
   mayEditItem,
-  mayEditItemAsync,
   normalizeWorkItemType,
   convertActualRate,
   calculateSummary,
@@ -170,7 +160,7 @@ export const TaskWorkItemService = Object.freeze({
 
   async save(task, data, existingItem = null) {
     const user = UserContext.requireUser();
-    if (!await mayEditItemAsync(task, existingItem)) {
+    if (!mayEditItem(task, existingItem)) {
       throw new Error("Tài khoản không có quyền cập nhật công việc phát sinh này.");
     }
 
@@ -233,8 +223,6 @@ export const TaskWorkItemService = Object.freeze({
       actualQuantity: Math.max(0, finiteNumber(data.actualQuantity)),
       sessionDateKey,
       attendanceStatus: workItemType === WORK_ITEM_TYPES.ATTENDANCE ? attendanceStatus : "",
-      attendanceRecordedByUserId: workItemType === WORK_ITEM_TYPES.ATTENDANCE ? user.uid : "",
-      attendanceRecordedByName: workItemType === WORK_ITEM_TYPES.ATTENDANCE ? (user.fullName || "") : "",
       participationNote: clean(data.participationNote, 1000),
       progressRate: workItemType === WORK_ITEM_TYPES.ATTENDANCE
         ? (attendanceStatus === "PRESENT" ? 100 : 0)
@@ -258,28 +246,13 @@ export const TaskWorkItemService = Object.freeze({
       })
     };
 
-    if (workItemType === WORK_ITEM_TYPES.ATTENDANCE && String(task.organizationId || "").toUpperCase() === "CDTN") {
-      const batch = FirebaseService.writeBatch(FirebaseService.db);
-      batch.set(reference, payload, { merge: true });
-      batch.update(FirebaseService.doc(FirebaseService.db, "tasks", task.id), {
-        lastAttendanceUpdatedAt: FirebaseService.serverTimestamp(),
-        lastAttendanceUpdatedByUserId: user.uid,
-        lastAttendanceUpdatedByName: user.fullName || "",
-        updatedAt: FirebaseService.serverTimestamp(),
-        updatedByUserId: user.uid,
-        updatedByName: user.fullName || ""
-      });
-      await batch.commit();
-      TaskNotificationService.send("CDTN_ATTENDANCE_UPDATED", task.id);
-    } else {
-      await FirebaseService.setDoc(reference, payload, { merge: true });
-    }
+    await FirebaseService.setDoc(reference, payload, { merge: true });
     return { id: reference.id, ...payload };
   },
 
   async remove(task, item) {
     const user = UserContext.requireUser();
-    if (!await mayEditItemAsync(task, item)) {
+    if (!mayEditItem(task, item)) {
       throw new Error("Tài khoản không có quyền xóa công việc phát sinh này.");
     }
     await FirebaseService.updateDoc(

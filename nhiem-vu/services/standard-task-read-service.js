@@ -1,7 +1,11 @@
 /** Dịch vụ đọc danh mục đầu việc chuẩn. */
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260801.V1_2_0";
+import { Permissions } from "../core/permissions.js?v=20260801.V1_3_0";
+
+const CATALOG_CACHE_MS = 5 * 60 * 1000;
+let catalogCache = { key: "", items: [], loadedAt: 0 };
+let catalogRequest = null;
 
 function clean(value) {
   return String(value ?? "").trim();
@@ -80,27 +84,56 @@ function canRegisterItem(item, user = UserContext.requireUser()) {
 function sourceReferences() {
   const user = UserContext.requireUser();
   const reference = FirebaseService.collection(FirebaseService.db, "standardTasks");
-  if (Permissions.canViewAllDepartments()) return [reference];
+  if (Permissions.canViewAllDepartments()) {
+    return [FirebaseService.query(reference, FirebaseService.limit(2000))];
+  }
 
   const references = [
-    FirebaseService.query(reference, FirebaseService.where("departmentId", "==", user.departmentId))
+    FirebaseService.query(reference, FirebaseService.where("departmentId", "==", user.departmentId), FirebaseService.limit(500))
   ];
   if (Permissions.isCdtnMember()) {
     references.push(
-      FirebaseService.query(reference, FirebaseService.where("departmentId", "==", "CDTN"))
+      FirebaseService.query(reference, FirebaseService.where("departmentId", "==", "CDTN"), FirebaseService.limit(500))
     );
   }
   return references;
 }
 
-async function readAllReferences() {
-  const snapshots = await Promise.all(sourceReferences().map(reference => FirebaseService.getDocs(reference)));
-  return normalize(snapshots.flatMap(mapSnapshot));
+function currentCacheKey() {
+  const user = UserContext.requireUser();
+  return [user.uid, user.role, user.departmentId, Permissions.isCdtnMember()].join("|");
+}
+
+async function readAllReferences(options = {}) {
+  const force = options.force === true;
+  const key = currentCacheKey();
+  if (!force && catalogCache.key === key && Date.now() - catalogCache.loadedAt < CATALOG_CACHE_MS) {
+    return catalogCache.items;
+  }
+  if (!force && catalogRequest?.key === key) return catalogRequest.promise;
+
+  const promise = (async () => {
+    const snapshots = await Promise.all(sourceReferences().map(reference => FirebaseService.getDocs(reference)));
+    const items = normalize(snapshots.flatMap(mapSnapshot));
+    catalogCache = { key, items, loadedAt: Date.now() };
+    return items;
+  })();
+  catalogRequest = { key, promise };
+  try {
+    return await promise;
+  } finally {
+    if (catalogRequest?.promise === promise) catalogRequest = null;
+  }
 }
 
 export const StandardTaskReadService = Object.freeze({
-  async list() {
-    return readAllReferences();
+  async list(options = {}) {
+    return readAllReferences(options);
+  },
+
+  invalidate() {
+    catalogCache = { key: "", items: [], loadedAt: 0 };
+    catalogRequest = null;
   },
 
   subscribe(onData, onError) {
