@@ -1,0 +1,226 @@
+/* V1.2.0 — giao diện hành chính gọn, ổn định và tập trung vào nghiệp vụ. */
+:root {
+  --ui-primary: #155f85;
+  --ui-primary-soft: #edf6fa;
+  --ui-border: #d8e3ea;
+  --ui-text: #173142;
+  --ui-muted: #647886;
+}
+
+.page-card { color: var(--ui-text); }
+.page-header { gap: 14px; }
+.page-header p { color: var(--ui-muted); }
+
+.primary-button,
+.secondary-button,
+.kpi-button,
+.catalog-edit-button,
+.catalog-delete-button,
+.registration-delete-button,
+.registration-cancel-approved-button {
+  min-height: 38px;
+  padding: 8px 12px;
+  border-radius: 9px;
+  box-shadow: none;
+  font-size: 12.5px;
+}
+
+.danger-button,
+.catalog-delete-button,
+.registration-delete-button,
+.registration-cancel-approved-button {
+  min-width: 68px;
+  border: 1px solid #e5b9b5 !important;
+  background: #fff5f4 !important;
+  color: #a63831 !important;
+  font-weight: 750;
+}
+
+.danger-button:hover,
+.catalog-delete-button:hover,
+.registration-delete-button:hover,
+.registration-cancel-approved-button:hover { background: #fde9e7 !important; }
+
+/* Danh mục dài được giữ trong vùng làm việc, không kéo toàn trang. */
+.registration-column-list,
+.registration-list {
+  max-height: min(62vh, 720px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.registration-column-list .registration-row,
+.registration-row { padding: 12px; }
+
+.standard-task-tags .status-pill {
+  background: #eef3f6;
+  color: #405968;
+}
+
+.standard-task-tags .status-pill.core,
+.standard-task-tags .status-pill.success { background: #e8f5ee; color: #25623e; }
+
+.catalog-row-actions { grid-template-columns: repeat(2, minmax(64px, 1fr)); }
+
+/* Modal giao việc và trợ lý AI luôn nằm trong cùng lớp hiển thị. */
+.modal-backdrop { z-index: 400; }
+.nested-modal-backdrop { z-index: 460; }
+.modal-panel { isolation: isolate; }
+.task-form-grid { position: relative; }
+.task-ai-assistant {
+  position: relative;
+  z-index: 2;
+  overflow: visible;
+  border-color: #bfd5e2;
+  background: #f6fafc;
+  box-shadow: none;
+}
+.task-ai-result { max-height: 310px; overflow-y: auto; }
+
+/* Chi tiết nhiệm vụ: năm tab cố định, nội dung cuộn riêng. */
+.task-detail-modal > .modal-header { border-bottom: 1px solid var(--ui-border); }
+.task-detail-tabs {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 4px;
+  padding: 8px 20px;
+  overflow-x: auto;
+  background: #f7fafc;
+  border-bottom: 1px solid var(--ui-border);
+  scrollbar-width: thin;
+}
+
+.task-detail-tabs button {
+  flex: 0 0 auto;
+  min-height: 38px;
+  padding: 8px 13px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #526b7a;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.task-detail-tabs button:hover { background: #edf3f6; }
+.task-detail-tabs button.active { background: var(--ui-primary); color: #fff; }
+.task-detail-tab-body { padding-top: 18px !important; }
+.task-tab-panel[hidden] { display: none !important; }
+.task-tab-panel.active { min-height: 300px; }
+.task-tab-panel > .detail-section:first-child { margin-top: 0; padding-top: 0; }
+
+.task-detail-summary { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.task-detail-summary .detail-item {
+  min-height: 78px;
+  border-color: var(--ui-border);
+  background: #fbfdfe;
+}
+
+.detail-section-actions,
+.adjustment-decision-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.task-work-item-card {
+  grid-template-columns: 38px minmax(0, 1fr) 148px;
+  border-color: var(--ui-border);
+  box-shadow: none;
+}
+.task-work-item-actions { display: grid; grid-template-columns: 1fr; gap: 7px; width: 100%; }
+.task-work-item-actions button { width: 100%; }
+
+.task-work-item-summary {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border: 1px solid var(--ui-border);
+  border-radius: 12px;
+  padding: 8px;
+  background: #f8fbfc;
+}
+.task-work-item-summary > div { background: #fff; border-radius: 9px; }
+.task-work-item-summary .is-applied { grid-column: span 2; background: var(--ui-primary-soft); }
+
+.adjustment-toolbar,
+.adjustment-decision-card,
+.adjustment-history-item,
+.evidence-focus-card {
+  border: 1px solid var(--ui-border);
+  border-radius: 13px;
+  background: #fff;
+}
+
+.adjustment-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 15px;
+  background: #f6fafc;
+}
+.adjustment-toolbar > div { display: grid; gap: 4px; }
+.adjustment-toolbar span { color: var(--ui-muted); font-size: 12.5px; line-height: 1.5; }
+.adjustment-decision-card { display: grid; gap: 9px; margin-top: 13px; padding: 15px; border-left: 4px solid #d79b2f; }
+.adjustment-decision-card > span { color: var(--ui-muted); }
+.adjustment-history { display: grid; gap: 9px; margin-top: 13px; }
+.adjustment-history-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 7px 14px;
+  padding: 13px 14px;
+}
+.adjustment-history-item > div { display: grid; gap: 3px; }
+.adjustment-history-item > div span,
+.adjustment-history-item small { color: var(--ui-muted); font-size: 11.5px; }
+.adjustment-history-item p,
+.adjustment-history-item small { grid-column: 1 / -1; margin: 0; }
+
+.task-history-list { display: grid; }
+.task-history-list article {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 10px;
+  padding: 11px 0;
+  border-bottom: 1px solid #e7eef2;
+}
+.task-history-dot { width: 10px; height: 10px; margin-top: 5px; border-radius: 50%; background: var(--ui-primary); }
+.task-history-list article > div { display: grid; gap: 3px; }
+.task-history-list article span { color: var(--ui-muted); font-size: 11.5px; }
+.task-history-list article p { margin: 3px 0 0; color: #415b6b; }
+
+/* Form tự đánh giá: các khối thẳng cột và không tràn bảng. */
+.kpi-work-item-evaluation-summary { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.kpi-work-item-evaluation-summary > div { min-width: 0; }
+.kpi-assessment-task-heading { align-items: start; }
+.kpi-rate-input { width: 100%; }
+.kpi-table-wrap { overflow: auto; scrollbar-width: thin; }
+.kpi-table { min-width: 880px; table-layout: fixed; }
+.kpi-actions { align-items: center; }
+
+@media (max-width: 900px) {
+  .task-detail-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .task-work-item-summary,
+  .kpi-work-item-evaluation-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .task-work-item-card { grid-template-columns: 34px minmax(0, 1fr); }
+  .task-work-item-actions { grid-column: 1 / -1; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 640px) {
+  .registration-column-list,
+  .registration-list { max-height: min(58vh, 560px); }
+  .task-detail-tabs { padding: 7px 10px; }
+  .task-detail-tabs button { min-height: 36px; padding: 7px 10px; }
+  .task-detail-summary,
+  .task-work-item-summary,
+  .kpi-work-item-evaluation-summary { grid-template-columns: 1fr; }
+  .task-work-item-summary .is-applied { grid-column: auto; }
+  .adjustment-toolbar { align-items: stretch; flex-direction: column; }
+  .adjustment-toolbar button { width: 100%; }
+  .adjustment-decision-actions { justify-content: stretch; }
+  .adjustment-decision-actions button { width: 100%; }
+}
