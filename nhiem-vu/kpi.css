@@ -1,6 +1,6 @@
 /* =========================================================
  * PHÂN HỆ KPI
- * Bản 20260728.V1_1_7
+ * Bản 20260801.V1_3_0
  * ========================================================= */
 
 .kpi-section {
@@ -1478,4 +1478,32 @@
   .kpi-score-breakdown-grid .is-converted::after { display: none; }
   .kpi-score-breakdown-grid .is-converted span,
   .kpi-score-breakdown-grid .is-converted strong { grid-column: 1; }
+}
+.kpi-archive-progress {
+  display: grid;
+  gap: 14px;
+  min-width: min(520px, 80vw);
+  padding: 8px 0;
+}
+
+.kpi-archive-progress .progress-track {
+  height: 12px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e2e8f0;
+}
+
+.kpi-archive-progress .progress-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #0f5f8f, #22a06b);
+  transition: width 180ms ease;
+}
+
+@media (max-width: 760px) {
+  .kpi-archive-progress {
+    min-width: 0;
+    width: 100%;
+  }
 }
