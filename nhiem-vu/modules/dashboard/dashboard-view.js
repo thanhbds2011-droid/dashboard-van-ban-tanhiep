@@ -1,41 +1,21 @@
 import { UserContext } from "../../core/user-context.js";
 import { Permissions } from "../../core/permissions.js";
 import { ToastService } from "../../core/toast-service.js";
-import { DashboardReadService } from "../../services/dashboard-read-service.js?v=20260801.V1_2_0";
-import { TaskReadService } from "../../services/task-read-service.js?v=20260728.V1_1_7";
-import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260728.V1_1_7";
-import { PeriodReadService } from "../../services/period-read-service.js?v=20260728.V1_1_7";
-
-let stopRealtime = () => {};
-let routeCleanupBound = false;
+import { DashboardReadService } from "../../services/dashboard-read-service.js?v=20260801.V1_3_0";
+import { TaskReadService } from "../../services/task-read-service.js?v=20260801.V1_3_0";
 let currentData = null;
-let currentOutlet = null;
-
-function bindRouteCleanup() {
-  if (routeCleanupBound) return;
-  routeCleanupBound = true;
-  document.addEventListener("v3:route-changed", event => {
-    if (event.detail?.route !== "#/dashboard") {
-      stopRealtime();
-      stopRealtime = () => {};
-      currentOutlet = null;
-    }
-  });
-}
+let dashboardRenderSequence = 0;
 
 export async function renderDashboardView(outlet) {
-  bindRouteCleanup();
-  stopRealtime();
-  stopRealtime = () => {};
-  currentOutlet = outlet;
+  const sequence = ++dashboardRenderSequence;
   const user = UserContext.requireUser();
   outlet.innerHTML = loadingCard("Đang tải dữ liệu trang chủ…");
 
   try {
-    currentData = await DashboardReadService.load();
+    currentData = await DashboardReadService.load({ force: false });
+    if (sequence !== dashboardRenderSequence || window.location.hash !== "#/dashboard") return;
     mountDashboard(outlet, user);
     updateDashboard(currentData);
-    startRealtime(outlet);
   } catch (error) {
     outlet.innerHTML = errorCard("Không thể tải trang chủ", error);
   }
@@ -78,39 +58,13 @@ async function refreshDashboard() {
   const button = document.getElementById("btnDashboardRefresh");
   if (button) button.disabled = true;
   try {
-    currentData = await DashboardReadService.load();
+    currentData = await DashboardReadService.load({ force: true });
     updateDashboard(currentData);
   } catch (error) {
     ToastService.error(error?.message || "Không tải lại được trang chủ.");
   } finally {
     if (button) button.disabled = false;
   }
-}
-
-function startRealtime(outlet) {
-  const unsubscribers = [
-    TaskReadService.subscribe(tasks => {
-      if (currentOutlet !== outlet || window.location.hash !== "#/dashboard" || !currentData) return;
-      currentData.tasks = tasks;
-      currentData.taskSummary = TaskReadService.summarize(tasks);
-      updateDashboard(currentData);
-    }),
-    StandardTaskReadService.subscribe(items => {
-      if (currentOutlet !== outlet || window.location.hash !== "#/dashboard" || !currentData) return;
-      currentData.standardTasks = items;
-      currentData.standardTaskSummary = StandardTaskReadService.summarize(items);
-      updateDashboard(currentData);
-    }),
-    PeriodReadService.subscribe(periods => {
-      if (currentOutlet !== outlet || window.location.hash !== "#/dashboard" || !currentData) return;
-      currentData.periods = periods;
-      currentData.activePeriod = PeriodReadService.active(periods);
-      updateDashboard(currentData);
-    })
-  ];
-  stopRealtime = () => unsubscribers.forEach(unsubscribe => {
-    try { unsubscribe?.(); } catch (_) { /* Không cần xử lý khi đổi trang. */ }
-  });
 }
 
 function updateDashboard(data) {
@@ -123,10 +77,10 @@ function updateDashboard(data) {
   setText("dashboardPeriod", period ? period.name || period.code || period.id : "—");
   setText("dashboardPeriodNote", period ? formatPeriodStatus(period._status) : "Chưa có kỳ hoạt động");
   setText("dashboardTaskQuick", `${summary.total} nhiệm vụ trong phạm vi`);
-  setText("dashboardStandardQuick", `${data.standardTaskSummary?.total || 0} đầu việc đang hoạt động`);
+  setText("dashboardStandardQuick", "Mở phân hệ để tải danh mục");
   setText("dashboardKpiQuick", period ? "Đã nhận diện kỳ hoạt động" : "Chưa có kỳ hoạt động");
   setText("dashboardTaskStatus", `${data.tasks?.length || 0} nhiệm vụ`);
-  setText("dashboardStandardStatus", `${data.standardTasks?.length || 0} đầu việc`);
+  setText("dashboardStandardStatus", "Chỉ tải khi mở phân hệ");
   setText("dashboardPeriodStatus", `${data.periods?.length || 0} kỳ`);
 
   const warning = document.getElementById("dashboardWarning");
