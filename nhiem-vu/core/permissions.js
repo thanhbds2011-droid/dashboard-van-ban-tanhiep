@@ -78,6 +78,14 @@ export const Permissions = Object.freeze({
     return UserContext.hasRole("TCHC_COORDINATOR");
   },
 
+  isTchcDepartmentLeader(user = UserContext.getUser()) {
+    return Boolean(
+      activeUser(user) &&
+      clean(user?.role).toUpperCase() === "DEPARTMENT_LEADER" &&
+      clean(user?.departmentId).toUpperCase() === "TCHC"
+    );
+  },
+
   hasAdditionalRole(...roles) {
     return UserContext.hasAdditionalRole(...roles);
   },
@@ -275,7 +283,10 @@ export const Permissions = Object.freeze({
   },
 
   canViewAllDepartments() {
-    return this.isAdmin() || this.isDirector() || this.isTchcCoordinator() || this.canManageEvaluationPeriods();
+    return this.isAdmin()
+      || this.isDirector()
+      || this.isTchcCoordinator()
+      || this.isTchcDepartmentLeader();
   },
 
   canViewOwnKpi() {
