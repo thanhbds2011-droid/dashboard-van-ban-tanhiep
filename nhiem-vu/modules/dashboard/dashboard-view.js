@@ -1,8 +1,8 @@
 import { UserContext } from "../../core/user-context.js";
 import { Permissions } from "../../core/permissions.js";
 import { ToastService } from "../../core/toast-service.js";
-import { DashboardReadService } from "../../services/dashboard-read-service.js?v=20260801.V1_3_0";
-import { TaskReadService } from "../../services/task-read-service.js?v=20260801.V1_3_0";
+import { DashboardReadService } from "../../services/dashboard-read-service.js?v=20260801.V1_3_1";
+import { TaskReadService } from "../../services/task-read-service.js?v=20260801.V1_3_1";
 let currentData = null;
 let dashboardRenderSequence = 0;
 
@@ -61,7 +61,7 @@ async function refreshDashboard() {
     currentData = await DashboardReadService.load({ force: true });
     updateDashboard(currentData);
   } catch (error) {
-    ToastService.error(error?.message || "Không tải lại được trang chủ.");
+    ToastService.error("Không thể cập nhật trang chủ vào lúc này. Vui lòng kiểm tra kết nối và thử lại.");
   } finally {
     if (button) button.disabled = false;
   }
