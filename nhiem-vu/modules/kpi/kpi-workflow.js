@@ -3,13 +3,13 @@ import {
   addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, onSnapshot, query,
   serverTimestamp, setDoc, Timestamp, updateDoc, where
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
-import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260731.V1_1_19';
-import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260731.V1_1_19';
-import { Permissions } from '../../core/permissions.js?v=20260731.V1_1_19';
+import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260801.V1_2_0';
+import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260801.V1_2_0';
+import { Permissions } from '../../core/permissions.js?v=20260801.V1_2_0';
 import {
   KPI2B as KPI2C, COMMON_CRITERIA, calculateTaskScore, calculateKpiSummary,
   proposedRating, ratingName, round2, progressRateFromDates
-} from '../../kpi-engine.js?v=20260731.V1_1_19';
+} from '../../kpi-engine.js?v=20260801.V1_2_0';
 
 export const KpiWorkflowState = {
   user: null,
@@ -1204,16 +1204,16 @@ async function openSelfAssessment(taskId) {
     <div><span>Đã hoàn thành</span><strong>${workSummary.completedCount}/${workSummary.count}</strong></div>
     <div><span>${workSummary.workItemType === 'ATTENDANCE' ? 'Có mặt (T)' : 'Đúng hạn (T)'}</span><strong>${workSummary.onTimeCount}/${workSummary.count}</strong></div>
     <div><span>Đạt yêu cầu (K)</span><strong>${workSummary.qualifiedCount}/${workSummary.count}</strong></div>
-    <div><span>Tiến độ thực tế</span><strong>${fmt(workSummary.actualProgressRate)}%</strong></div>
-    <div><span>Kết quả thực tế</span><strong>${fmt(workSummary.actualResultRate)}%</strong></div>
-    <div class="is-applied"><span>Quy đổi theo thang KPI</span><strong>${workSummary.appliedProgressRate}% tiến độ · ${workSummary.appliedResultRate}% kết quả</strong></div>
-  </div>${incompleteWarning}<p class="kpi-small">Tiến độ thực tế = T/N × 100%; kết quả thực tế = K/N × 100%; sau đó quy đổi theo các mức 100% – 80% – 60% – 0%. Các lượt chỉ tạo tỷ lệ, không có điểm riêng.</p></div>` : '';
+    <div><span>Tiến độ trung bình</span><strong>${fmt(workSummary.actualProgressRate)}%</strong></div>
+    <div><span>Kết quả trung bình</span><strong>${fmt(workSummary.actualResultRate)}%</strong></div>
+    <div class="is-applied"><span>Đưa vào Phụ lục 04</span><strong>${workSummary.appliedProgressRate}% tiến độ · ${workSummary.appliedResultRate}% kết quả</strong></div>
+  </div>${incompleteWarning}<p class="kpi-small">Chấm từng lượt, lấy trung bình chính xác rồi áp dụng một lần công thức Phụ lục 04. Không ép tỷ lệ trung bình về các bậc cứng 100% – 80% – 60% – 0%.</p></div>` : '';
 
   const node = modal('Tự đánh giá nhiệm vụ', `<form id="kpiSelfForm" class="kpi-form-grid">
     <div class="kpi-field full kpi-assessment-task-heading"><strong>${esc(task.taskCode || '')} — ${esc(task.title)}</strong><span>Điểm tối đa: ${fmt(task.maximumConvertedScore)} · Minh chứng bắt buộc: ${esc(task.standardTaskMandatoryEvidence || task.mandatoryEvidence || 'Theo nhiệm vụ')}</span></div>
     ${workSummaryHtml}
-    <div class="kpi-field"><label>Tiến độ áp dụng</label><div class="kpi-rate-input"><input id="kpiSelfProgress" type="number" min="0" max="100" step="0.01" value="${initialProgress}" ${itemized?'readonly':''}><span>%</span></div><small>${itemized?'Tự động từ T/N; không chỉnh thủ công.':`Hệ thống đề xuất ${suggestedFinalProgress}% theo hạn và ngày hoàn thành. Có thể nhập tỷ lệ cụ thể 0–100% khi có giải trình.`}</small></div>
-    <div class="kpi-field"><label>Kết quả áp dụng</label><div class="kpi-rate-input"><input id="kpiSelfResult" type="number" min="0" max="100" step="0.01" value="${initialResult}" ${itemized?'readonly':''}><span>%</span></div><small>${itemized?'Tự động từ K/N; không chỉnh thủ công.':'Tham chiếu 100%–80%–60%–0%; có thể nhập tỷ lệ cụ thể 0–100% kèm nhận xét/minh chứng.'}</small></div>
+    <div class="kpi-field"><label>Tiến độ áp dụng</label><div class="kpi-rate-input"><input id="kpiSelfProgress" type="number" min="0" max="100" step="0.01" value="${initialProgress}" ${itemized?'readonly':''}><span>%</span></div><small>${itemized?'Tự động từ trung bình tiến độ từng lượt; không chỉnh thủ công.':`Hệ thống đề xuất ${suggestedFinalProgress}% theo hạn và ngày hoàn thành. Có thể nhập tỷ lệ cụ thể 0–100% khi có giải trình.`}</small></div>
+    <div class="kpi-field"><label>Kết quả áp dụng</label><div class="kpi-rate-input"><input id="kpiSelfResult" type="number" min="0" max="100" step="0.01" value="${initialResult}" ${itemized?'readonly':''}><span>%</span></div><small>${itemized?'Tự động từ trung bình kết quả từng lượt; không chỉnh thủ công.':'Tham chiếu chất lượng thực tế; có thể nhập tỷ lệ cụ thể 0–100% kèm nhận xét/minh chứng.'}</small></div>
     <div class="kpi-field full"><label>Nhận xét kết quả, thành tích và hạn chế</label><textarea id="kpiSelfComment" rows="5" required>${esc(ev.selfComment || '')}</textarea></div>
     <div class="kpi-field full"><label class="kpi-checkbox-line"><input id="kpiExceeded" type="checkbox" ${ev.isExceededRequirement===true?'checked':''}> Đề nghị ghi nhận hoàn thành vượt mức yêu cầu</label><textarea id="kpiExceededText" rows="3" placeholder="Nêu rõ sản phẩm, khối lượng, chất lượng hoặc giá trị bổ sung...">${esc(ev.exceededRequirementDescription || '')}</textarea></div>
     <div class="kpi-field full"><div id="kpiSelfScore"></div></div>
@@ -1639,7 +1639,13 @@ async function deletePeriodData(){
 function openReport() {
   if (!KpiWorkflowState.period) return;
 
-  const mine = KpiWorkflowState.tasks.filter(t => t.ownerUserId === KpiWorkflowState.user.uid && t.active !== false);
+  const mine = KpiWorkflowState.tasks.filter(t => (
+    t.ownerUserId === KpiWorkflowState.user.uid &&
+    t.active !== false &&
+    t.scoringEnabled !== false &&
+    String(t.scoringStatus || '').toUpperCase() !== 'ADJUSTMENT_EXEMPT' &&
+    String(t.noOccurrenceStatus || '').toUpperCase() !== 'CONFIRMED'
+  ));
   const commonScore = commonScoreSnapshot(KpiWorkflowState.common);
   const scoreState = scoreStateForUser(KpiWorkflowState.user.uid);
   const s = calculateKpiSummary(recognizedRowsForUser(), commonScore.total);
@@ -1724,7 +1730,7 @@ function openReport() {
       <td colspan="3">${esc(task.title || '')}</td>
       <td class="m01-center">${fmt(task.maximumConvertedScore || 0)}</td>
       <td class="m01-center">${applied.hasScore ? fmt(applied.actualScore) : ''}</td>
-      <td>${applied.hasScore ? esc(applied.shortLabel) : ''}</td>
+      <td></td>
     </tr>`;
   }).join('');
 
@@ -1769,7 +1775,7 @@ function openReport() {
         <tr class="m01-part-row"><td class="m01-center">B</td><td colspan="3">KẾT QUẢ THỰC HIỆN NHIỆM VỤ ĐƯỢC GIAO (70 ĐIỂM)</td><td class="m01-center">Điểm tối đa<br><small>(70 điểm)</small></td><td class="m01-center">Điểm đạt được</td><td>Ghi chú</td></tr>
         ${taskRows || '<tr class="m01-task-row"><td class="m01-center">—</td><td colspan="3">Chưa có nhiệm vụ trong kỳ.</td><td></td><td></td><td></td></tr>'}
         <tr class="m01-total-row"><td colspan="4">TỔNG (B) =</td><td class="m01-center">70</td><td class="m01-center">${s.hasCalculationBasis ? fmt(s.kpi70) : 'Chưa đủ cơ sở tính'}</td><td></td></tr>
-        <tr class="m01-grand-total"><td colspan="4">TỔNG (A + B) =</td><td class="m01-center">100</td><td class="m01-center">${s.hasCalculationBasis ? fmt(s.total100) : '—'}</td><td>${esc(s.hasCalculationBasis ? (scoreState.code === 'OFFICIAL' ? 'Điểm chính thức' : 'Điểm tự đánh giá') : 'Chưa đủ cơ sở tính')}</td></tr>
+        <tr class="m01-grand-total"><td colspan="4">TỔNG (A + B) =</td><td class="m01-center">100</td><td class="m01-center">${s.hasCalculationBasis ? fmt(s.total100) : '—'}</td><td></td></tr>
       </tbody>
     </table>
     <div class="m01-proposal"><strong>II. Tự đề xuất xếp loại mức chất lượng:</strong> ${esc(rating)}</div>
