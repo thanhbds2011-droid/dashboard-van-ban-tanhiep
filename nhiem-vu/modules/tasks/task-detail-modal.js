@@ -1,11 +1,12 @@
 /** Chi tiết, phân công và các lượt công việc phát sinh của nhiệm vụ. */
 import { UserContext } from "../../core/user-context.js";
-import { Permissions } from "../../core/permissions.js?v=20260801.V1_3_0";
+import { Permissions } from "../../core/permissions.js?v=20260801.V1_5_0";
 import { UserReadService } from "../../services/user-read-service.js";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260801.V1_3_0";
-import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260801.V1_3_0";
-import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260801.V1_3_0";
-import { openTaskProgressModal } from "./task-progress-modal.js?v=20260801.V1_3_0";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260801.V1_5_0";
+import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260801.V1_5_0";
+import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260801.V1_5_0";
+import { openTaskProgressModal } from "./task-progress-modal.js?v=20260801.V1_5_0";
+import { mountTaskAdjustmentPanel } from "./task-adjustment-panel.js?v=20260801.V1_5_0";
 
 const TEAM_LABELS = Object.freeze({
   BAO_VE: "Tổ Bảo vệ",
@@ -425,12 +426,14 @@ export async function openTaskDetailModal(task, { onSaved }) {
   const completed = task._completed === true ||
     ["HOAN_THANH", "COMPLETED", "DA_HOAN_THANH"].includes(String(task.status || "").toUpperCase()) ||
     Boolean(task.completedAt);
-  const users = canAssign(task) ? await UserReadService.listActive() : [];
+  const adjustmentExempt = String(task.scoringStatus || "").toUpperCase() === "ADJUSTMENT_EXEMPT";
+  const mayAssign = canAssign(task) && !adjustmentExempt;
+  const users = mayAssign ? await UserReadService.listActive() : [];
   const departmentUsers = users.filter(user => user.departmentId === task.primaryDepartmentId);
   const teams = departmentTeams(departmentUsers);
   let workItems = isItemizedTask(task) ? await TaskWorkItemService.list(task.id) : [];
   const workItemsLocked = task.scoreLocked === true ||
-    ["CONFIRMED", "NO_OCCURRENCE_CONFIRMED"].includes(String(task.scoringStatus || "").toUpperCase());
+    ["CONFIRMED", "NO_OCCURRENCE_CONFIRMED", "ADJUSTMENT_EXEMPT"].includes(String(task.scoringStatus || "").toUpperCase());
   const canEditWorkItems = isItemizedTask(task) && TaskWorkItemService.mayManage(task) && !workItemsLocked;
   const labels = WORK_ITEM_LABELS[workItemType(task)];
 
@@ -460,6 +463,7 @@ export async function openTaskDetailModal(task, { onSaved }) {
           ${detail("Điểm tối đa", numberVi(task.maximumConvertedScore || 0))}
         </div>
         <section class="detail-section"><h3>Nội dung thực hiện</h3><p>${escapeHtml(task.description || "Chưa có nội dung chi tiết.")}</p></section>
+        <div id="taskAdjustmentPanel"></div>
         ${isItemizedTask(task) ? `<section class="detail-section task-work-items-section">
           <div class="detail-section-heading"><div><h3>${labels.name}</h3><p>Các lượt được ghi riêng để tạo tỷ lệ N–T–K; không cộng điểm riêng cho từng lượt.</p></div>${canEditWorkItems ? `<button id="addWorkItemButton" class="primary-button compact-button" type="button">+ ${labels.add}</button>` : ""}</div>
           ${scoringMethodHtml(task)}
@@ -469,18 +473,27 @@ export async function openTaskDetailModal(task, { onSaved }) {
         </section>` : `<div class="info-banner final-output-banner"><strong>Đánh giá trực tiếp theo Phụ lục 04</strong><span>Đầu việc này có một sản phẩm/kết quả cuối cùng nên không tạo lượt chi tiết. Khi hoàn thành, hệ thống chấm một lần theo tiến độ, kết quả, điểm chuẩn và hệ số độ khó của chính đầu việc.</span></div>`}
         <section class="detail-section"><h3>Kết quả và minh chứng cuối cùng</h3><p>${escapeHtml(task.resultSummary || task.result || "Chưa ghi nhận kết quả.")}</p>${safeExternalUrl(task.evidenceUrl) ? `<a class="primary-link" target="_blank" rel="noopener" href="${escapeHtml(safeExternalUrl(task.evidenceUrl))}">📎 ${escapeHtml(task.evidenceFileName || "Mở tệp minh chứng")}</a>` : ""}${task.evidenceText ? `<p>${escapeHtml(task.evidenceText)}</p>` : ""}</section>
         ${isOwner && !accepted && !completed ? '<div class="info-banner">Bạn cần xác nhận đã nhận nhiệm vụ trước khi cập nhật tiến độ, kết quả hoặc minh chứng.</div>' : ""}
-        ${canAssign(task) ? `<section class="detail-section"><h3>Phân công nội bộ</h3><div class="inline-form assignment-inline-form">
+        ${mayAssign ? `<section class="detail-section"><h3>Phân công nội bộ</h3><div class="inline-form assignment-inline-form">
           <select id="assignTeam"><option value="">— Không chọn Tổ/Nhóm —</option>${teams.map(team => `<option value="${escapeHtml(team.id)}" ${team.id === normalizeTeamId(task.teamId) ? "selected" : ""}>${escapeHtml(team.label)}</option>`).join("")}</select>
           <select id="assignOwner"><option value="">— Chưa phân công cá nhân —</option></select>
           <button id="assignTaskButton" class="secondary-button" type="button">Lưu phân công</button>
         </div></section>` : ""}
       </div>
-      <div class="modal-footer"><button class="secondary-button" type="button" data-close>Đóng</button>${isOwner && !accepted && !completed ? '<button id="acceptTaskButton" class="primary-button" type="button">Xác nhận đã nhận nhiệm vụ</button>' : ""}${isOwner && accepted && !completed && String(task.noOccurrenceStatus || "").toUpperCase() !== "CONFIRMED" ? '<button id="updateTaskButton" class="primary-button" type="button">Cập nhật nhiệm vụ</button>' : ""}</div>
+      <div class="modal-footer"><button class="secondary-button" type="button" data-close>Đóng</button>${isOwner && !accepted && !completed ? '<button id="acceptTaskButton" class="primary-button" type="button">Xác nhận đã nhận nhiệm vụ</button>' : ""}${isOwner && accepted && !completed && String(task.noOccurrenceStatus || "").toUpperCase() !== "CONFIRMED" && String(task.scoringStatus || "").toUpperCase() !== "ADJUSTMENT_EXEMPT" ? '<button id="updateTaskButton" class="primary-button" type="button">Cập nhật nhiệm vụ</button>' : ""}</div>
     </section>`;
 
   document.body.appendChild(overlay);
   const close = () => overlay.remove();
   overlay.querySelectorAll("[data-close]").forEach(button => button.addEventListener("click", close));
+
+  await mountTaskAdjustmentPanel({
+    task,
+    container: overlay.querySelector("#taskAdjustmentPanel"),
+    onTaskChanged: async () => {
+      close();
+      await onSaved?.();
+    }
+  });
 
   const refreshWorkItems = async () => {
     workItems = await TaskWorkItemService.list(task.id);
@@ -617,6 +630,7 @@ function detail(label, value) {
 }
 
 function statusName(task) {
+  if (String(task.scoringStatus || "").toUpperCase() === "ADJUSTMENT_EXEMPT") return "Miễn đánh giá";
   if (String(task.noOccurrenceStatus || "").toUpperCase() === "CONFIRMED") return "Không phát sinh";
   if (task._overdue) return "Trễ hạn";
   if (task._completed) return "Hoàn thành";
