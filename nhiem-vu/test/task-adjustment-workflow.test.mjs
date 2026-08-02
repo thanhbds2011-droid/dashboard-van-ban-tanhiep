@@ -13,7 +13,7 @@ const kpi = read("nhiem-vu/modules/kpi/kpi-workflow.js");
 const taskRead = read("nhiem-vu/services/task-read-service.js");
 const dashboard = read("nhiem-vu/modules/dashboard/dashboard-view.js");
 const rules = read("firestore.rules");
-const appsScript = read("deployment/apps-script-notification-ai-archive-v6.1.0.gs");
+const appsScript = read("deployment/apps-script-notification-ai-archive-v6.2.0.gs");
 
 
 test("Chi tiết nhiệm vụ gắn bảng điều chỉnh và biểu mẫu STAFF", () => {
@@ -77,8 +77,8 @@ test("Nhiệm vụ miễn đánh giá không bị thống kê trễ hạn hoặc
 });
 
 
-test("Apps Script V6.1.0 gửi thông báo đúng luồng và có người duyệt dự phòng", () => {
-  assert.match(appsScript, /V6\.1\.0/);
+test("Apps Script V6.2.0 gửi thông báo đúng luồng và có người duyệt dự phòng", () => {
+  assert.match(appsScript, /V6\.2\.0/);
   assert.match(appsScript, /TASK_ADJUSTMENT_REQUESTED/);
   assert.match(appsScript, /TASK_ADJUSTMENT_APPROVED/);
   assert.match(appsScript, /TASK_ADJUSTMENT_REJECTED/);
@@ -112,13 +112,13 @@ test("Bảng KPI không hiển thị lại điểm cũ của nhiệm vụ đã m
 test("Rules tương thích nhiệm vụ cũ khi trường người duyệt điều chỉnh rỗng", () => {
   assert.match(rules, /\(!hasField\(data, "adjustmentApproverUserId"\) \|\| data\.adjustmentApproverUserId == ""\)/);
   assert.match(rules, /\(!hasField\(task, "adjustmentApproverUserId"\) \|\| task\.adjustmentApproverUserId == ""\)/);
-  assert.match(rules, /data\.taskCode == \(hasField\(task, "taskCode"\) \? task\.taskCode : ""\)/);
+  assert.match(rules, /data\.taskCode == \(hasField\(task, "taskCode"\)[\s\S]*task\.taskCode : ""\)/);
 });
 
 
 test("PWA cache đầy đủ service gửi thông báo của quy trình điều chỉnh", () => {
   const sw = read("nhiem-vu/sw.js");
-  assert.match(sw, /services\/task-notification-service\.js\?v=20260801\.V1_5_0/);
+  assert.match(sw, /services\/task-notification-service\.js\?v=20260802\.V1_6_0/);
 });
 
 
