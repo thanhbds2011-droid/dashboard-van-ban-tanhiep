@@ -13,8 +13,8 @@ const kpiWorkflow = read("modules/kpi/kpi-workflow.js");
 const archiveService = read("services/period-archive-service.js");
 const taskWrite = read("services/task-write-service.js");
 const registrationService = read("services/task-registration-service.js");
-const rules = readFileSync(resolve(root, "../../../firestore_V1_3_1.rules"), "utf8");
-const appsScript = readFileSync(resolve(root, "../../../APPS_SCRIPT_THONG_BAO_AI_V6_0_0.gs"), "utf8");
+const rules = readFileSync(resolve(root, "../firestore.rules"), "utf8");
+const appsScript = readFileSync(resolve(root, "../deployment/apps-script-notification-ai-archive-v6.1.0.gs"), "utf8");
 
 assert.match(taskRead, /where\("periodId",\s*"==",\s*periodId\)/, "Nhiệm vụ phải được lọc theo kỳ.");
 assert.match(taskRead, /TASK_CACHE_MS/, "Dịch vụ nhiệm vụ phải có bộ nhớ đệm ngắn.");

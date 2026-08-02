@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260801.V1_3_1";
+import { Permissions } from "../core/permissions.js?v=20260801.V1_5_0";
 
 function setUser(overrides = {}) {
   return UserContext.setUser({
@@ -47,7 +47,7 @@ test("Lãnh đạo đơn vị khác và nhân viên TCHC không tự động có
 });
 
 test("Firestore Rules có cùng phạm vi đọc toàn Trung tâm với giao diện", async () => {
-  const rulesUrl = new URL("../../../../firestore_V1_3_1.rules", import.meta.url);
+  const rulesUrl = new URL("../../firestore.rules", import.meta.url);
   const rules = await readFile(rulesUrl, "utf8");
   assert.match(
     rules,

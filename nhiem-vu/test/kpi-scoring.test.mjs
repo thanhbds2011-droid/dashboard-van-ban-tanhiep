@@ -118,3 +118,35 @@ test("KPI công việc cộng điểm quy đổi thực tế B và trả null kh
   assert.equal(noBasis.kpi70, null);
   assert.equal(noBasis.total100, null);
 });
+
+
+test("Nhiệm vụ miễn đánh giá do điều động không tham gia A, B hoặc mẫu số KPI", () => {
+  const summary = calculateKpiSummary([
+    {
+      active: true,
+      status: "DANG_XU_LY",
+      planApprovalStatus: "APPROVED",
+      includedInA: false,
+      scoringEnabled: false,
+      scoringStatus: "ADJUSTMENT_EXEMPT",
+      recognized: false,
+      maximumConvertedScore: 12,
+      confirmedActualScore: 0
+    },
+    {
+      active: true,
+      status: "HOAN_THANH",
+      planApprovalStatus: "APPROVED",
+      includedInA: true,
+      scoringEnabled: true,
+      scoringStatus: "CONFIRMED",
+      recognized: true,
+      maximumConvertedScore: 10,
+      confirmedActualScore: 8
+    }
+  ], 25);
+  assert.equal(summary.A, 10);
+  assert.equal(summary.B, 8);
+  assert.equal(summary.kpi70, 56);
+  assert.equal(summary.total100, 81);
+});
