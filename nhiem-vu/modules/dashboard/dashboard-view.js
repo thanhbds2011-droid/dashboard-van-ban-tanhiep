@@ -1,10 +1,23 @@
 import { UserContext } from "../../core/user-context.js";
 import { Permissions } from "../../core/permissions.js";
 import { ToastService } from "../../core/toast-service.js";
-import { DashboardReadService } from "../../services/dashboard-read-service.js?v=20260801.V1_5_0";
-import { TaskReadService } from "../../services/task-read-service.js?v=20260801.V1_5_0";
+import { DashboardReadService } from "../../services/dashboard-read-service.js?v=20260802.V1_6_0";
+import { TaskReadService } from "../../services/task-read-service.js?v=20260802.V1_6_0";
 let currentData = null;
 let dashboardRenderSequence = 0;
+let dashboardDepartmentScope = "ALL";
+
+const DEPARTMENT_NAMES = Object.freeze({
+  BGD: "Ban Giám đốc",
+  TCHC: "Phòng Tổ chức - Hành chính",
+  CTXH: "Phòng Công tác xã hội",
+  KHTC: "Phòng Kế hoạch - Tài chính",
+  YT: "Phòng Y tế",
+  KI: "Khu I",
+  KII: "Khu II",
+  KIII: "Khu III",
+  CDTN: "Chi đoàn Trung tâm"
+});
 
 export async function renderDashboardView(outlet) {
   const sequence = ++dashboardRenderSequence;
@@ -24,7 +37,7 @@ export async function renderDashboardView(outlet) {
 function mountDashboard(outlet, user) {
   outlet.innerHTML = `
     <section class="page-card">
-      <div class="page-header"><div><h2>Tổng quan</h2><p>Theo dõi nhiệm vụ và kỳ đánh giá theo phạm vi tài khoản.</p></div><button id="btnDashboardRefresh" class="secondary-button" type="button">↻ Cập nhật</button></div>
+      <div class="page-header"><div><h2>Tổng quan</h2><p>Theo dõi nhiệm vụ và kỳ đánh giá theo phạm vi tài khoản.</p></div><div class="dashboard-header-actions">${Permissions.canViewAllDepartments() ? '<label class="dashboard-department-filter"><span>Phòng/Khu</span><select id="dashboardDepartmentFilter"><option value="ALL">Toàn Trung tâm</option></select></label>' : ''}<button id="btnDashboardRefresh" class="secondary-button" type="button">↻ Cập nhật</button></div></div>
       <section class="welcome-panel"><div><span class="welcome-label">Xin chào</span><h3>${escapeHtml(user.fullName || "Người dùng")}</h3><p>${escapeHtml(user.position || "Chưa cập nhật chức danh")} ${user.departmentId ? `• ${escapeHtml(user.departmentId)}` : ""}</p></div><span class="role-badge">${escapeHtml(formatRole(user.role))}</span></section>
       <div class="summary-grid">
         ${metric("Nhiệm vụ đang xử lý", 0, "Nhiệm vụ đang thực hiện", "blue", "dashboardInProgress")}
@@ -35,6 +48,7 @@ function mountDashboard(outlet, user) {
         ${metric("Miễn đánh giá", 0, "Không tính 0 và không đưa vào mẫu số KPI", "violet", "dashboardExempt")}
         ${metric("Kỳ KPI hiện tại", "—", "Chưa có kỳ hoạt động", "violet", "dashboardPeriod", "dashboardPeriodNote")}
       </div>
+      ${Permissions.canViewAllDepartments() ? '<section class="dashboard-department-overview"><div class="section-heading"><div><h3>Theo dõi theo Phòng/Khu</h3><p>Chọn Phòng/Khu ở phía trên hoặc xem nhanh số nhiệm vụ theo từng đơn vị.</p></div></div><div id="dashboardDepartmentBreakdown" class="dashboard-department-grid"></div></section>' : ''}
       <section class="dashboard-grid">
         <article class="dashboard-section"><div class="section-heading"><div><h3>Truy cập nhanh</h3><p>Truy cập nhanh các chức năng thường dùng.</p></div></div><div class="quick-grid">
           ${quick("#/tasks", "📋", "Nhiệm vụ", '<span id="dashboardTaskQuick">0 nhiệm vụ trong phạm vi</span>')}
@@ -54,6 +68,10 @@ function mountDashboard(outlet, user) {
     </section>`;
 
   document.getElementById("btnDashboardRefresh")?.addEventListener("click", refreshDashboard);
+  document.getElementById("dashboardDepartmentFilter")?.addEventListener("change", event => {
+    dashboardDepartmentScope = event.target.value || "ALL";
+    updateDashboard(currentData || {});
+  });
 }
 
 async function refreshDashboard() {
@@ -70,7 +88,20 @@ async function refreshDashboard() {
 }
 
 function updateDashboard(data) {
-  const summary = data.taskSummary || TaskReadService.summarize(data.tasks || []);
+  const allTasks = Array.isArray(data.tasks) ? data.tasks : [];
+  const departments = [...new Set(allTasks.map(task => String(task.primaryDepartmentId || "").toUpperCase()).filter(Boolean))]
+    .sort((a, b) => (DEPARTMENT_NAMES[a] || a).localeCompare(DEPARTMENT_NAMES[b] || b, "vi"));
+  const filter = document.getElementById("dashboardDepartmentFilter");
+  if (filter) {
+    const current = dashboardDepartmentScope;
+    filter.innerHTML = `<option value="ALL">Toàn Trung tâm</option>${departments.map(id => `<option value="${escapeHtml(id)}">${escapeHtml(DEPARTMENT_NAMES[id] || id)}</option>`).join("")}`;
+    dashboardDepartmentScope = departments.includes(current) ? current : "ALL";
+    filter.value = dashboardDepartmentScope;
+  }
+  const tasks = dashboardDepartmentScope === "ALL"
+    ? allTasks
+    : allTasks.filter(task => String(task.primaryDepartmentId || "").toUpperCase() === dashboardDepartmentScope);
+  const summary = TaskReadService.summarize(tasks);
   const period = data.activePeriod || null;
   setText("dashboardInProgress", summary.inProgress);
   setText("dashboardDueSoon", summary.dueSoon);
@@ -83,9 +114,22 @@ function updateDashboard(data) {
   setText("dashboardTaskQuick", `${summary.total} nhiệm vụ trong phạm vi`);
   setText("dashboardStandardQuick", "Mở phân hệ để tải danh mục");
   setText("dashboardKpiQuick", period ? "Đã nhận diện kỳ hoạt động" : "Chưa có kỳ hoạt động");
-  setText("dashboardTaskStatus", `${data.tasks?.length || 0} nhiệm vụ`);
+  setText("dashboardTaskStatus", `${tasks.length} nhiệm vụ${dashboardDepartmentScope === "ALL" ? "" : ` · ${DEPARTMENT_NAMES[dashboardDepartmentScope] || dashboardDepartmentScope}`}`);
   setText("dashboardStandardStatus", "Chỉ tải khi mở phân hệ");
   setText("dashboardPeriodStatus", `${data.periods?.length || 0} kỳ`);
+
+  const breakdown = document.getElementById("dashboardDepartmentBreakdown");
+  if (breakdown) {
+    breakdown.innerHTML = departments.map(departmentId => {
+      const departmentTasks = allTasks.filter(task => String(task.primaryDepartmentId || "").toUpperCase() === departmentId);
+      const departmentSummary = TaskReadService.summarize(departmentTasks);
+      return `<button type="button" class="dashboard-department-card ${dashboardDepartmentScope === departmentId ? "is-active" : ""}" data-dashboard-department="${escapeHtml(departmentId)}"><strong>${escapeHtml(DEPARTMENT_NAMES[departmentId] || departmentId)}</strong><span>${departmentSummary.total} nhiệm vụ</span><small>${departmentSummary.inProgress} đang xử lý · ${departmentSummary.overdue} trễ hạn · ${departmentSummary.completed} hoàn thành</small></button>`;
+    }).join("") || '<div class="task-history-empty">Chưa có nhiệm vụ theo Phòng/Khu trong kỳ hiện tại.</div>';
+    breakdown.querySelectorAll("[data-dashboard-department]").forEach(button => button.addEventListener("click", () => {
+      dashboardDepartmentScope = button.dataset.dashboardDepartment || "ALL";
+      updateDashboard(currentData || {});
+    }));
+  }
 
   const warning = document.getElementById("dashboardWarning");
   if (warning) {
