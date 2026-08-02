@@ -3,8 +3,8 @@
  * STAFF gửi đề nghị; người giao nhiệm vụ xem xét và phê duyệt hoặc trả lại.
  */
 import { ToastService } from "../../core/toast-service.js";
-import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260801.V1_5_0";
-import { TaskAdjustmentService } from "../../services/task-adjustment-service.js?v=20260801.V1_5_0";
+import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260802.V1_6_0";
+import { TaskAdjustmentService } from "../../services/task-adjustment-service.js?v=20260802.V1_6_0";
 
 const STATUS_LABELS = Object.freeze({
   PENDING: ["Chờ phê duyệt", "warning"],
@@ -287,7 +287,7 @@ export async function mountTaskAdjustmentPanel({ task, container, onTaskChanged 
   if (!container || !task?.id) return;
   container.innerHTML = `<section class="detail-section"><div class="empty-state compact-empty-state"><div class="empty-icon">⏳</div><strong>Đang tải đề nghị điều chỉnh…</strong></div></section>`;
   try {
-    const adjustments = await TaskAdjustmentService.list(task.id);
+    const adjustments = await TaskAdjustmentService.list(task);
     container.innerHTML = panelHtml(task, adjustments);
     container.querySelector("#requestTaskAdjustmentButton")?.addEventListener("click", () => {
       openRequestModal(task, onTaskChanged);

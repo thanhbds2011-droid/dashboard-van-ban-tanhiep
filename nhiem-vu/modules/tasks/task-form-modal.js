@@ -1,11 +1,11 @@
 /** Biểu mẫu giao nhiệm vụ phát sinh/đột xuất. */
 import { UserContext } from "../../core/user-context.js";
-import { Permissions } from "../../core/permissions.js?v=20260801.V1_5_0";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260801.V1_5_0";
+import { Permissions } from "../../core/permissions.js?v=20260802.V1_6_0";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260802.V1_6_0";
 import { UserReadService } from "../../services/user-read-service.js";
 import { DepartmentReadService } from "../../services/department-read-service.js";
-import { validateTaskCreateInput, cleanText } from "./task-form-validator.js?v=20260801.V1_5_0";
-import { mountTaskAiAssistant } from "../../ai-assistant.js?v=20260801.V1_5_0";
+import { validateTaskCreateInput, cleanText } from "./task-form-validator.js?v=20260802.V1_6_0";
+import { mountTaskAiAssistant } from "../../ai-assistant.js?v=20260802.V1_6_0";
 import { ToastService } from "../../core/toast-service.js";
 
 const DIRECT_TASK_BASE_SCORE = 12;

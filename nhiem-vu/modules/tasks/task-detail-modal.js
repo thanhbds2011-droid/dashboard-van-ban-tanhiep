@@ -1,12 +1,13 @@
 /** Chi tiết, phân công và các lượt công việc phát sinh của nhiệm vụ. */
 import { UserContext } from "../../core/user-context.js";
-import { Permissions } from "../../core/permissions.js?v=20260801.V1_5_0";
+import { Permissions } from "../../core/permissions.js?v=20260802.V1_6_0";
 import { UserReadService } from "../../services/user-read-service.js";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260801.V1_5_0";
-import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260801.V1_5_0";
-import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260801.V1_5_0";
-import { openTaskProgressModal } from "./task-progress-modal.js?v=20260801.V1_5_0";
-import { mountTaskAdjustmentPanel } from "./task-adjustment-panel.js?v=20260801.V1_5_0";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260802.V1_6_0";
+import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260802.V1_6_0";
+import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260802.V1_6_0";
+import { openTaskProgressModal } from "./task-progress-modal.js?v=20260802.V1_6_0";
+import { mountTaskAdjustmentPanel } from "./task-adjustment-panel.js?v=20260802.V1_6_0";
+import { TaskLogService } from "../../services/task-log-service.js?v=20260802.V1_6_0";
 
 const TEAM_LABELS = Object.freeze({
   BAO_VE: "Tổ Bảo vệ",
@@ -432,6 +433,12 @@ export async function openTaskDetailModal(task, { onSaved }) {
   const departmentUsers = users.filter(user => user.departmentId === task.primaryDepartmentId);
   const teams = departmentTeams(departmentUsers);
   let workItems = isItemizedTask(task) ? await TaskWorkItemService.list(task.id) : [];
+  let taskLogs = [];
+  try {
+    taskLogs = await TaskLogService.list(task.id);
+  } catch (error) {
+    console.warn("Không tải được nhật ký nhiệm vụ:", error);
+  }
   const workItemsLocked = task.scoreLocked === true ||
     ["CONFIRMED", "NO_OCCURRENCE_CONFIRMED", "ADJUSTMENT_EXEMPT"].includes(String(task.scoringStatus || "").toUpperCase());
   const canEditWorkItems = isItemizedTask(task) && TaskWorkItemService.mayManage(task) && !workItemsLocked;
@@ -440,7 +447,7 @@ export async function openTaskDetailModal(task, { onSaved }) {
   const overlay = document.createElement("div");
   overlay.className = "modal-backdrop";
   overlay.innerHTML = `
-    <section class="modal-panel modal-large task-detail-modal" role="dialog" aria-modal="true">
+    <section class="modal-panel modal-large task-detail-modal task-detail-tabbed" role="dialog" aria-modal="true">
       <div class="modal-header">
         <div>
           <span class="page-eyebrow">${escapeHtml(task.taskCode || task.id)}</span>
@@ -449,35 +456,67 @@ export async function openTaskDetailModal(task, { onSaved }) {
         </div>
         <button class="icon-button" type="button" data-close>✕</button>
       </div>
-      <div class="modal-body">
-        <div class="detail-grid task-detail-summary">
-          ${detail("Người giao", task.createdByName || task.assignedByName || "—")}
-          ${detail("Người phụ trách", task.ownerName || "Chưa phân công")}
-          ${detail("Tổ/Nhóm", task.teamId ? teamLabel(task.teamId) : "Không áp dụng")}
-          ${detail("Tiến độ", `${Number(task.progress || 0)}%`)}
-          ${detail("Hạn xử lý", formatDate(task._deadline || task.deadline))}
-          ${detail("Loại công việc", task.workType === "DOT_XUAT" ? "Đột xuất" : "Thường xuyên")}
-          ${detail("Cách theo dõi", trackingModeLabel(task))}
-          ${detail("Điểm chuẩn", numberVi(task.baseScore || 0))}
-          ${detail("Hệ số độ khó", coefficientLabel(task.difficultyCoefficient))}
-          ${detail("Điểm tối đa", numberVi(task.maximumConvertedScore || 0))}
-        </div>
-        <section class="detail-section"><h3>Nội dung thực hiện</h3><p>${escapeHtml(task.description || "Chưa có nội dung chi tiết.")}</p></section>
-        <div id="taskAdjustmentPanel"></div>
-        ${isItemizedTask(task) ? `<section class="detail-section task-work-items-section">
-          <div class="detail-section-heading"><div><h3>${labels.name}</h3><p>Các lượt được ghi riêng để tạo tỷ lệ N–T–K; không cộng điểm riêng cho từng lượt.</p></div>${canEditWorkItems ? `<button id="addWorkItemButton" class="primary-button compact-button" type="button">+ ${labels.add}</button>` : ""}</div>
-          ${scoringMethodHtml(task)}
-          <div id="taskNoOccurrence">${noOccurrenceHtml(task, workItems, isOwner)}</div>
-          <div id="taskWorkItemSummary">${workItemSummaryHtml(workItems, task)}</div>
-          <div id="taskWorkItemList">${workItemRows(workItems, canEditWorkItems, task)}</div>
-        </section>` : `<div class="info-banner final-output-banner"><strong>Đánh giá trực tiếp theo Phụ lục 04</strong><span>Đầu việc này có một sản phẩm/kết quả cuối cùng nên không tạo lượt chi tiết. Khi hoàn thành, hệ thống chấm một lần theo tiến độ, kết quả, điểm chuẩn và hệ số độ khó của chính đầu việc.</span></div>`}
-        <section class="detail-section"><h3>Kết quả và minh chứng cuối cùng</h3><p>${escapeHtml(task.resultSummary || task.result || "Chưa ghi nhận kết quả.")}</p>${safeExternalUrl(task.evidenceUrl) ? `<a class="primary-link" target="_blank" rel="noopener" href="${escapeHtml(safeExternalUrl(task.evidenceUrl))}">📎 ${escapeHtml(task.evidenceFileName || "Mở tệp minh chứng")}</a>` : ""}${task.evidenceText ? `<p>${escapeHtml(task.evidenceText)}</p>` : ""}</section>
-        ${isOwner && !accepted && !completed ? '<div class="info-banner">Bạn cần xác nhận đã nhận nhiệm vụ trước khi cập nhật tiến độ, kết quả hoặc minh chứng.</div>' : ""}
-        ${mayAssign ? `<section class="detail-section"><h3>Phân công nội bộ</h3><div class="inline-form assignment-inline-form">
-          <select id="assignTeam"><option value="">— Không chọn Tổ/Nhóm —</option>${teams.map(team => `<option value="${escapeHtml(team.id)}" ${team.id === normalizeTeamId(task.teamId) ? "selected" : ""}>${escapeHtml(team.label)}</option>`).join("")}</select>
-          <select id="assignOwner"><option value="">— Chưa phân công cá nhân —</option></select>
-          <button id="assignTaskButton" class="secondary-button" type="button">Lưu phân công</button>
-        </div></section>` : ""}
+      <nav class="task-detail-tabs" aria-label="Các phần chi tiết nhiệm vụ">
+        <button class="task-detail-tab is-active" type="button" data-task-tab="overview">1. Tổng quan</button>
+        <button class="task-detail-tab" type="button" data-task-tab="progress">2. Tiến độ</button>
+        <button class="task-detail-tab" type="button" data-task-tab="adjustment">3. Điều chỉnh</button>
+        <button class="task-detail-tab" type="button" data-task-tab="evaluation">4. Đánh giá & KPI</button>
+        <button class="task-detail-tab" type="button" data-task-tab="history">5. Minh chứng & lịch sử</button>
+      </nav>
+      <div class="modal-body task-detail-tab-body">
+        <section class="task-detail-tab-panel is-active" data-task-panel="overview">
+          <div class="detail-grid task-detail-summary">
+            ${detail("Người giao", task.createdByName || task.assignedByName || "—")}
+            ${detail("Người phụ trách", task.ownerName || "Chưa phân công")}
+            ${detail("Tổ/Nhóm", task.teamId ? teamLabel(task.teamId) : "Không áp dụng")}
+            ${detail("Tiến độ", `${Number(task.progress || 0)}%`)}
+            ${detail("Hạn xử lý", formatDate(task._deadline || task.deadline))}
+            ${detail("Loại công việc", task.workType === "DOT_XUAT" ? "Đột xuất" : "Thường xuyên")}
+            ${detail("Cách theo dõi", trackingModeLabel(task))}
+            ${detail("Điểm chuẩn", numberVi(task.baseScore || 0))}
+            ${detail("Hệ số độ khó", coefficientLabel(task.difficultyCoefficient))}
+            ${detail("Điểm tối đa", numberVi(task.maximumConvertedScore || 0))}
+          </div>
+          <section class="detail-section"><h3>Nội dung thực hiện</h3><p>${escapeHtml(task.description || "Chưa có nội dung chi tiết.")}</p></section>
+          ${mayAssign ? `<section class="detail-section"><h3>Phân công nội bộ</h3><div class="inline-form assignment-inline-form">
+            <select id="assignTeam"><option value="">— Không chọn Tổ/Nhóm —</option>${teams.map(team => `<option value="${escapeHtml(team.id)}" ${team.id === normalizeTeamId(task.teamId) ? "selected" : ""}>${escapeHtml(team.label)}</option>`).join("")}</select>
+            <select id="assignOwner"><option value="">— Chưa phân công cá nhân —</option></select>
+            <button id="assignTaskButton" class="secondary-button" type="button">Lưu phân công</button>
+          </div></section>` : ""}
+        </section>
+
+        <section class="task-detail-tab-panel" data-task-panel="progress">
+          ${isOwner && !accepted && !completed ? '<div class="info-banner">Bạn cần xác nhận đã nhận nhiệm vụ trước khi cập nhật tiến độ, kết quả hoặc minh chứng.</div>' : ""}
+          ${isItemizedTask(task) ? `<section class="detail-section task-work-items-section">
+            <div class="detail-section-heading"><div><h3>${labels.name}</h3><p>Mỗi văn bản/lượt được ghi riêng; hệ thống lấy trung bình chính xác rồi mới áp dụng Phụ lục 04.</p></div>${canEditWorkItems ? `<button id="addWorkItemButton" class="primary-button compact-button" type="button">+ ${labels.add}</button>` : ""}</div>
+            ${scoringMethodHtml(task)}
+            <div id="taskNoOccurrence">${noOccurrenceHtml(task, workItems, isOwner)}</div>
+            <div id="taskWorkItemSummary">${workItemSummaryHtml(workItems, task)}</div>
+            <div id="taskWorkItemList">${workItemRows(workItems, canEditWorkItems, task)}</div>
+          </section>` : `<div class="info-banner final-output-banner"><strong>Đánh giá trực tiếp theo Phụ lục 04</strong><span>Đầu việc có một sản phẩm cuối cùng; không tạo lượt chi tiết và không áp dụng quy đổi cứng.</span></div>`}
+        </section>
+
+        <section class="task-detail-tab-panel" data-task-panel="adjustment">
+          <div id="taskAdjustmentPanel"></div>
+        </section>
+
+        <section class="task-detail-tab-panel" data-task-panel="evaluation">
+          <div class="detail-grid task-evaluation-summary">
+            ${detail("Điểm chuẩn", numberVi(task.baseScore || 0))}
+            ${detail("Hệ số độ khó", coefficientLabel(task.difficultyCoefficient))}
+            ${detail("Điểm tối đa", numberVi(task.maximumConvertedScore || 0))}
+            ${detail("Trạng thái chấm điểm", scoringStatusName(task.scoringStatus))}
+            ${detail("Điểm tự đánh giá", numberVi(task.selfActualScore))}
+            ${detail("Điểm chính thức", numberVi(task.confirmedActualScore))}
+          </div>
+          <section class="detail-section"><h3>Kết quả cuối cùng</h3><p>${escapeHtml(task.resultSummary || task.result || "Chưa ghi nhận kết quả.")}</p></section>
+          ${adjustmentExempt ? '<div class="info-banner"><strong>Đã miễn đánh giá</strong><span>Nhiệm vụ được giữ trong lịch sử nhưng không tính 0 và không đưa vào mẫu số KPI.</span></div>' : ""}
+        </section>
+
+        <section class="task-detail-tab-panel" data-task-panel="history">
+          <section class="detail-section"><h3>Minh chứng</h3>${safeExternalUrl(task.evidenceUrl) ? `<a class="primary-link" target="_blank" rel="noopener" href="${escapeHtml(safeExternalUrl(task.evidenceUrl))}">📎 ${escapeHtml(task.evidenceFileName || "Mở tệp minh chứng")}</a>` : '<p>Chưa có tệp minh chứng cuối cùng.</p>'}${task.evidenceText ? `<p>${escapeHtml(task.evidenceText)}</p>` : ""}</section>
+          <section class="detail-section"><h3>Lịch sử thao tác</h3>${renderTaskLogs(taskLogs)}</section>
+        </section>
       </div>
       <div class="modal-footer"><button class="secondary-button" type="button" data-close>Đóng</button>${isOwner && !accepted && !completed ? '<button id="acceptTaskButton" class="primary-button" type="button">Xác nhận đã nhận nhiệm vụ</button>' : ""}${isOwner && accepted && !completed && String(task.noOccurrenceStatus || "").toUpperCase() !== "CONFIRMED" && String(task.scoringStatus || "").toUpperCase() !== "ADJUSTMENT_EXEMPT" ? '<button id="updateTaskButton" class="primary-button" type="button">Cập nhật nhiệm vụ</button>' : ""}</div>
     </section>`;
@@ -485,6 +524,19 @@ export async function openTaskDetailModal(task, { onSaved }) {
   document.body.appendChild(overlay);
   const close = () => overlay.remove();
   overlay.querySelectorAll("[data-close]").forEach(button => button.addEventListener("click", close));
+  const activateTab = tabName => {
+    overlay.querySelectorAll("[data-task-tab]").forEach(button => {
+      const active = button.dataset.taskTab === tabName;
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-selected", active ? "true" : "false");
+    });
+    overlay.querySelectorAll("[data-task-panel]").forEach(panel => {
+      panel.classList.toggle("is-active", panel.dataset.taskPanel === tabName);
+    });
+  };
+  overlay.querySelectorAll("[data-task-tab]").forEach(button => {
+    button.addEventListener("click", () => activateTab(button.dataset.taskTab));
+  });
 
   await mountTaskAdjustmentPanel({
     task,
@@ -636,6 +688,49 @@ function statusName(task) {
   if (task._completed) return "Hoàn thành";
   const map = { CHO_PHAN_CONG: "Chờ phân công", MOI_TIEP_NHAN: "Chờ tiếp nhận", DANG_XU_LY: "Đang xử lý", TAM_DUNG: "Tạm dừng" };
   return map[task.status] || "Đang xử lý";
+}
+
+function scoringStatusName(value) {
+  const status = String(value || "NOT_ASSESSED").toUpperCase();
+  return ({
+    NOT_ASSESSED: "Chưa tự đánh giá",
+    PENDING_REVIEW: "Chờ xác nhận",
+    CONFIRMED: "Đã xác nhận chính thức",
+    ADJUSTMENT_EXEMPT: "Miễn đánh giá do điều động",
+    NO_OCCURRENCE_CONFIRMED: "Không phát sinh đã xác nhận",
+    CANCELLED: "Đã hủy"
+  })[status] || status;
+}
+
+function logActionName(action) {
+  return ({
+    TASK_CREATED: "Tạo nhiệm vụ",
+    TASK_REGISTRATION_APPROVED: "Duyệt đăng ký",
+    TASK_ACCEPTED: "Tiếp nhận nhiệm vụ",
+    TASK_UPDATED: "Cập nhật nhiệm vụ",
+    TASK_COMPLETED: "Hoàn thành nhiệm vụ",
+    TASK_ADJUSTMENT_REQUESTED: "Gửi đề nghị điều chỉnh",
+    TASK_ADJUSTMENT_APPROVED: "Duyệt điều chỉnh",
+    TASK_ADJUSTMENT_REJECTED: "Không chấp thuận điều chỉnh",
+    TASK_REGISTRATION_CANCELLED: "Hủy đăng ký đã duyệt",
+    CDTN_ATTENDANCE_UPDATED: "Cập nhật điểm danh Chi đoàn"
+  })[String(action || "").toUpperCase()] || String(action || "Thao tác");
+}
+
+function renderTaskLogs(logs = []) {
+  if (!logs.length) return '<div class="task-history-empty">Chưa có nhật ký hoặc tài khoản hiện tại không có quyền xem nhật ký cũ.</div>';
+  return `<div class="task-history-list">${logs.map(log => `<article class="task-history-item">
+    <div><strong>${escapeHtml(logActionName(log.action))}</strong><span>${escapeHtml(log.performedByName || "Hệ thống")}</span></div>
+    <time>${escapeHtml(formatDateTime(log.createdAt))}</time>
+    ${log.note ? `<p>${escapeHtml(log.note)}</p>` : ""}
+  </article>`).join("")}</div>`;
+}
+
+function formatDateTime(value) {
+  const date = value?.toDate ? value.toDate() : value instanceof Date ? value : value ? new Date(value) : null;
+  return date && !Number.isNaN(date.getTime())
+    ? new Intl.DateTimeFormat("vi-VN", { dateStyle: "short", timeStyle: "short" }).format(date)
+    : "—";
 }
 
 function formatDate(value) {
