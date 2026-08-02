@@ -81,10 +81,12 @@ export function calculateTaskScore(baseScore, coefficient, progressRate, resultR
 
 export function calculateKpiSummary(tasks, commonScore) {
   const all = (tasks || []).filter((item) => item.active !== false && item.status !== 'HUY' && item.status !== 'CANCELLED');
-  const eligible = all.filter((item) => (
-    String(item.noOccurrenceStatus || '').toUpperCase() !== 'CONFIRMED' &&
-    String(item.scoringStatus || '').toUpperCase() !== 'NO_OCCURRENCE_CONFIRMED'
-  ));
+  const eligible = all.filter((item) => {
+    const scoringStatus = String(item.scoringStatus || '').toUpperCase();
+    return item.scoringEnabled !== false
+      && String(item.noOccurrenceStatus || '').toUpperCase() !== 'CONFIRMED'
+      && !['NO_OCCURRENCE_CONFIRMED', 'ADJUSTMENT_EXEMPT'].includes(scoringStatus);
+  });
   const plan = eligible.filter((item) => item.includedInA === true && item.planApprovalStatus === 'APPROVED');
   const recognized = eligible.filter((item) => item.recognized === true);
   const A = round2(plan.reduce((sum, item) => sum + Number(item.maximumConvertedScore || item.maximumScore || 0), 0));

@@ -644,3 +644,78 @@ button,input,select,textarea{font-size:16px}
   .no-occurrence-actions button,
   .no-occurrence-banner > button { width: 100%; }
 }
+
+
+/* Production V1.5.0 - chẩn đoán quản trị */
+.admin-action-card.warning { border-color:#d69e2e; background:#fffaf0; }
+.admin-action-card:disabled { opacity:.58; cursor:not-allowed; }
+.admin-diagnostic-table { margin-top:18px; overflow:auto; border:1px solid #d8e5ef; border-radius:12px; }
+.admin-diagnostic-table table { width:100%; border-collapse:collapse; min-width:850px; }
+.admin-diagnostic-table th,.admin-diagnostic-table td { padding:10px 12px; border-bottom:1px solid #e6edf3; text-align:left; vertical-align:top; font-size:13px; }
+.admin-diagnostic-table th { position:sticky; top:0; background:#0f567c; color:#fff; }
+.diagnostic-level { display:inline-flex; padding:3px 8px; border-radius:999px; font-size:11px; font-weight:800; }
+.diagnostic-level.error { background:#fee2e2; color:#991b1b; }
+.diagnostic-level.warning { background:#fef3c7; color:#92400e; }
+.diagnostic-level.repairable { background:#dbeafe; color:#1e40af; }
+.admin-log-list { display:grid; gap:8px; max-height:55vh; overflow:auto; text-align:left; }
+.admin-log-list article { display:grid; gap:3px; padding:10px 12px; border:1px solid #d8e5ef; border-radius:10px; }
+.admin-log-list span,.admin-log-list small { color:#52677a; }
+
+/* ===== Production V1.5.0 — Điều chỉnh và miễn đánh giá nhiệm vụ ===== */
+.task-adjustment-section { display:grid; gap:12px; }
+.adjustment-history { display:grid; gap:12px; }
+.adjustment-card {
+  display:grid;
+  gap:10px;
+  padding:15px;
+  border:1px solid #d7e4ed;
+  border-radius:13px;
+  background:#fff;
+  box-shadow:0 4px 14px rgba(17,64,91,.04);
+}
+.adjustment-card.pending { border-color:#e7cf8a; background:#fffdf6; }
+.adjustment-card.approved { border-color:#b9ddc8; background:#f8fcf9; }
+.adjustment-card.rejected { border-color:#e8c1bd; background:#fffafa; }
+.adjustment-card-header { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+.adjustment-card-header > div { display:grid; gap:4px; min-width:0; }
+.adjustment-card-header strong { color:#113f5d; }
+.adjustment-card-header small { color:#687f90; line-height:1.45; }
+.adjustment-card > p { margin:0; color:#405c70; line-height:1.55; }
+.adjustment-card-actions { display:flex; flex-wrap:wrap; gap:8px; }
+.adjustment-proposal-grid {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:8px;
+}
+.adjustment-proposal-grid > div {
+  display:grid;
+  gap:4px;
+  padding:10px 12px;
+  border:1px solid #d8e5ee;
+  border-radius:10px;
+  background:#f8fbfd;
+}
+.adjustment-proposal-grid span { color:#667e90; font-size:12px; }
+.adjustment-proposal-grid strong { color:#194d6c; line-height:1.45; overflow-wrap:anywhere; }
+.adjustment-effect-list { display:grid; gap:5px; padding:11px 13px; border-radius:10px; background:#edf8f2; color:#27613d; }
+.adjustment-evidence-box { display:grid; gap:7px; padding:10px 12px; border:1px solid #cfe1eb; border-radius:10px; background:#f5fafc; }
+.adjustment-evidence-text { padding:10px 12px; border-radius:10px; background:#f5fafc; }
+.adjustment-review-note { margin:0; padding:9px 11px; border-radius:9px; }
+.adjustment-review-note.is-approved { background:#edf8f2; color:#27613d; }
+.adjustment-review-note.is-rejected { background:#fff0ef; color:#973a32; }
+.adjustment-pending-banner { border-color:#ead493; background:#fff9e8; }
+.adjustment-exempt-banner { border-color:#b6dbc4; background:#eff9f3; }
+.adjustment-modal [hidden] { display:none!important; }
+.adjustment-approval-summary { display:grid; gap:10px; }
+.adjustment-approval-summary > p { margin:0; line-height:1.55; }
+.compact-empty-state { min-height:120px; padding:18px; }
+.task-row-button .status-pill.info { max-width:170px; text-align:center; }
+
+@media (max-width:720px) {
+  .adjustment-card-header { display:grid; }
+  .adjustment-card-header .status-pill { width:max-content; }
+  .adjustment-proposal-grid { grid-template-columns:1fr; }
+  .adjustment-card-actions { display:grid; }
+  .adjustment-card-actions button { width:100%; }
+  .task-adjustment-section .detail-section-heading > button { width:100%; }
+}
