@@ -1,35 +1,74 @@
-/** Production 3D - đọc danh sách người dùng hoạt động. */
+/** Đọc người dùng theo đúng phạm vi Firestore Rules. */
 import { FirebaseService } from "../core/firebase-service.js";
+import { UserContext } from "../core/user-context.js";
+import { Permissions } from "../core/permissions.js?v=20260801.V1_5_0";
 
 const CACHE_MS = 5 * 60 * 1000;
-let cache = { items: [], loadedAt: 0 };
-let pending = null;
+const caches = new Map();
+const pending = new Map();
 
 function mapSnapshot(snapshot) {
   return snapshot.docs.map(item => ({ id: item.id, ...item.data() }));
 }
 
+function normalize(items = []) {
+  return items
+    .filter(user => user.active === true)
+    .sort((a, b) => String(a.fullName || "").localeCompare(String(b.fullName || ""), "vi"));
+}
+
+function scopeKey() {
+  const user = UserContext.requireUser();
+  if (Permissions.canViewAllDepartments()) return `${user.uid}|ALL`;
+  if (Permissions.isDepartmentLeader()) return `${user.uid}|DEPARTMENT|${user.departmentId}`;
+  return `${user.uid}|SELF`;
+}
+
+async function readAuthorizedUsers() {
+  const user = UserContext.requireUser();
+  const users = FirebaseService.collection(FirebaseService.db, "users");
+
+  if (Permissions.canViewAllDepartments()) {
+    return normalize(mapSnapshot(await FirebaseService.getDocs(users)));
+  }
+
+  if (Permissions.isDepartmentLeader()) {
+    const query = FirebaseService.query(
+      users,
+      FirebaseService.where("departmentId", "==", user.departmentId),
+      FirebaseService.limit(500)
+    );
+    return normalize(mapSnapshot(await FirebaseService.getDocs(query)));
+  }
+
+  const snapshot = await FirebaseService.getDoc(
+    FirebaseService.doc(FirebaseService.db, "users", user.uid)
+  );
+  return snapshot.exists() && snapshot.data()?.active === true
+    ? [{ id: snapshot.id, ...snapshot.data() }]
+    : [];
+}
+
 export const UserReadService = Object.freeze({
   async listActive(options = {}) {
     const force = options.force === true;
-    if (!force && cache.loadedAt && Date.now() - cache.loadedAt < CACHE_MS) return cache.items;
-    if (!force && pending) return pending;
-    pending = (async () => {
-    const reference = FirebaseService.collection(FirebaseService.db, "users");
-    const snapshot = await FirebaseService.getDocs(reference);
-    const items = mapSnapshot(snapshot)
-      .filter(user => user.active === true)
-      .sort((a, b) => String(a.fullName || "").localeCompare(String(b.fullName || ""), "vi"));
-    cache = { items, loadedAt: Date.now() };
-    return items;
-    })();
-    try { return await pending; }
-    finally { pending = null; }
+    const key = scopeKey();
+    const cached = caches.get(key);
+    if (!force && cached && Date.now() - cached.loadedAt < CACHE_MS) return cached.items;
+    if (!force && pending.has(key)) return pending.get(key);
+
+    const request = readAuthorizedUsers().then(items => {
+      caches.set(key, { items, loadedAt: Date.now() });
+      return items;
+    });
+    pending.set(key, request);
+    try { return await request; }
+    finally { pending.delete(key); }
   },
 
   invalidate() {
-    cache = { items: [], loadedAt: 0 };
-    pending = null;
+    caches.clear();
+    pending.clear();
   },
 
   byDepartment(users, departmentId) {

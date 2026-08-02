@@ -168,7 +168,7 @@ async function collectPeriod(periodId, onProgress) {
   const totalRecords = Object.values(counts).reduce((sum, value) => sum + Number(value || 0), 0);
   const archive = {
     schemaVersion: "KPI_PERIOD_ARCHIVE_V1",
-    applicationVersion: "V1.3.0",
+    applicationVersion: "V1.5.0",
     exportedAt: new Date().toISOString(),
     exportedBy: normalizeValue(UserContext.requireUser()),
     period,

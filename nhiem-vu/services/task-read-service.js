@@ -1,8 +1,8 @@
 /** Đọc nhiệm vụ theo kỳ hiện hành, phạm vi tài khoản và bộ nhớ đệm ngắn. */
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260801.V1_3_1";
-import { PeriodReadService } from "./period-read-service.js?v=20260801.V1_3_0";
+import { Permissions } from "../core/permissions.js?v=20260801.V1_5_0";
+import { PeriodReadService } from "./period-read-service.js?v=20260801.V1_5_0";
 
 const TASK_CACHE_MS = 45 * 1000;
 let taskCache = { key: "", items: [], loadedAt: 0, period: null };
@@ -98,6 +98,8 @@ function deadlineOf(task) {
 function enrichTask(task) {
   const deadline = deadlineOf(task);
   const completed = isCompleted(task);
+  const exempt = String(task?.scoringStatus || "").trim().toUpperCase() === "ADJUSTMENT_EXEMPT";
+  const adjustmentPending = String(task?.adjustmentStatus || "").trim().toUpperCase() === "REQUESTED";
   const now = new Date();
   const hoursToDeadline = deadline ? (deadline.getTime() - now.getTime()) / 36e5 : null;
   return {
@@ -105,8 +107,10 @@ function enrichTask(task) {
     _status: taskStatus(task),
     _deadline: deadline,
     _completed: completed,
-    _overdue: Boolean(deadline && !completed && hoursToDeadline < 0),
-    _dueSoon: Boolean(deadline && !completed && hoursToDeadline >= 0 && hoursToDeadline <= 72)
+    _exempt: exempt,
+    _adjustmentPending: adjustmentPending,
+    _overdue: Boolean(deadline && !completed && !exempt && hoursToDeadline < 0),
+    _dueSoon: Boolean(deadline && !completed && !exempt && hoursToDeadline >= 0 && hoursToDeadline <= 72)
   };
 }
 
@@ -207,8 +211,10 @@ export const TaskReadService = Object.freeze({
       completed: all.filter(item => item._completed).length,
       overdue: all.filter(item => item._overdue).length,
       dueSoon: all.filter(item => item._dueSoon).length,
-      inProgress: all.filter(item => !item._completed && !item._overdue && !["CHO_PHAN_CONG", "PENDING_ASSIGNMENT", "MOI_TIEP_NHAN"].includes(item._status)).length,
-      waitingAssignment: all.filter(item => ["CHO_PHAN_CONG", "PENDING_ASSIGNMENT", "MOI_TIEP_NHAN"].includes(item._status)).length
+      inProgress: all.filter(item => !item._completed && !item._exempt && !item._overdue && !["CHO_PHAN_CONG", "PENDING_ASSIGNMENT", "MOI_TIEP_NHAN"].includes(item._status)).length,
+      waitingAssignment: all.filter(item => !item._exempt && ["CHO_PHAN_CONG", "PENDING_ASSIGNMENT", "MOI_TIEP_NHAN"].includes(item._status)).length,
+      adjustmentPending: all.filter(item => item._adjustmentPending).length,
+      exempt: all.filter(item => item._exempt).length
     };
   }
 });

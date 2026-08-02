@@ -1,9 +1,9 @@
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260801.V1_3_0";
+import { Permissions } from "../core/permissions.js?v=20260801.V1_5_0";
 import { TaskLogService } from "./task-log-service.js";
-import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260801.V1_3_0";
-import { PeriodReadService } from "./period-read-service.js?v=20260801.V1_3_0";
+import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260801.V1_5_0";
+import { PeriodReadService } from "./period-read-service.js?v=20260801.V1_5_0";
 
 const clean = value => String(value ?? "").trim();
 const upper = value => clean(value).toUpperCase();
@@ -167,7 +167,7 @@ function taskPayload(registration, reviewer, due, options = {}) {
   return {
     code,
     payload: {
-      appVersion: "1.3.0",
+      appVersion: "1.5.0",
       active: true,
       taskCode: code,
       title: registration.title || registration.standardTaskName,
@@ -190,6 +190,8 @@ function taskPayload(registration, reviewer, due, options = {}) {
       assignedByUserId: reviewer.uid,
       assignedByName: reviewer.fullName || "",
       assignedByPosition: reviewer.position || "",
+      adjustmentApproverUserId: reviewer.uid,
+      adjustmentApproverName: reviewer.fullName || "",
       assignedAt: FirebaseService.serverTimestamp(),
       assignmentStatus: "DA_PHAN_CONG",
       status: "MOI_TIEP_NHAN",

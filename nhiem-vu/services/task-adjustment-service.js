@@ -1,8 +1,11 @@
-/** Quy trình đề nghị và phê duyệt điều chỉnh nhiệm vụ, không chuyển điểm giữa nhân sự. */
+/**
+ * Quy trình đề nghị và phê duyệt điều chỉnh nhiệm vụ.
+ * Không chuyển điểm giữa nhân sự; mọi thay đổi được lưu trong kpiAdjustments và taskLogs.
+ */
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { TaskLogService } from "./task-log-service.js";
-import { TaskNotificationService } from "./task-notification-service.js?v=20260801.V1_2_0";
+import { TaskLogService } from "./task-log-service.js?v=20260801.V1_5_0";
+import { TaskNotificationService } from "./task-notification-service.js?v=20260801.V1_5_0";
 
 const COLLECTION = "kpiAdjustments";
 const TYPES = Object.freeze({
@@ -12,6 +15,13 @@ const TYPES = Object.freeze({
 
 function clean(value, max = 3000) {
   return String(value ?? "").replace(/\s+/g, " ").trim().slice(0, max);
+}
+
+function validDateKey(value) {
+  const text = clean(value, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return "";
+  const date = new Date(`${text}T12:00:00`);
+  return Number.isNaN(date.getTime()) ? "" : text;
 }
 
 function planSnapshot(task) {
@@ -24,7 +34,8 @@ function planSnapshot(task) {
     difficultyCoefficient: Number(task.difficultyCoefficient || 1),
     maximumConvertedScore: Number(task.maximumConvertedScore || 0),
     includedInA: task.includedInA === true,
-    scoringEnabled: task.scoringEnabled !== false
+    scoringEnabled: task.scoringEnabled !== false,
+    scoringStatus: task.scoringStatus || "NOT_ASSESSED"
   };
 }
 
@@ -34,7 +45,7 @@ function approvalUserId(task) {
 
 function label(type) {
   return type === TYPES.EXEMPT_FROM_SCORING
-    ? "Không đánh giá do điều động"
+    ? "Miễn đánh giá do điều động"
     : "Điều chỉnh khối lượng/phạm vi";
 }
 
@@ -42,8 +53,40 @@ function taskRef(taskId) {
   return FirebaseService.doc(FirebaseService.db, "tasks", taskId);
 }
 
+function adjustmentRef(adjustmentId) {
+  return FirebaseService.doc(FirebaseService.db, COLLECTION, adjustmentId);
+}
+
 function logRef() {
   return FirebaseService.doc(FirebaseService.collection(FirebaseService.db, "taskLogs"));
+}
+
+function completedTask(task) {
+  return Boolean(
+    task?.completedAt ||
+    ["HOAN_THANH", "COMPLETED", "DA_HOAN_THANH"].includes(String(task?.status || "").toUpperCase())
+  );
+}
+
+function pendingStatus(task) {
+  return String(task?.adjustmentStatus || "").toUpperCase() === "REQUESTED" || Boolean(clean(task?.pendingAdjustmentId, 200));
+}
+
+function proposedSnapshot(task, data, type) {
+  if (type === TYPES.EXEMPT_FROM_SCORING) {
+    return {
+      description: task.description || "",
+      adjustedWorkload: "",
+      deadlineDateKey: task.deadlineDateKey || ""
+    };
+  }
+  const description = clean(data.description || task.description, 5000);
+  const adjustedWorkload = clean(data.adjustedWorkload, 1000);
+  const deadlineDateKey = validDateKey(data.deadlineDateKey);
+  if (!adjustedWorkload && description === clean(task.description, 5000) && (!deadlineDateKey || deadlineDateKey === task.deadlineDateKey)) {
+    throw new Error("Hãy nêu ít nhất một nội dung cần điều chỉnh: khối lượng, nội dung hoặc thời hạn.");
+  }
+  return { description, adjustedWorkload, deadlineDateKey };
 }
 
 export const TaskAdjustmentService = Object.freeze({
@@ -70,8 +113,10 @@ export const TaskAdjustmentService = Object.freeze({
       task?.active !== false &&
       task.ownerUserId === user.uid &&
       task.scoreLocked !== true &&
-      !["CONFIRMED", "ADJUSTMENT_EXEMPT"].includes(String(task.scoringStatus || "").toUpperCase()) &&
-      String(task.adjustmentStatus || "").toUpperCase() !== "REQUESTED"
+      !completedTask(task) &&
+      !["CONFIRMED", "ADJUSTMENT_EXEMPT", "NO_OCCURRENCE_CONFIRMED"].includes(String(task.scoringStatus || "").toUpperCase()) &&
+      String(task.noOccurrenceStatus || "").toUpperCase() !== "CONFIRMED" &&
+      !pendingStatus(task)
     );
   },
 
@@ -80,7 +125,8 @@ export const TaskAdjustmentService = Object.freeze({
     return Boolean(
       user.active === true &&
       approvalUserId(task) === user.uid &&
-      (!adjustment || String(adjustment.status || "").toUpperCase() === "PENDING")
+      (!adjustment || String(adjustment.status || "").toUpperCase() === "PENDING") &&
+      (!adjustment || adjustment.approverUserId === user.uid)
     );
   },
 
@@ -95,32 +141,37 @@ export const TaskAdjustmentService = Object.freeze({
     const approverId = approvalUserId(task);
     if (!approverId) throw new Error("Nhiệm vụ chưa xác định người giao để phê duyệt điều chỉnh.");
     const reference = FirebaseService.doc(FirebaseService.collection(FirebaseService.db, COLLECTION));
+    const proposed = proposedSnapshot(task, data, requestedType);
+    const evidenceUrl = clean(data.evidenceUrl, 2000);
+    const evidenceFileName = clean(data.evidenceFileName, 500);
+    const evidenceStoragePath = clean(data.evidenceStoragePath, 500);
+    const evidenceText = clean(data.evidenceText, 3000);
     const payload = {
       recordType: "TASK_ADJUSTMENT",
       taskId: task.id,
-      taskCode: task.taskCode || "",
-      periodId: task.periodId || "",
-      departmentId: task.primaryDepartmentId || "",
+      taskCode: clean(task.taskCode, 120),
+      periodId: clean(task.periodId, 120),
+      departmentId: clean(task.primaryDepartmentId, 30),
       userId: user.uid,
-      userName: user.fullName || "",
+      userName: clean(user.fullName, 300),
       adjustmentType: requestedType,
       adjustmentLabel: label(requestedType),
       status: "PENDING",
       reason,
-      evidenceText: clean(data.evidenceText, 3000),
+      evidenceText,
+      evidenceUrl,
+      evidenceFileName,
+      evidenceStoragePath,
       originalPlanSnapshot: task.originalPlanSnapshot || planSnapshot(task),
-      proposedSnapshot: {
-        description: clean(data.description || task.description, 5000),
-        adjustedWorkload: clean(data.adjustedWorkload, 1000),
-        deadlineDateKey: clean(data.deadlineDateKey, 10)
-      },
+      proposedSnapshot: proposed,
       approverUserId: approverId,
-      approverName: task.adjustmentApproverName || task.assignedByName || task.createdByName || "",
+      approverName: clean(task.adjustmentApproverName || task.assignedByName || task.createdByName, 300),
       createdAt: FirebaseService.serverTimestamp(),
       createdByUserId: user.uid,
-      createdByName: user.fullName || "",
+      createdByName: clean(user.fullName, 300),
       updatedAt: FirebaseService.serverTimestamp(),
-      updatedByUserId: user.uid
+      updatedByUserId: user.uid,
+      updatedByName: clean(user.fullName, 300)
     };
     const batch = FirebaseService.writeBatch(FirebaseService.db);
     batch.set(reference, payload);
@@ -128,78 +179,95 @@ export const TaskAdjustmentService = Object.freeze({
       adjustmentStatus: "REQUESTED",
       adjustmentType: requestedType,
       adjustmentLabel: label(requestedType),
+      adjustmentReason: reason,
+      adjustmentEvidenceUrl: evidenceUrl,
+      adjustmentEvidenceFileName: evidenceFileName,
       pendingAdjustmentId: reference.id,
+      adjustmentRequestedAt: FirebaseService.serverTimestamp(),
+      adjustmentRequestedByUserId: user.uid,
+      adjustmentRequestedByName: clean(user.fullName, 300),
       updatedAt: FirebaseService.serverTimestamp(),
       updatedByUserId: user.uid,
-      updatedByName: user.fullName || ""
+      updatedByName: clean(user.fullName, 300)
     });
     batch.set(logRef(), TaskLogService.buildTaskLog({
       taskId: task.id,
       taskCode: task.taskCode,
       action: "TASK_ADJUSTMENT_REQUESTED",
       before: planSnapshot(task),
-      after: payload.proposedSnapshot,
+      after: { ...proposed, adjustmentType: requestedType, adjustmentLabel: label(requestedType) },
       note: reason
     }));
     await batch.commit();
-    TaskNotificationService.send("TASK_ADJUSTMENT_REQUESTED", task.id);
+    void TaskNotificationService.send("TASK_ADJUSTMENT_REQUESTED", task.id, {
+      adjustmentType: requestedType,
+      adjustmentLabel: label(requestedType),
+      adjustmentReason: reason
+    });
     return { id: reference.id, ...payload };
   },
 
-  async approve(task, adjustment, decisionType = "") {
+  async approve(task, adjustment) {
     const user = UserContext.requireUser();
-    if (!this.canApprove(task, adjustment)) throw new Error("Chỉ người giao nhiệm vụ được phê duyệt điều chỉnh này.");
-    const approvedType = Object.values(TYPES).includes(String(decisionType || "").toUpperCase())
-      ? String(decisionType).toUpperCase()
-      : adjustment.adjustmentType;
+    if (!this.canApprove(task, adjustment)) throw new Error("Chỉ người giao nhiệm vụ được phê duyệt đề nghị này.");
+    const approvedType = Object.values(TYPES).includes(String(adjustment.adjustmentType || "").toUpperCase())
+      ? String(adjustment.adjustmentType).toUpperCase()
+      : TYPES.ADJUST_SCOPE;
     const proposed = adjustment.proposedSnapshot || {};
     const taskChanges = {
       originalPlanSnapshot: task.originalPlanSnapshot || adjustment.originalPlanSnapshot || planSnapshot(task),
       adjustmentStatus: "APPROVED",
       adjustmentType: approvedType,
       adjustmentLabel: label(approvedType),
+      adjustmentReason: clean(adjustment.reason, 3000),
+      adjustmentEvidenceUrl: clean(adjustment.evidenceUrl, 2000),
+      adjustmentEvidenceFileName: clean(adjustment.evidenceFileName, 500),
       pendingAdjustmentId: "",
       lastAdjustmentId: adjustment.id,
       lastAdjustmentApprovedAt: FirebaseService.serverTimestamp(),
       lastAdjustmentApprovedByUserId: user.uid,
-      lastAdjustmentApprovedByName: user.fullName || "",
+      lastAdjustmentApprovedByName: clean(user.fullName, 300),
       updatedAt: FirebaseService.serverTimestamp(),
       updatedByUserId: user.uid,
-      updatedByName: user.fullName || ""
+      updatedByName: clean(user.fullName, 300)
     };
     if (approvedType === TYPES.EXEMPT_FROM_SCORING) {
       Object.assign(taskChanges, {
         includedInA: false,
         scoringEnabled: false,
         scoringStatus: "ADJUSTMENT_EXEMPT",
-        recognized: false
+        recognized: false,
+        selfExecutionScore: null,
+        selfActualScore: null,
+        confirmedExecutionScore: null,
+        confirmedActualScore: null
       });
     } else {
       Object.assign(taskChanges, {
-        includedInA: true,
-        scoringEnabled: true,
-        scoringStatus: String(task.scoringStatus || "").toUpperCase() === "ADJUSTMENT_EXEMPT"
-          ? "NOT_ASSESSED"
-          : (task.scoringStatus || "NOT_ASSESSED"),
+        includedInA: task.includedInA === true,
+        scoringEnabled: task.scoringEnabled !== false,
+        scoringStatus: task.scoringStatus || "NOT_ASSESSED",
         adjustedWorkload: clean(proposed.adjustedWorkload, 1000),
         description: clean(proposed.description || task.description, 5000)
       });
-      if (/^\d{4}-\d{2}-\d{2}$/.test(String(proposed.deadlineDateKey || ""))) {
-        taskChanges.deadlineDateKey = proposed.deadlineDateKey;
-        taskChanges.deadline = FirebaseService.Timestamp.fromDate(new Date(`${proposed.deadlineDateKey}T23:59:59`));
+      const deadlineDateKey = validDateKey(proposed.deadlineDateKey);
+      if (deadlineDateKey) {
+        taskChanges.deadlineDateKey = deadlineDateKey;
+        taskChanges.deadline = FirebaseService.Timestamp.fromDate(new Date(`${deadlineDateKey}T23:59:59`));
       }
     }
     const batch = FirebaseService.writeBatch(FirebaseService.db);
     batch.update(taskRef(task.id), taskChanges);
-    batch.update(FirebaseService.doc(FirebaseService.db, COLLECTION, adjustment.id), {
+    batch.update(adjustmentRef(adjustment.id), {
       status: "APPROVED",
       approvedDecisionType: approvedType,
       approvedDecisionLabel: label(approvedType),
       approvedAt: FirebaseService.serverTimestamp(),
       approvedByUserId: user.uid,
-      approvedByName: user.fullName || "",
+      approvedByName: clean(user.fullName, 300),
       updatedAt: FirebaseService.serverTimestamp(),
-      updatedByUserId: user.uid
+      updatedByUserId: user.uid,
+      updatedByName: clean(user.fullName, 300)
     });
     batch.set(logRef(), TaskLogService.buildTaskLog({
       taskId: task.id,
@@ -210,7 +278,11 @@ export const TaskAdjustmentService = Object.freeze({
       note: adjustment.reason || ""
     }));
     await batch.commit();
-    TaskNotificationService.send("TASK_ADJUSTMENT_APPROVED", task.id);
+    void TaskNotificationService.send("TASK_ADJUSTMENT_APPROVED", task.id, {
+      adjustmentType: approvedType,
+      adjustmentLabel: label(approvedType),
+      adjustmentReason: adjustment.reason || ""
+    });
   },
 
   async reject(task, adjustment, reason) {
@@ -219,21 +291,27 @@ export const TaskAdjustmentService = Object.freeze({
     const normalizedReason = clean(reason, 2000);
     if (!normalizedReason) throw new Error("Hãy nêu lý do không chấp thuận.");
     const batch = FirebaseService.writeBatch(FirebaseService.db);
-    batch.update(FirebaseService.doc(FirebaseService.db, COLLECTION, adjustment.id), {
+    batch.update(adjustmentRef(adjustment.id), {
       status: "REJECTED",
       rejectionReason: normalizedReason,
       rejectedAt: FirebaseService.serverTimestamp(),
       rejectedByUserId: user.uid,
-      rejectedByName: user.fullName || "",
+      rejectedByName: clean(user.fullName, 300),
       updatedAt: FirebaseService.serverTimestamp(),
-      updatedByUserId: user.uid
+      updatedByUserId: user.uid,
+      updatedByName: clean(user.fullName, 300)
     });
     batch.update(taskRef(task.id), {
       adjustmentStatus: "REJECTED",
       pendingAdjustmentId: "",
+      lastAdjustmentId: adjustment.id,
+      lastAdjustmentRejectedAt: FirebaseService.serverTimestamp(),
+      lastAdjustmentRejectedByUserId: user.uid,
+      lastAdjustmentRejectedByName: clean(user.fullName, 300),
+      lastAdjustmentRejectionReason: normalizedReason,
       updatedAt: FirebaseService.serverTimestamp(),
       updatedByUserId: user.uid,
-      updatedByName: user.fullName || ""
+      updatedByName: clean(user.fullName, 300)
     });
     batch.set(logRef(), TaskLogService.buildTaskLog({
       taskId: task.id,
@@ -242,6 +320,11 @@ export const TaskAdjustmentService = Object.freeze({
       note: normalizedReason
     }));
     await batch.commit();
-    TaskNotificationService.send("TASK_ADJUSTMENT_REJECTED", task.id);
+    void TaskNotificationService.send("TASK_ADJUSTMENT_REJECTED", task.id, {
+      adjustmentType: adjustment.adjustmentType || "",
+      adjustmentLabel: adjustment.adjustmentLabel || label(adjustment.adjustmentType),
+      adjustmentReason: adjustment.reason || "",
+      rejectionReason: normalizedReason
+    });
   }
 });
