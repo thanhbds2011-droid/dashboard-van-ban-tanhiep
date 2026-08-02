@@ -111,7 +111,20 @@ export const Permissions = Object.freeze({
   },
 
   isCdtnCatalogManager() {
-    return this.isCdtnSecretary() || this.isCdtnDeputySecretary();
+    /* Danh mục Chi đoàn do Bí thư quản lý; Phó Bí thư/BCH/Đoàn viên chỉ đăng ký. */
+    return this.isCdtnSecretary();
+  },
+
+  canApproveCdtnRegistrations(hasDelegation = false) {
+    return this.isAdmin() || this.isCdtnSecretary() || hasDelegation === true;
+  },
+
+  canDelegateCdtnApproval() {
+    return this.isCdtnSecretary();
+  },
+
+  canManageCdtnAttendance(hasDelegation = false) {
+    return this.isAdmin() || this.isCdtnSecretary() || hasDelegation === true;
   },
 
   isDepartmentHead(user = UserContext.getUser()) {
