@@ -1,11 +1,11 @@
-/** Production 3D - ghi nhật ký nhiệm vụ bất biến. */
+/** Ghi và đọc nhật ký nhiệm vụ bất biến. */
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
 
 export function buildTaskLog({ taskId, taskCode, periodId = "", action, before = null, after = null, note = "" }) {
   const user = UserContext.requireUser();
   return {
-    appVersion: "1.5.0",
+    appVersion: "1.6.0",
     schemaVersion: 2,
     taskId,
     taskCode: taskCode || "",
@@ -22,4 +22,25 @@ export function buildTaskLog({ taskId, taskCode, periodId = "", action, before =
   };
 }
 
-export const TaskLogService = Object.freeze({ buildTaskLog });
+function timestampMillis(value) {
+  if (value?.toMillis) return value.toMillis();
+  if (value?.seconds) return Number(value.seconds) * 1000;
+  const parsed = Date.parse(value || "");
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+async function list(taskId) {
+  if (!String(taskId || "").trim()) return [];
+  const snapshot = await FirebaseService.getDocs(
+    FirebaseService.query(
+      FirebaseService.collection(FirebaseService.db, "taskLogs"),
+      FirebaseService.where("taskId", "==", taskId),
+      FirebaseService.limit(300)
+    )
+  );
+  return snapshot.docs
+    .map(item => ({ id: item.id, ...item.data() }))
+    .sort((a, b) => timestampMillis(b.createdAt) - timestampMillis(a.createdAt));
+}
+
+export const TaskLogService = Object.freeze({ buildTaskLog, list });

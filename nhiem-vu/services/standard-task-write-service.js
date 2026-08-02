@@ -6,9 +6,9 @@
  */
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260801.V1_5_0";
+import { Permissions } from "../core/permissions.js?v=20260802.V1_6_0";
 
-const SYNC_VERSION = "20260801.V1_5_0";
+const SYNC_VERSION = "20260802.V1_6_0";
 const STANDARD_TASK_COLLECTION = "standardTasks";
 const SEQUENCE_COLLECTION = "standardTaskSequences";
 const VALID_COEFFICIENTS = Object.freeze([1, 1.1, 1.2]);
@@ -30,8 +30,8 @@ function normalizedCode(value) {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/Đ/g, "D")
-    .replace(/[^A-Z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "");
+    .replace(/[^A-Z0-9_-]+/g, "-")
+    .replace(/^[-_]+|[-_]+$/g, "");
 }
 
 function numericSuffix(value, prefix = "") {
@@ -42,10 +42,29 @@ function numericSuffix(value, prefix = "") {
   return match ? Number(match[1]) : 0;
 }
 
-function formatTaskCode(departmentId, numberValue) {
+function normalizeWorkType(value) {
+  return upper(value || "THUONG_XUYEN") === "DOT_XUAT" ? "DOT_XUAT" : "THUONG_XUYEN";
+}
+
+function formatTaskCode(departmentId, numberValue, workType = "THUONG_XUYEN") {
   const prefix = normalizedCode(departmentId);
   const sequence = Math.max(1, Math.trunc(Number(numberValue || 1)));
-  return `${prefix}${String(sequence).padStart(2, "0")}`;
+  const suffix = String(sequence).padStart(2, "0");
+  return normalizeWorkType(workType) === "DOT_XUAT"
+    ? `${prefix}-DX${suffix}`
+    : `${prefix}${suffix}`;
+}
+
+function taskBelongsToSequence(item, departmentId, workType) {
+  const code = normalizedCode(item?.code || item?.id);
+  const department = normalizedCode(departmentId);
+  const normalizedType = normalizeWorkType(item?.workType || (code.includes("-DX") ? "DOT_XUAT" : "THUONG_XUYEN"));
+  if (normalizedType !== normalizeWorkType(workType)) return false;
+  if (normalizedType === "DOT_XUAT") {
+    /* Hỗ trợ cả mã cũ TCHC29 có workType DOT_XUAT và mã chuẩn mới TCHC-DX01. */
+    return code.startsWith(`${department}-DX`) || code.startsWith(department);
+  }
+  return code.startsWith(department) && !code.includes("-DX");
 }
 
 function dateKey(date = new Date()) {
@@ -137,10 +156,11 @@ async function listDepartmentTasks(departmentId) {
   return snapshot.docs.map(item => ({ id: item.id, ...item.data() }));
 }
 
-function departmentSequenceNumbers(items, departmentId) {
+function departmentSequenceNumbers(items, departmentId, workType = "THUONG_XUYEN") {
   const department = upper(departmentId);
   return new Set(
     (items || [])
+      .filter(item => taskBelongsToSequence(item, department, workType))
       .map(item => numericSuffix(item.code || item.id, department))
       .filter(numberValue => Number.isInteger(numberValue) && numberValue > 0)
   );
@@ -152,29 +172,32 @@ function smallestAvailableNumber(usedNumbers, startAt = 1) {
   return candidate;
 }
 
-async function observedSequenceState(departmentId) {
+async function observedSequenceState(departmentId, workType = "THUONG_XUYEN") {
   const department = upper(departmentId);
+  const normalizedType = normalizeWorkType(workType);
   const items = await listDepartmentTasks(department);
-  const usedNumbers = departmentSequenceNumbers(items, department);
+  const usedNumbers = departmentSequenceNumbers(items, department, normalizedType);
   const nextAvailableNumber = smallestAvailableNumber(usedNumbers, 1);
   const highestExistingNumber = usedNumbers.size ? Math.max(...usedNumbers) : 0;
-  return { items, usedNumbers, nextAvailableNumber, highestExistingNumber };
+  return { items, usedNumbers, nextAvailableNumber, highestExistingNumber, workType: normalizedType };
 }
 
-async function updateSequenceHint(departmentId, user) {
+async function updateSequenceHint(departmentId, user, workType = "THUONG_XUYEN") {
   const department = upper(departmentId);
-  const state = await observedSequenceState(department);
+  const normalizedType = normalizeWorkType(workType);
+  const state = await observedSequenceState(department, normalizedType);
   const reference = FirebaseService.doc(
     FirebaseService.db,
     SEQUENCE_COLLECTION,
     department
   );
+  const fieldPrefix = normalizedType === "DOT_XUAT" ? "unexpected" : "regular";
   await FirebaseService.setDoc(reference, {
     departmentId: department,
-    allocationMode: "LOWEST_AVAILABLE_PER_DEPARTMENT",
-    nextAvailableNumber: state.nextAvailableNumber,
-    nextAvailableCode: formatTaskCode(department, state.nextAvailableNumber),
-    highestExistingNumber: state.highestExistingNumber,
+    allocationMode: "LOWEST_AVAILABLE_PER_DEPARTMENT_AND_WORK_TYPE",
+    [`${fieldPrefix}NextAvailableNumber`]: state.nextAvailableNumber,
+    [`${fieldPrefix}NextAvailableCode`]: formatTaskCode(department, state.nextAvailableNumber, normalizedType),
+    [`${fieldPrefix}HighestExistingNumber`]: state.highestExistingNumber,
     updatedAt: FirebaseService.serverTimestamp(),
     updatedByUserId: user.uid,
     updatedByName: user.fullName || ""
@@ -183,9 +206,7 @@ async function updateSequenceHint(departmentId, user) {
 }
 
 function taskPayload({ data, user, departmentId, code, sequence, existing = false }) {
-  const workType = upper(data.workType || "THUONG_XUYEN") === "DOT_XUAT"
-    ? "DOT_XUAT"
-    : "THUONG_XUYEN";
+  const workType = normalizeWorkType(data.workType);
   const baseScore = workType === "DOT_XUAT" ? 12 : 10;
   const difficultyCoefficient = Number(data.difficultyCoefficient || 1);
   const audienceType = normalizeAudienceType(
@@ -274,7 +295,7 @@ export const StandardTaskWriteService = Object.freeze({
     };
   },
 
-  async getNextCode(departmentId) {
+  async getNextCode(departmentId, workType = "THUONG_XUYEN") {
     const user = UserContext.requireUser();
     const access = await this.getAccess();
     const department = upper(departmentId || access.manageableDepartmentIds[0]);
@@ -283,8 +304,9 @@ export const StandardTaskWriteService = Object.freeze({
       throw new Error("Tài khoản không có quyền cấp mã cho danh mục này.");
     }
 
-    const state = await observedSequenceState(department);
-    return formatTaskCode(department, state.nextAvailableNumber);
+    const normalizedType = normalizeWorkType(workType);
+    const state = await observedSequenceState(department, normalizedType);
+    return formatTaskCode(department, state.nextAvailableNumber, normalizedType);
   },
 
   async listDelegationCandidates() {
@@ -407,7 +429,8 @@ export const StandardTaskWriteService = Object.freeze({
       return { documentId: existingId, code, mode: "UPDATED" };
     }
 
-    const observedState = await observedSequenceState(departmentId);
+    const workType = normalizeWorkType(data.workType);
+    const observedState = await observedSequenceState(departmentId, workType);
     const usedNumbers = new Set(observedState.usedNumbers);
     const firstCandidate = observedState.nextAvailableNumber;
     const sequenceReference = FirebaseService.doc(FirebaseService.db, SEQUENCE_COLLECTION, departmentId);
@@ -424,7 +447,7 @@ export const StandardTaskWriteService = Object.freeze({
        */
       for (let attempt = 0; attempt < 500; attempt += 1) {
         sequence = smallestAvailableNumber(usedNumbers, sequence);
-        code = formatTaskCode(departmentId, sequence);
+        code = formatTaskCode(departmentId, sequence, workType);
         reference = FirebaseService.doc(FirebaseService.db, STANDARD_TASK_COLLECTION, code);
         const existingSnapshot = await transaction.get(reference);
         if (!existingSnapshot.exists()) break;
@@ -446,12 +469,20 @@ export const StandardTaskWriteService = Object.freeze({
 
       transaction.set(sequenceReference, {
         departmentId,
-        allocationMode: "LOWEST_AVAILABLE_PER_DEPARTMENT",
-        lastNumber: sequence,
-        lastCode: code,
-        nextAvailableNumber,
-        nextAvailableCode: formatTaskCode(departmentId, nextAvailableNumber),
-        highestExistingNumber,
+        allocationMode: "LOWEST_AVAILABLE_PER_DEPARTMENT_AND_WORK_TYPE",
+        ...(workType === "DOT_XUAT" ? {
+          unexpectedLastNumber: sequence,
+          unexpectedLastCode: code,
+          unexpectedNextAvailableNumber: nextAvailableNumber,
+          unexpectedNextAvailableCode: formatTaskCode(departmentId, nextAvailableNumber, workType),
+          unexpectedHighestExistingNumber: highestExistingNumber
+        } : {
+          regularLastNumber: sequence,
+          regularLastCode: code,
+          regularNextAvailableNumber: nextAvailableNumber,
+          regularNextAvailableCode: formatTaskCode(departmentId, nextAvailableNumber, workType),
+          regularHighestExistingNumber: highestExistingNumber
+        }),
         updatedAt: FirebaseService.serverTimestamp(),
         updatedByUserId: user.uid,
         updatedByName: user.fullName || ""
@@ -498,7 +529,7 @@ export const StandardTaskWriteService = Object.freeze({
 
     /* Cập nhật gợi ý mã ngay sau khi xóa thật; lỗi cập nhật gợi ý không làm hỏng thao tác xóa. */
     try {
-      await updateSequenceHint(departmentId, user);
+      await updateSequenceHint(departmentId, user, task?.workType);
     } catch (error) {
       console.warn("Đã xóa đầu việc nhưng chưa cập nhật được gợi ý mã kế tiếp:", error);
     }
@@ -508,5 +539,7 @@ export const StandardTaskWriteService = Object.freeze({
 
   todayKey: dateKey,
   normalizeAudienceType,
-  normalizeWorkItemType
+  normalizeWorkItemType,
+  normalizeWorkType,
+  formatTaskCode
 });

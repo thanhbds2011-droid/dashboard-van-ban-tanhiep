@@ -1,9 +1,9 @@
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260801.V1_5_0";
+import { Permissions } from "../core/permissions.js?v=20260802.V1_6_0";
 import { TaskLogService } from "./task-log-service.js";
-import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260801.V1_5_0";
-import { PeriodReadService } from "./period-read-service.js?v=20260801.V1_5_0";
+import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260802.V1_6_0";
+import { PeriodReadService } from "./period-read-service.js?v=20260802.V1_6_0";
 
 const clean = value => String(value ?? "").trim();
 const upper = value => clean(value).toUpperCase();
@@ -61,21 +61,25 @@ function delegationAllows(data, permissionName) {
 }
 
 async function hasDelegation(reviewer, departmentId, permissionName = "APPROVE_REGISTRATIONS") {
-  if (!Permissions.isDepartmentDeputy(reviewer)) return false;
+  const department = upper(departmentId);
+  const isCdtn = department === "CDTN";
+  if (isCdtn) {
+    if (!Permissions.isCdtnMember()) return false;
+  } else if (!Permissions.isDepartmentDeputy(reviewer)) {
+    return false;
+  }
+
   const today = dateKey(new Date());
+  const documentId = isCdtn ? "CDTN_APPROVAL_ACTIVE" : `${department}_ACTIVE`;
   const snapshot = await FirebaseService.getDoc(
-    FirebaseService.doc(
-      FirebaseService.db,
-      "approvalDelegations",
-      `${upper(departmentId)}_ACTIVE`
-    )
+    FirebaseService.doc(FirebaseService.db, "approvalDelegations", documentId)
   );
   if (!snapshot.exists()) return false;
   const data = snapshot.data();
   return (
     data.active === true &&
     data.delegateUserId === reviewer.uid &&
-    upper(data.departmentId) === upper(departmentId) &&
+    upper(data.departmentId || data.organizationId) === department &&
     delegationAllows(data, permissionName) &&
     (!data.startDate || data.startDate <= today) &&
     (!data.endDate || data.endDate >= today)
@@ -86,6 +90,12 @@ function canApprove(registration, reviewer) {
   if (!reviewer || reviewer.active !== true || !registration || registration.status !== "PENDING") return false;
   if (reviewer.role === "ADMIN") return true;
 
+  const registrationDepartment = upper(registration.departmentId);
+  if (registrationDepartment === "CDTN") {
+    return Array.isArray(reviewer.additionalRoles)
+      && reviewer.additionalRoles.map(upper).includes("CDTN_BI_THU");
+  }
+
   if (registration.userRole === "DEPARTMENT_LEADER") {
     if (Permissions.isDepartmentDeputy({
       uid: registration.userId,
@@ -95,12 +105,12 @@ function canApprove(registration, reviewer) {
       leaderLevel: registration.userLeaderLevel,
       isDepartmentHead: registration.userIsDepartmentHead
     })) {
-      return Permissions.isDepartmentHead(reviewer) && upper(reviewer.departmentId) === upper(registration.departmentId);
+      return Permissions.isDepartmentHead(reviewer) && upper(reviewer.departmentId) === registrationDepartment;
     }
     return reviewer.role === "DIRECTOR";
   }
 
-  return Permissions.isDepartmentHead(reviewer) && upper(reviewer.departmentId) === upper(registration.departmentId);
+  return Permissions.isDepartmentHead(reviewer) && upper(reviewer.departmentId) === registrationDepartment;
 }
 
 function endOfPeriod(period) {
@@ -140,7 +150,12 @@ function isUntouchedApprovedTask(task) {
 async function canCancelApprovedOwnRegistration(user, registration) {
   if (!registration || registration.userId !== user.uid) return false;
   if (upper(registration.status) !== "APPROVED" || !clean(registration.taskId)) return false;
-  if (upper(registration.departmentId) !== upper(user.departmentId)) return false;
+  const registrationDepartment = upper(registration.departmentId);
+  if (registrationDepartment === "CDTN") {
+    if (Permissions.isCdtnSecretary(user)) return true;
+    return await hasDelegation(user, "CDTN", "APPROVE_REGISTRATIONS");
+  }
+  if (registrationDepartment !== upper(user.departmentId)) return false;
   if (Permissions.isDirector() && upper(user.departmentId) === "BGD") return true;
   if (!Permissions.isDepartmentLeader()) return false;
   if (Permissions.isDepartmentHead(user)) return true;
@@ -167,7 +182,7 @@ function taskPayload(registration, reviewer, due, options = {}) {
   return {
     code,
     payload: {
-      appVersion: "1.5.0",
+      appVersion: "1.6.0",
       active: true,
       taskCode: code,
       title: registration.title || registration.standardTaskName,
@@ -294,9 +309,20 @@ export const TaskRegistrationService = Object.freeze({
     return activePeriod();
   },
 
-  async getDepartmentPlan(periodId) {
+  async getDepartmentPlan(periodId, departmentId = "") {
     const user = UserContext.requireUser();
-    return departmentPlan(periodId, user.departmentId);
+    return departmentPlan(periodId, departmentId || user.departmentId);
+  },
+
+  async getWorkspacePlans(periodId) {
+    const user = UserContext.requireUser();
+    const departments = [upper(user.departmentId)];
+    if (Permissions.isCdtnMember()) departments.push("CDTN");
+    const entries = await Promise.all(departments.map(async departmentId => [
+      departmentId,
+      await departmentPlan(periodId, departmentId)
+    ]));
+    return Object.fromEntries(entries);
   },
 
   async listForCurrentUser(periodId) {
@@ -363,19 +389,30 @@ export const TaskRegistrationService = Object.freeze({
     if (!period?.id) throw new Error("Chưa có kỳ đánh giá đang hoạt động.");
     if (!items?.length) throw new Error("Chưa chọn đầu việc để đăng ký.");
 
-    const plan = await departmentPlan(period.id, user.departmentId);
-    if (plan?.locked === true) throw new Error("Đăng ký kế hoạch của Phòng/Khu đã được khóa.");
+    const workspaceIds = [...new Set(items.map(item => StandardTaskReadService.workspaceId(item, user)))];
+    const plans = Object.fromEntries(await Promise.all(workspaceIds.map(async departmentId => [
+      departmentId,
+      await departmentPlan(period.id, departmentId)
+    ])));
+    const lockedWorkspace = workspaceIds.find(departmentId => plans[departmentId]?.locked === true);
+    if (lockedWorkspace) {
+      throw new Error(`Đăng ký kế hoạch của ${lockedWorkspace === "CDTN" ? "Chi đoàn" : lockedWorkspace} đã được khóa.`);
+    }
 
-    const autoApprove = Permissions.isDepartmentHead(user) || Permissions.isDirector();
     const batch = FirebaseService.writeBatch(FirebaseService.db);
     const registrations = [];
+    const autoApproved = [];
 
     for (const item of items) {
       if (!StandardTaskReadService.canRegisterItem(item, user)) {
         throw new Error(`Vai trò hiện tại không thuộc đối tượng đăng ký đầu việc ${item.code || item.id || ""}.`);
       }
+      const workspaceId = StandardTaskReadService.workspaceId(item, user);
       const id = registrationId(period.id, user.uid, item.id || item.code);
       const workType = standardWorkType(item.workType);
+      const autoApprove = workspaceId === "CDTN"
+        ? Permissions.isCdtnSecretary()
+        : (Permissions.isDepartmentHead(user) || (Permissions.isDirector() && workspaceId === "BGD"));
       const registration = {
         id,
         periodId: period.id,
@@ -384,13 +421,15 @@ export const TaskRegistrationService = Object.freeze({
         standardTaskId: item.id || item.code,
         standardTaskCode: item.code || item.id,
         standardTaskName: item.name || "",
-        standardTaskDepartmentId: item.departmentId || user.departmentId || "",
+        standardTaskDepartmentId: item.departmentId || workspaceId,
         audienceType: item.audienceType || (item.isManagementTask === true ? "MANAGEMENT" : "ALL_DEPARTMENT"),
         isCoreTaskDefault: item.isCoreTaskDefault === true,
         isManagementTask: item.isManagementTask === true,
         title: item.name || "",
         description: item.outputRequirement || "",
-        departmentId: user.departmentId || "",
+        departmentId: workspaceId,
+        homeDepartmentId: user.departmentId || "",
+        organizationId: workspaceId === "CDTN" ? "CDTN" : "",
         teamId: user.teamId || "",
         userId: user.uid,
         userName: user.fullName || "",
@@ -398,6 +437,7 @@ export const TaskRegistrationService = Object.freeze({
         userRole: user.role || "",
         userLeaderLevel: user.leaderLevel || "",
         userIsDepartmentHead: user.isDepartmentHead === true,
+        userAdditionalRoles: Array.isArray(user.additionalRoles) ? user.additionalRoles : [],
         workType,
         planType: workType === "DOT_XUAT" ? "DOT_XUAT" : "KE_HOACH",
         includedInA: true,
@@ -411,6 +451,7 @@ export const TaskRegistrationService = Object.freeze({
         status: "PENDING",
         taskId: null,
         active: true,
+        autoApproved: autoApprove,
         registeredAt: FirebaseService.serverTimestamp(),
         createdAt: FirebaseService.serverTimestamp(),
         createdByUserId: user.uid,
@@ -418,13 +459,94 @@ export const TaskRegistrationService = Object.freeze({
       };
       batch.set(FirebaseService.doc(FirebaseService.db, "taskRegistrations", id), registration, { merge: true });
       registrations.push(registration);
+      if (autoApprove) autoApproved.push(registration);
     }
 
     await batch.commit();
-    if (autoApprove) {
-      await createApprovedTasks(registrations, user, { periodEndDate: period.endDate });
+    if (autoApproved.length) {
+      await createApprovedTasks(autoApproved, user, { periodEndDate: period.endDate });
     }
-    return items.length;
+    return {
+      total: registrations.length,
+      autoApproved: autoApproved.length,
+      pending: registrations.length - autoApproved.length
+    };
+  },
+
+  async getCdtnApprovalDelegation() {
+    if (!Permissions.isCdtnMember()) return null;
+    const snapshot = await FirebaseService.getDoc(
+      FirebaseService.doc(FirebaseService.db, "approvalDelegations", "CDTN_APPROVAL_ACTIVE")
+    );
+    return snapshot.exists() ? { id: snapshot.id, ...snapshot.data() } : null;
+  },
+
+  async listCdtnApprovalCandidates() {
+    if (!Permissions.isCdtnSecretary()) return [];
+    const roles = ["CDTN_PHO_BI_THU", "CDTN_UY_VIEN_BCH", "CDTN_DOAN_VIEN"];
+    const snapshots = await Promise.all(roles.map(role => FirebaseService.getDocs(
+      FirebaseService.query(
+        FirebaseService.collection(FirebaseService.db, "users"),
+        FirebaseService.where("additionalRoles", "array-contains", role),
+        FirebaseService.limit(300)
+      )
+    )));
+    const byId = new Map();
+    snapshots.forEach(snapshot => snapshot.docs.forEach(item => byId.set(item.id, { id: item.id, ...item.data() })));
+    return [...byId.values()]
+      .filter(item => item.active === true)
+      .filter(item => item.id !== UserContext.requireUser().uid)
+      .filter(item => Array.isArray(item.additionalRoles) && item.additionalRoles.some(role => roles.includes(upper(role))))
+      .sort((a, b) => clean(a.fullName).localeCompare(clean(b.fullName), "vi"));
+  },
+
+  async saveCdtnApprovalDelegation({ delegateUserId, startDate, endDate, reason }) {
+    const user = UserContext.requireUser();
+    if (!Permissions.isCdtnSecretary()) throw new Error("Chỉ Bí thư Chi đoàn được ủy quyền duyệt nhiệm vụ Chi đoàn.");
+    const candidates = await this.listCdtnApprovalCandidates();
+    const delegate = candidates.find(item => item.id === delegateUserId);
+    if (!delegate) throw new Error("Người được chọn không đủ điều kiện nhận ủy quyền Chi đoàn.");
+    if (!startDate || !endDate || startDate > endDate) throw new Error("Thời gian ủy quyền chưa hợp lệ.");
+    if (!clean(reason)) throw new Error("Hãy nhập lý do ủy quyền.");
+    const reference = FirebaseService.doc(FirebaseService.db, "approvalDelegations", "CDTN_APPROVAL_ACTIVE");
+    const existing = await FirebaseService.getDoc(reference);
+    await FirebaseService.setDoc(reference, {
+      delegationType: "CDTN_APPROVAL",
+      departmentId: "CDTN",
+      organizationId: "CDTN",
+      delegatorUserId: user.uid,
+      delegatorName: user.fullName || "",
+      delegateUserId: delegate.id,
+      delegateName: delegate.fullName || "",
+      delegatePosition: delegate.position || "",
+      permissions: ["APPROVE_REGISTRATIONS", "CONFIRM_EVALUATIONS"],
+      startDate,
+      endDate,
+      startAt: FirebaseService.Timestamp.fromDate(dateAtStart(startDate)),
+      endAt: FirebaseService.Timestamp.fromDate(dateAtEnd(endDate)),
+      reason: clean(reason),
+      active: true,
+      createdAt: existing.exists() ? (existing.data().createdAt || FirebaseService.serverTimestamp()) : FirebaseService.serverTimestamp(),
+      createdBy: existing.exists() ? (existing.data().createdBy || user.uid) : user.uid,
+      updatedAt: FirebaseService.serverTimestamp(),
+      updatedBy: user.uid
+    }, { merge: true });
+  },
+
+  async revokeCdtnApprovalDelegation() {
+    const user = UserContext.requireUser();
+    if (!Permissions.isCdtnSecretary()) throw new Error("Chỉ Bí thư Chi đoàn được hủy ủy quyền.");
+    await FirebaseService.updateDoc(
+      FirebaseService.doc(FirebaseService.db, "approvalDelegations", "CDTN_APPROVAL_ACTIVE"),
+      {
+        active: false,
+        revokedAt: FirebaseService.serverTimestamp(),
+        revokedByUserId: user.uid,
+        revokedByName: user.fullName || "",
+        updatedAt: FirebaseService.serverTimestamp(),
+        updatedBy: user.uid
+      }
+    );
   },
 
   async approveMany(registrations, options = {}) {
@@ -434,7 +556,8 @@ export const TaskRegistrationService = Object.freeze({
 
     for (const item of selected) {
       const delegated = await hasDelegation(reviewer, item.departmentId, "APPROVE_REGISTRATIONS");
-      if (!canApprove(item, reviewer) && !delegated) {
+      const directAuthority = canApprove(item, reviewer);
+      if (!directAuthority && (!delegated || item.userId === reviewer.uid)) {
         throw new Error(`Bạn không có quyền duyệt đăng ký của ${item.userName || "người dùng"}.`);
       }
     }
@@ -448,7 +571,10 @@ export const TaskRegistrationService = Object.freeze({
 
     for (const item of selected) {
       const delegated = await hasDelegation(reviewer, item.departmentId, "APPROVE_REGISTRATIONS");
-      if (!canApprove(item, reviewer) && !delegated) throw new Error("Bạn không có quyền trả lại đăng ký này.");
+      const directAuthority = canApprove(item, reviewer);
+      if (!directAuthority && (!delegated || item.userId === reviewer.uid)) {
+        throw new Error("Bạn không có quyền trả lại đăng ký này.");
+      }
     }
 
     const batch = FirebaseService.writeBatch(FirebaseService.db);
@@ -468,25 +594,31 @@ export const TaskRegistrationService = Object.freeze({
 
   async getApprovedCancellationMap(registrations = []) {
     const user = UserContext.requireUser();
-    const candidates = (registrations || []).filter(registration => (
-      registration?.userId === user.uid &&
-      upper(registration?.status) === "APPROVED" &&
-      Boolean(clean(registration?.taskId)) &&
-      upper(registration?.departmentId) === upper(user.departmentId)
-    ));
+    const candidates = (registrations || []).filter(registration => {
+      const departmentId = upper(registration?.departmentId);
+      return registration?.userId === user.uid
+        && upper(registration?.status) === "APPROVED"
+        && Boolean(clean(registration?.taskId))
+        && (departmentId === upper(user.departmentId) || departmentId === "CDTN");
+    });
 
     if (!candidates.length) return {};
 
-    const authorized = Permissions.isDirector()
+    const departmentAuthorized = Permissions.isDirector()
       || Permissions.isDepartmentHead(user)
       || (
         Permissions.isDepartmentDeputy(user) &&
         await hasDelegation(user, user.departmentId, "APPROVE_REGISTRATIONS")
       );
+    const cdtnAuthorized = Permissions.isCdtnSecretary(user)
+      || await hasDelegation(user, "CDTN", "APPROVE_REGISTRATIONS");
 
-    if (!authorized) return {};
+    const authorizedCandidates = candidates.filter(registration => (
+      upper(registration.departmentId) === "CDTN" ? cdtnAuthorized : departmentAuthorized
+    ));
+    if (!authorizedCandidates.length) return {};
 
-    const entries = await Promise.all(candidates.map(async registration => {
+    const entries = await Promise.all(authorizedCandidates.map(async registration => {
       try {
         const snapshot = await FirebaseService.getDoc(
           FirebaseService.doc(FirebaseService.db, "tasks", registration.taskId)

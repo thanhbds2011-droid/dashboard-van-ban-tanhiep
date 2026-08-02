@@ -1,10 +1,10 @@
 /** Tạo, phân công, tiếp nhận, cập nhật tiến độ và hoàn thành nhiệm vụ. */
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260801.V1_5_0";
+import { Permissions } from "../core/permissions.js?v=20260802.V1_6_0";
 import { TaskLogService } from "./task-log-service.js";
-import { TaskWorkItemService } from "./task-work-item-service.js?v=20260801.V1_5_0";
-import { PeriodReadService } from "./period-read-service.js?v=20260801.V1_5_0";
+import { TaskWorkItemService } from "./task-work-item-service.js?v=20260802.V1_6_0";
+import { PeriodReadService } from "./period-read-service.js?v=20260802.V1_6_0";
 
 const MAX_CODE_SCAN = 1000;
 
@@ -162,7 +162,7 @@ export const TaskWriteService = Object.freeze({
         );
 
         const payload = {
-          appVersion: "1.5.0",
+          appVersion: "1.6.0",
           active: true,
           taskCode: code,
           title: data.title,

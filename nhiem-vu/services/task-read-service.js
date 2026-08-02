@@ -1,8 +1,8 @@
 /** Đọc nhiệm vụ theo kỳ hiện hành, phạm vi tài khoản và bộ nhớ đệm ngắn. */
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260801.V1_5_0";
-import { PeriodReadService } from "./period-read-service.js?v=20260801.V1_5_0";
+import { Permissions } from "../core/permissions.js?v=20260802.V1_6_0";
+import { PeriodReadService } from "./period-read-service.js?v=20260802.V1_6_0";
 
 const TASK_CACHE_MS = 45 * 1000;
 let taskCache = { key: "", items: [], loadedAt: 0, period: null };

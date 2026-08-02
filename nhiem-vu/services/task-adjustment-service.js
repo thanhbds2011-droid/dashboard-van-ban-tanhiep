@@ -4,8 +4,8 @@
  */
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { TaskLogService } from "./task-log-service.js?v=20260801.V1_5_0";
-import { TaskNotificationService } from "./task-notification-service.js?v=20260801.V1_5_0";
+import { TaskLogService } from "./task-log-service.js?v=20260802.V1_6_0";
+import { TaskNotificationService } from "./task-notification-service.js?v=20260802.V1_6_0";
 
 const COLLECTION = "kpiAdjustments";
 const TYPES = Object.freeze({
@@ -93,12 +93,39 @@ export const TaskAdjustmentService = Object.freeze({
   TYPES,
   label,
 
-  async list(taskId) {
+  async list(taskOrId) {
+    const task = taskOrId && typeof taskOrId === "object" ? taskOrId : null;
+    const taskId = clean(task?.id || taskOrId, 200);
     if (!taskId) return [];
+
+    const user = UserContext.requireUser();
+    const constraints = [FirebaseService.where("taskId", "==", taskId)];
+    const approverId = task ? approvalUserId(task) : "";
+    const role = String(user.role || "").toUpperCase();
+    const sameDepartment = clean(task?.primaryDepartmentId, 30).toUpperCase()
+      === clean(user.departmentId, 30).toUpperCase();
+
+    /*
+     * Firestore Rules không tự lọc dữ liệu. Truy vấn của người dùng thường phải
+     * mang theo điều kiện userId/approverUserId/departmentId để Rules chứng minh
+     * toàn bộ kết quả đều thuộc phạm vi được phép đọc.
+     */
+    if (task?.ownerUserId === user.uid) {
+      constraints.push(FirebaseService.where("userId", "==", user.uid));
+    } else if (approverId === user.uid) {
+      constraints.push(FirebaseService.where("approverUserId", "==", user.uid));
+    } else if (["ADMIN", "DIRECTOR", "TCHC_COORDINATOR"].includes(role)) {
+      // Tài khoản xem toàn Trung tâm được phép đọc theo taskId.
+    } else if (role === "DEPARTMENT_LEADER" && sameDepartment) {
+      constraints.push(FirebaseService.where("departmentId", "==", clean(task.primaryDepartmentId, 30)));
+    } else {
+      return [];
+    }
+
     const snapshot = await FirebaseService.getDocs(
       FirebaseService.query(
         FirebaseService.collection(FirebaseService.db, COLLECTION),
-        FirebaseService.where("taskId", "==", taskId)
+        ...constraints
       )
     );
     return snapshot.docs
@@ -180,8 +207,10 @@ export const TaskAdjustmentService = Object.freeze({
       adjustmentType: requestedType,
       adjustmentLabel: label(requestedType),
       adjustmentReason: reason,
+      adjustmentEvidenceText: evidenceText,
       adjustmentEvidenceUrl: evidenceUrl,
       adjustmentEvidenceFileName: evidenceFileName,
+      adjustmentEvidenceStoragePath: evidenceStoragePath,
       pendingAdjustmentId: reference.id,
       adjustmentRequestedAt: FirebaseService.serverTimestamp(),
       adjustmentRequestedByUserId: user.uid,
@@ -193,6 +222,7 @@ export const TaskAdjustmentService = Object.freeze({
     batch.set(logRef(), TaskLogService.buildTaskLog({
       taskId: task.id,
       taskCode: task.taskCode,
+      periodId: task.periodId || "",
       action: "TASK_ADJUSTMENT_REQUESTED",
       before: planSnapshot(task),
       after: { ...proposed, adjustmentType: requestedType, adjustmentLabel: label(requestedType) },
@@ -220,8 +250,10 @@ export const TaskAdjustmentService = Object.freeze({
       adjustmentType: approvedType,
       adjustmentLabel: label(approvedType),
       adjustmentReason: clean(adjustment.reason, 3000),
+      adjustmentEvidenceText: clean(adjustment.evidenceText, 3000),
       adjustmentEvidenceUrl: clean(adjustment.evidenceUrl, 2000),
       adjustmentEvidenceFileName: clean(adjustment.evidenceFileName, 500),
+      adjustmentEvidenceStoragePath: clean(adjustment.evidenceStoragePath, 500),
       pendingAdjustmentId: "",
       lastAdjustmentId: adjustment.id,
       lastAdjustmentApprovedAt: FirebaseService.serverTimestamp(),
@@ -272,6 +304,7 @@ export const TaskAdjustmentService = Object.freeze({
     batch.set(logRef(), TaskLogService.buildTaskLog({
       taskId: task.id,
       taskCode: task.taskCode,
+      periodId: task.periodId || "",
       action: "TASK_ADJUSTMENT_APPROVED",
       before: adjustment.originalPlanSnapshot || planSnapshot(task),
       after: { ...proposed, decisionType: approvedType },
@@ -316,6 +349,7 @@ export const TaskAdjustmentService = Object.freeze({
     batch.set(logRef(), TaskLogService.buildTaskLog({
       taskId: task.id,
       taskCode: task.taskCode,
+      periodId: task.periodId || "",
       action: "TASK_ADJUSTMENT_REJECTED",
       note: normalizedReason
     }));

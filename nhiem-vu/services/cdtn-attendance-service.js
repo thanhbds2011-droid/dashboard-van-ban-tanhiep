@@ -1,7 +1,7 @@
 /** Quản lý quyền điểm danh Chi đoàn như một vai trò kiêm nhiệm. */
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260801.V1_5_0";
+import { Permissions } from "../core/permissions.js?v=20260802.V1_6_0";
 
 const DOCUMENT_ID = "CDTN_ATTENDANCE_ACTIVE";
 const PERMISSION = "MANAGE_CDTN_ATTENDANCE";
@@ -42,7 +42,7 @@ export const CdtnAttendanceService = Object.freeze({
   },
 
   async canManage() {
-    if (Permissions.isAdmin() || Permissions.isCdtnSecretary() || Permissions.isCdtnDeputySecretary()) {
+    if (Permissions.isAdmin() || Permissions.isCdtnSecretary()) {
       return true;
     }
     if (!Permissions.isCdtnMember()) return false;
@@ -55,26 +55,28 @@ export const CdtnAttendanceService = Object.freeze({
 
   async listCandidates() {
     const user = UserContext.requireUser();
-    if (!Permissions.isCdtnSecretary() && !Permissions.isCdtnDeputySecretary()) return [];
-    const snapshot = await FirebaseService.getDocs(
+    if (!Permissions.isCdtnSecretary()) return [];
+    const roles = ["CDTN_PHO_BI_THU", "CDTN_UY_VIEN_BCH", "CDTN_DOAN_VIEN"];
+    const snapshots = await Promise.all(roles.map(role => FirebaseService.getDocs(
       FirebaseService.query(
         FirebaseService.collection(FirebaseService.db, "users"),
-        FirebaseService.where("active", "==", true)
+        FirebaseService.where("additionalRoles", "array-contains", role),
+        FirebaseService.limit(300)
       )
-    );
-    return snapshot.docs
-      .map(item => ({ id: item.id, ...item.data() }))
-      .filter(item => Array.isArray(item.additionalRoles) && item.additionalRoles.some(role => [
-        "CDTN_BI_THU", "CDTN_PHO_BI_THU", "CDTN_UY_VIEN_BCH", "CDTN_DOAN_VIEN"
-      ].includes(String(role || "").toUpperCase())))
+    )));
+    const byId = new Map();
+    snapshots.forEach(snapshot => snapshot.docs.forEach(item => byId.set(item.id, { id: item.id, ...item.data() })));
+    return [...byId.values()]
+      .filter(item => item.active === true)
+      .filter(item => Array.isArray(item.additionalRoles) && item.additionalRoles.some(role => roles.includes(String(role || "").toUpperCase())))
       .filter(item => item.id !== user.uid)
       .sort((a, b) => String(a.fullName || "").localeCompare(String(b.fullName || ""), "vi"));
   },
 
   async saveDelegation({ delegateUserId, startDate, endDate, reason }) {
     const user = UserContext.requireUser();
-    if (!Permissions.isCdtnSecretary() && !Permissions.isCdtnDeputySecretary()) {
-      throw new Error("Chỉ Bí thư hoặc Phó Bí thư được ủy quyền điểm danh.");
+    if (!Permissions.isCdtnSecretary()) {
+      throw new Error("Chỉ Bí thư được ủy quyền điểm danh.");
     }
     if (!delegateUserId) throw new Error("Hãy chọn người được ủy quyền.");
     if (!startDate || !endDate || startDate > endDate) throw new Error("Thời gian ủy quyền chưa hợp lệ.");
@@ -105,8 +107,8 @@ export const CdtnAttendanceService = Object.freeze({
 
   async revokeDelegation() {
     const user = UserContext.requireUser();
-    if (!Permissions.isCdtnSecretary() && !Permissions.isCdtnDeputySecretary()) {
-      throw new Error("Tài khoản không có quyền thu hồi ủy quyền điểm danh.");
+    if (!Permissions.isCdtnSecretary()) {
+      throw new Error("Chỉ Bí thư được thu hồi ủy quyền điểm danh.");
     }
     await FirebaseService.updateDoc(
       FirebaseService.doc(FirebaseService.db, "approvalDelegations", DOCUMENT_ID),
