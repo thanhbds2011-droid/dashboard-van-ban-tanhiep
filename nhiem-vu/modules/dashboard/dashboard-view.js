@@ -1,8 +1,8 @@
 import { UserContext } from "../../core/user-context.js";
 import { Permissions } from "../../core/permissions.js";
 import { ToastService } from "../../core/toast-service.js";
-import { DashboardReadService } from "../../services/dashboard-read-service.js?v=20260801.V1_3_1";
-import { TaskReadService } from "../../services/task-read-service.js?v=20260801.V1_3_1";
+import { DashboardReadService } from "../../services/dashboard-read-service.js?v=20260801.V1_5_0";
+import { TaskReadService } from "../../services/task-read-service.js?v=20260801.V1_5_0";
 let currentData = null;
 let dashboardRenderSequence = 0;
 
@@ -31,6 +31,8 @@ function mountDashboard(outlet, user) {
         ${metric("Sắp đến hạn", 0, "Trong 72 giờ tới", "amber", "dashboardDueSoon")}
         ${metric("Trễ hạn", 0, "Chưa hoàn thành và quá hạn", "red", "dashboardOverdue")}
         ${metric("Hoàn thành", 0, "Theo phạm vi được phép xem", "green", "dashboardCompleted")}
+        ${metric("Chờ duyệt điều chỉnh", 0, "Đề nghị của nhân sự đang chờ xử lý", "amber", "dashboardAdjustmentPending")}
+        ${metric("Miễn đánh giá", 0, "Không tính 0 và không đưa vào mẫu số KPI", "violet", "dashboardExempt")}
         ${metric("Kỳ KPI hiện tại", "—", "Chưa có kỳ hoạt động", "violet", "dashboardPeriod", "dashboardPeriodNote")}
       </div>
       <section class="dashboard-grid">
@@ -74,6 +76,8 @@ function updateDashboard(data) {
   setText("dashboardDueSoon", summary.dueSoon);
   setText("dashboardOverdue", summary.overdue);
   setText("dashboardCompleted", summary.completed);
+  setText("dashboardAdjustmentPending", summary.adjustmentPending || 0);
+  setText("dashboardExempt", summary.exempt || 0);
   setText("dashboardPeriod", period ? period.name || period.code || period.id : "—");
   setText("dashboardPeriodNote", period ? formatPeriodStatus(period._status) : "Chưa có kỳ hoạt động");
   setText("dashboardTaskQuick", `${summary.total} nhiệm vụ trong phạm vi`);
