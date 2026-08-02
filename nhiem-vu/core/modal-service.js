@@ -8,7 +8,7 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
-function open({ title = "Thông báo", message = "", confirmText = "Đồng ý", cancelText = "Đóng", danger = false, showCancel = true } = {}) {
+function open({ title = "Thông báo", message = "", messageHtml = "", confirmText = "Đồng ý", cancelText = "Đóng", danger = false, showCancel = true } = {}) {
   return new Promise(resolve => {
     const overlay = document.createElement("div");
     overlay.className = "modal-overlay";
@@ -21,7 +21,7 @@ function open({ title = "Thông báo", message = "", confirmText = "Đồng ý",
           </div>
           <button class="modal-x" type="button" aria-label="Đóng">×</button>
         </div>
-        <div class="modal-body"><p>${escapeHtml(message)}</p></div>
+        <div class="modal-body">${messageHtml ? messageHtml : `<p>${escapeHtml(message)}</p>`}</div>
         <div class="modal-actions">
           ${showCancel ? `<button class="secondary-button modal-cancel" type="button">${escapeHtml(cancelText)}</button>` : ""}
           <button class="primary-button modal-confirm ${danger ? "danger-button" : ""}" type="button">${escapeHtml(confirmText)}</button>
