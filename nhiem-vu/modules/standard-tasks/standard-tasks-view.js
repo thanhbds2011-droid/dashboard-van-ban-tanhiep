@@ -1,10 +1,10 @@
 import { UserContext } from "../../core/user-context.js";
-import { Permissions } from "../../core/permissions.js?v=20260801.V1_5_0";
+import { Permissions } from "../../core/permissions.js?v=20260802.V1_6_0";
 import { ToastService } from "../../core/toast-service.js";
-import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260801.V1_5_0";
-import { PeriodReadService } from "../../services/period-read-service.js?v=20260801.V1_5_0";
-import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260801.V1_5_0";
-import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260801.V1_5_0";
+import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260802.V1_6_0";
+import { PeriodReadService } from "../../services/period-read-service.js?v=20260802.V1_6_0";
+import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260802.V1_6_0";
+import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260802.V1_6_0";
 
 let currentCatalogAccess = { canManage: false, manageableDepartmentIds: [] };
 
@@ -19,10 +19,13 @@ export async function renderStandardTasksView(outlet) {
       StandardTaskWriteService.getAccess()
     ]);
 
-    const plan = period ? await TaskRegistrationService.getDepartmentPlan(period.id) : null;
+    const workspacePlans = period
+      ? await TaskRegistrationService.getWorkspacePlans(period.id)
+      : {};
     currentCatalogAccess = catalogAccess || { canManage: false, manageableDepartmentIds: [] };
     const catalogItems = items.map(item => ({
       ...item,
+      _workspaceId: StandardTaskReadService.workspaceId(item, user),
       _registrationEligible: StandardTaskReadService.canRegisterItem(item, user)
     }));
     const registrationMode = Permissions.canRegisterStandardTasks();
@@ -33,34 +36,36 @@ export async function renderStandardTasksView(outlet) {
     const approvedCancellationMap = registrationMode && registrations.length
       ? await TaskRegistrationService.getApprovedCancellationMap(registrations)
       : {};
-    const registrationOpen = Boolean(period && plan?.locked !== true);
     const registeredCount = catalogItems.filter(item => findRegistration(item, registeredMap)).length;
     const availableCount = catalogItems.filter(item => (
       item._registrationEligible && !findRegistration(item, registeredMap)
     )).length;
     const regularCount = catalogItems.filter(item => !isUnexpectedTask(item)).length;
     const unexpectedCount = catalogItems.filter(isUnexpectedTask).length;
+    const workspaceIds = [...new Set(catalogItems.map(item => item._workspaceId))];
+    const anyWorkspaceOpen = workspaceIds.some(id => workspacePlans[id]?.locked !== true);
 
     outlet.innerHTML = `<section class="page-card standard-task-page">
       <div class="page-header">
         <div>
           <h2>${registrationMode ? "Đăng ký kế hoạch công việc" : "Danh mục công việc"}</h2>
           <p>${registrationMode
-            ? "Chọn đầu việc ở cột Danh mục công việc; các đầu việc đã gửi sẽ tự chuyển sang cột Đã đăng ký."
+            ? "Danh mục của Phòng/Khu và danh mục kiêm nhiệm được tách riêng; đầu việc đã gửi tự chuyển sang cột Đã đăng ký."
             : "Tra cứu danh mục công việc theo vị trí việc làm."}</p>
         </div>
         <div class="standard-task-header-actions">
           ${catalogAccess.canManage ? '<button id="btnAddStandardTask" class="primary-button" type="button">＋ Thêm đầu việc</button>' : ""}
           ${catalogAccess.isDepartmentHead ? '<button id="btnDelegateCatalogEditor" class="secondary-button" type="button">👤 Ủy quyền nhập danh mục</button>' : ""}
+          ${Permissions.isCdtnSecretary() ? '<button id="btnDelegateCdtnApproval" class="secondary-button" type="button">👥 Ủy quyền duyệt Chi đoàn</button>' : ""}
           <button id="btnStandardRefresh" class="secondary-button" type="button">↻ Cập nhật</button>
         </div>
       </div>
 
       <div class="info-banner standard-task-period-banner">
-        <span>Phòng/Khu: <strong>${escapeHtml(user.departmentId || "Toàn hệ thống")}</strong></span>
+        <span>Đơn vị chính: <strong>${escapeHtml(user.departmentId || "Toàn hệ thống")}</strong></span>
         <span>${period ? `Kỳ hiện tại: <strong>${escapeHtml(period.name || period.id)}</strong>` : "<strong>Chưa có kỳ hoạt động.</strong>"}</span>
-        ${period ? `<span>Đăng ký: <strong>${registrationOpen ? "Đang mở" : "Đã khóa"}</strong></span>` : ""}
-        ${catalogAccess.canManage ? `<span>Quản lý danh mục: <strong>${catalogAccess.isDepartmentHead ? "Trưởng phòng" : "Được ủy quyền"}</strong></span>` : ""}
+        ${workspaceIds.map(id => `<span>${escapeHtml(workspaceName(id))}: <strong>${workspacePlans[id]?.locked === true ? "Đã khóa" : "Đang mở"}</strong></span>`).join("")}
+        ${catalogAccess.canManage ? `<span>Quản lý danh mục: <strong>${catalogAccess.isDepartmentHead ? "Trưởng phòng" : catalogAccess.isCdtnCatalogManager ? "Vai trò Chi đoàn" : "Được ủy quyền"}</strong></span>` : ""}
       </div>
 
       <div class="summary-grid compact-grid standard-task-summary">
@@ -84,9 +89,9 @@ export async function renderStandardTasksView(outlet) {
       ${registrationMode ? `<div class="registration-sticky">
         <div>
           <strong>Đã chọn: <span id="registrationSelectedCount">0</span> đầu việc · Điểm A dự kiến: <span id="registrationSelectedScore">0</span></strong>
-          <small>${registrationOpen ? "Kiểm tra đầu việc và tổng điểm dự kiến trước khi gửi đăng ký." : "Đăng ký kế hoạch của Phòng/Khu đang được khóa. Trưởng phòng cần mở lại đăng ký trước khi người dùng đăng ký."}</small>
+          <small>${anyWorkspaceOpen ? "Chỉ các đầu việc thuộc không gian đang mở mới có thể chọn." : "Tất cả không gian đăng ký hiện đã khóa."}</small>
         </div>
-        <button id="btnRegisterSelected" class="primary-button" type="button" ${registrationOpen ? "" : "disabled"}>Đăng ký đầu việc đã chọn</button>
+        <button id="btnRegisterSelected" class="primary-button" type="button" ${anyWorkspaceOpen ? "" : "disabled"}>Đăng ký đầu việc đã chọn</button>
       </div>` : ""}
     </section>`;
 
@@ -99,7 +104,6 @@ export async function renderStandardTasksView(outlet) {
       const ids = selectedInputs.map(input => input.value);
       const countTarget = document.getElementById("registrationSelectedCount");
       if (countTarget) countTarget.textContent = String(ids.length);
-
       const score = catalogItems
         .filter(item => ids.includes(taskKey(item)))
         .reduce((sum, item) => sum + Number(item.maximumConvertedScore || item.baseScore || 0), 0);
@@ -108,20 +112,16 @@ export async function renderStandardTasksView(outlet) {
     };
 
     const bindListActions = () => {
-      document.querySelectorAll("[data-registration-check]").forEach(input => {
-        input.addEventListener("change", updateCount);
-      });
+      document.querySelectorAll("[data-registration-check]").forEach(input => input.addEventListener("change", updateCount));
 
       document.querySelectorAll("[data-delete-registration]").forEach(button => {
         button.addEventListener("click", async () => {
           const registration = registrations.find(item => item.id === button.dataset.deleteRegistration);
           if (!registration) return;
-
           const confirmation = registration.status === "REJECTED"
             ? "Xóa đăng ký đã được trả lại để chọn đầu việc này lại?"
             : "Hủy đăng ký đang chờ duyệt?";
           if (!window.confirm(confirmation)) return;
-
           button.disabled = true;
           try {
             await TaskRegistrationService.cancelRegistration(registration);
@@ -138,22 +138,17 @@ export async function renderStandardTasksView(outlet) {
         button.addEventListener("click", async () => {
           const registration = registrations.find(item => item.id === button.dataset.cancelApprovedRegistration);
           if (!registration) return;
-
           const reason = window.prompt(
             "Nhập lý do hủy đầu việc đã duyệt. Chỉ được hủy khi nhiệm vụ chưa được tiếp nhận và chưa phát sinh tiến độ hoặc minh chứng.",
             "Đăng ký nhầm đầu việc"
           );
           if (reason === null) return;
-          if (!String(reason).trim()) {
-            ToastService.error("Vui lòng nhập lý do hủy đầu việc.");
-            return;
-          }
+          if (!String(reason).trim()) return ToastService.error("Vui lòng nhập lý do hủy đầu việc.");
           if (!window.confirm("Xác nhận hủy đầu việc đã duyệt và đưa đầu việc trở lại danh mục lựa chọn?")) return;
-
           button.disabled = true;
           try {
             await TaskRegistrationService.cancelApprovedRegistration(registration, reason);
-            ToastService.success("Đã hủy đầu việc đã duyệt. Đầu việc đã trở lại danh mục để lựa chọn.");
+            ToastService.success("Đã hủy đầu việc đã duyệt.");
             reloadRoute();
           } catch (error) {
             ToastService.error(error.message || "Không hủy được đầu việc đã duyệt.");
@@ -172,11 +167,9 @@ export async function renderStandardTasksView(outlet) {
       document.querySelectorAll("[data-delete-standard-task]").forEach(button => {
         button.addEventListener("click", async () => {
           const item = catalogItems.find(task => task.id === button.dataset.deleteStandardTask);
-          if (!item) return;
-          await confirmAndRemoveStandardTask(item, button);
+          if (item) await confirmAndRemoveStandardTask(item, button);
         });
       });
-
       updateCount();
     };
 
@@ -186,15 +179,25 @@ export async function renderStandardTasksView(outlet) {
       const visibleItems = catalogItems.filter(item => {
         const typeMatches = selectedType === "ALL" || normalizedWorkType(item) === selectedType;
         const textMatches = [item.code, item.name, item.outputRequirement, item.frequency, workTypeLabel(item)]
-          .join(" ")
-          .toLowerCase()
-          .includes(keyword);
+          .join(" ").toLowerCase().includes(keyword);
         return typeMatches && textMatches;
       });
 
-      listContainer.innerHTML = registrationMode
-        ? renderRegistrationWorkspace(visibleItems, registeredMap, registrationOpen, catalogAccess.canManage, approvedCancellationMap)
-        : renderCatalogList(visibleItems, catalogAccess.canManage);
+      if (registrationMode) {
+        const groups = [...new Set(visibleItems.map(item => item._workspaceId))]
+          .map(workspaceId => ({ workspaceId, items: visibleItems.filter(item => item._workspaceId === workspaceId) }));
+        listContainer.innerHTML = groups.length
+          ? groups.map(group => `<section class="standard-task-workspace" data-workspace="${escapeHtml(group.workspaceId)}">
+              <header class="standard-task-workspace-head">
+                <div><span class="page-eyebrow">${group.workspaceId === "CDTN" ? "Không gian kiêm nhiệm" : "Không gian chuyên môn"}</span><h3>${escapeHtml(workspaceName(group.workspaceId))}</h3><p>${group.workspaceId === "CDTN" ? "Danh mục, duyệt và điểm danh Chi đoàn được quản lý độc lập với Phòng/Khu." : "Danh mục công việc thuộc đơn vị công tác chính."}</p></div>
+                <span class="status-pill ${workspacePlans[group.workspaceId]?.locked === true ? "warning" : "success"}">${workspacePlans[group.workspaceId]?.locked === true ? "Đã khóa đăng ký" : "Đang mở đăng ký"}</span>
+              </header>
+              ${renderRegistrationWorkspace(group.items, registeredMap, workspacePlans[group.workspaceId]?.locked !== true, catalogAccess.canManage, approvedCancellationMap)}
+            </section>`).join("")
+          : compactEmpty("Không có đầu việc phù hợp", "Hãy thay đổi nội dung tìm kiếm.");
+      } else {
+        listContainer.innerHTML = renderCatalogList(visibleItems, catalogAccess.canManage);
+      }
       bindListActions();
     };
 
@@ -203,17 +206,19 @@ export async function renderStandardTasksView(outlet) {
     document.getElementById("btnStandardRefresh")?.addEventListener("click", reloadRoute);
     document.getElementById("btnAddStandardTask")?.addEventListener("click", () => openTaskEditor(null));
     document.getElementById("btnDelegateCatalogEditor")?.addEventListener("click", () => openCatalogDelegation(catalogAccess.delegation, period));
+    document.getElementById("btnDelegateCdtnApproval")?.addEventListener("click", () => openCdtnApprovalDelegation(period));
 
     document.getElementById("btnRegisterSelected")?.addEventListener("click", async () => {
       const ids = [...document.querySelectorAll("[data-registration-check]:checked")].map(input => input.value);
       const selected = catalogItems.filter(item => ids.includes(taskKey(item)));
       if (!selected.length) return ToastService.error("Hãy chọn ít nhất một đầu việc ở cột Danh mục công việc.");
-
       const button = document.getElementById("btnRegisterSelected");
       button.disabled = true;
       try {
-        const count = await TaskRegistrationService.registerMany(selected, period);
-        ToastService.success(`Đã gửi đăng ký ${count} đầu việc chờ duyệt.`);
+        const result = await TaskRegistrationService.registerMany(selected, period);
+        ToastService.success(result.pending
+          ? `Đã đăng ký ${result.total} đầu việc: ${result.autoApproved} được duyệt ngay, ${result.pending} chờ duyệt.`
+          : `Đã đăng ký và duyệt ngay ${result.total} đầu việc.`);
         reloadRoute();
       } catch (error) {
         ToastService.error(error.message || "Không đăng ký được đầu việc.");
@@ -225,6 +230,12 @@ export async function renderStandardTasksView(outlet) {
   } catch (error) {
     outlet.innerHTML = errorCard("Không thể tải danh mục công việc", error);
   }
+}
+
+function workspaceName(workspaceId) {
+  return String(workspaceId || "").toUpperCase() === "CDTN"
+    ? "Chi đoàn Trung tâm"
+    : departmentName(workspaceId);
 }
 
 function renderRegistrationWorkspace(items, registeredMap, registrationOpen, canManageCatalog, approvedCancellationMap = {}) {
@@ -395,19 +406,19 @@ async function openTaskEditor(item) {
     return;
   }
 
+  const currentWorkType = String(item?.workType || "THUONG_XUYEN").toUpperCase() === "DOT_XUAT"
+    ? "DOT_XUAT"
+    : "THUONG_XUYEN";
+
   let previewCode = item?.code || item?.id || "";
   if (!editing) {
     try {
-      previewCode = await StandardTaskWriteService.getNextCode(initialDepartmentId);
+      previewCode = await StandardTaskWriteService.getNextCode(initialDepartmentId, currentWorkType);
     } catch (error) {
       ToastService.error(error.message || "Không xác định được mã đầu việc tiếp theo.");
       return;
     }
   }
-
-  const currentWorkType = String(item?.workType || "THUONG_XUYEN").toUpperCase() === "DOT_XUAT"
-    ? "DOT_XUAT"
-    : "THUONG_XUYEN";
   const currentTrackingMode = String(item?.trackingMode || "FINAL_OUTPUT").toUpperCase() === "ITEMIZED"
     ? "ITEMIZED"
     : "FINAL_OUTPUT";
@@ -431,7 +442,7 @@ async function openTaskEditor(item) {
     editing ? "Cập nhật đầu việc chuẩn" : "Thêm đầu việc chuẩn",
     `<div class="standard-task-editor-intro">
       <strong>${editing ? "Cập nhật trực tiếp trên hệ thống" : "Tạo đầu việc mới và cấp mã tự động"}</strong>
-      <span>Mã đầu việc lấy số còn trống nhỏ nhất trong đúng Phòng/Khu. Ví dụ đã có TCHC01 và TCHC03 thì mã tiếp theo là TCHC02; các đơn vị có dãy số độc lập.</span>
+      <span>Mã được cấp theo từng Phòng/Khu và từng tính chất: thường xuyên dạng TCHC01; đột xuất dạng TCHC-DX01. Mã đã giải phóng được cấp lại nhưng lịch sử cũ vẫn được lưu.</span>
     </div>
     <div class="kpi-form-grid standard-task-editor-form">
       <div class="standard-form-section-title full"><span>1</span><div><strong>Thông tin đầu việc</strong><small>Xác định đúng tên, kết quả đầu ra và chu kỳ thực hiện.</small></div></div>
@@ -529,7 +540,8 @@ async function openTaskEditor(item) {
     if (refreshCode && !editing && codeInput) {
       codeInput.value = "Đang cấp mã…";
       try {
-        codeInput.value = await StandardTaskWriteService.getNextCode(departmentId);
+        const workType = document.getElementById("catalogTaskWorkType")?.value || "THUONG_XUYEN";
+        codeInput.value = await StandardTaskWriteService.getNextCode(departmentId, workType);
       } catch (error) {
         codeInput.value = "";
         ToastService.error(error.message || "Không cấp được mã đầu việc.");
@@ -544,7 +556,10 @@ async function openTaskEditor(item) {
     if (managementInput.checked && coreInput) coreInput.checked = false;
   });
   departmentInput?.addEventListener("change", () => syncAudienceFields(true));
-  document.getElementById("catalogTaskWorkType")?.addEventListener("change", syncBaseScoreWithWorkType);
+  document.getElementById("catalogTaskWorkType")?.addEventListener("change", async () => {
+    syncBaseScoreWithWorkType();
+    if (!editing) await syncAudienceFields(true);
+  });
   document.getElementById("catalogTaskCoefficient")?.addEventListener("change", recalculate);
   trackingModeInput?.addEventListener("change", syncTrackingFields);
   workItemTypeInput?.addEventListener("change", syncTrackingFields);
@@ -674,6 +689,65 @@ async function openCatalogDelegation(currentDelegation, period) {
     });
   } catch (error) {
     ToastService.error(error.message || "Không mở được chức năng ủy quyền nhập danh mục.");
+  }
+}
+
+async function openCdtnApprovalDelegation(period) {
+  try {
+    const [candidates, current] = await Promise.all([
+      TaskRegistrationService.listCdtnApprovalCandidates(),
+      TaskRegistrationService.getCdtnApprovalDelegation()
+    ]);
+    const active = current?.active === true ? current : null;
+    const today = StandardTaskWriteService.todayKey();
+    const defaultEnd = period?.endDate || addDays(today, 30);
+    const root = openStandardModal(
+      "Ủy quyền duyệt nhiệm vụ Chi đoàn",
+      `<div class="kpi-form-grid standard-task-delegation-form">
+        <label class="kpi-field full"><span>Người được ủy quyền</span><select id="cdtnApprovalDelegate"><option value="">-- Chọn Phó Bí thư/BCH/Đoàn viên --</option>${candidates.map(item => `<option value="${escapeHtml(item.id)}" ${active?.delegateUserId === item.id ? "selected" : ""}>${escapeHtml(item.fullName || "Chưa cập nhật họ tên")} — ${escapeHtml(item.position || "Kiêm nhiệm Chi đoàn")}</option>`).join("")}</select></label>
+        <label class="kpi-field"><span>Từ ngày</span><input id="cdtnApprovalStart" type="date" value="${escapeHtml(active?.startDate || today)}"></label>
+        <label class="kpi-field"><span>Đến ngày</span><input id="cdtnApprovalEnd" type="date" value="${escapeHtml(active?.endDate || defaultEnd)}"></label>
+        <label class="kpi-field full"><span>Lý do</span><textarea id="cdtnApprovalReason" rows="3" placeholder="Ví dụ: Phân công hỗ trợ duyệt kế hoạch và xác nhận nhiệm vụ Chi đoàn">${escapeHtml(active?.reason || "")}</textarea></label>
+        <div class="info-banner full">Ủy quyền này chỉ áp dụng trong không gian Chi đoàn; không tạo quyền xem, duyệt hoặc sửa dữ liệu của Phòng/Khu.</div>
+      </div>`,
+      `${active ? '<button id="revokeCdtnApproval" class="kpi-button danger" type="button">Hủy ủy quyền</button>' : ""}<button class="kpi-button secondary" data-standard-close type="button">Đóng</button><button id="saveCdtnApproval" class="kpi-button" type="button">Lưu ủy quyền</button>`
+    );
+
+    root.querySelector("#saveCdtnApproval")?.addEventListener("click", async event => {
+      const button = event.currentTarget;
+      button.disabled = true;
+      try {
+        await TaskRegistrationService.saveCdtnApprovalDelegation({
+          delegateUserId: document.getElementById("cdtnApprovalDelegate")?.value,
+          startDate: document.getElementById("cdtnApprovalStart")?.value,
+          endDate: document.getElementById("cdtnApprovalEnd")?.value,
+          reason: document.getElementById("cdtnApprovalReason")?.value
+        });
+        closeStandardModal(root);
+        ToastService.success("Đã thiết lập ủy quyền duyệt nhiệm vụ Chi đoàn.");
+        reloadRoute();
+      } catch (error) {
+        ToastService.error(error.message || "Không lưu được ủy quyền Chi đoàn.");
+        button.disabled = false;
+      }
+    });
+
+    root.querySelector("#revokeCdtnApproval")?.addEventListener("click", async event => {
+      if (!window.confirm("Hủy ủy quyền duyệt nhiệm vụ Chi đoàn ngay bây giờ?")) return;
+      const button = event.currentTarget;
+      button.disabled = true;
+      try {
+        await TaskRegistrationService.revokeCdtnApprovalDelegation();
+        closeStandardModal(root);
+        ToastService.success("Đã hủy ủy quyền duyệt Chi đoàn.");
+        reloadRoute();
+      } catch (error) {
+        ToastService.error(error.message || "Không hủy được ủy quyền Chi đoàn.");
+        button.disabled = false;
+      }
+    });
+  } catch (error) {
+    ToastService.error(error.message || "Không mở được chức năng ủy quyền Chi đoàn.");
   }
 }
 
