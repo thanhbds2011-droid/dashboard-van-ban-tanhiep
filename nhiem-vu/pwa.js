@@ -1,4 +1,4 @@
-const PWA_VERSION = "20260801.V1_5_0";
+const PWA_VERSION = "20260802.V1_6_0";
 let registration = null;
 
 async function registerPwa() {

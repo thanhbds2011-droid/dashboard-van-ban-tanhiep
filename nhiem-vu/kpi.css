@@ -1,6 +1,6 @@
 /* =========================================================
  * PHÂN HỆ KPI
- * Bản 20260801.V1_5_0
+ * Bản 20260802.V1_6_0
  * ========================================================= */
 
 .kpi-section {
@@ -1506,4 +1506,83 @@
     min-width: 0;
     width: 100%;
   }
+}
+
+/* ===== Production V1.6.0 — Lọc phạm vi và xác nhận KPI theo nhân viên ===== */
+.kpi-scope-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #cad9e5;
+  border-radius: 10px;
+  padding: 5px 8px;
+  background: #fff;
+}
+.kpi-scope-filter span { font-size: .82rem; font-weight: 700; color: #52697a; }
+.kpi-scope-filter select { border: 0; background: transparent; min-width: 180px; font-weight: 700; }
+.kpi-people-plan-table { max-height: 360px; overflow: auto; scrollbar-gutter: stable; }
+.kpi-compact-review { margin-top: 18px; border-top: 1px solid #d7e3ec; padding-top: 16px; }
+.kpi-compact-review-head { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.kpi-review-layout {
+  display: grid;
+  grid-template-columns: minmax(210px, 280px) minmax(0, 1fr);
+  gap: 12px;
+  min-height: 360px;
+}
+.kpi-review-people {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  max-height: 560px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.kpi-review-person {
+  text-align: left;
+  border: 1px solid #d4e0e9;
+  background: #fff;
+  border-radius: 12px;
+  padding: 11px 12px;
+  cursor: pointer;
+}
+.kpi-review-person strong, .kpi-review-person span { display: block; }
+.kpi-review-person span { color: #647786; font-size: .82rem; margin-top: 3px; }
+.kpi-review-person:hover { background: #f2f8fb; }
+.kpi-review-person.is-active { border-color: #0f6b9b; box-shadow: 0 0 0 2px rgba(15,107,155,.12); background: #eef8fc; }
+.kpi-review-tasks { min-width: 0; border: 1px solid #d4e0e9; border-radius: 14px; overflow: hidden; }
+.kpi-review-tasks-toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  padding: 11px 12px;
+  background: #f4f8fb;
+  border-bottom: 1px solid #d4e0e9;
+}
+.kpi-review-tasks-toolbar > div:first-child { display: flex; flex-direction: column; }
+.kpi-review-tasks-toolbar > div:last-child { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.kpi-review-task-scroll { max-height: 520px; overflow-y: auto; scrollbar-gutter: stable; }
+.kpi-review-task-row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 100px minmax(110px, auto);
+  gap: 10px;
+  align-items: center;
+  padding: 11px 12px;
+  border-bottom: 1px solid #e2eaf0;
+}
+.kpi-review-task-row:last-child { border-bottom: 0; }
+.kpi-review-task-main { display: flex; flex-direction: column; min-width: 0; }
+.kpi-review-task-main strong { overflow-wrap: anywhere; }
+.kpi-review-task-main span, .kpi-review-task-score span { color: #627483; font-size: .82rem; }
+.kpi-review-task-score { text-align: right; }
+.kpi-review-task-score strong { display: block; font-size: 1.05rem; }
+.kpi-review-task-action { display: flex; justify-content: flex-end; }
+.kpi-review-task-check input { width: 18px; height: 18px; }
+@media (max-width: 820px) {
+  .kpi-review-layout { grid-template-columns: 1fr; }
+  .kpi-review-people { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); max-height: 220px; }
+  .kpi-review-task-row { grid-template-columns: 30px minmax(0, 1fr); }
+  .kpi-review-task-score, .kpi-review-task-action { grid-column: 2; text-align: left; justify-content: flex-start; }
+  .kpi-review-tasks-toolbar { align-items: flex-start; flex-direction: column; }
+  .kpi-scope-filter { width: 100%; justify-content: space-between; }
 }

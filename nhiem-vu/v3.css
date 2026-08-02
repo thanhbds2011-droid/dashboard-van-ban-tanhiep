@@ -646,7 +646,7 @@ button,input,select,textarea{font-size:16px}
 }
 
 
-/* Production V1.5.0 - chẩn đoán quản trị */
+/* Production V1.6.0 - chẩn đoán quản trị */
 .admin-action-card.warning { border-color:#d69e2e; background:#fffaf0; }
 .admin-action-card:disabled { opacity:.58; cursor:not-allowed; }
 .admin-diagnostic-table { margin-top:18px; overflow:auto; border:1px solid #d8e5ef; border-radius:12px; }
@@ -661,7 +661,7 @@ button,input,select,textarea{font-size:16px}
 .admin-log-list article { display:grid; gap:3px; padding:10px 12px; border:1px solid #d8e5ef; border-radius:10px; }
 .admin-log-list span,.admin-log-list small { color:#52677a; }
 
-/* ===== Production V1.5.0 — Điều chỉnh và miễn đánh giá nhiệm vụ ===== */
+/* ===== Production V1.6.0 — Điều chỉnh và miễn đánh giá nhiệm vụ ===== */
 .task-adjustment-section { display:grid; gap:12px; }
 .adjustment-history { display:grid; gap:12px; }
 .adjustment-card {
@@ -719,3 +719,104 @@ button,input,select,textarea{font-size:16px}
   .adjustment-card-actions button { width:100%; }
   .task-adjustment-section .detail-section-heading > button { width:100%; }
 }
+
+/* ===== Production V1.6.0 — Không gian công việc, khung cuộn và chi tiết 5 tab ===== */
+.standard-task-workspace {
+  border: 1px solid var(--border, #d7e2ec);
+  border-radius: 16px;
+  background: #fff;
+  padding: 14px;
+  margin-top: 14px;
+}
+.standard-task-workspace-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 2px 4px 12px;
+}
+.standard-task-workspace-head h3 { margin: 2px 0 3px; }
+.standard-task-workspace-head p { margin: 0; color: var(--muted, #5f7182); }
+.registration-column-list {
+  max-height: min(62vh, 680px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding-right: 5px;
+}
+.registration-column-list::-webkit-scrollbar,
+.task-list-scroll::-webkit-scrollbar,
+.task-detail-tab-body::-webkit-scrollbar { width: 9px; }
+.registration-column-list::-webkit-scrollbar-thumb,
+.task-list-scroll::-webkit-scrollbar-thumb,
+.task-detail-tab-body::-webkit-scrollbar-thumb { background: #afc2d2; border-radius: 999px; }
+.task-list-scroll {
+  max-height: min(68vh, 760px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding-right: 5px;
+}
+.task-detail-tabbed { max-height: min(92vh, 940px); }
+.task-detail-tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 10px 18px;
+  border-bottom: 1px solid #dce6ef;
+  background: #f7fafc;
+  scrollbar-width: thin;
+}
+.task-detail-tab {
+  flex: 0 0 auto;
+  border: 1px solid #cbd9e5;
+  background: #fff;
+  color: #24465f;
+  border-radius: 10px;
+  padding: 9px 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.task-detail-tab:hover { background: #edf6fb; }
+.task-detail-tab.is-active { background: #0f6b9b; color: #fff; border-color: #0f6b9b; }
+.task-detail-tab-body { overflow-y: auto; min-height: 420px; }
+.task-detail-tab-panel { display: none; }
+.task-detail-tab-panel.is-active { display: block; }
+.task-evaluation-summary { margin-bottom: 14px; }
+.task-history-list { display: grid; gap: 8px; }
+.task-history-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 12px;
+  padding: 12px;
+  border: 1px solid #dce6ef;
+  border-radius: 12px;
+  background: #f9fbfd;
+}
+.task-history-item div { display: flex; flex-direction: column; gap: 2px; }
+.task-history-item span, .task-history-item time { color: #607486; font-size: .86rem; }
+.task-history-item p { grid-column: 1 / -1; margin: 4px 0 0; }
+.task-history-empty { color: #607486; padding: 14px; border: 1px dashed #bfd0dd; border-radius: 12px; }
+@media (max-width: 760px) {
+  .standard-task-workspace { padding: 10px; }
+  .standard-task-workspace-head { flex-direction: column; gap: 8px; }
+  .registration-column-list { max-height: 52vh; }
+  .task-list-scroll { max-height: 62vh; }
+  .task-detail-tabs { padding: 8px 10px; }
+  .task-detail-tab { padding: 8px 10px; font-size: .86rem; }
+}
+
+/* ===== Production V1.6.0 — Dashboard Ban Giám đốc theo Phòng/Khu ===== */
+.dashboard-header-actions { display:flex; align-items:flex-end; gap:8px; flex-wrap:wrap; }
+.dashboard-department-filter { display:grid; gap:4px; min-width:210px; }
+.dashboard-department-filter span { color:#5e7182; font-size:.78rem; font-weight:700; }
+.dashboard-department-filter select { min-height:38px; border:1px solid #bfd0dd; border-radius:9px; background:#fff; padding:6px 9px; font-weight:700; }
+.dashboard-department-overview { margin-top:16px; padding:14px; border:1px solid #d7e3ec; border-radius:14px; background:#f8fbfd; }
+.dashboard-department-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:9px; }
+.dashboard-department-card { display:grid; gap:4px; text-align:left; border:1px solid #d2e0e9; border-radius:11px; padding:11px 12px; background:#fff; cursor:pointer; }
+.dashboard-department-card:hover { background:#eef7fb; }
+.dashboard-department-card.is-active { border-color:#0f6b9b; box-shadow:0 0 0 2px rgba(15,107,155,.12); background:#edf8fc; }
+.dashboard-department-card strong { color:#173f5c; }
+.dashboard-department-card span { color:#0f6b9b; font-weight:800; }
+.dashboard-department-card small { color:#647887; line-height:1.4; }
+@media (max-width:700px) { .dashboard-header-actions,.dashboard-department-filter { width:100%; } .dashboard-header-actions button { width:100%; } }
