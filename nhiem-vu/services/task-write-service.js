@@ -1,10 +1,10 @@
 /** Tạo, phân công, tiếp nhận, cập nhật tiến độ và hoàn thành nhiệm vụ. */
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260803.V1_7_0";
+import { Permissions } from "../core/permissions.js?v=20260803.V1_7_1";
 import { TaskLogService } from "./task-log-service.js";
-import { TaskWorkItemService } from "./task-work-item-service.js?v=20260803.V1_7_0";
-import { PeriodReadService } from "./period-read-service.js?v=20260803.V1_7_0";
+import { TaskWorkItemService } from "./task-work-item-service.js?v=20260803.V1_7_1";
+import { PeriodReadService } from "./period-read-service.js?v=20260803.V1_7_1";
 
 const MAX_CODE_SCAN = 1000;
 
@@ -162,7 +162,7 @@ export const TaskWriteService = Object.freeze({
         );
 
         const payload = {
-          appVersion: "1.7.0",
+          appVersion: "1.7.1",
           active: true,
           taskCode: code,
           title: data.title,
@@ -308,17 +308,22 @@ export const TaskWriteService = Object.freeze({
       updatedByUserId: user.uid,
       updatedByName: user.fullName || ""
     };
-    const batch = FirebaseService.writeBatch(FirebaseService.db);
-    batch.update(taskRef(task.id), payload);
-    batch.set(logRef(), TaskLogService.buildTaskLog({
-      taskId: task.id,
-      taskCode: task.taskCode,
-      periodId: task.periodId || "",
-      action: "TASK_ACCEPTED",
-      before: snapshotTask(task),
-      after: { ...snapshotTask(task), ...payload, acceptedAt: null, updatedAt: null }
-    }));
-    await batch.commit();
+    await FirebaseService.updateDoc(taskRef(task.id), payload);
+
+    // Nhật ký là lớp kiểm toán bổ sung, không được làm hỏng thao tác tiếp nhận hợp lệ.
+    // Sau khi task đã cập nhật, Rules vẫn kiểm tra ownerUserId, assignmentStatus và updatedByUserId.
+    try {
+      await FirebaseService.setDoc(logRef(), TaskLogService.buildTaskLog({
+        taskId: task.id,
+        taskCode: task.taskCode,
+        periodId: task.periodId || "",
+        action: "TASK_ACCEPTED",
+        before: snapshotTask(task),
+        after: { ...snapshotTask(task), ...payload, acceptedAt: null, updatedAt: null }
+      }));
+    } catch (logError) {
+      console.warn("Nhiệm vụ đã được tiếp nhận nhưng chưa ghi được nhật ký TASK_ACCEPTED:", logError);
+    }
   },
 
   async updateProgress(task, changes) {

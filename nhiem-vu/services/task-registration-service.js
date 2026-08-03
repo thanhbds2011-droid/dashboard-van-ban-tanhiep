@@ -1,9 +1,9 @@
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260803.V1_7_0";
+import { Permissions } from "../core/permissions.js?v=20260803.V1_7_1";
 import { TaskLogService } from "./task-log-service.js";
-import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260803.V1_7_0";
-import { PeriodReadService } from "./period-read-service.js?v=20260803.V1_7_0";
+import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260803.V1_7_1";
+import { PeriodReadService } from "./period-read-service.js?v=20260803.V1_7_1";
 
 const clean = value => String(value ?? "").trim();
 const upper = value => clean(value).toUpperCase();
@@ -182,7 +182,7 @@ function taskPayload(registration, reviewer, due, options = {}) {
   return {
     code,
     payload: {
-      appVersion: "1.7.0",
+      appVersion: "1.7.1",
       active: true,
       taskCode: code,
       title: registration.title || registration.standardTaskName,
@@ -484,20 +484,23 @@ export const TaskRegistrationService = Object.freeze({
   async listCdtnApprovalCandidates() {
     if (!Permissions.isCdtnLeadership()) return [];
     const roles = ["CDTN_BI_THU", "CDTN_PHO_BI_THU", "CDTN_UY_VIEN_BCH", "CDTN_DOAN_VIEN"];
-    const snapshots = await Promise.all(roles.map(role => FirebaseService.getDocs(
+    const snapshot = await FirebaseService.getDocs(
       FirebaseService.query(
-        FirebaseService.collection(FirebaseService.db, "users"),
-        FirebaseService.where("additionalRoles", "array-contains", role),
+        FirebaseService.collection(FirebaseService.db, "cdtnMembers"),
+        FirebaseService.where("active", "==", true),
         FirebaseService.limit(300)
       )
-    )));
-    const byId = new Map();
-    snapshots.forEach(snapshot => snapshot.docs.forEach(item => byId.set(item.id, { id: item.id, ...item.data() })));
-    return [...byId.values()]
-      .filter(item => item.active === true)
+    );
+    const candidates = snapshot.docs
+      .map(item => ({ id: item.id, ...item.data() }))
       .filter(item => item.id !== UserContext.requireUser().uid)
       .filter(item => Array.isArray(item.additionalRoles) && item.additionalRoles.some(role => roles.includes(upper(role))))
       .sort((a, b) => clean(a.fullName).localeCompare(clean(b.fullName), "vi"));
+
+    if (!candidates.length) {
+      throw new Error("Chưa có danh sách thành viên Chi đoàn để ủy quyền. Quản trị viên cần đồng bộ lại Google Sheet tài khoản bằng Apps Script V3.2.1.");
+    }
+    return candidates;
   },
 
   async saveCdtnApprovalDelegation({ delegateUserId, startDate, endDate, reason }) {
@@ -511,6 +514,8 @@ export const TaskRegistrationService = Object.freeze({
     const reference = FirebaseService.doc(FirebaseService.db, "approvalDelegations", "CDTN_APPROVAL_ACTIVE");
     const existing = await FirebaseService.getDoc(reference);
     await FirebaseService.setDoc(reference, {
+      appVersion: "1.7.1",
+      schemaVersion: 2,
       delegationType: "CDTN_APPROVAL",
       departmentId: "CDTN",
       organizationId: "CDTN",
