@@ -1,9 +1,9 @@
 import { UserContext } from "../../core/user-context.js";
-import { Permissions } from "../../core/permissions.js?v=20260803.V1_7_0";
+import { Permissions } from "../../core/permissions.js?v=20260803.V1_7_1";
 import { ToastService } from "../../core/toast-service.js";
 import { ModalService } from "../../core/modal-service.js";
-import { AdminReadService } from "../../services/admin-read-service.js?v=20260803.V1_7_0";
-import { AdminMaintenanceService } from "../../services/admin-maintenance-service.js?v=20260803.V1_7_0";
+import { AdminReadService } from "../../services/admin-read-service.js?v=20260803.V1_7_1";
+import { AdminMaintenanceService } from "../../services/admin-maintenance-service.js?v=20260803.V1_7_1";
 
 let currentDiagnostic = null;
 
@@ -26,7 +26,7 @@ function render(outlet, user, diagnostic) {
   const repairable = diagnostic.repairableTaskIds.length;
   const warnings = diagnostic.issues.filter(item => item.level === "WARNING").length;
   outlet.innerHTML = `<section class="page-card">
-    <div class="page-header"><div><h2>Quản trị hệ thống</h2><p>Chẩn đoán dữ liệu, nhật ký và bảo trì có kiểm soát.</p></div><span class="role-badge">ADMIN · V1.7.0</span></div>
+    <div class="page-header"><div><h2>Quản trị hệ thống</h2><p>Chẩn đoán dữ liệu, nhật ký và bảo trì có kiểm soát.</p></div><span class="role-badge">ADMIN · V1.7.1</span></div>
     <div class="success-banner">Tài khoản <strong>${escapeHtml(user.fullName || user.email)}</strong> đang thao tác trong phạm vi quản trị.</div>
     <div class="summary-grid compact-grid">
       ${metric("Tài khoản hoạt động", counts.users ?? "—")}
