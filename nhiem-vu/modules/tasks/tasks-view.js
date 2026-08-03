@@ -1,8 +1,8 @@
-import { Permissions } from "../../core/permissions.js?v=20260803.V1_7_1";
+import { Permissions } from "../../core/permissions.js?v=20260803.V1_7_2";
 import { ToastService } from "../../core/toast-service.js";
-import { TaskReadService } from "../../services/task-read-service.js?v=20260803.V1_7_1";
-import { openTaskCreateModal } from "./task-form-modal.js?v=20260803.V1_7_1";
-import { openTaskDetailModal } from "./task-detail-modal.js?v=20260803.V1_7_1";
+import { TaskReadService } from "../../services/task-read-service.js?v=20260803.V1_7_2";
+import { openTaskCreateModal } from "./task-form-modal.js?v=20260803.V1_7_2";
+import { openTaskDetailModal } from "./task-detail-modal.js?v=20260803.V1_7_2";
 
 let renderSequence = 0;
 let currentTasks = [];
@@ -19,6 +19,16 @@ const DEPARTMENT_NAMES = Object.freeze({
   KIII: "Khu III",
   CDTN: "Chi đoàn Trung tâm"
 });
+
+function taskWorkspaceId(task) {
+  const organizationId = String(task?.organizationId || "").toUpperCase();
+  const standardDepartmentId = String(task?.standardTaskDepartmentId || "").toUpperCase();
+  const primaryDepartmentId = String(task?.primaryDepartmentId || "").toUpperCase();
+  const taskCode = String(task?.taskCode || task?.standardTaskCode || "").toUpperCase();
+  if (organizationId === "CDTN" || standardDepartmentId === "CDTN" || primaryDepartmentId === "CDTN" || taskCode.startsWith("CDTN")) return "CDTN";
+  return primaryDepartmentId;
+}
+
 
 export async function renderTasksView(outlet) {
   currentOutlet = outlet;
@@ -52,7 +62,7 @@ function userFacingLoadError(error) {
   const detail = String(error?.message || "");
   if (["permission-denied", "firestore/permission-denied"].includes(code)
       || /missing or insufficient permissions/i.test(detail)) {
-    return "Chưa tải được nhiệm vụ theo phạm vi tài khoản. Hệ thống đã ghi nhận lỗi phân quyền; hãy thử lại sau khi Rules V1.7.1 được Publish.";
+    return "Chưa tải được nhiệm vụ theo phạm vi tài khoản. Hệ thống đã ghi nhận lỗi phân quyền; hãy thử lại sau khi Rules V1.7.2 được Publish.";
   }
   return "Không thể tải dữ liệu nhiệm vụ vào lúc này. Vui lòng kiểm tra kết nối và thử lại.";
 }
@@ -80,14 +90,20 @@ function mountTasksPage(outlet) {
 
   const refreshOnce = async () => {
     const button = document.getElementById("refreshTasks");
-    if (button) button.disabled = true;
+    if (button) {
+      button.disabled = true;
+      button.classList.add("is-loading");
+    }
     try {
       currentTasks = await TaskReadService.list({ force: true });
       updateTasksPage(currentTasks);
     } catch (error) {
       ToastService.error(userFacingLoadError(error));
     } finally {
-      if (button) button.disabled = false;
+      if (button) {
+        button.disabled = false;
+        button.classList.remove("is-loading");
+      }
     }
   };
 
@@ -130,9 +146,9 @@ function renderFilteredTasks() {
   const status = filter?.value || "ALL";
   const departmentId = departmentFilter?.value || "ALL";
   const filtered = currentTasks.filter(task => {
-    const text = [task.taskCode, task.title, task.ownerName, task.createdByName, task.primaryDepartmentId].join(" ").toLowerCase();
+    const text = [task.taskCode, task.title, task.ownerName, task.createdByName, taskWorkspaceId(task)].join(" ").toLowerCase();
     const keywordMatch = !keyword || text.includes(keyword);
-    const departmentMatch = departmentId === "ALL" || String(task.primaryDepartmentId || "").toUpperCase() === departmentId;
+    const departmentMatch = departmentId === "ALL" || taskWorkspaceId(task) === departmentId;
     const statusMatch = status === "ALL" ||
       (status === "IN_PROGRESS" && !task._completed && !task._exempt && !task._overdue && !["CHO_PHAN_CONG", "PENDING_ASSIGNMENT", "MOI_TIEP_NHAN"].includes(task._status)) ||
       (status === "WAITING" && !task._exempt && ["CHO_PHAN_CONG", "PENDING_ASSIGNMENT", "MOI_TIEP_NHAN"].includes(task._status)) ||
@@ -183,7 +199,7 @@ function renderTaskList(tasks) {
               : task._status === "MOI_TIEP_NHAN"
                 ? { label: "Chờ tiếp nhận", className: "warning" }
                 : { label: "Đang xử lý", className: "neutral" };
-    return `<button type="button" class="data-row task-row-button" data-task-id="${escapeHtml(task.id)}"><div class="data-row-main"><strong>${escapeHtml(task.title || task.taskCode || "Nhiệm vụ không có tiêu đề")}</strong><small>${escapeHtml(task.taskCode || task.id)} • ${escapeHtml(DEPARTMENT_NAMES[String(task.primaryDepartmentId || "").toUpperCase()] || task.primaryDepartmentId || "-")} • ${escapeHtml(task.ownerName || "Chưa phân công")}</small><div class="progress-track"><span style="width:${Math.min(100, Math.max(0, Number(task.progress || 0)))}%"></span></div></div><div class="data-row-meta"><span class="status-pill ${status.className}">${status.label}</span><small>${formatDate(task._deadline)}</small><strong>${Number(task.progress || 0)}%</strong></div></button>`;
+    return `<button type="button" class="data-row task-row-button" data-task-id="${escapeHtml(task.id)}"><div class="data-row-main"><strong>${escapeHtml(task.title || task.taskCode || "Nhiệm vụ không có tiêu đề")}</strong><small>${escapeHtml(task.taskCode || task.id)} • ${escapeHtml(DEPARTMENT_NAMES[taskWorkspaceId(task)] || taskWorkspaceId(task) || "-")} • ${escapeHtml(task.ownerName || "Chưa phân công")}</small><div class="progress-track"><span style="width:${Math.min(100, Math.max(0, Number(task.progress || 0)))}%"></span></div></div><div class="data-row-meta"><span class="status-pill ${status.className}">${status.label}</span><small>${formatDate(task._deadline)}</small><strong>${Number(task.progress || 0)}%</strong></div></button>`;
   }).join("")}</div>`;
 }
 
