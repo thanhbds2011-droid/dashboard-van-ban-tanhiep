@@ -9,7 +9,7 @@ const required = [
   "firestore.indexes.json",
   "deployment/firestore.rules",
   "deployment/firestore.indexes.json",
-  "deployment/apps-script-account-sync-v3.2.0.gs",
+  "deployment/apps-script-account-sync-v3.2.1.gs",
   "deployment/apps-script-standard-tasks-v4.1.0.gs",
   "deployment/apps-script-notification-ai-evidence-v6.3.0.gs",
   "nhiem-vu/app-v3.js",
