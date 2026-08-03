@@ -1,10 +1,10 @@
 import { UserContext } from "../../core/user-context.js";
-import { Permissions } from "../../core/permissions.js?v=20260803.V1_7_1";
+import { Permissions } from "../../core/permissions.js?v=20260803.V1_7_2";
 import { ToastService } from "../../core/toast-service.js";
-import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260803.V1_7_1";
-import { PeriodReadService } from "../../services/period-read-service.js?v=20260803.V1_7_1";
-import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260803.V1_7_1";
-import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260803.V1_7_1";
+import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260803.V1_7_2";
+import { PeriodReadService } from "../../services/period-read-service.js?v=20260803.V1_7_2";
+import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260803.V1_7_2";
+import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260803.V1_7_2";
 
 let currentCatalogAccess = { canManage: false, manageableDepartmentIds: [] };
 
@@ -622,6 +622,27 @@ function departmentName(departmentId) {
   })[String(departmentId || "").toUpperCase()] || departmentId || "Phòng/Khu";
 }
 
+const CDTN_ROLE_LABELS = Object.freeze({
+  CDTN_BI_THU: "Bí thư Chi đoàn",
+  CDTN_PHO_BI_THU: "Phó Bí thư Chi đoàn",
+  CDTN_UY_VIEN_BCH: "Ủy viên BCH Chi đoàn",
+  CDTN_DOAN_VIEN: "Đoàn viên"
+});
+const CDTN_ROLE_PRIORITY = Object.freeze([
+  "CDTN_BI_THU",
+  "CDTN_PHO_BI_THU",
+  "CDTN_UY_VIEN_BCH",
+  "CDTN_DOAN_VIEN"
+]);
+
+function cdtnRoleLabel(item) {
+  const roles = Array.isArray(item?.additionalRoles)
+    ? item.additionalRoles.map(role => String(role || "").toUpperCase())
+    : [];
+  const code = String(item?.cdtnRole || CDTN_ROLE_PRIORITY.find(role => roles.includes(role)) || "").toUpperCase();
+  return item?.cdtnRoleLabel || CDTN_ROLE_LABELS[code] || "Thành viên Chi đoàn";
+}
+
 function audienceBadge(item) {
   const audience = String(item?.audienceType || (item?.isManagementTask ? "MANAGEMENT" : "ALL_DEPARTMENT")).toUpperCase();
   const labels = {
@@ -704,7 +725,7 @@ async function openCdtnApprovalDelegation(period) {
     const root = openStandardModal(
       "Ủy quyền duyệt nhiệm vụ Chi đoàn",
       `<div class="kpi-form-grid standard-task-delegation-form">
-        <label class="kpi-field full"><span>Người được ủy quyền</span><select id="cdtnApprovalDelegate"><option value="">-- Chọn thành viên Chi đoàn --</option>${candidates.map(item => `<option value="${escapeHtml(item.id)}" ${active?.delegateUserId === item.id ? "selected" : ""}>${escapeHtml(item.fullName || "Chưa cập nhật họ tên")} — ${escapeHtml(item.position || "Kiêm nhiệm Chi đoàn")}</option>`).join("")}</select></label>
+        <label class="kpi-field full"><span>Người được ủy quyền</span><select id="cdtnApprovalDelegate"><option value="">-- Chọn thành viên Chi đoàn --</option>${candidates.map(item => `<option value="${escapeHtml(item.id)}" ${active?.delegateUserId === item.id ? "selected" : ""}>${escapeHtml(item.fullName || "Chưa cập nhật họ tên")} — ${escapeHtml(cdtnRoleLabel(item))}</option>`).join("")}</select></label>
         <label class="kpi-field"><span>Từ ngày</span><input id="cdtnApprovalStart" type="date" value="${escapeHtml(active?.startDate || today)}"></label>
         <label class="kpi-field"><span>Đến ngày</span><input id="cdtnApprovalEnd" type="date" value="${escapeHtml(active?.endDate || defaultEnd)}"></label>
         <label class="kpi-field full"><span>Lý do</span><textarea id="cdtnApprovalReason" rows="3" placeholder="Ví dụ: Phân công hỗ trợ duyệt kế hoạch và xác nhận nhiệm vụ Chi đoàn">${escapeHtml(active?.reason || "")}</textarea></label>
