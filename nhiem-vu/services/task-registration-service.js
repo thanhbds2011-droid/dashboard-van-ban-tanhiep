@@ -1,9 +1,9 @@
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260802.V1_6_0";
+import { Permissions } from "../core/permissions.js?v=20260803.V1_7_0";
 import { TaskLogService } from "./task-log-service.js";
-import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260802.V1_6_0";
-import { PeriodReadService } from "./period-read-service.js?v=20260802.V1_6_0";
+import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260803.V1_7_0";
+import { PeriodReadService } from "./period-read-service.js?v=20260803.V1_7_0";
 
 const clean = value => String(value ?? "").trim();
 const upper = value => clean(value).toUpperCase();
@@ -93,7 +93,7 @@ function canApprove(registration, reviewer) {
   const registrationDepartment = upper(registration.departmentId);
   if (registrationDepartment === "CDTN") {
     return Array.isArray(reviewer.additionalRoles)
-      && reviewer.additionalRoles.map(upper).includes("CDTN_BI_THU");
+      && reviewer.additionalRoles.map(upper).some(role => ["CDTN_BI_THU", "CDTN_PHO_BI_THU"].includes(role));
   }
 
   if (registration.userRole === "DEPARTMENT_LEADER") {
@@ -152,7 +152,7 @@ async function canCancelApprovedOwnRegistration(user, registration) {
   if (upper(registration.status) !== "APPROVED" || !clean(registration.taskId)) return false;
   const registrationDepartment = upper(registration.departmentId);
   if (registrationDepartment === "CDTN") {
-    if (Permissions.isCdtnSecretary(user)) return true;
+    if (Permissions.isCdtnLeadership(user)) return true;
     return await hasDelegation(user, "CDTN", "APPROVE_REGISTRATIONS");
   }
   if (registrationDepartment !== upper(user.departmentId)) return false;
@@ -182,7 +182,7 @@ function taskPayload(registration, reviewer, due, options = {}) {
   return {
     code,
     payload: {
-      appVersion: "1.6.0",
+      appVersion: "1.7.0",
       active: true,
       taskCode: code,
       title: registration.title || registration.standardTaskName,
@@ -411,7 +411,7 @@ export const TaskRegistrationService = Object.freeze({
       const id = registrationId(period.id, user.uid, item.id || item.code);
       const workType = standardWorkType(item.workType);
       const autoApprove = workspaceId === "CDTN"
-        ? Permissions.isCdtnSecretary()
+        ? Permissions.isCdtnLeadership()
         : (Permissions.isDepartmentHead(user) || (Permissions.isDirector() && workspaceId === "BGD"));
       const registration = {
         id,
@@ -482,8 +482,8 @@ export const TaskRegistrationService = Object.freeze({
   },
 
   async listCdtnApprovalCandidates() {
-    if (!Permissions.isCdtnSecretary()) return [];
-    const roles = ["CDTN_PHO_BI_THU", "CDTN_UY_VIEN_BCH", "CDTN_DOAN_VIEN"];
+    if (!Permissions.isCdtnLeadership()) return [];
+    const roles = ["CDTN_BI_THU", "CDTN_PHO_BI_THU", "CDTN_UY_VIEN_BCH", "CDTN_DOAN_VIEN"];
     const snapshots = await Promise.all(roles.map(role => FirebaseService.getDocs(
       FirebaseService.query(
         FirebaseService.collection(FirebaseService.db, "users"),
@@ -502,7 +502,7 @@ export const TaskRegistrationService = Object.freeze({
 
   async saveCdtnApprovalDelegation({ delegateUserId, startDate, endDate, reason }) {
     const user = UserContext.requireUser();
-    if (!Permissions.isCdtnSecretary()) throw new Error("Chỉ Bí thư Chi đoàn được ủy quyền duyệt nhiệm vụ Chi đoàn.");
+    if (!Permissions.isCdtnLeadership()) throw new Error("Chỉ Bí thư hoặc Phó Bí thư Chi đoàn được ủy quyền duyệt nhiệm vụ Chi đoàn.");
     const candidates = await this.listCdtnApprovalCandidates();
     const delegate = candidates.find(item => item.id === delegateUserId);
     if (!delegate) throw new Error("Người được chọn không đủ điều kiện nhận ủy quyền Chi đoàn.");
@@ -535,7 +535,7 @@ export const TaskRegistrationService = Object.freeze({
 
   async revokeCdtnApprovalDelegation() {
     const user = UserContext.requireUser();
-    if (!Permissions.isCdtnSecretary()) throw new Error("Chỉ Bí thư Chi đoàn được hủy ủy quyền.");
+    if (!Permissions.isCdtnLeadership()) throw new Error("Chỉ Bí thư hoặc Phó Bí thư Chi đoàn được hủy ủy quyền.");
     await FirebaseService.updateDoc(
       FirebaseService.doc(FirebaseService.db, "approvalDelegations", "CDTN_APPROVAL_ACTIVE"),
       {
@@ -610,7 +610,7 @@ export const TaskRegistrationService = Object.freeze({
         Permissions.isDepartmentDeputy(user) &&
         await hasDelegation(user, user.departmentId, "APPROVE_REGISTRATIONS")
       );
-    const cdtnAuthorized = Permissions.isCdtnSecretary(user)
+    const cdtnAuthorized = Permissions.isCdtnLeadership(user)
       || await hasDelegation(user, "CDTN", "APPROVE_REGISTRATIONS");
 
     const authorizedCandidates = candidates.filter(registration => (

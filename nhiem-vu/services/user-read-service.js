@@ -1,7 +1,7 @@
 /** Đọc người dùng theo đúng phạm vi Firestore Rules. */
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260802.V1_6_0";
+import { Permissions } from "../core/permissions.js?v=20260803.V1_7_0";
 
 const CACHE_MS = 5 * 60 * 1000;
 const caches = new Map();
@@ -22,6 +22,29 @@ function scopeKey() {
   if (Permissions.canViewAllDepartments()) return `${user.uid}|ALL`;
   if (Permissions.isDepartmentLeader()) return `${user.uid}|DEPARTMENT|${user.departmentId}`;
   return `${user.uid}|SELF`;
+}
+
+async function readCdtnMembers() {
+  const user = UserContext.requireUser();
+  if (!Permissions.isCdtnMember()) return [];
+  if (!Permissions.isCdtnLeadership()) {
+    const own = await FirebaseService.getDoc(FirebaseService.doc(FirebaseService.db, "users", user.uid));
+    return own.exists() && own.data()?.active === true ? [{ id: own.id, ...own.data() }] : [];
+  }
+  const roles = ["CDTN_BI_THU", "CDTN_PHO_BI_THU", "CDTN_UY_VIEN_BCH", "CDTN_DOAN_VIEN"];
+  const results = await Promise.allSettled(roles.map(role => FirebaseService.getDocs(
+    FirebaseService.query(
+      FirebaseService.collection(FirebaseService.db, "users"),
+      FirebaseService.where("additionalRoles", "array-contains", role),
+      FirebaseService.limit(300)
+    )
+  )));
+  const merged = new Map();
+  for (const result of results) {
+    if (result.status !== "fulfilled") continue;
+    for (const item of result.value.docs) merged.set(item.id, { id: item.id, ...item.data() });
+  }
+  return normalize([...merged.values()]);
 }
 
 async function readAuthorizedUsers() {
@@ -64,6 +87,21 @@ export const UserReadService = Object.freeze({
     pending.set(key, request);
     try { return await request; }
     finally { pending.delete(key); }
+  },
+
+  async listCdtnMembers(options = {}) {
+    const user = UserContext.requireUser();
+    const key = `${user.uid}|CDTN_MEMBERS`;
+    const force = options.force === true;
+    const cached = caches.get(key);
+    if (!force && cached && Date.now() - cached.loadedAt < CACHE_MS) return cached.items;
+    if (!force && pending.has(key)) return pending.get(key);
+    const request = readCdtnMembers().then(items => {
+      caches.set(key, { items, loadedAt: Date.now() });
+      return items;
+    });
+    pending.set(key, request);
+    try { return await request; } finally { pending.delete(key); }
   },
 
   invalidate() {

@@ -1,7 +1,7 @@
 /** Quản lý quyền điểm danh Chi đoàn như một vai trò kiêm nhiệm. */
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260802.V1_6_0";
+import { Permissions } from "../core/permissions.js?v=20260803.V1_7_0";
 
 const DOCUMENT_ID = "CDTN_ATTENDANCE_ACTIVE";
 const PERMISSION = "MANAGE_CDTN_ATTENDANCE";
@@ -42,7 +42,7 @@ export const CdtnAttendanceService = Object.freeze({
   },
 
   async canManage() {
-    if (Permissions.isAdmin() || Permissions.isCdtnSecretary()) {
+    if (Permissions.isAdmin() || Permissions.isCdtnLeadership()) {
       return true;
     }
     if (!Permissions.isCdtnMember()) return false;
@@ -55,8 +55,8 @@ export const CdtnAttendanceService = Object.freeze({
 
   async listCandidates() {
     const user = UserContext.requireUser();
-    if (!Permissions.isCdtnSecretary()) return [];
-    const roles = ["CDTN_PHO_BI_THU", "CDTN_UY_VIEN_BCH", "CDTN_DOAN_VIEN"];
+    if (!Permissions.isCdtnLeadership()) return [];
+    const roles = ["CDTN_BI_THU", "CDTN_PHO_BI_THU", "CDTN_UY_VIEN_BCH", "CDTN_DOAN_VIEN"];
     const snapshots = await Promise.all(roles.map(role => FirebaseService.getDocs(
       FirebaseService.query(
         FirebaseService.collection(FirebaseService.db, "users"),
@@ -75,8 +75,8 @@ export const CdtnAttendanceService = Object.freeze({
 
   async saveDelegation({ delegateUserId, startDate, endDate, reason }) {
     const user = UserContext.requireUser();
-    if (!Permissions.isCdtnSecretary()) {
-      throw new Error("Chỉ Bí thư được ủy quyền điểm danh.");
+    if (!Permissions.isCdtnLeadership()) {
+      throw new Error("Chỉ Bí thư hoặc Phó Bí thư được ủy quyền điểm danh.");
     }
     if (!delegateUserId) throw new Error("Hãy chọn người được ủy quyền.");
     if (!startDate || !endDate || startDate > endDate) throw new Error("Thời gian ủy quyền chưa hợp lệ.");
@@ -107,8 +107,8 @@ export const CdtnAttendanceService = Object.freeze({
 
   async revokeDelegation() {
     const user = UserContext.requireUser();
-    if (!Permissions.isCdtnSecretary()) {
-      throw new Error("Chỉ Bí thư được thu hồi ủy quyền điểm danh.");
+    if (!Permissions.isCdtnLeadership()) {
+      throw new Error("Chỉ Bí thư hoặc Phó Bí thư được thu hồi ủy quyền điểm danh.");
     }
     await FirebaseService.updateDoc(
       FirebaseService.doc(FirebaseService.db, "approvalDelegations", DOCUMENT_ID),

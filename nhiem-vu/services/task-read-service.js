@@ -1,10 +1,11 @@
 /** Đọc nhiệm vụ theo kỳ hiện hành, phạm vi tài khoản và bộ nhớ đệm ngắn. */
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260802.V1_6_0";
-import { PeriodReadService } from "./period-read-service.js?v=20260802.V1_6_0";
+import { Permissions } from "../core/permissions.js?v=20260803.V1_7_0";
+import { PeriodReadService } from "./period-read-service.js?v=20260803.V1_7_0";
 
 const TASK_CACHE_MS = 45 * 1000;
+const PROFESSIONAL_DEPARTMENT_IDS = Object.freeze(["BGD", "TCHC", "CTXH", "KHTC", "YT", "KI", "KII", "KIII"]);
 let taskCache = { key: "", items: [], loadedAt: 0, period: null };
 let taskRequest = null;
 
@@ -30,8 +31,17 @@ function scopedReferences(periodId) {
   const reference = FirebaseService.collection(FirebaseService.db, "tasks");
   const periodFilter = FirebaseService.where("periodId", "==", periodId);
 
-  if (Permissions.canViewAllDepartments()) {
+  if (Permissions.canViewAllScopes()) {
     return [FirebaseService.query(reference, periodFilter, FirebaseService.limit(5000))];
+  }
+
+  if (Permissions.canViewAllDepartments()) {
+    return [FirebaseService.query(
+      reference,
+      periodFilter,
+      FirebaseService.where("primaryDepartmentId", "in", PROFESSIONAL_DEPARTMENT_IDS),
+      FirebaseService.limit(5000)
+    )];
   }
 
   if (Permissions.isDepartmentLeader()) {

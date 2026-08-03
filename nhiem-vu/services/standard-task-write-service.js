@@ -6,9 +6,9 @@
  */
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260802.V1_6_0";
+import { Permissions } from "../core/permissions.js?v=20260803.V1_7_0";
 
-const SYNC_VERSION = "20260802.V1_6_0";
+const SYNC_VERSION = "20260803.V1_7_0";
 const STANDARD_TASK_COLLECTION = "standardTasks";
 const SEQUENCE_COLLECTION = "standardTaskSequences";
 const VALID_COEFFICIENTS = Object.freeze([1, 1.1, 1.2]);

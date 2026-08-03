@@ -1,9 +1,10 @@
 /** Đọc danh mục đầu việc theo đơn vị, vai trò và vai trò kiêm nhiệm. */
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260802.V1_6_0";
+import { Permissions } from "../core/permissions.js?v=20260803.V1_7_0";
 
 const CATALOG_CACHE_MS = 5 * 60 * 1000;
+const PROFESSIONAL_DEPARTMENT_IDS = Object.freeze(["BGD", "TCHC", "CTXH", "KHTC", "YT", "KI", "KII", "KIII"]);
 let catalogCache = { key: "", items: [], loadedAt: 0 };
 let catalogRequest = null;
 
@@ -42,7 +43,7 @@ function audienceOf(item) {
 
 function canRegisterCdtnItem(item) {
   const audience = audienceOf(item);
-  if (audience === "CDTN_SECRETARY") return Permissions.isCdtnSecretary();
+  if (audience === "CDTN_SECRETARY") return Permissions.isCdtnLeadership();
   if (audience === "CDTN_EXECUTIVE") return Permissions.isCdtnExecutiveMember();
   return audience === "CDTN_MEMBER" && Permissions.isCdtnMember();
 }
@@ -74,7 +75,8 @@ function canRegisterItem(item, user = UserContext.requireUser()) {
 
 function canViewItem(item, user = UserContext.requireUser()) {
   const departmentId = upper(item?.departmentId);
-  if (Permissions.canViewAllDepartments()) return true;
+  if (Permissions.canViewAllScopes()) return true;
+  if (Permissions.canViewAllDepartments() && PROFESSIONAL_DEPARTMENT_IDS.includes(departmentId)) return true;
   if (departmentId === "CDTN") return canRegisterCdtnItem(item) || Permissions.isCdtnCatalogManager();
   if (departmentId !== upper(user.departmentId)) return false;
   if (Permissions.isDepartmentLeader()) return true;
@@ -102,8 +104,16 @@ function audienceQuery(reference, departmentId, audienceType, limitValue = 500) 
 function sourceReferences() {
   const user = UserContext.requireUser();
   const reference = FirebaseService.collection(FirebaseService.db, "standardTasks");
-  if (Permissions.canViewAllDepartments()) {
+  if (Permissions.canViewAllScopes()) {
     return [FirebaseService.query(reference, FirebaseService.limit(2000))];
+  }
+
+  if (Permissions.canViewAllDepartments()) {
+    return [FirebaseService.query(
+      reference,
+      FirebaseService.where("departmentId", "in", PROFESSIONAL_DEPARTMENT_IDS),
+      FirebaseService.limit(2000)
+    )];
   }
 
   const queries = [];
@@ -130,7 +140,7 @@ function sourceReferences() {
     ));
   }
 
-  if (Permissions.isCdtnSecretary()) {
+  if (Permissions.isCdtnLeadership()) {
     queries.push(FirebaseService.query(
       reference,
       FirebaseService.where("departmentId", "==", "CDTN"),
