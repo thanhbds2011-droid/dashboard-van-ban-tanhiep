@@ -25,7 +25,7 @@ test('Người được ủy quyền không được tự duyệt đăng ký c�
 test('KPI Chi đoàn có không gian riêng, tải thành viên theo vai trò kiêm nhiệm', () => {
   assert.match(kpi, /function loadCdtnUsers\(\)/);
   assert.match(kpi, /where\('additionalRoles', 'array-contains', roleName\)/);
-  assert.match(kpi, /Không gian công việc/);
+  assert.match(kpi, /Phạm vi/);
   assert.match(kpi, /activeScopeDepartmentId\(\)/);
 });
 

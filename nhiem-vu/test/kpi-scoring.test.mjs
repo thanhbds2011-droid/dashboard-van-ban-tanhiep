@@ -1,7 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { calculateKpiSummary, calculateTaskScore } from "../kpi-engine.js";
+import {
+  calculateKpiSummary,
+  calculateTaskScore,
+  convertAppendix04Rate
+} from "../kpi-engine.js";
 import { calculateWorkItemSummary } from "../work-item-score-engine.js";
 
 test("Phụ lục 04: điểm chuẩn 10, hệ số 110%, tiến độ 100%, kết quả 80%", () => {
@@ -11,27 +15,62 @@ test("Phụ lục 04: điểm chuẩn 10, hệ số 110%, tiến độ 100%, k�
   assert.equal(score.maximum, 11);
 });
 
-test("Điểm quy đổi thực tế không vượt điểm quy đổi tối đa", () => {
-  const score = calculateTaskScore(10, 1.2, 100, 100);
-  assert.equal(score.execution, 10);
-  assert.equal(score.actual, 12);
-  assert.equal(score.maximum, 12);
+test("Tỷ lệ trung bình phải quy về bốn mức Phụ lục 04", () => {
+  assert.equal(convertAppendix04Rate(100), 100);
+  assert.equal(convertAppendix04Rate(90), 80);
+  assert.equal(convertAppendix04Rate(80), 80);
+  assert.equal(convertAppendix04Rate(70), 60);
+  assert.equal(convertAppendix04Rate(60), 60);
+  assert.equal(convertAppendix04Rate(50), 0);
 });
 
-test("Văn bản nhiều lượt tính theo N–T–K rồi mới áp dụng Phụ lục 04", () => {
+test("calculateTaskScore không dùng trực tiếp tỷ lệ trung gian 90%", () => {
+  const score = calculateTaskScore(10, 1, 90, 100);
+  assert.equal(score.rawProgressRate, 90);
+  assert.equal(score.progressRate, 80);
+  assert.equal(score.resultRate, 100);
+  assert.equal(score.execution, 9.4);
+  assert.equal(score.actual, 9.4);
+});
+
+test("Hai văn bản 100% và 80% có trung bình 90% rồi quy về 80%", () => {
   const items = [
-    { completedDateKey: "2026-07-02", deadlineDateKey: "2026-07-03", resultRate: 100 },
-    { completedDateKey: "2026-07-04", deadlineDateKey: "2026-07-04", resultRate: 80 },
-    { completedDateKey: "2026-07-05", deadlineDateKey: "2026-07-06", resultRate: 100 },
-    { completedDateKey: "2026-07-08", deadlineDateKey: "2026-07-07", resultRate: 60 },
-    { completedDateKey: "2026-07-09", deadlineDateKey: "2026-07-09", resultRate: 0 }
+    {
+      completedDateKey: "2026-07-02",
+      deadlineDateKey: "2026-07-02",
+      progressRate: 100,
+      resultRate: 100
+    },
+    {
+      completedDateKey: "2026-07-05",
+      deadlineDateKey: "2026-07-03",
+      progressRate: 80,
+      resultRate: 100
+    }
+  ];
+  const summary = calculateWorkItemSummary(items, "DOCUMENT");
+  assert.equal(summary.count, 2);
+  assert.equal(summary.actualProgressRate, 90);
+  assert.equal(summary.appliedProgressRate, 80);
+  assert.equal(summary.actualResultRate, 100);
+  assert.equal(summary.appliedResultRate, 100);
+  const score = calculateTaskScore(10, 1, summary.appliedProgressRate, summary.appliedResultRate);
+  assert.equal(score.execution, 9.4);
+  assert.equal(score.actual, 9.4);
+});
+
+test("Văn bản nhiều lượt lấy trung bình từng mức rồi quy đổi", () => {
+  const items = [
+    { completedDateKey: "2026-07-02", progressRate: 100, resultRate: 100 },
+    { completedDateKey: "2026-07-04", progressRate: 100, resultRate: 80 },
+    { completedDateKey: "2026-07-05", progressRate: 100, resultRate: 100 },
+    { completedDateKey: "2026-07-08", progressRate: 80, resultRate: 60 },
+    { completedDateKey: "2026-07-09", progressRate: 100, resultRate: 0 }
   ];
   const summary = calculateWorkItemSummary(items, "DOCUMENT");
   assert.equal(summary.count, 5);
-  assert.equal(summary.onTimeCount, 4);
-  assert.equal(summary.qualifiedCount, 3);
-  assert.equal(summary.actualProgressRate, 80);
-  assert.equal(summary.actualResultRate, 60);
+  assert.equal(summary.actualProgressRate, 96);
+  assert.equal(summary.actualResultRate, 68);
   assert.equal(summary.appliedProgressRate, 80);
   assert.equal(summary.appliedResultRate, 60);
 
@@ -40,71 +79,80 @@ test("Văn bản nhiều lượt tính theo N–T–K rồi mới áp dụng Ph�
   assert.equal(score.actual, 7.26);
 });
 
-test("Lượt chưa hoàn thành vẫn nằm trong N và không nằm trong T/K", () => {
+test("Lượt chưa hoàn thành vẫn nằm trong N và có tiến độ, kết quả 0%", () => {
   const items = [
-    { completedDateKey: "2026-07-02", deadlineDateKey: "2026-07-03", resultRate: 100 },
-    { completedDateKey: "2026-07-08", deadlineDateKey: "2026-07-07", resultRate: 80 },
-    { completedDateKey: "", deadlineDateKey: "2026-07-09", resultRate: 100 }
+    { completedDateKey: "2026-07-02", progressRate: 100, resultRate: 100 },
+    { completedDateKey: "2026-07-08", progressRate: 80, resultRate: 80 },
+    { completedDateKey: "", progressRate: 100, resultRate: 100 }
   ];
   const summary = calculateWorkItemSummary(items, "GENERIC");
   assert.equal(summary.count, 3);
   assert.equal(summary.completedCount, 2);
   assert.equal(summary.incompleteCount, 1);
-  assert.equal(summary.onTimeCount, 1);
-  assert.equal(summary.qualifiedCount, 2);
-  assert.equal(summary.actualProgressRate, 33.33);
-  assert.equal(summary.actualResultRate, 66.67);
-  assert.equal(summary.appliedProgressRate, 33.33);
-  assert.equal(summary.appliedResultRate, 66.67);
-  assert.equal(summary.readyForAssessment, true);
+  assert.equal(summary.actualProgressRate, 60);
+  assert.equal(summary.actualResultRate, 60);
+  assert.equal(summary.appliedProgressRate, 60);
+  assert.equal(summary.appliedResultRate, 60);
 });
 
-test("Điểm danh: vắng có phép và vắng mặt đều được thống kê, không tính là có mặt", () => {
-  const items = [
+test("Điểm danh N=2, T=1, K=1: 50% phải quy về 0%", () => {
+  const summary = calculateWorkItemSummary([
     { attendanceStatus: "PRESENT", resultRate: 100 },
-    { attendanceStatus: "PRESENT", resultRate: 60 },
-    { attendanceStatus: "EXCUSED", resultRate: 100 },
-    { attendanceStatus: "ABSENT", resultRate: 100 }
-  ];
-  const summary = calculateWorkItemSummary(items, "ATTENDANCE");
-  assert.equal(summary.count, 4);
-  assert.equal(summary.presentCount, 2);
-  assert.equal(summary.excusedCount, 1);
-  assert.equal(summary.absentCount, 1);
-  assert.equal(summary.onTimeCount, 2);
+    { attendanceStatus: "ABSENT", resultRate: 0 }
+  ], "ATTENDANCE");
+  assert.equal(summary.count, 2);
+  assert.equal(summary.presentCount, 1);
   assert.equal(summary.qualifiedCount, 1);
   assert.equal(summary.actualProgressRate, 50);
-  assert.equal(summary.actualResultRate, 25);
-  assert.equal(summary.appliedProgressRate, 50);
-  assert.equal(summary.appliedResultRate, 25);
-});
-
-test("Một trên hai lượt giữ nguyên 50%, không bị ép xuống 0%", () => {
-  const summary = calculateWorkItemSummary([
-    { completedDateKey: "2026-07-01", deadlineDateKey: "2026-07-01", resultRate: 100 },
-    { completedDateKey: "", deadlineDateKey: "2026-07-02", resultRate: 0 }
-  ], "DOCUMENT");
-  assert.equal(summary.actualProgressRate, 50);
   assert.equal(summary.actualResultRate, 50);
-  assert.equal(summary.appliedProgressRate, 50);
-  assert.equal(summary.appliedResultRate, 50);
+  assert.equal(summary.appliedProgressRate, 0);
+  assert.equal(summary.appliedResultRate, 0);
+  const score = calculateTaskScore(10, 1, summary.appliedProgressRate, summary.appliedResultRate);
+  assert.equal(score.actual, 0);
 });
 
-test("Sản lượng chỉ đạt K khi đạt kế hoạch và chất lượng từ 80%", () => {
+test("Điểm danh N=5, T=4, K=4: áp dụng 80%", () => {
+  const summary = calculateWorkItemSummary([
+    { attendanceStatus: "PRESENT", resultRate: 100 },
+    { attendanceStatus: "PRESENT", resultRate: 100 },
+    { attendanceStatus: "PRESENT", resultRate: 80 },
+    { attendanceStatus: "PRESENT", resultRate: 100 },
+    { attendanceStatus: "EXCUSED", resultRate: 0 }
+  ], "ATTENDANCE");
+  assert.equal(summary.actualProgressRate, 80);
+  assert.equal(summary.actualResultRate, 80);
+  assert.equal(summary.appliedProgressRate, 80);
+  assert.equal(summary.appliedResultRate, 80);
+});
+
+test("Điểm danh N=3, T=3, K=2: tiến độ 100%, kết quả 66,67% quy về 60%", () => {
+  const summary = calculateWorkItemSummary([
+    { attendanceStatus: "PRESENT", resultRate: 100 },
+    { attendanceStatus: "PRESENT", resultRate: 80 },
+    { attendanceStatus: "PRESENT", resultRate: 60 }
+  ], "ATTENDANCE");
+  assert.equal(summary.actualProgressRate, 100);
+  assert.equal(summary.actualResultRate, 66.67);
+  assert.equal(summary.appliedProgressRate, 100);
+  assert.equal(summary.appliedResultRate, 60);
+});
+
+test("Sản lượng chỉ ghi nhận kết quả khi đạt kế hoạch", () => {
   const items = [
-    { completedDateKey: "2026-07-30", deadlineDateKey: "2026-07-31", plannedQuantity: 100, actualQuantity: 110, resultRate: 100 },
-    { completedDateKey: "2026-07-31", deadlineDateKey: "2026-07-31", plannedQuantity: 80, actualQuantity: 70, resultRate: 100 },
-    { completedDateKey: "2026-08-01", deadlineDateKey: "2026-07-31", plannedQuantity: 50, actualQuantity: 50, resultRate: 80 }
+    { completedDateKey: "2026-07-30", progressRate: 100, plannedQuantity: 100, actualQuantity: 110, resultRate: 100 },
+    { completedDateKey: "2026-07-31", progressRate: 100, plannedQuantity: 80, actualQuantity: 70, resultRate: 100 },
+    { completedDateKey: "2026-08-01", progressRate: 80, plannedQuantity: 50, actualQuantity: 50, resultRate: 80 }
   ];
   const summary = calculateWorkItemSummary(items, "QUANTITY");
   assert.equal(summary.count, 3);
-  assert.equal(summary.onTimeCount, 2);
   assert.equal(summary.qualifiedCount, 2);
   assert.equal(summary.totalPlannedQuantity, 230);
   assert.equal(summary.totalActualQuantity, 230);
+  assert.equal(summary.actualResultRate, 60);
+  assert.equal(summary.appliedResultRate, 60);
 });
 
-test("KPI công việc cộng điểm quy đổi thực tế B và trả null khi A bằng 0", () => {
+test("KPI công việc cộng B và trả null khi A bằng 0", () => {
   const regular = calculateKpiSummary([
     { active: true, includedInA: true, planApprovalStatus: "APPROVED", maximumConvertedScore: 10, recognized: true, confirmedActualScore: 8.6 },
     { active: true, includedInA: true, planApprovalStatus: "APPROVED", maximumConvertedScore: 11, recognized: true, confirmedActualScore: 9.46 }
@@ -119,8 +167,7 @@ test("KPI công việc cộng điểm quy đổi thực tế B và trả null kh
   assert.equal(noBasis.total100, null);
 });
 
-
-test("Nhiệm vụ miễn đánh giá do điều động không tham gia A, B hoặc mẫu số KPI", () => {
+test("Nhiệm vụ miễn đánh giá không tham gia A, B hoặc mẫu số KPI", () => {
   const summary = calculateKpiSummary([
     {
       active: true,

@@ -17,6 +17,7 @@ const detail = read('modules/tasks/task-detail-modal.js');
 const tasksView = read('modules/tasks/tasks-view.js');
 const dashboard = read('modules/dashboard/dashboard-view.js');
 const attendance = read('services/cdtn-attendance-service.js');
+const permissions = read('core/permissions.js');
 
 
 test('STAFF chỉ truy vấn đầu việc cốt lõi, không lấy đầu việc quản lý', () => {
@@ -26,27 +27,31 @@ test('STAFF chỉ truy vấn đầu việc cốt lõi, không lấy đầu việ
   assert.match(rules, /data\.isManagementTask != true/);
 });
 
-test('Danh mục Phòng\/Khu và Chi đoàn được tách thành workspace độc lập', () => {
+test('Danh mục Phòng\/Khu và Chi đoàn được tách độc lập', () => {
   assert.match(standardRead, /workspaceId\(item/);
   assert.match(standardRead, /=== "CDTN" \? "CDTN"/);
   assert.match(registration, /getWorkspacePlans/);
   assert.match(registration, /organizationId: workspaceId === "CDTN" \? "CDTN" : ""/);
 });
 
-test('Trưởng phòng, Ban Giám đốc và Bí thư được duyệt đăng ký của mình ngay', () => {
-  assert.match(registration, /Permissions\.isCdtnSecretary\(\)/);
+test('Trưởng phòng, Ban Giám đốc, Bí thư và Phó Bí thư được duyệt đăng ký của mình ngay', () => {
+  assert.match(registration, /Permissions\.isCdtnLeadership\(\)/);
   assert.match(registration, /Permissions\.isDepartmentHead\(user\)/);
   assert.match(registration, /Permissions\.isDirector\(\) && workspaceId === "BGD"/);
   assert.match(registration, /autoApproved: autoApprove/);
+  assert.match(permissions, /isCdtnLeadership\(\)/);
+  assert.match(rules, /function isCdtnLeadership\(\)/);
 });
 
-test('Bí thư có thể ủy quyền duyệt và điểm danh Chi đoàn', () => {
+test('Bí thư và Phó Bí thư ngang quyền ủy quyền duyệt, điểm danh và báo cáo Chi đoàn', () => {
   assert.match(registration, /CDTN_APPROVAL_ACTIVE/);
-  assert.match(registration, /Chỉ Bí thư Chi đoàn được ủy quyền duyệt/);
+  assert.match(registration, /Chỉ Bí thư hoặc Phó Bí thư Chi đoàn được ủy quyền duyệt/);
   assert.match(attendance, /CDTN_ATTENDANCE_ACTIVE/);
-  assert.match(attendance, /Chỉ Bí thư được ủy quyền điểm danh/);
+  assert.match(attendance, /Chỉ Bí thư hoặc Phó Bí thư được ủy quyền điểm danh/);
+  assert.match(rules, /isCdtnLeadership\(\)/);
   assert.match(rules, /hasActiveCdtnApprovalDelegation/);
   assert.match(rules, /hasActiveCdtnAttendanceDelegation/);
+  assert.match(permissions, /canViewCdtnAggregateReport/);
 });
 
 test('Mã thường xuyên và đột xuất dùng hai định dạng chuẩn độc lập', () => {
@@ -67,7 +72,7 @@ test('Ban Giám đốc và phạm vi toàn Trung tâm có bộ lọc Phòng\/Khu
   assert.match(dashboard, /dashboardDepartmentFilter/);
   assert.match(dashboard, /dashboardDepartmentBreakdown/);
   assert.match(kpi, /kpiDepartmentScope/);
-  assert.match(kpi, /Phạm vi Phòng\/Khu/);
+  assert.match(kpi, /Phạm vi/);
 });
 
 test('Xác nhận KPI được thu gọn theo nhân viên và hỗ trợ chọn nhiều nhiệm vụ', () => {
@@ -75,6 +80,20 @@ test('Xác nhận KPI được thu gọn theo nhân viên và hỗ trợ chọn 
   assert.match(kpi, /data-kpi-confirm-check/);
   assert.match(kpi, /batchConfirmEvaluations/);
   assert.match(kpi, /Xác nhận mục đã chọn/);
+});
+
+test('Báo cáo và Mẫu 01 lọc chính xác theo Phòng\/Khu hoặc Chi đoàn', () => {
+  assert.match(kpi, /normalizeDepartment\(t\.primaryDepartmentId\) === reportDepartmentId/);
+  assert.match(kpi, /Báo cáo cá nhân Chi đoàn/);
+  assert.match(kpi, /BÁO CÁO CÁ NHÂN – \$\{departmentDisplayName\(reportDepartmentId\)\.toUpperCase\(\)\}/);
+  assert.match(kpi, /exportReportCsv\(mine, s, reportDepartmentId\)/);
+});
+
+test('Lời chào hiển thị Đồng chí, đơn vị đầy đủ và vai trò kiêm nhiệm', () => {
+  assert.match(dashboard, /Đồng chí \$\{escapeHtml\(user\.fullName/);
+  assert.match(dashboard, /professionalLine\(user\)/);
+  assert.match(dashboard, /Bí thư Chi đoàn/);
+  assert.match(dashboard, /Phó Bí thư Chi đoàn/);
 });
 
 test('Hồ sơ KPI cá nhân có thể đọc ngay cả khi document chưa tồn tại', () => {
