@@ -1,18 +1,18 @@
 /** Ứng dụng quản lý nhiệm vụ và đánh giá KPI. */
 import { Router } from "./core/router.js";
-import { AuthService } from "./core/auth-service.js?v=20260802.V1_6_0";
-import { Permissions } from "./core/permissions.js?v=20260802.V1_6_0";
+import { AuthService } from "./core/auth-service.js?v=20260803.V1_7_0";
+import { Permissions } from "./core/permissions.js?v=20260803.V1_7_0";
 import { ToastService } from "./core/toast-service.js";
 import { FirebaseService } from "./core/firebase-service.js";
 
-import { renderDashboardView } from "./modules/dashboard/dashboard-view.js?v=20260802.V1_6_0";
-import { renderTasksView } from "./modules/tasks/tasks-view.js?v=20260802.V1_6_0";
-import { renderStandardTasksView } from "./modules/standard-tasks/standard-tasks-view.js?v=20260802.V1_6_0";
-import { renderPeriodsView } from "./modules/periods/periods-view.js?v=20260802.V1_6_0";
-import { renderPlansView } from "./modules/plans/plans-view.js?v=20260802.V1_6_0";
-import { renderEvaluationsView } from "./modules/evaluations/evaluations-view.js?v=20260802.V1_6_0";
-import { renderReportsView } from "./modules/reports/reports-view.js?v=20260802.V1_6_0";
-import { renderAdminView } from "./modules/admin/admin-view.js?v=20260802.V1_6_0";
+import { renderDashboardView } from "./modules/dashboard/dashboard-view.js?v=20260803.V1_7_0";
+import { renderTasksView } from "./modules/tasks/tasks-view.js?v=20260803.V1_7_0";
+import { renderStandardTasksView } from "./modules/standard-tasks/standard-tasks-view.js?v=20260803.V1_7_0";
+import { renderPeriodsView } from "./modules/periods/periods-view.js?v=20260803.V1_7_0";
+import { renderPlansView } from "./modules/plans/plans-view.js?v=20260803.V1_7_0";
+import { renderEvaluationsView } from "./modules/evaluations/evaluations-view.js?v=20260803.V1_7_0";
+import { renderReportsView } from "./modules/reports/reports-view.js?v=20260803.V1_7_0";
+import { renderAdminView } from "./modules/admin/admin-view.js?v=20260803.V1_7_0";
 
 async function bootstrap() {
   const outlet = document.getElementById("appOutlet");
@@ -55,7 +55,7 @@ function setLoadingStatus(text) {
 function renderCurrentUser(user) {
   const userInfo = document.getElementById("currentUserInfo");
   if (!userInfo) return;
-  userInfo.innerHTML = `<strong>${escapeHtml(user.fullName || "Người dùng")}</strong><span>${escapeHtml(user.position || formatRole(user.role))}${user.departmentId ? ` • ${escapeHtml(user.departmentId)}` : ""}</span>`;
+  userInfo.innerHTML = `<strong>${escapeHtml(user.fullName || "Người dùng")}</strong><span>${escapeHtml(currentUserSubtitle(user))}</span>`;
   const avatar = document.getElementById("currentUserAvatar");
   if (avatar) avatar.textContent = getInitials(user.fullName || user.email);
 }
@@ -150,6 +150,20 @@ function initializePushNotifications(user) {
       console.warn("Chưa đồng bộ được thông báo đẩy:", error);
     }
   }, 0);
+}
+
+function currentUserSubtitle(user) {
+  const departments = {
+    BGD: "Ban Giám đốc", TCHC: "Phòng Tổ chức – Hành chính", CTXH: "Phòng Công tác xã hội",
+    KHTC: "Phòng Kế hoạch – Tài chính", YT: "Phòng Y tế", KI: "Khu I", KII: "Khu II", KIII: "Khu III"
+  };
+  const additional = {
+    CDTN_BI_THU: "Bí thư Chi đoàn", CDTN_PHO_BI_THU: "Phó Bí thư Chi đoàn",
+    CDTN_UY_VIEN_BCH: "Ủy viên BCH Chi đoàn", CDTN_DOAN_VIEN: "Đoàn viên Chi đoàn"
+  };
+  const base = `${user.position || formatRole(user.role)} ${departments[user.departmentId] || user.departmentId || ""}`.trim();
+  const labels = (user.additionalRoles || []).map(role => additional[String(role || "").toUpperCase()]).filter(Boolean);
+  return labels.length ? `${base}, ${labels.join(", ")}` : base;
 }
 
 function formatRole(role) {

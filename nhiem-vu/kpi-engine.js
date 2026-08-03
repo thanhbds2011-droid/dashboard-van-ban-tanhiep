@@ -39,6 +39,14 @@ export function round2(value) {
   return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 }
 
+export function convertAppendix04Rate(value) {
+  const rate = clampRate(value);
+  if (rate >= 100) return 100;
+  if (rate >= 80) return 80;
+  if (rate >= 60) return 60;
+  return 0;
+}
+
 export function normalizeDifficultyCoefficient(value) {
   const number = Number(value);
   if (!Number.isFinite(number) || number <= 0) return 0;
@@ -54,8 +62,10 @@ export function normalizeDifficultyCoefficient(value) {
 export function calculateTaskScore(baseScore, coefficient, progressRate, resultRate) {
   const base = Math.max(0, Number(baseScore || 0));
   const coef = normalizeDifficultyCoefficient(coefficient);
-  const normalizedProgressRate = clampRate(progressRate);
-  const normalizedResultRate = clampRate(resultRate);
+  const rawProgressRate = clampRate(progressRate);
+  const rawResultRate = clampRate(resultRate);
+  const normalizedProgressRate = convertAppendix04Rate(rawProgressRate);
+  const normalizedResultRate = convertAppendix04Rate(rawResultRate);
   const progress = normalizedProgressRate / 100;
   const result = normalizedResultRate / 100;
 
@@ -68,6 +78,8 @@ export function calculateTaskScore(baseScore, coefficient, progressRate, resultR
   return {
     baseScore: base,
     coefficient: coef,
+    rawProgressRate,
+    rawResultRate,
     progressRate: normalizedProgressRate,
     resultRate: normalizedResultRate,
     maximum,

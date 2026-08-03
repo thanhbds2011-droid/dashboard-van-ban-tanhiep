@@ -646,7 +646,7 @@ button,input,select,textarea{font-size:16px}
 }
 
 
-/* Production V1.6.0 - chẩn đoán quản trị */
+/* Production V1.7.0 - chẩn đoán quản trị */
 .admin-action-card.warning { border-color:#d69e2e; background:#fffaf0; }
 .admin-action-card:disabled { opacity:.58; cursor:not-allowed; }
 .admin-diagnostic-table { margin-top:18px; overflow:auto; border:1px solid #d8e5ef; border-radius:12px; }
@@ -661,7 +661,7 @@ button,input,select,textarea{font-size:16px}
 .admin-log-list article { display:grid; gap:3px; padding:10px 12px; border:1px solid #d8e5ef; border-radius:10px; }
 .admin-log-list span,.admin-log-list small { color:#52677a; }
 
-/* ===== Production V1.6.0 — Điều chỉnh và miễn đánh giá nhiệm vụ ===== */
+/* ===== Production V1.7.0 — Điều chỉnh và miễn đánh giá nhiệm vụ ===== */
 .task-adjustment-section { display:grid; gap:12px; }
 .adjustment-history { display:grid; gap:12px; }
 .adjustment-card {
@@ -720,7 +720,7 @@ button,input,select,textarea{font-size:16px}
   .task-adjustment-section .detail-section-heading > button { width:100%; }
 }
 
-/* ===== Production V1.6.0 — Không gian công việc, khung cuộn và chi tiết 5 tab ===== */
+/* ===== Production V1.7.0 — Phạm vi dữ liệu, khung cuộn và chi tiết 5 tab ===== */
 .standard-task-workspace {
   border: 1px solid var(--border, #d7e2ec);
   border-radius: 16px;
@@ -806,7 +806,7 @@ button,input,select,textarea{font-size:16px}
   .task-detail-tab { padding: 8px 10px; font-size: .86rem; }
 }
 
-/* ===== Production V1.6.0 — Dashboard Ban Giám đốc theo Phòng/Khu ===== */
+/* ===== Production V1.7.0 — Dashboard Ban Giám đốc theo Phòng/Khu ===== */
 .dashboard-header-actions { display:flex; align-items:flex-end; gap:8px; flex-wrap:wrap; }
 .dashboard-department-filter { display:grid; gap:4px; min-width:210px; }
 .dashboard-department-filter span { color:#5e7182; font-size:.78rem; font-weight:700; }

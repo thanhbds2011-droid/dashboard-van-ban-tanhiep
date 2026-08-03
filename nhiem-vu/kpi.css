@@ -1,6 +1,6 @@
 /* =========================================================
  * PHÂN HỆ KPI
- * Bản 20260802.V1_6_0
+ * Bản 20260803.V1_7_0
  * ========================================================= */
 
 .kpi-section {
@@ -1508,7 +1508,7 @@
   }
 }
 
-/* ===== Production V1.6.0 — Lọc phạm vi và xác nhận KPI theo nhân viên ===== */
+/* ===== Production V1.7.0 — Lọc phạm vi và xác nhận KPI theo nhân viên ===== */
 .kpi-scope-filter {
   display: inline-flex;
   align-items: center;
