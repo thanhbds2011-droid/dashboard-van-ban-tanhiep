@@ -1,18 +1,18 @@
 /** Ứng dụng quản lý nhiệm vụ và đánh giá KPI. */
 import { Router } from "./core/router.js";
-import { AuthService } from "./core/auth-service.js?v=20260803.V1_7_0";
-import { Permissions } from "./core/permissions.js?v=20260803.V1_7_0";
+import { AuthService } from "./core/auth-service.js?v=20260803.V1_7_1";
+import { Permissions } from "./core/permissions.js?v=20260803.V1_7_1";
 import { ToastService } from "./core/toast-service.js";
 import { FirebaseService } from "./core/firebase-service.js";
 
-import { renderDashboardView } from "./modules/dashboard/dashboard-view.js?v=20260803.V1_7_0";
-import { renderTasksView } from "./modules/tasks/tasks-view.js?v=20260803.V1_7_0";
-import { renderStandardTasksView } from "./modules/standard-tasks/standard-tasks-view.js?v=20260803.V1_7_0";
-import { renderPeriodsView } from "./modules/periods/periods-view.js?v=20260803.V1_7_0";
-import { renderPlansView } from "./modules/plans/plans-view.js?v=20260803.V1_7_0";
-import { renderEvaluationsView } from "./modules/evaluations/evaluations-view.js?v=20260803.V1_7_0";
-import { renderReportsView } from "./modules/reports/reports-view.js?v=20260803.V1_7_0";
-import { renderAdminView } from "./modules/admin/admin-view.js?v=20260803.V1_7_0";
+import { renderDashboardView } from "./modules/dashboard/dashboard-view.js?v=20260803.V1_7_1";
+import { renderTasksView } from "./modules/tasks/tasks-view.js?v=20260803.V1_7_1";
+import { renderStandardTasksView } from "./modules/standard-tasks/standard-tasks-view.js?v=20260803.V1_7_1";
+import { renderPeriodsView } from "./modules/periods/periods-view.js?v=20260803.V1_7_1";
+import { renderPlansView } from "./modules/plans/plans-view.js?v=20260803.V1_7_1";
+import { renderEvaluationsView } from "./modules/evaluations/evaluations-view.js?v=20260803.V1_7_1";
+import { renderReportsView } from "./modules/reports/reports-view.js?v=20260803.V1_7_1";
+import { renderAdminView } from "./modules/admin/admin-view.js?v=20260803.V1_7_1";
 
 async function bootstrap() {
   const outlet = document.getElementById("appOutlet");
@@ -167,7 +167,7 @@ function currentUserSubtitle(user) {
 }
 
 function formatRole(role) {
-  return ({ ADMIN: "Quản trị viên", DIRECTOR: "Ban Giám đốc", DEPARTMENT_LEADER: "Trưởng/Phó phòng, khu", TCHC_COORDINATOR: "Đầu mối TCHC", STAFF: "Viên chức, người lao động" })[String(role || "").toUpperCase()] || role || "Người dùng";
+  return ({ ADMIN: "Quản trị viên", DIRECTOR: "Ban Giám đốc", DEPARTMENT_LEADER: "Trưởng/Phó phòng, khu", TCHC_COORDINATOR: "Đầu mối TCHC", STAFF: "Viên chức" })[String(role || "").toUpperCase()] || role || "Người dùng";
 }
 function getInitials(value) {
   return String(value || "ND").trim().split(/\s+/).slice(-2).map(item => item[0] || "").join("").toUpperCase();

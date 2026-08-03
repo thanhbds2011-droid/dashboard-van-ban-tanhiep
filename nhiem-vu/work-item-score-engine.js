@@ -1,7 +1,7 @@
 /**
  * Bộ tính điểm cho đầu việc có nhiều văn bản/lượt và hoạt động điểm danh.
  *
- * Quy tắc nghiệp vụ Production V1.7.0:
+ * Quy tắc nghiệp vụ Production V1.7.1:
  * - Mỗi văn bản/lượt được chấm riêng ở bốn mức 100/80/60/0.
  * - Với văn bản/lượt thông thường: lấy trung bình chính xác từng mức, sau đó
  *   quy trung bình về thang Phụ lục 04: 100; 80–<100 => 80; 60–<80 => 60; <60 => 0.

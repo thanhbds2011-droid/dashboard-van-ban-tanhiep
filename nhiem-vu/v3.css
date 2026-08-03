@@ -646,7 +646,7 @@ button,input,select,textarea{font-size:16px}
 }
 
 
-/* Production V1.7.0 - chẩn đoán quản trị */
+/* Production V1.7.1 - chẩn đoán quản trị */
 .admin-action-card.warning { border-color:#d69e2e; background:#fffaf0; }
 .admin-action-card:disabled { opacity:.58; cursor:not-allowed; }
 .admin-diagnostic-table { margin-top:18px; overflow:auto; border:1px solid #d8e5ef; border-radius:12px; }
@@ -661,7 +661,7 @@ button,input,select,textarea{font-size:16px}
 .admin-log-list article { display:grid; gap:3px; padding:10px 12px; border:1px solid #d8e5ef; border-radius:10px; }
 .admin-log-list span,.admin-log-list small { color:#52677a; }
 
-/* ===== Production V1.7.0 — Điều chỉnh và miễn đánh giá nhiệm vụ ===== */
+/* ===== Production V1.7.1 — Điều chỉnh và miễn đánh giá nhiệm vụ ===== */
 .task-adjustment-section { display:grid; gap:12px; }
 .adjustment-history { display:grid; gap:12px; }
 .adjustment-card {
@@ -720,7 +720,7 @@ button,input,select,textarea{font-size:16px}
   .task-adjustment-section .detail-section-heading > button { width:100%; }
 }
 
-/* ===== Production V1.7.0 — Phạm vi dữ liệu, khung cuộn và chi tiết 5 tab ===== */
+/* ===== Production V1.7.1 — Phạm vi dữ liệu, khung cuộn và chi tiết 5 tab ===== */
 .standard-task-workspace {
   border: 1px solid var(--border, #d7e2ec);
   border-radius: 16px;
@@ -806,7 +806,7 @@ button,input,select,textarea{font-size:16px}
   .task-detail-tab { padding: 8px 10px; font-size: .86rem; }
 }
 
-/* ===== Production V1.7.0 — Dashboard Ban Giám đốc theo Phòng/Khu ===== */
+/* ===== Production V1.7.1 — Dashboard Ban Giám đốc theo Phòng/Khu ===== */
 .dashboard-header-actions { display:flex; align-items:flex-end; gap:8px; flex-wrap:wrap; }
 .dashboard-department-filter { display:grid; gap:4px; min-width:210px; }
 .dashboard-department-filter span { color:#5e7182; font-size:.78rem; font-weight:700; }
@@ -820,3 +820,61 @@ button,input,select,textarea{font-size:16px}
 .dashboard-department-card span { color:#0f6b9b; font-weight:800; }
 .dashboard-department-card small { color:#647887; line-height:1.4; }
 @media (max-width:700px) { .dashboard-header-actions,.dashboard-department-filter { width:100%; } .dashboard-header-actions button { width:100%; } }
+
+
+/* ===== Production V1.7.1 — Dashboard gọn và thanh công cụ đồng hàng ===== */
+.compact-sync-button {
+  width: 42px;
+  min-width: 42px;
+  height: 42px;
+  padding: 0;
+  border: 1px solid #0f6b9b;
+  background: #fff;
+  color: #0f6b9b;
+  font-size: 20px;
+  line-height: 1;
+}
+.compact-sync-button:hover { background: #edf7fb; }
+.dashboard-period-inline {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 7px 12px;
+  margin: 2px 0 12px;
+  padding: 8px 12px;
+  border-left: 4px solid #8066c8;
+  background: #f6f3ff;
+  border-radius: 8px;
+}
+.dashboard-period-inline span { color: #5f6f7c; font-size: 12px; font-weight: 700; }
+.dashboard-period-inline strong { color: #172e43; font-size: 16px; }
+.dashboard-period-inline small { color: #6f63a8; font-weight: 700; }
+.dashboard-summary-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 9px; }
+.dashboard-summary-grid .summary-card { min-height: 88px; padding: 12px 13px; }
+.dashboard-summary-grid .summary-card span { margin-bottom: 5px; line-height: 1.35; }
+.dashboard-summary-grid .summary-card strong { font-size: 20px; }
+.dashboard-summary-grid .summary-card small { margin-top: 4px; line-height: 1.3; }
+.tasks-toolbar-compact {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(170px, auto) minmax(170px, auto) 42px;
+  align-items: end;
+  gap: 10px;
+}
+.tasks-toolbar-compact .field-grow { min-width: 0; }
+.tasks-toolbar-compact label { min-width: 0; }
+.tasks-toolbar-compact input,
+.tasks-toolbar-compact select { width: 100%; }
+@media (max-width: 1050px) {
+  .dashboard-summary-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 780px) {
+  .tasks-toolbar-compact { grid-template-columns: minmax(0, 1fr) minmax(150px, .7fr) 42px; }
+  .tasks-toolbar-compact .field-grow { grid-column: 1 / -1; }
+  .dashboard-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 520px) {
+  .dashboard-summary-grid { grid-template-columns: 1fr; }
+  .tasks-toolbar-compact { grid-template-columns: minmax(0, 1fr) 42px; }
+  .tasks-toolbar-compact label:not(.field-grow) { grid-column: 1; }
+  .tasks-toolbar-compact .compact-sync-button { grid-column: 2; grid-row: 3; }
+}

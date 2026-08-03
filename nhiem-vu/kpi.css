@@ -1,6 +1,6 @@
 /* =========================================================
  * PHÂN HỆ KPI
- * Bản 20260803.V1_7_0
+ * Bản 20260803.V1_7_1
  * ========================================================= */
 
 .kpi-section {
@@ -1508,7 +1508,7 @@
   }
 }
 
-/* ===== Production V1.7.0 — Lọc phạm vi và xác nhận KPI theo nhân viên ===== */
+/* ===== Production V1.7.1 — Lọc phạm vi và xác nhận KPI theo nhân viên ===== */
 .kpi-scope-filter {
   display: inline-flex;
   align-items: center;
@@ -1586,3 +1586,16 @@
   .kpi-review-tasks-toolbar { align-items: flex-start; flex-direction: column; }
   .kpi-scope-filter { width: 100%; justify-content: space-between; }
 }
+
+
+/* ===== Production V1.7.1 — Nút đồng bộ gọn và báo cáo không lặp thao tác ===== */
+.kpi-icon-sync {
+  width: 42px;
+  min-width: 42px;
+  height: 42px;
+  padding: 0;
+  font-size: 20px;
+  line-height: 1;
+}
+.kpi-section[data-kpi-mode="reports"] .kpi-header { align-items: center; }
+.kpi-section[data-kpi-mode="reports"] .kpi-header .kpi-actions { align-self: center; }
