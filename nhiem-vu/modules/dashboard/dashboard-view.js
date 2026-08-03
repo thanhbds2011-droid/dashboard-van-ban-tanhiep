@@ -1,8 +1,8 @@
 import { UserContext } from "../../core/user-context.js";
 import { Permissions } from "../../core/permissions.js";
 import { ToastService } from "../../core/toast-service.js";
-import { DashboardReadService } from "../../services/dashboard-read-service.js?v=20260803.V1_7_0";
-import { TaskReadService } from "../../services/task-read-service.js?v=20260803.V1_7_0";
+import { DashboardReadService } from "../../services/dashboard-read-service.js?v=20260803.V1_7_1";
+import { TaskReadService } from "../../services/task-read-service.js?v=20260803.V1_7_1";
 let currentData = null;
 let dashboardRenderSequence = 0;
 let dashboardDepartmentScope = "ALL";
@@ -55,16 +55,16 @@ export async function renderDashboardView(outlet) {
 function mountDashboard(outlet, user) {
   outlet.innerHTML = `
     <section class="page-card">
-      <div class="page-header"><div><h2>Tổng quan</h2><p>Theo dõi nhiệm vụ và kỳ đánh giá theo phạm vi tài khoản.</p></div><div class="dashboard-header-actions">${Permissions.canViewAllDepartments() ? '<label class="dashboard-department-filter"><span>Phòng/Khu</span><select id="dashboardDepartmentFilter"><option value="ALL">Toàn Trung tâm</option></select></label>' : ''}<button id="btnDashboardRefresh" class="secondary-button" type="button">↻ Cập nhật</button></div></div>
+      <div class="page-header"><div><h2>Tổng quan</h2><p>Theo dõi nhiệm vụ và kỳ đánh giá theo phạm vi tài khoản.</p></div><div class="dashboard-header-actions">${Permissions.canViewAllDepartments() ? '<label class="dashboard-department-filter"><span>Phòng/Khu</span><select id="dashboardDepartmentFilter"><option value="ALL">Toàn Trung tâm</option></select></label>' : ''}<button id="btnDashboardRefresh" class="secondary-button compact-sync-button" type="button" title="Cập nhật dữ liệu" aria-label="Cập nhật dữ liệu">↻</button></div></div>
       <section class="welcome-panel"><div><span class="welcome-label">Xin chào</span><h3>Đồng chí ${escapeHtml(user.fullName || "Người dùng")}</h3><p>${escapeHtml(professionalLine(user))}</p></div><span class="role-badge">${escapeHtml(formatRole(user.role))}</span></section>
-      <div class="summary-grid">
-        ${metric("Nhiệm vụ đang xử lý", 0, "Nhiệm vụ đang thực hiện", "blue", "dashboardInProgress")}
-        ${metric("Sắp đến hạn", 0, "Trong 72 giờ tới", "amber", "dashboardDueSoon")}
-        ${metric("Trễ hạn", 0, "Chưa hoàn thành và quá hạn", "red", "dashboardOverdue")}
-        ${metric("Hoàn thành", 0, "Theo phạm vi được phép xem", "green", "dashboardCompleted")}
-        ${metric("Chờ duyệt điều chỉnh", 0, "Đề nghị của nhân sự đang chờ xử lý", "amber", "dashboardAdjustmentPending")}
-        ${metric("Miễn đánh giá", 0, "Không tính 0 và không đưa vào mẫu số KPI", "violet", "dashboardExempt")}
-        ${metric("Kỳ KPI hiện tại", "—", "Chưa có kỳ hoạt động", "violet", "dashboardPeriod", "dashboardPeriodNote")}
+      <div class="dashboard-period-inline"><span>Kỳ KPI hiện tại</span><strong id="dashboardPeriod">—</strong><small id="dashboardPeriodNote">Chưa có kỳ hoạt động</small></div>
+      <div class="summary-grid dashboard-summary-grid">
+        ${metric("Nhiệm vụ đang xử lý", 0, "Đang thực hiện", "blue", "dashboardInProgress")}
+        ${metric("Sắp đến hạn", 0, "Trong 72 giờ", "amber", "dashboardDueSoon")}
+        ${metric("Trễ hạn", 0, "Đã quá hạn", "red", "dashboardOverdue")}
+        ${metric("Hoàn thành", 0, "Trong phạm vi", "green", "dashboardCompleted")}
+        ${metric("Chờ duyệt điều chỉnh", 0, "Đang chờ xử lý", "amber", "dashboardAdjustmentPending")}
+        ${metric("Miễn đánh giá", 0, "Không tính KPI", "violet", "dashboardExempt")}
       </div>
       ${Permissions.canViewAllDepartments() ? '<section class="dashboard-department-overview"><div class="section-heading"><div><h3>Theo dõi theo Phòng/Khu</h3><p>Chọn Phòng/Khu ở phía trên hoặc xem nhanh số nhiệm vụ theo từng đơn vị.</p></div></div><div id="dashboardDepartmentBreakdown" class="dashboard-department-grid"></div></section>' : ''}
       <section class="dashboard-grid">
@@ -164,5 +164,5 @@ function metric(label,value,note,tone,id,noteId=""){return `<article class="summ
 function quick(href,icon,title,note){return `<a class="quick-action-card" href="${href}"><span class="quick-icon">${icon}</span><span><strong>${title}</strong><small>${note}</small></span><b>→</b></a>`;}
 function status(label,value,type){return `<div><dt>${label}</dt><dd class="status-${type}">${value}</dd></div>`;}
 function formatPeriodStatus(status){return ({DRAFT:"Dự thảo",OPEN:"Đang mở",IN_PROGRESS:"Đang thực hiện",ASSESSMENT:"Đang đánh giá",REPORTING:"Đang báo cáo",COMPLETED:"Hoàn tất"})[status] || status || "Chưa xác định";}
-function formatRole(role){return ({ADMIN:"Quản trị viên",DIRECTOR:"Ban Giám đốc",DEPARTMENT_LEADER:"Trưởng/Phó phòng, khu",TCHC_COORDINATOR:"Đầu mối TCHC",STAFF:"Viên chức, người lao động"})[String(role||"").toUpperCase()] || role || "Người dùng";}
+function formatRole(role){return ({ADMIN:"Quản trị viên",DIRECTOR:"Ban Giám đốc",DEPARTMENT_LEADER:"Trưởng/Phó phòng, khu",TCHC_COORDINATOR:"Đầu mối TCHC",STAFF:"Viên chức"})[String(role||"").toUpperCase()] || role || "Người dùng";}
 function escapeHtml(value){return String(value??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");}
