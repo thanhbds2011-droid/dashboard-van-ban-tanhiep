@@ -1,10 +1,10 @@
 import { UserContext } from "../../core/user-context.js";
-import { Permissions } from "../../core/permissions.js?v=20260802.V1_6_0";
+import { Permissions } from "../../core/permissions.js?v=20260803.V1_7_0";
 import { ToastService } from "../../core/toast-service.js";
-import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260802.V1_6_0";
-import { PeriodReadService } from "../../services/period-read-service.js?v=20260802.V1_6_0";
-import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260802.V1_6_0";
-import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260802.V1_6_0";
+import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260803.V1_7_0";
+import { PeriodReadService } from "../../services/period-read-service.js?v=20260803.V1_7_0";
+import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260803.V1_7_0";
+import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260803.V1_7_0";
 
 let currentCatalogAccess = { canManage: false, manageableDepartmentIds: [] };
 
@@ -56,7 +56,7 @@ export async function renderStandardTasksView(outlet) {
         <div class="standard-task-header-actions">
           ${catalogAccess.canManage ? '<button id="btnAddStandardTask" class="primary-button" type="button">＋ Thêm đầu việc</button>' : ""}
           ${catalogAccess.isDepartmentHead ? '<button id="btnDelegateCatalogEditor" class="secondary-button" type="button">👤 Ủy quyền nhập danh mục</button>' : ""}
-          ${Permissions.isCdtnSecretary() ? '<button id="btnDelegateCdtnApproval" class="secondary-button" type="button">👥 Ủy quyền duyệt Chi đoàn</button>' : ""}
+          ${Permissions.isCdtnLeadership() ? '<button id="btnDelegateCdtnApproval" class="secondary-button" type="button">👥 Ủy quyền duyệt Chi đoàn</button>' : ""}
           <button id="btnStandardRefresh" class="secondary-button" type="button">↻ Cập nhật</button>
         </div>
       </div>
@@ -189,7 +189,7 @@ export async function renderStandardTasksView(outlet) {
         listContainer.innerHTML = groups.length
           ? groups.map(group => `<section class="standard-task-workspace" data-workspace="${escapeHtml(group.workspaceId)}">
               <header class="standard-task-workspace-head">
-                <div><span class="page-eyebrow">${group.workspaceId === "CDTN" ? "Không gian kiêm nhiệm" : "Không gian chuyên môn"}</span><h3>${escapeHtml(workspaceName(group.workspaceId))}</h3><p>${group.workspaceId === "CDTN" ? "Danh mục, duyệt và điểm danh Chi đoàn được quản lý độc lập với Phòng/Khu." : "Danh mục công việc thuộc đơn vị công tác chính."}</p></div>
+                <div><span class="page-eyebrow">${group.workspaceId === "CDTN" ? "Chi đoàn" : "Phòng/Khu"}</span><h3>${escapeHtml(workspaceName(group.workspaceId))}</h3><p>${group.workspaceId === "CDTN" ? "Đầu việc và đăng ký thuộc Chi đoàn." : "Đầu việc và đăng ký thuộc Phòng/Khu."}</p></div>
                 <span class="status-pill ${workspacePlans[group.workspaceId]?.locked === true ? "warning" : "success"}">${workspacePlans[group.workspaceId]?.locked === true ? "Đã khóa đăng ký" : "Đang mở đăng ký"}</span>
               </header>
               ${renderRegistrationWorkspace(group.items, registeredMap, workspacePlans[group.workspaceId]?.locked !== true, catalogAccess.canManage, approvedCancellationMap)}
@@ -482,7 +482,7 @@ async function openTaskEditor(item) {
         <label class="standard-task-check"><input id="catalogTaskManagement" type="checkbox" ${currentManagement ? "checked" : ""}><span><strong>Chỉ dành cho lãnh đạo, quản lý</strong><small>Chỉ Trưởng/Phó phòng hoặc Ban Giám đốc nhìn thấy để đăng ký.</small></span></label>
       </div>
       <label id="catalogCdtnAudienceField" class="kpi-field full hidden"><span>Đối tượng Chi đoàn</span><select id="catalogTaskCdtnAudience">
-        <option value="CDTN_SECRETARY" ${currentAudience === "CDTN_SECRETARY" ? "selected" : ""}>Bí thư Chi đoàn</option>
+        <option value="CDTN_SECRETARY" ${currentAudience === "CDTN_SECRETARY" ? "selected" : ""}>Bí thư/Phó Bí thư</option>
         <option value="CDTN_EXECUTIVE" ${currentAudience === "CDTN_EXECUTIVE" ? "selected" : ""}>Ban Chấp hành Chi đoàn</option>
         <option value="CDTN_MEMBER" ${currentAudience === "CDTN_MEMBER" ? "selected" : ""}>Đoàn viên Chi đoàn</option>
       </select><small class="field-help">Danh mục này được lọc theo vai trò kiêm nhiệm trong hồ sơ tài khoản, không làm thay đổi Phòng/Khu công tác chính.</small></label>
@@ -627,7 +627,7 @@ function audienceBadge(item) {
   const labels = {
     ALL_DEPARTMENT: ["Toàn Phòng/Khu", "neutral"],
     MANAGEMENT: ["Lãnh đạo, quản lý", "info"],
-    CDTN_SECRETARY: ["Bí thư Chi đoàn", "info"],
+    CDTN_SECRETARY: ["Bí thư/Phó Bí thư", "info"],
     CDTN_EXECUTIVE: ["Ban Chấp hành", "info"],
     CDTN_MEMBER: ["Đoàn viên", "neutral"]
   };
@@ -704,11 +704,11 @@ async function openCdtnApprovalDelegation(period) {
     const root = openStandardModal(
       "Ủy quyền duyệt nhiệm vụ Chi đoàn",
       `<div class="kpi-form-grid standard-task-delegation-form">
-        <label class="kpi-field full"><span>Người được ủy quyền</span><select id="cdtnApprovalDelegate"><option value="">-- Chọn Phó Bí thư/BCH/Đoàn viên --</option>${candidates.map(item => `<option value="${escapeHtml(item.id)}" ${active?.delegateUserId === item.id ? "selected" : ""}>${escapeHtml(item.fullName || "Chưa cập nhật họ tên")} — ${escapeHtml(item.position || "Kiêm nhiệm Chi đoàn")}</option>`).join("")}</select></label>
+        <label class="kpi-field full"><span>Người được ủy quyền</span><select id="cdtnApprovalDelegate"><option value="">-- Chọn thành viên Chi đoàn --</option>${candidates.map(item => `<option value="${escapeHtml(item.id)}" ${active?.delegateUserId === item.id ? "selected" : ""}>${escapeHtml(item.fullName || "Chưa cập nhật họ tên")} — ${escapeHtml(item.position || "Kiêm nhiệm Chi đoàn")}</option>`).join("")}</select></label>
         <label class="kpi-field"><span>Từ ngày</span><input id="cdtnApprovalStart" type="date" value="${escapeHtml(active?.startDate || today)}"></label>
         <label class="kpi-field"><span>Đến ngày</span><input id="cdtnApprovalEnd" type="date" value="${escapeHtml(active?.endDate || defaultEnd)}"></label>
         <label class="kpi-field full"><span>Lý do</span><textarea id="cdtnApprovalReason" rows="3" placeholder="Ví dụ: Phân công hỗ trợ duyệt kế hoạch và xác nhận nhiệm vụ Chi đoàn">${escapeHtml(active?.reason || "")}</textarea></label>
-        <div class="info-banner full">Ủy quyền này chỉ áp dụng trong không gian Chi đoàn; không tạo quyền xem, duyệt hoặc sửa dữ liệu của Phòng/Khu.</div>
+        <div class="info-banner full">Ủy quyền chỉ áp dụng cho Chi đoàn và không làm thay đổi quyền Phòng/Khu.</div>
       </div>`,
       `${active ? '<button id="revokeCdtnApproval" class="kpi-button danger" type="button">Hủy ủy quyền</button>' : ""}<button class="kpi-button secondary" data-standard-close type="button">Đóng</button><button id="saveCdtnApproval" class="kpi-button" type="button">Lưu ủy quyền</button>`
     );
@@ -838,7 +838,7 @@ function scoringMethodDescription(typeValue) {
     <div class="standard-scoring-variables">
       <span><b>N</b>${escapeHtml(n)}</span><span><b>T</b>${escapeHtml(t)}</span><span><b>K</b>${escapeHtml(k)}</span>
     </div>
-    <p>Tính T/N và K/N, giữ nguyên tỷ lệ thực tế (ví dụ 1/2 = 50%), rồi chấm một lần cho toàn đầu việc theo Phụ lục 04. Không cộng điểm riêng từng lượt.</p>`;
+    <p>Tính trung bình thực tế hoặc T/N và K/N, sau đó quy về thang Phụ lục 04: 100%; 80–dưới 100% → 80%; 60–dưới 80% → 60%; dưới 60% → 0%. Ví dụ 1/2 = 50% nên áp dụng 0%. Chỉ chấm một lần cho toàn đầu việc, không cộng điểm riêng từng lượt.</p>`;
 }
 
 function classificationBadge(item) {
