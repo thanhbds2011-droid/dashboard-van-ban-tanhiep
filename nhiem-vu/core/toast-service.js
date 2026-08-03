@@ -1,3 +1,5 @@
+import { friendlyErrorMessage } from "./friendly-error.js?v=20260803.V1_7_0";
+
 /** Production 3B.2 - Toast Service */
 const CONTAINER_ID = "v3ToastContainer";
 
@@ -15,6 +17,7 @@ function getContainer() {
 }
 
 function show(message, type = "info", duration = 3200) {
+  const displayMessage = type === "error" ? friendlyErrorMessage(message) : String(message || "");
   const toast = document.createElement("div");
   toast.className = `toast toast-${type}`;
   toast.setAttribute("role", type === "error" ? "alert" : "status");
@@ -23,7 +26,7 @@ function show(message, type = "info", duration = 3200) {
     <span class="toast-message"></span>
     <button class="toast-close" type="button" aria-label="Đóng thông báo">×</button>
   `;
-  toast.querySelector(".toast-message").textContent = String(message || "");
+  toast.querySelector(".toast-message").textContent = displayMessage;
 
   const remove = () => {
     toast.classList.add("toast-leaving");
@@ -40,5 +43,7 @@ export const ToastService = Object.freeze({
   info(message, duration) { show(message, "info", duration); },
   success(message, duration) { show(message, "success", duration); },
   warning(message, duration) { show(message, "warning", duration); },
-  error(message, duration) { show(message, "error", duration); }
+  error(message, duration) { show(message, "error", duration); },
+  fromError(error, fallback, duration) { show(friendlyErrorMessage(error, fallback), "error", duration); },
+  message(error, fallback) { return friendlyErrorMessage(error, fallback); }
 });

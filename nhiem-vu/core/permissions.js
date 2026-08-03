@@ -110,21 +110,29 @@ export const Permissions = Object.freeze({
     return this.isCdtnExecutiveMember() || this.hasAdditionalRole("CDTN_DOAN_VIEN");
   },
 
+  isCdtnLeadership() {
+    return this.isCdtnSecretary() || this.isCdtnDeputySecretary();
+  },
+
   isCdtnCatalogManager() {
-    /* Danh mục Chi đoàn do Bí thư quản lý; Phó Bí thư/BCH/Đoàn viên chỉ đăng ký. */
-    return this.isCdtnSecretary();
+    /* Bí thư và Phó Bí thư có quyền nghiệp vụ ngang nhau trong phạm vi Chi đoàn. */
+    return this.isCdtnLeadership();
   },
 
   canApproveCdtnRegistrations(hasDelegation = false) {
-    return this.isAdmin() || this.isCdtnSecretary() || hasDelegation === true;
+    return this.isAdmin() || this.isCdtnLeadership() || hasDelegation === true;
   },
 
   canDelegateCdtnApproval() {
-    return this.isCdtnSecretary();
+    return this.isCdtnLeadership();
   },
 
   canManageCdtnAttendance(hasDelegation = false) {
-    return this.isAdmin() || this.isCdtnSecretary() || hasDelegation === true;
+    return this.isAdmin() || this.isCdtnLeadership() || hasDelegation === true;
+  },
+
+  canViewCdtnAggregateReport(hasDelegation = false) {
+    return this.isAdmin() || this.isDirector() || this.isCdtnLeadership() || hasDelegation === true;
   },
 
   isDepartmentHead(user = UserContext.getUser()) {
@@ -295,9 +303,14 @@ export const Permissions = Object.freeze({
     return this.isAdmin() || this.isDirector() || this.isDepartmentHead();
   },
 
+  canViewAllScopes() {
+    /* Chỉ ADMIN và Ban Giám đốc được đọc đồng thời Phòng/Khu và Chi đoàn. */
+    return this.isAdmin() || this.isDirector();
+  },
+
   canViewAllDepartments() {
-    return this.isAdmin()
-      || this.isDirector()
+    /* Phạm vi toàn Trung tâm ở đây chỉ áp dụng cho dữ liệu chuyên môn Phòng/Khu. */
+    return this.canViewAllScopes()
       || this.isTchcCoordinator()
       || this.isTchcDepartmentLeader();
   },
