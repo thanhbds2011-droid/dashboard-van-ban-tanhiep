@@ -1,8 +1,8 @@
-import { Permissions } from "../../core/permissions.js?v=20260802.V1_6_0";
+import { Permissions } from "../../core/permissions.js?v=20260803.V1_7_0";
 import { ToastService } from "../../core/toast-service.js";
-import { TaskReadService } from "../../services/task-read-service.js?v=20260802.V1_6_0";
-import { openTaskCreateModal } from "./task-form-modal.js?v=20260802.V1_6_0";
-import { openTaskDetailModal } from "./task-detail-modal.js?v=20260802.V1_6_0";
+import { TaskReadService } from "../../services/task-read-service.js?v=20260803.V1_7_0";
+import { openTaskCreateModal } from "./task-form-modal.js?v=20260803.V1_7_0";
+import { openTaskDetailModal } from "./task-detail-modal.js?v=20260803.V1_7_0";
 
 let renderSequence = 0;
 let currentTasks = [];
@@ -52,7 +52,7 @@ function userFacingLoadError(error) {
   const detail = String(error?.message || "");
   if (["permission-denied", "firestore/permission-denied"].includes(code)
       || /missing or insufficient permissions/i.test(detail)) {
-    return "Chưa tải được nhiệm vụ theo phạm vi tài khoản. Hệ thống đã ghi nhận lỗi phân quyền; hãy thử lại sau khi Rules V1.6.0 được Publish.";
+    return "Chưa tải được nhiệm vụ theo phạm vi tài khoản. Hệ thống đã ghi nhận lỗi phân quyền; hãy thử lại sau khi Rules V1.7.0 được Publish.";
   }
   return "Không thể tải dữ liệu nhiệm vụ vào lúc này. Vui lòng kiểm tra kết nối và thử lại.";
 }
@@ -71,7 +71,7 @@ function mountTasksPage(outlet) {
     </div>
     <div class="toolbar tasks-toolbar">
       <label class="field-grow"><span>Tìm kiếm</span><input id="taskSearch" type="search" placeholder="Tìm mã, tiêu đề, người thực hiện…"></label>
-      ${Permissions.canViewAllDepartments() ? '<label><span>Phòng/Khu</span><select id="taskDepartmentFilter"><option value="ALL">Toàn Trung tâm</option></select></label>' : ""}
+      ${(Permissions.canViewAllDepartments() || Permissions.isCdtnMember()) ? '<label><span>Phạm vi</span><select id="taskDepartmentFilter"><option value="ALL">Tất cả nhiệm vụ</option></select></label>' : ""}
       <label><span>Trạng thái</span><select id="taskStatusFilter"><option value="ALL">Tất cả trạng thái</option><option value="IN_PROGRESS">Đang xử lý</option><option value="WAITING">Chờ phân công</option><option value="OVERDUE">Trễ hạn</option><option value="COMPLETED">Hoàn thành</option><option value="ADJUSTMENT_PENDING">Chờ duyệt điều chỉnh</option><option value="EXEMPT">Miễn đánh giá</option></select></label>
       <button id="refreshTasks" class="secondary-button" type="button">↻ Cập nhật</button>
     </div>
@@ -104,7 +104,8 @@ function populateDepartmentFilter(tasks) {
   const current = select.value || "ALL";
   const departments = [...new Set(tasks.map(task => String(task.primaryDepartmentId || "").toUpperCase()).filter(Boolean))]
     .sort((a, b) => (DEPARTMENT_NAMES[a] || a).localeCompare(DEPARTMENT_NAMES[b] || b, "vi"));
-  select.innerHTML = `<option value="ALL">Toàn Trung tâm</option>${departments.map(id => `<option value="${escapeHtml(id)}">${escapeHtml(DEPARTMENT_NAMES[id] || id)}</option>`).join("")}`;
+  const allLabel = Permissions.canViewAllDepartments() ? "Toàn Trung tâm" : "Tất cả nhiệm vụ của tôi";
+  select.innerHTML = `<option value="ALL">${allLabel}</option>${departments.map(id => `<option value="${escapeHtml(id)}">${escapeHtml(DEPARTMENT_NAMES[id] || id)}</option>`).join("")}`;
   select.value = departments.includes(current) ? current : "ALL";
 }
 

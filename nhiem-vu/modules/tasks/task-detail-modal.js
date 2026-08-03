@@ -1,13 +1,14 @@
 /** Chi tiết, phân công và các lượt công việc phát sinh của nhiệm vụ. */
 import { UserContext } from "../../core/user-context.js";
-import { Permissions } from "../../core/permissions.js?v=20260802.V1_6_0";
+import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260803.V1_7_0";
+import { Permissions } from "../../core/permissions.js?v=20260803.V1_7_0";
 import { UserReadService } from "../../services/user-read-service.js";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260802.V1_6_0";
-import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260802.V1_6_0";
-import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260802.V1_6_0";
-import { openTaskProgressModal } from "./task-progress-modal.js?v=20260802.V1_6_0";
-import { mountTaskAdjustmentPanel } from "./task-adjustment-panel.js?v=20260802.V1_6_0";
-import { TaskLogService } from "../../services/task-log-service.js?v=20260802.V1_6_0";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260803.V1_7_0";
+import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260803.V1_7_0";
+import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260803.V1_7_0";
+import { openTaskProgressModal } from "./task-progress-modal.js?v=20260803.V1_7_0";
+import { mountTaskAdjustmentPanel } from "./task-adjustment-panel.js?v=20260803.V1_7_0";
+import { TaskLogService } from "../../services/task-log-service.js?v=20260803.V1_7_0";
 
 const TEAM_LABELS = Object.freeze({
   BAO_VE: "Tổ Bảo vệ",
@@ -197,70 +198,64 @@ function workItemSummaryHtml(items, task) {
   const type = workItemType(task);
   const summary = TaskWorkItemService.calculateSummary(items, type);
   if (!summary.count) return "";
-  const progressLabel = type === "ATTENDANCE" ? "Có mặt (T)" : "Đúng hạn (T)";
-  const resultLabel = type === "ATTENDANCE" ? "Tham dự đạt yêu cầu (K)" : "Đạt yêu cầu (K)";
+
   const typeSpecific = type === "ATTENDANCE"
-    ? `<div><span>Vắng có phép</span><strong>${summary.excusedCount}</strong></div>
+    ? `<div><span>Có mặt (T)</span><strong>${summary.presentCount}/${summary.count}</strong></div>
+       <div><span>Đạt yêu cầu (K)</span><strong>${summary.qualifiedCount}/${summary.count}</strong></div>
+       <div><span>Vắng có phép</span><strong>${summary.excusedCount}</strong></div>
        <div><span>Vắng mặt</span><strong>${summary.absentCount}</strong></div>`
     : type === "QUANTITY"
-      ? `<div><span>Tổng kế hoạch</span><strong>${numberVi(summary.totalPlannedQuantity)} ${escapeHtml(task.quantityUnit || "")}</strong></div>
+      ? `<div><span>Đúng hạn 100%</span><strong>${summary.onTimeCount}/${summary.count}</strong></div>
+         <div><span>Đạt yêu cầu từ 80%</span><strong>${summary.qualifiedCount}/${summary.count}</strong></div>
+         <div><span>Tổng kế hoạch</span><strong>${numberVi(summary.totalPlannedQuantity)} ${escapeHtml(task.quantityUnit || "")}</strong></div>
          <div><span>Tổng thực tế</span><strong>${numberVi(summary.totalActualQuantity)} ${escapeHtml(task.quantityUnit || "")}</strong></div>`
-      : "";
+      : `<div><span>Đúng hạn 100%</span><strong>${summary.onTimeCount}/${summary.count}</strong></div>
+         <div><span>Đạt yêu cầu từ 80%</span><strong>${summary.qualifiedCount}/${summary.count}</strong></div>`;
 
   const incomplete = summary.incompleteCount > 0
     ? `<div class="is-warning"><span>Chưa hoàn thành</span><strong>${summary.incompleteCount}</strong></div>`
     : "";
+  const actualProgressLabel = type === "ATTENDANCE" ? "Tỷ lệ tham gia T/N" : "Tiến độ trung bình";
+  const actualResultLabel = type === "ATTENDANCE" ? "Tỷ lệ kết quả K/N" : "Kết quả trung bình";
 
   return `<div class="task-work-item-summary">
     <div><span>Tổng lượt hợp lệ (N)</span><strong>${summary.count}</strong></div>
     <div><span>Đã ghi nhận đầy đủ</span><strong>${summary.completedCount}/${summary.count}</strong></div>
     ${incomplete}
-    <div><span>${progressLabel}</span><strong>${summary.onTimeCount}/${summary.count}</strong></div>
-    <div><span>${resultLabel}</span><strong>${summary.qualifiedCount}/${summary.count}</strong></div>
     ${typeSpecific}
-    <div><span>Tiến độ thực tế T/N</span><strong>${numberVi(summary.actualProgressRate)}%</strong></div>
-    <div><span>Kết quả thực tế K/N</span><strong>${numberVi(summary.actualResultRate)}%</strong></div>
-    <div class="is-applied"><span>Mức KPI áp dụng</span><strong>${summary.appliedProgressRate}% tiến độ · ${summary.appliedResultRate}% kết quả</strong></div>
+    <div><span>${actualProgressLabel}</span><strong>${numberVi(summary.actualProgressRate)}%</strong></div>
+    <div><span>${actualResultLabel}</span><strong>${numberVi(summary.actualResultRate)}%</strong></div>
+    <div class="is-applied"><span>Mức Phụ lục 04 áp dụng</span><strong>${summary.appliedProgressRate}% tiến độ · ${summary.appliedResultRate}% kết quả</strong></div>
   </div>`;
 }
 
 function scoringMethodHtml(task) {
   const type = workItemType(task);
-  const methods = {
-    GENERIC: {
-      title: "Công việc phát sinh nhiều lượt",
-      n: "Tổng số lượt công việc được giao hợp lệ",
-      t: "Số lượt hoàn thành đúng hạn",
-      k: "Số lượt hoàn thành đạt yêu cầu từ 80% trở lên"
-    },
-    DOCUMENT: {
-      title: "Văn bản/hồ sơ phát sinh nhiều lượt",
-      n: "Tổng số văn bản hoặc hồ sơ được giao hợp lệ",
-      t: "Số văn bản hoặc hồ sơ hoàn thành đúng hạn",
-      k: "Số văn bản hoặc hồ sơ đạt yêu cầu từ 80% trở lên"
-    },
-    QUANTITY: {
-      title: "Sản lượng ghi nhận theo tháng",
-      n: "Tổng số tháng/sản phẩm phải ghi nhận trong kỳ",
-      t: "Số lượt cập nhật, hoàn thành đúng hạn",
-      k: "Số lượt đạt sản lượng kế hoạch và chất lượng từ 80% trở lên"
-    },
-    ATTENDANCE: {
-      title: "Hoạt động và điểm danh theo buổi",
-      n: "Tổng số buổi phải tham gia trong kỳ",
-      t: "Số buổi có mặt",
-      k: "Số buổi có mặt và mức tham gia đạt yêu cầu từ 80% trở lên"
-    }
-  };
-  const method = methods[type] || methods.GENERIC;
+  if (type === "ATTENDANCE") {
+    return `<div class="scoring-method-card">
+      <div class="scoring-method-heading"><span>Cách tính điểm đầu việc</span><strong>Hoạt động và điểm danh theo buổi</strong></div>
+      <div class="scoring-method-steps">
+        <div><b>N</b><span>Tổng số buổi phải tham gia trong kỳ</span></div>
+        <div><b>T</b><span>Số buổi có mặt</span></div>
+        <div><b>K</b><span>Số buổi có mặt và đạt yêu cầu</span></div>
+      </div>
+      <p>Tính T/N và K/N, sau đó quy về thang 100% – 80% – 60% – 0%. Ví dụ 1/2 = 50% được quy về 0%. Toàn đầu việc chỉ được chấm một lần.</p>
+    </div>`;
+  }
+
+  const title = type === "DOCUMENT"
+    ? "Văn bản/hồ sơ phát sinh nhiều lượt"
+    : type === "QUANTITY"
+      ? "Sản lượng ghi nhận theo từng lượt"
+      : "Công việc phát sinh nhiều lượt";
   return `<div class="scoring-method-card">
-    <div class="scoring-method-heading"><span>Cách tính điểm đầu việc</span><strong>${escapeHtml(method.title)}</strong></div>
+    <div class="scoring-method-heading"><span>Cách tính điểm đầu việc</span><strong>${escapeHtml(title)}</strong></div>
     <div class="scoring-method-steps">
-      <div><b>N</b><span>${escapeHtml(method.n)}</span></div>
-      <div><b>T</b><span>${escapeHtml(method.t)}</span></div>
-      <div><b>K</b><span>${escapeHtml(method.k)}</span></div>
+      <div><b>1</b><span>Chấm tiến độ và kết quả từng lượt theo 100% – 80% – 60% – 0%</span></div>
+      <div><b>2</b><span>Lấy trung bình chính xác của tất cả lượt hợp lệ</span></div>
+      <div><b>3</b><span>Quy trung bình về thang Phụ lục 04 rồi tính điểm một lần</span></div>
     </div>
-    <p>Tỷ lệ thực tế = T/N và K/N. Hệ thống giữ nguyên tỷ lệ, ví dụ 1/2 = 50%, sau đó chấm <strong>một lần cho toàn đầu việc</strong> theo công thức Phụ lục 04. Mỗi lượt không có điểm chuẩn riêng và không được cộng điểm riêng.</p>
+    <p>Ví dụ hai lượt 100% và 80% có trung bình 90%, sau đó quy về 80%. Không cộng điểm riêng và không nhân điểm chuẩn theo số lượt.</p>
   </div>`;
 }
 
@@ -396,7 +391,7 @@ function openWorkItemEditor(task, item, onSaved) {
       close();
       await onSaved?.();
     } catch (error) {
-      window.alert(error?.message || "Không lưu được thông tin chi tiết.");
+      window.alert(friendlyErrorMessage(error, "Không lưu được thông tin chi tiết."));
       button.disabled = false;
       button.textContent = "Lưu thông tin";
     }
@@ -488,12 +483,12 @@ export async function openTaskDetailModal(task, { onSaved }) {
         <section class="task-detail-tab-panel" data-task-panel="progress">
           ${isOwner && !accepted && !completed ? '<div class="info-banner">Bạn cần xác nhận đã nhận nhiệm vụ trước khi cập nhật tiến độ, kết quả hoặc minh chứng.</div>' : ""}
           ${isItemizedTask(task) ? `<section class="detail-section task-work-items-section">
-            <div class="detail-section-heading"><div><h3>${labels.name}</h3><p>Mỗi văn bản/lượt được ghi riêng; hệ thống lấy trung bình chính xác rồi mới áp dụng Phụ lục 04.</p></div>${canEditWorkItems ? `<button id="addWorkItemButton" class="primary-button compact-button" type="button">+ ${labels.add}</button>` : ""}</div>
+            <div class="detail-section-heading"><div><h3>${labels.name}</h3><p>Mỗi văn bản/lượt được chấm riêng; hệ thống tính trung bình, quy về mức 100%–80%–60%–0% rồi mới áp dụng Phụ lục 04.</p></div>${canEditWorkItems ? `<button id="addWorkItemButton" class="primary-button compact-button" type="button">+ ${labels.add}</button>` : ""}</div>
             ${scoringMethodHtml(task)}
             <div id="taskNoOccurrence">${noOccurrenceHtml(task, workItems, isOwner)}</div>
             <div id="taskWorkItemSummary">${workItemSummaryHtml(workItems, task)}</div>
             <div id="taskWorkItemList">${workItemRows(workItems, canEditWorkItems, task)}</div>
-          </section>` : `<div class="info-banner final-output-banner"><strong>Đánh giá trực tiếp theo Phụ lục 04</strong><span>Đầu việc có một sản phẩm cuối cùng; không tạo lượt chi tiết và không áp dụng quy đổi cứng.</span></div>`}
+          </section>` : `<div class="info-banner final-output-banner"><strong>Đánh giá trực tiếp theo Phụ lục 04</strong><span>Đầu việc có một sản phẩm cuối cùng và áp dụng trực tiếp các mức 100%–80%–60%–0% của Phụ lục 04.</span></div>`}
         </section>
 
         <section class="task-detail-tab-panel" data-task-panel="adjustment">
@@ -571,7 +566,7 @@ export async function openTaskDetailModal(task, { onSaved }) {
         await TaskWorkItemService.remove(task, item);
         await refreshWorkItems();
       } catch (error) {
-        window.alert(error?.message || "Không xóa được công việc phát sinh.");
+        window.alert(friendlyErrorMessage(error, "Không xóa được công việc phát sinh."));
         button.disabled = false;
       }
     }));
@@ -588,7 +583,7 @@ export async function openTaskDetailModal(task, { onSaved }) {
       close();
       await onSaved?.();
     } catch (error) {
-      window.alert(error?.message || "Không gửi được đề nghị.");
+      window.alert(friendlyErrorMessage(error, "Không gửi được đề nghị."));
     }
   });
   overlay.querySelector("#confirmNoOccurrenceButton")?.addEventListener("click", async () => {
@@ -598,7 +593,7 @@ export async function openTaskDetailModal(task, { onSaved }) {
       close();
       await onSaved?.();
     } catch (error) {
-      window.alert(error?.message || "Không xác nhận được đề nghị.");
+      window.alert(friendlyErrorMessage(error, "Không xác nhận được đề nghị."));
     }
   });
   overlay.querySelector("#rejectNoOccurrenceButton")?.addEventListener("click", async () => {
@@ -609,7 +604,7 @@ export async function openTaskDetailModal(task, { onSaved }) {
       close();
       await onSaved?.();
     } catch (error) {
-      window.alert(error?.message || "Không xử lý được đề nghị.");
+      window.alert(friendlyErrorMessage(error, "Không xử lý được đề nghị."));
     }
   });
 
@@ -650,7 +645,7 @@ export async function openTaskDetailModal(task, { onSaved }) {
       close();
       await onSaved?.();
     } catch (error) {
-      window.alert(error?.message || "Không lưu được phân công.");
+      window.alert(friendlyErrorMessage(error, "Không lưu được phân công."));
       button.disabled = false;
       button.textContent = "Lưu phân công";
     }
@@ -665,7 +660,7 @@ export async function openTaskDetailModal(task, { onSaved }) {
       close();
       await onSaved?.();
     } catch (error) {
-      window.alert(error?.message || "Không xác nhận được nhiệm vụ.");
+      window.alert(friendlyErrorMessage(error, "Không xác nhận được nhiệm vụ."));
       button.disabled = false;
       button.textContent = "Xác nhận đã nhận nhiệm vụ";
     }
