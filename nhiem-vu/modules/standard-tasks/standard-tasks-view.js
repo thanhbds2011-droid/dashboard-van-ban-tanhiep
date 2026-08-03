@@ -1,10 +1,10 @@
 import { UserContext } from "../../core/user-context.js";
-import { Permissions } from "../../core/permissions.js?v=20260803.V1_7_0";
+import { Permissions } from "../../core/permissions.js?v=20260803.V1_7_1";
 import { ToastService } from "../../core/toast-service.js";
-import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260803.V1_7_0";
-import { PeriodReadService } from "../../services/period-read-service.js?v=20260803.V1_7_0";
-import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260803.V1_7_0";
-import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260803.V1_7_0";
+import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260803.V1_7_1";
+import { PeriodReadService } from "../../services/period-read-service.js?v=20260803.V1_7_1";
+import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260803.V1_7_1";
+import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260803.V1_7_1";
 
 let currentCatalogAccess = { canManage: false, manageableDepartmentIds: [] };
 
@@ -50,7 +50,7 @@ export async function renderStandardTasksView(outlet) {
         <div>
           <h2>${registrationMode ? "Đăng ký kế hoạch công việc" : "Danh mục công việc"}</h2>
           <p>${registrationMode
-            ? "Danh mục của Phòng/Khu và danh mục kiêm nhiệm được tách riêng; đầu việc đã gửi tự chuyển sang cột Đã đăng ký."
+            ? "Danh mục Phòng/Khu và Chi đoàn được tách riêng; đầu việc đã gửi tự chuyển sang cột Đã đăng ký."
             : "Tra cứu danh mục công việc theo vị trí việc làm."}</p>
         </div>
         <div class="standard-task-header-actions">
