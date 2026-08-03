@@ -1,13 +1,33 @@
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260803.V1_7_1";
+import { Permissions } from "../core/permissions.js?v=20260803.V1_7_2";
 import { TaskLogService } from "./task-log-service.js";
-import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260803.V1_7_1";
-import { PeriodReadService } from "./period-read-service.js?v=20260803.V1_7_1";
+import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260803.V1_7_2";
+import { PeriodReadService } from "./period-read-service.js?v=20260803.V1_7_2";
 
 const clean = value => String(value ?? "").trim();
 const upper = value => clean(value).toUpperCase();
 const lower = value => clean(value).toLowerCase();
+
+const CDTN_ROLE_LABELS = Object.freeze({
+  CDTN_BI_THU: "Bí thư Chi đoàn",
+  CDTN_PHO_BI_THU: "Phó Bí thư Chi đoàn",
+  CDTN_UY_VIEN_BCH: "Ủy viên BCH Chi đoàn",
+  CDTN_DOAN_VIEN: "Đoàn viên"
+});
+const CDTN_ROLE_PRIORITY = Object.freeze([
+  "CDTN_BI_THU", "CDTN_PHO_BI_THU", "CDTN_UY_VIEN_BCH", "CDTN_DOAN_VIEN"
+]);
+
+function cdtnRoleCode(member) {
+  const roles = Array.isArray(member?.additionalRoles) ? member.additionalRoles.map(upper) : [];
+  return upper(member?.cdtnRole) || CDTN_ROLE_PRIORITY.find(role => roles.includes(role)) || "";
+}
+
+function cdtnRoleLabel(member) {
+  const code = cdtnRoleCode(member);
+  return clean(member?.cdtnRoleLabel) || CDTN_ROLE_LABELS[code] || "Thành viên Chi đoàn";
+}
 
 function standardWorkType(value) {
   return upper(value) === "DOT_XUAT" ? "DOT_XUAT" : "THUONG_XUYEN";
@@ -182,7 +202,7 @@ function taskPayload(registration, reviewer, due, options = {}) {
   return {
     code,
     payload: {
-      appVersion: "1.7.1",
+      appVersion: "1.7.2",
       active: true,
       taskCode: code,
       title: registration.title || registration.standardTaskName,
@@ -498,7 +518,7 @@ export const TaskRegistrationService = Object.freeze({
       .sort((a, b) => clean(a.fullName).localeCompare(clean(b.fullName), "vi"));
 
     if (!candidates.length) {
-      throw new Error("Chưa có danh sách thành viên Chi đoàn để ủy quyền. Quản trị viên cần đồng bộ lại Google Sheet tài khoản bằng Apps Script V3.2.1.");
+      throw new Error("Chưa có danh sách thành viên Chi đoàn để ủy quyền. Quản trị viên cần đồng bộ lại Google Sheet tài khoản bằng Apps Script V3.2.2.");
     }
     return candidates;
   },
@@ -514,7 +534,7 @@ export const TaskRegistrationService = Object.freeze({
     const reference = FirebaseService.doc(FirebaseService.db, "approvalDelegations", "CDTN_APPROVAL_ACTIVE");
     const existing = await FirebaseService.getDoc(reference);
     await FirebaseService.setDoc(reference, {
-      appVersion: "1.7.1",
+      appVersion: "1.7.2",
       schemaVersion: 2,
       delegationType: "CDTN_APPROVAL",
       departmentId: "CDTN",
@@ -523,7 +543,9 @@ export const TaskRegistrationService = Object.freeze({
       delegatorName: user.fullName || "",
       delegateUserId: delegate.id,
       delegateName: delegate.fullName || "",
-      delegatePosition: delegate.position || "",
+      delegatePosition: cdtnRoleLabel(delegate),
+      delegateCdtnRole: cdtnRoleCode(delegate),
+      delegateCdtnRoleLabel: cdtnRoleLabel(delegate),
       permissions: ["APPROVE_REGISTRATIONS", "CONFIRM_EVALUATIONS"],
       startDate,
       endDate,

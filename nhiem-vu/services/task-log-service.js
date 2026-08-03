@@ -5,7 +5,7 @@ import { UserContext } from "../core/user-context.js";
 export function buildTaskLog({ taskId, taskCode, periodId = "", action, before = null, after = null, note = "" }) {
   const user = UserContext.requireUser();
   return {
-    appVersion: "1.7.1",
+    appVersion: "1.7.2",
     schemaVersion: 2,
     taskId,
     taskCode: taskCode || "",

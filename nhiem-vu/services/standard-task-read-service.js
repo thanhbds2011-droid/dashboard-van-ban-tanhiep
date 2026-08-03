@@ -1,7 +1,7 @@
 /** Đọc danh mục đầu việc theo đơn vị, vai trò và vai trò kiêm nhiệm. */
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260803.V1_7_1";
+import { Permissions } from "../core/permissions.js?v=20260803.V1_7_2";
 
 const CATALOG_CACHE_MS = 5 * 60 * 1000;
 const PROFESSIONAL_DEPARTMENT_IDS = Object.freeze(["BGD", "TCHC", "CTXH", "KHTC", "YT", "KI", "KII", "KIII"]);
@@ -108,7 +108,7 @@ function sourceReferences() {
     return [FirebaseService.query(reference, FirebaseService.limit(2000))];
   }
 
-  if (Permissions.canViewAllDepartments()) {
+  if (Permissions.isTchcCoordinator()) {
     return [FirebaseService.query(
       reference,
       FirebaseService.where("departmentId", "in", PROFESSIONAL_DEPARTMENT_IDS),
