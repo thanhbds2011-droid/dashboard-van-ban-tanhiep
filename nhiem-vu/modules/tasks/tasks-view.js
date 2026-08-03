@@ -1,8 +1,8 @@
-import { Permissions } from "../../core/permissions.js?v=20260803.V1_7_0";
+import { Permissions } from "../../core/permissions.js?v=20260803.V1_7_1";
 import { ToastService } from "../../core/toast-service.js";
-import { TaskReadService } from "../../services/task-read-service.js?v=20260803.V1_7_0";
-import { openTaskCreateModal } from "./task-form-modal.js?v=20260803.V1_7_0";
-import { openTaskDetailModal } from "./task-detail-modal.js?v=20260803.V1_7_0";
+import { TaskReadService } from "../../services/task-read-service.js?v=20260803.V1_7_1";
+import { openTaskCreateModal } from "./task-form-modal.js?v=20260803.V1_7_1";
+import { openTaskDetailModal } from "./task-detail-modal.js?v=20260803.V1_7_1";
 
 let renderSequence = 0;
 let currentTasks = [];
@@ -52,7 +52,7 @@ function userFacingLoadError(error) {
   const detail = String(error?.message || "");
   if (["permission-denied", "firestore/permission-denied"].includes(code)
       || /missing or insufficient permissions/i.test(detail)) {
-    return "Chưa tải được nhiệm vụ theo phạm vi tài khoản. Hệ thống đã ghi nhận lỗi phân quyền; hãy thử lại sau khi Rules V1.7.0 được Publish.";
+    return "Chưa tải được nhiệm vụ theo phạm vi tài khoản. Hệ thống đã ghi nhận lỗi phân quyền; hãy thử lại sau khi Rules V1.7.1 được Publish.";
   }
   return "Không thể tải dữ liệu nhiệm vụ vào lúc này. Vui lòng kiểm tra kết nối và thử lại.";
 }
@@ -69,11 +69,11 @@ function mountTasksPage(outlet) {
       ${card("Chờ duyệt điều chỉnh", 0, "taskMetricAdjustment")}
       ${card("Miễn đánh giá", 0, "taskMetricExempt")}
     </div>
-    <div class="toolbar tasks-toolbar">
+    <div class="toolbar tasks-toolbar tasks-toolbar-compact">
       <label class="field-grow"><span>Tìm kiếm</span><input id="taskSearch" type="search" placeholder="Tìm mã, tiêu đề, người thực hiện…"></label>
       ${(Permissions.canViewAllDepartments() || Permissions.isCdtnMember()) ? '<label><span>Phạm vi</span><select id="taskDepartmentFilter"><option value="ALL">Tất cả nhiệm vụ</option></select></label>' : ""}
       <label><span>Trạng thái</span><select id="taskStatusFilter"><option value="ALL">Tất cả trạng thái</option><option value="IN_PROGRESS">Đang xử lý</option><option value="WAITING">Chờ phân công</option><option value="OVERDUE">Trễ hạn</option><option value="COMPLETED">Hoàn thành</option><option value="ADJUSTMENT_PENDING">Chờ duyệt điều chỉnh</option><option value="EXEMPT">Miễn đánh giá</option></select></label>
-      <button id="refreshTasks" class="secondary-button" type="button">↻ Cập nhật</button>
+      <button id="refreshTasks" class="secondary-button compact-sync-button" type="button" title="Cập nhật danh sách nhiệm vụ" aria-label="Cập nhật danh sách nhiệm vụ">↻</button>
     </div>
     <div id="taskListContainer" class="task-list-scroll"></div>
   </section>`;
