@@ -1,8 +1,8 @@
 import { UserContext } from "../../core/user-context.js";
 import { Permissions } from "../../core/permissions.js";
 import { ToastService } from "../../core/toast-service.js";
-import { DashboardReadService } from "../../services/dashboard-read-service.js?v=20260803.V1_7_1";
-import { TaskReadService } from "../../services/task-read-service.js?v=20260803.V1_7_1";
+import { DashboardReadService } from "../../services/dashboard-read-service.js?v=20260803.V1_7_2";
+import { TaskReadService } from "../../services/task-read-service.js?v=20260803.V1_7_2";
 let currentData = null;
 let dashboardRenderSequence = 0;
 let dashboardDepartmentScope = "ALL";
