@@ -24,19 +24,20 @@ test('Người được ủy quyền không được tự duyệt đăng ký c�
 
 test('KPI Chi đoàn có không gian riêng, tải thành viên theo vai trò kiêm nhiệm', () => {
   assert.match(kpi, /function loadCdtnUsers\(\)/);
-  assert.match(kpi, /where\('additionalRoles', 'array-contains', roleName\)/);
+  assert.match(kpi, /collection\(db, 'cdtnMembers'\)/);
+  assert.match(kpi, /where\('active', '==', true\)/);
   assert.match(kpi, /Phạm vi/);
   assert.match(kpi, /activeScopeDepartmentId\(\)/);
 });
 
 test('Đoàn viên tự đánh giá nhiệm vụ Chi đoàn với departmentId của nhiệm vụ', () => {
-  assert.match(kpi, /departmentId:normalizeDepartment\(task\.primaryDepartmentId\)/);
+  assert.match(kpi, /departmentId:clean\(ev\.departmentId\) \|\| evaluationScope/);
   assert.match(rules, /request\.resource\.data\.departmentId == "CDTN" && isCdtnMember\(\)/);
   assert.match(kpi, /Bí thư Chi đoàn/);
 });
 
 test('Người được ủy quyền Chi đoàn có thể đọc đúng dữ liệu cần duyệt và xác nhận', () => {
   assert.match(rules, /hasActiveCdtnApprovalDelegation\("CONFIRM_EVALUATIONS"\)/);
-  assert.match(rules, /data\.departmentId == "CDTN" && hasActiveCdtnApprovalDelegation\("APPROVE_REGISTRATIONS"\)/);
-  assert.match(rules, /"CDTN_BI_THU" in resource\.data\.additionalRoles/);
+  assert.match(rules, /registrationIsCdtn\(data\)/);
+  assert.match(rules, /validCdtnDirectoryTarget/);
 });

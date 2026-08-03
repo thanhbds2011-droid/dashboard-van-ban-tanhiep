@@ -11,7 +11,7 @@ const userRead = read("nhiem-vu/services/user-read-service.js");
 const standardRead = read("nhiem-vu/services/standard-task-read-service.js");
 const kpi = read("nhiem-vu/modules/kpi/kpi-workflow.js");
 const sw = read("nhiem-vu/sw.js");
-const accountScript = read("deployment/apps-script-account-sync-v3.2.1.gs");
+const accountScript = read("deployment/apps-script-account-sync-v3.2.2.gs");
 
 test("STAFF không thể tạo nhiệm vụ trực tiếp trong Rules", () => {
   const body = /function canCreateTask\(\)\s*\{([\s\S]*?)\n\s*\}/.exec(rules)?.[1] || "";
@@ -24,7 +24,7 @@ test("STAFF không thể tạo nhiệm vụ trực tiếp trong Rules", () => {
 test("Quyền xem toàn Trung tâm không được tái sử dụng làm quyền sửa", () => {
   const body = /function canManageTask\(data\)\s*\{([\s\S]*?)\n\s*\}/.exec(rules)?.[1] || "";
   assert.doesNotMatch(body, /canViewAllDepartments/);
-  assert.match(body, /sameDepartment\(data\.primaryDepartmentId\)/);
+  assert.match(body, /sameDepartment\(taskScopeDepartmentId\(data\)\)/);
 });
 
 test("Subscription giữ bất biến UID và External ID", () => {
@@ -37,7 +37,8 @@ test("Subscription giữ bất biến UID và External ID", () => {
 
 test("KPI và tiêu chí chung dùng document ID xác định", () => {
   assert.match(rules, /evaluationId == request\.resource\.data\.periodId \+ "_" \+ request\.resource\.data\.taskId/);
-  assert.match(rules, /assessmentId == request\.resource\.data\.periodId \+ "_" \+ request\.resource\.data\.userId/);
+  assert.match(rules, /function commonAssessmentDocumentIdValid/);
+  assert.match(rules, /data\.periodId \+ "_" \+ data\.departmentId \+ "_" \+ data\.userId/);
   assert.match(rules, /profileId == request\.resource\.data\.periodId \+ "_" \+ request\.resource\.data\.userId/);
   assert.match(kpi, /doc\(db,'taskEvaluations',`\$\{KpiWorkflowState\.period\.id\}_\$\{task\.id\}`\)/);
 });
@@ -55,8 +56,8 @@ test("Truy vấn người dùng và danh mục bám theo phạm vi Rules", () =>
 });
 
 test("PWA đóng gói app và module đang hoạt động", () => {
-  assert.match(sw, /app-v3\.js\?v=20260803\.V1_7_1/);
-  assert.match(sw, /modules\/kpi\/kpi-workflow\.js\?v=20260803\.V1_7_1/);
+  assert.match(sw, /app-v3\.js\?v=20260803\.V1_7_2/);
+  assert.match(sw, /modules\/kpi\/kpi-workflow\.js\?v=20260803\.V1_7_2/);
   assert.match(sw, /Promise\.allSettled/);
 });
 

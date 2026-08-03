@@ -6,7 +6,7 @@ import { resolve } from 'node:path';
 const repo = resolve(import.meta.dirname, '../..');
 const read = relative => readFileSync(resolve(repo, relative), 'utf8');
 const rules = read('firestore.rules');
-const accountSync = read('deployment/apps-script-account-sync-v3.2.1.gs');
+const accountSync = read('deployment/apps-script-account-sync-v3.2.2.gs');
 const registration = read('nhiem-vu/services/task-registration-service.js');
 const taskWrite = read('nhiem-vu/services/task-write-service.js');
 const dashboard = read('nhiem-vu/modules/dashboard/dashboard-view.js');
@@ -22,8 +22,8 @@ test('Ủy quyền Chi đoàn dùng danh bạ tối thiểu cdtnMembers thay vì
   assert.match(rules, /isCdtnMember\(\)/);
 });
 
-test('Apps Script tài khoản V3.2.1 đồng bộ và vô hiệu hóa danh bạ Chi đoàn', () => {
-  assert.match(accountSync, /VERSION: '3\.2\.1'/);
+test('Apps Script tài khoản V3.2.2 đồng bộ và vô hiệu hóa danh bạ Chi đoàn', () => {
+  assert.match(accountSync, /VERSION: '3\.2\.2'/);
   assert.match(accountSync, /CDTN_MEMBER_COLLECTION_NAME: 'cdtnMembers'/);
   assert.match(accountSync, /cdtnMemberUpserts/);
   assert.match(accountSync, /deactivatedCdtnMembers/);
@@ -66,7 +66,7 @@ test('Bí thư và Phó Bí thư được đọc 30 điểm của thành viên C
   assert.match(rules, /hasActiveCdtnApprovalDelegation\("CONFIRM_EVALUATIONS"\)/);
 });
 
-test('PWA nâng cache lên V1.7.1', () => {
-  assert.match(sw, /nhiem-vu-20260803-v1-7-1/);
-  assert.match(sw, /app-v3\.js\?v=20260803\.V1_7_1/);
+test('PWA nâng cache lên V1.7.2', () => {
+  assert.match(sw, /nhiem-vu-20260803-v1-7-2/);
+  assert.match(sw, /app-v3\.js\?v=20260803\.V1_7_2/);
 });

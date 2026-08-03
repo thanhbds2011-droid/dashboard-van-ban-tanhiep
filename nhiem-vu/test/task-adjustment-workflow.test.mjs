@@ -118,7 +118,7 @@ test("Rules tương thích nhiệm vụ cũ khi trường người duyệt đi�
 
 test("PWA cache đầy đủ service gửi thông báo của quy trình điều chỉnh", () => {
   const sw = read("nhiem-vu/sw.js");
-  assert.match(sw, /services\/task-notification-service\.js\?v=20260803\.V1_7_1/);
+  assert.match(sw, /services\/task-notification-service\.js\?v=20260803\.V1_7_2/);
 });
 
 

@@ -83,7 +83,7 @@ test('Xác nhận KPI được thu gọn theo nhân viên và hỗ trợ chọn 
 });
 
 test('Báo cáo và Mẫu 01 lọc chính xác theo Phòng\/Khu hoặc Chi đoàn', () => {
-  assert.match(kpi, /normalizeDepartment\(t\.primaryDepartmentId\) === reportDepartmentId/);
+  assert.match(kpi, /taskScopeDepartmentId\(t\) === reportDepartmentId/);
   assert.match(kpi, /Báo cáo cá nhân Chi đoàn/);
   assert.match(kpi, /BÁO CÁO CÁ NHÂN – \$\{departmentDisplayName\(reportDepartmentId\)\.toUpperCase\(\)\}/);
   assert.match(kpi, /exportReportCsv\(mine, s, reportDepartmentId\)/);
