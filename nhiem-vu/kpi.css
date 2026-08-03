@@ -1,6 +1,6 @@
 /* =========================================================
  * PHÂN HỆ KPI
- * Bản 20260803.V1_7_1
+ * Bản 20260803.V1_7_2
  * ========================================================= */
 
 .kpi-section {
@@ -1041,8 +1041,9 @@
   }
 
   .registration-column-list {
-    max-height: none;
-    overflow: visible;
+    max-height: 54vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
     padding: 9px;
   }
 
@@ -1599,3 +1600,8 @@
 }
 .kpi-section[data-kpi-mode="reports"] .kpi-header { align-items: center; }
 .kpi-section[data-kpi-mode="reports"] .kpi-header .kpi-actions { align-self: center; }
+
+/* ===== Production V1.7.2 — khung danh mục độc lập và nút sync có phản hồi ===== */
+.registration-column { display: grid; grid-template-rows: auto minmax(0, 1fr); }
+.registration-column-list { min-height: 260px; }
+.kpi-icon-sync.is-loading { animation: kpi-sync-rotate .8s linear infinite; pointer-events:none; opacity:.72; }

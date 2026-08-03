@@ -878,3 +878,23 @@ button,input,select,textarea{font-size:16px}
   .tasks-toolbar-compact label:not(.field-grow) { grid-column: 1; }
   .tasks-toolbar-compact .compact-sync-button { grid-column: 2; grid-row: 3; }
 }
+
+/* ===== Production V1.7.2 — thanh lọc gọn, đồng hàng và trạng thái đồng bộ ===== */
+.tasks-toolbar-compact {
+  grid-template-columns: minmax(260px, 1.65fr) minmax(180px, .62fr) minmax(180px, .62fr) 44px !important;
+  align-items: end;
+}
+.tasks-toolbar-compact > .compact-sync-button { grid-column: auto !important; grid-row: auto !important; align-self: end; }
+.compact-sync-button.is-loading { pointer-events: none; opacity: .72; }
+.compact-sync-button.is-loading { animation: kpi-sync-rotate .8s linear infinite; }
+@keyframes kpi-sync-rotate { to { transform: rotate(360deg); } }
+@media (max-width: 780px) {
+  .tasks-toolbar-compact { grid-template-columns: minmax(0, 1fr) minmax(150px, .72fr) 44px !important; }
+  .tasks-toolbar-compact .field-grow { grid-column: 1 / -1; }
+  .tasks-toolbar-compact > .compact-sync-button { grid-column: 3 !important; grid-row: 2 !important; }
+}
+@media (max-width: 560px) {
+  .tasks-toolbar-compact { grid-template-columns: minmax(0, 1fr) 44px !important; }
+  .tasks-toolbar-compact label:not(.field-grow) { grid-column: 1; }
+  .tasks-toolbar-compact > .compact-sync-button { grid-column: 2 !important; grid-row: 3 !important; }
+}
