@@ -1,8 +1,8 @@
 /** Đọc nhiệm vụ theo kỳ hiện hành, phạm vi tài khoản và bộ nhớ đệm ngắn. */
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260803.V1_7_2";
-import { PeriodReadService } from "./period-read-service.js?v=20260803.V1_7_2";
+import { Permissions } from "../core/permissions.js?v=20260804.V1_7_2_2";
+import { PeriodReadService } from "./period-read-service.js?v=20260804.V1_7_2_2";
 
 const TASK_CACHE_MS = 45 * 1000;
 const PROFESSIONAL_DEPARTMENT_IDS = Object.freeze(["BGD", "TCHC", "CTXH", "KHTC", "YT", "KI", "KII", "KIII"]);

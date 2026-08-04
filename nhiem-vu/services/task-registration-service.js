@@ -1,9 +1,9 @@
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260803.V1_7_2";
+import { Permissions } from "../core/permissions.js?v=20260804.V1_7_2_2";
 import { TaskLogService } from "./task-log-service.js";
-import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260803.V1_7_2";
-import { PeriodReadService } from "./period-read-service.js?v=20260803.V1_7_2";
+import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260804.V1_7_2_2";
+import { PeriodReadService } from "./period-read-service.js?v=20260804.V1_7_2_2";
 
 const clean = value => String(value ?? "").trim();
 const upper = value => clean(value).toUpperCase();
@@ -202,7 +202,7 @@ function taskPayload(registration, reviewer, due, options = {}) {
   return {
     code,
     payload: {
-      appVersion: "1.7.2",
+      appVersion: "1.7.2.2",
       active: true,
       taskCode: code,
       title: registration.title || registration.standardTaskName,
@@ -534,7 +534,7 @@ export const TaskRegistrationService = Object.freeze({
     const reference = FirebaseService.doc(FirebaseService.db, "approvalDelegations", "CDTN_APPROVAL_ACTIVE");
     const existing = await FirebaseService.getDoc(reference);
     await FirebaseService.setDoc(reference, {
-      appVersion: "1.7.2",
+      appVersion: "1.7.2.2",
       schemaVersion: 2,
       delegationType: "CDTN_APPROVAL",
       departmentId: "CDTN",
