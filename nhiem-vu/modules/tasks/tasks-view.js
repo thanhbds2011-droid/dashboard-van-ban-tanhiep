@@ -1,8 +1,8 @@
-import { Permissions } from "../../core/permissions.js?v=20260804.V1_8_0";
+import { Permissions } from "../../core/permissions.js?v=20260804.V1_8_1";
 import { ToastService } from "../../core/toast-service.js";
-import { TaskReadService } from "../../services/task-read-service.js?v=20260804.V1_8_0";
-import { openTaskCreateModal } from "./task-form-modal.js?v=20260804.V1_8_0";
-import { openTaskDetailModal } from "./task-detail-modal.js?v=20260804.V1_8_0";
+import { TaskReadService } from "../../services/task-read-service.js?v=20260804.V1_8_1";
+import { openTaskCreateModal } from "./task-form-modal.js?v=20260804.V1_8_1";
+import { openTaskDetailModal } from "./task-detail-modal.js?v=20260804.V1_8_1";
 
 let renderSequence = 0;
 let currentTasks = [];
@@ -62,7 +62,7 @@ function userFacingLoadError(error) {
   const detail = String(error?.message || "");
   if (["permission-denied", "firestore/permission-denied"].includes(code)
       || /missing or insufficient permissions/i.test(detail)) {
-    return "Chưa tải được nhiệm vụ theo phạm vi tài khoản. Hệ thống đã ghi nhận lỗi phân quyền; hãy thử lại sau khi Rules V1.8.0 được Publish.";
+    return "Chưa tải được nhiệm vụ theo phạm vi tài khoản. Hệ thống đã ghi nhận lỗi phân quyền; hãy thử lại sau khi Rules V1.8.1 được Publish.";
   }
   return "Không thể tải dữ liệu nhiệm vụ vào lúc này. Vui lòng kiểm tra kết nối và thử lại.";
 }

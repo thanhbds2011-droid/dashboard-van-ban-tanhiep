@@ -1,11 +1,11 @@
 /** Biểu mẫu giao nhiệm vụ phát sinh/đột xuất. */
 import { UserContext } from "../../core/user-context.js";
-import { Permissions } from "../../core/permissions.js?v=20260804.V1_8_0";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260804.V1_8_0";
+import { Permissions } from "../../core/permissions.js?v=20260804.V1_8_1";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260804.V1_8_1";
 import { UserReadService } from "../../services/user-read-service.js";
 import { DepartmentReadService } from "../../services/department-read-service.js";
-import { validateTaskCreateInput, cleanText } from "./task-form-validator.js?v=20260804.V1_8_0";
-import { mountTaskAiAssistant } from "../../ai-assistant.js?v=20260804.V1_8_0";
+import { validateTaskCreateInput, cleanText } from "./task-form-validator.js?v=20260804.V1_8_1";
+import { mountTaskAiAssistant } from "../../ai-assistant.js?v=20260804.V1_8_1";
 import { ToastService } from "../../core/toast-service.js";
 
 const DIRECT_TASK_BASE_SCORE = 12;
@@ -110,6 +110,19 @@ export async function openTaskCreateModal({ onSaved }) {
         </div>
         <label class="field-full"><span>Tên nhiệm vụ *</span><input id="taskTitle" maxlength="300" required></label>
         <label class="field-full"><span>Nội dung/Yêu cầu thực hiện</span><textarea id="taskDescription" rows="4" maxlength="5000"></textarea></label>
+        <label class="field-full"><span>Sản phẩm đầu ra dự kiến</span><textarea id="expectedOutput" rows="2" maxlength="3000" placeholder="Ví dụ: Báo cáo, hồ sơ, văn bản, danh sách hoặc sản phẩm cuối cùng phải bàn giao"></textarea></label>
+        <label class="field-full"><span>Kết quả/tiêu chí nghiệm thu</span><textarea id="resultRequirement" rows="2" maxlength="3000" placeholder="Nêu rõ mức hoàn thành, chất lượng, số lượng hoặc điều kiện được xem là hoàn thành"></textarea></label>
+        <section id="sixClearDirective" class="field-full six-clear-directive" aria-label="Chỉ đạo theo tinh thần 6 rõ">
+          <div class="six-clear-heading"><strong>Chỉ đạo theo tinh thần 6 rõ</strong><span>Luôn hiển thị để người giao kiểm tra trước khi lưu.</span></div>
+          <div class="six-clear-grid">
+            <div><b>Rõ người</b><span id="sixClearPerson">Giao cấp Phòng/Khu</span></div>
+            <div><b>Rõ việc</b><span id="sixClearWork">Chưa nhập tên nhiệm vụ</span></div>
+            <div><b>Rõ thời gian</b><span id="sixClearTime">${dateInputValue(deadline)}</span></div>
+            <div><b>Rõ trách nhiệm</b><span id="sixClearResponsibility">Phòng/Khu chính chịu trách nhiệm tổ chức thực hiện</span></div>
+            <div><b>Rõ sản phẩm</b><span id="sixClearProduct">Chưa nhập sản phẩm đầu ra</span></div>
+            <div><b>Rõ kết quả</b><span id="sixClearResult">Chưa nhập tiêu chí nghiệm thu</span></div>
+          </div>
+        </section>
         <label><span>Phòng/Khu chính *</span><select id="primaryDepartmentId" ${canChooseDepartment ? "" : "disabled"}>${departments.map(d => option(d.id || d.code, d.name || d.id, (d.id || d.code) === defaultDepartment)).join("")}</select></label>
         <label id="teamField" class="task-team-field" hidden><span>Tổ/Nhóm</span><select id="teamId"><option value="">— Không chọn Tổ/Nhóm —</option></select></label>
         <label><span>Người phụ trách</span><select id="ownerUserId"><option value="">— Giao cấp Phòng/Khu —</option></select></label>
@@ -143,6 +156,22 @@ export async function openTaskCreateModal({ onSaved }) {
   const coefficientSelect = $("difficultyCoefficient");
   const trackingModeSelect = $("trackingMode");
   const workItemTypeSelect = $("workItemType");
+
+  const refreshSixClear = () => {
+    const selectedOwner = users.find(user => user.id === ownerSelect.value);
+    const departmentName = departmentSelect.options?.[departmentSelect.selectedIndex]?.textContent || defaultDepartment;
+    const person = selectedOwner?.fullName || `Cấp ${departmentName}`;
+    const title = cleanText($("taskTitle")?.value, 300) || "Chưa nhập tên nhiệm vụ";
+    const output = cleanText($("expectedOutput")?.value, 3000) || "Chưa nhập sản phẩm đầu ra";
+    const result = cleanText($("resultRequirement")?.value, 3000) || "Chưa nhập tiêu chí nghiệm thu";
+    const deadlineValue = $("deadline")?.value || "Chưa chọn hạn";
+    $("sixClearPerson").textContent = person;
+    $("sixClearWork").textContent = title;
+    $("sixClearTime").textContent = deadlineValue;
+    $("sixClearResponsibility").textContent = `${departmentName} chịu trách nhiệm chính; ${person} chịu trách nhiệm thực hiện và báo cáo.`;
+    $("sixClearProduct").textContent = output;
+    $("sixClearResult").textContent = result;
+  };
 
   const refreshCodeHint = () => {
     const prefix = departmentPrefix(departmentSelect.value || defaultDepartment);
@@ -213,14 +242,16 @@ export async function openTaskCreateModal({ onSaved }) {
   refreshSupportDepartments();
   refreshScore();
   refreshTrackingFields();
+  refreshSixClear();
 
   departmentSelect.addEventListener("change", () => {
     refreshCodeHint();
     refreshTeams();
     refreshUsers();
     refreshSupportDepartments();
+    refreshSixClear();
   });
-  teamSelect.addEventListener("change", refreshUsers);
+  teamSelect.addEventListener("change", () => { refreshUsers(); refreshSixClear(); });
   ownerSelect.addEventListener("change", () => {
     const owner = users.find(user => user.id === ownerSelect.value);
     const ownerTeam = normalizeTeamId(owner?.teamId);
@@ -229,10 +260,15 @@ export async function openTaskCreateModal({ onSaved }) {
       refreshUsers();
       ownerSelect.value = owner?.id || "";
     }
+    refreshSixClear();
   });
   coefficientSelect.addEventListener("change", refreshScore);
   trackingModeSelect.addEventListener("change", refreshTrackingFields);
   workItemTypeSelect.addEventListener("change", refreshTrackingFields);
+  ["taskTitle", "expectedOutput", "resultRequirement", "deadline"].forEach(id => {
+    $(id)?.addEventListener("input", refreshSixClear);
+    $(id)?.addEventListener("change", refreshSixClear);
+  });
 
   const unmountAi = mountTaskAiAssistant(overlay);
 
@@ -258,6 +294,8 @@ export async function openTaskCreateModal({ onSaved }) {
       const data = {
         title: cleanText($("taskTitle").value, 300),
         description: cleanText($("taskDescription").value, 5000),
+        expectedOutput: cleanText($("expectedOutput").value, 3000),
+        resultRequirement: cleanText($("resultRequirement").value, 3000),
         primaryDepartmentId: departmentSelect.value || defaultDepartment,
         ownerUserId: selectedOwner?.id || "",
         ownerName: selectedOwner?.fullName || "",

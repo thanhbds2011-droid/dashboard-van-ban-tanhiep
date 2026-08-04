@@ -1,14 +1,14 @@
 /** Chi tiết, phân công và các lượt công việc phát sinh của nhiệm vụ. */
 import { UserContext } from "../../core/user-context.js";
-import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260804.V1_8_0";
-import { Permissions } from "../../core/permissions.js?v=20260804.V1_8_0";
+import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260804.V1_8_1";
+import { Permissions } from "../../core/permissions.js?v=20260804.V1_8_1";
 import { UserReadService } from "../../services/user-read-service.js";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260804.V1_8_0";
-import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260804.V1_8_0";
-import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260804.V1_8_0";
-import { openTaskProgressModal } from "./task-progress-modal.js?v=20260804.V1_8_0";
-import { mountTaskAdjustmentPanel } from "./task-adjustment-panel.js?v=20260804.V1_8_0";
-import { TaskLogService } from "../../services/task-log-service.js?v=20260804.V1_8_0";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260804.V1_8_1";
+import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260804.V1_8_1";
+import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260804.V1_8_1";
+import { openTaskProgressModal } from "./task-progress-modal.js?v=20260804.V1_8_1";
+import { mountTaskAdjustmentPanel } from "./task-adjustment-panel.js?v=20260804.V1_8_1";
+import { TaskLogService } from "../../services/task-log-service.js?v=20260804.V1_8_1";
 
 const TEAM_LABELS = Object.freeze({
   BAO_VE: "Tổ Bảo vệ",
@@ -473,6 +473,7 @@ export async function openTaskDetailModal(task, { onSaved }) {
             ${detail("Điểm tối đa", numberVi(task.maximumConvertedScore || 0))}
           </div>
           <section class="detail-section"><h3>Nội dung thực hiện</h3><p>${escapeHtml(task.description || "Chưa có nội dung chi tiết.")}</p></section>
+          ${(task.expectedOutput || task.resultRequirement) ? `<section class="detail-section six-clear-detail"><h3>Chỉ đạo theo tinh thần 6 rõ</h3><div class="detail-grid"><div><span>Sản phẩm đầu ra</span><strong>${escapeHtml(task.expectedOutput || "Chưa ghi")}</strong></div><div><span>Kết quả/tiêu chí nghiệm thu</span><strong>${escapeHtml(task.resultRequirement || "Chưa ghi")}</strong></div></div></section>` : ""}
           ${mayAssign ? `<section class="detail-section"><h3>Phân công nội bộ</h3><div class="inline-form assignment-inline-form">
             <select id="assignTeam"><option value="">— Không chọn Tổ/Nhóm —</option>${teams.map(team => `<option value="${escapeHtml(team.id)}" ${team.id === normalizeTeamId(task.teamId) ? "selected" : ""}>${escapeHtml(team.label)}</option>`).join("")}</select>
             <select id="assignOwner"><option value="">— Chưa phân công cá nhân —</option></select>
