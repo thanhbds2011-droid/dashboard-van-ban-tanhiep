@@ -1,10 +1,10 @@
 import { UserContext } from "../../core/user-context.js";
-import { Permissions } from "../../core/permissions.js?v=20260803.V1_7_2";
+import { Permissions } from "../../core/permissions.js?v=20260804.V1_7_2_2";
 import { ToastService } from "../../core/toast-service.js";
-import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260803.V1_7_2";
-import { PeriodReadService } from "../../services/period-read-service.js?v=20260803.V1_7_2";
-import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260803.V1_7_2";
-import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260803.V1_7_2";
+import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260804.V1_7_2_2";
+import { PeriodReadService } from "../../services/period-read-service.js?v=20260804.V1_7_2_2";
+import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260804.V1_7_2_2";
+import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260804.V1_7_2_2";
 
 let currentCatalogAccess = { canManage: false, manageableDepartmentIds: [] };
 
