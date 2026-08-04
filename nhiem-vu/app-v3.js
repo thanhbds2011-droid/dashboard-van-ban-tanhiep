@@ -1,18 +1,21 @@
 /** Ứng dụng quản lý nhiệm vụ và đánh giá KPI. */
 import { Router } from "./core/router.js";
-import { AuthService } from "./core/auth-service.js?v=20260804.V1_7_2_2";
-import { Permissions } from "./core/permissions.js?v=20260804.V1_7_2_2";
+import { AuthService } from "./core/auth-service.js?v=20260804.V1_8_0";
+import { Permissions } from "./core/permissions.js?v=20260804.V1_8_0";
 import { ToastService } from "./core/toast-service.js";
 import { FirebaseService } from "./core/firebase-service.js";
 
-import { renderDashboardView } from "./modules/dashboard/dashboard-view.js?v=20260804.V1_7_2_2";
-import { renderTasksView } from "./modules/tasks/tasks-view.js?v=20260804.V1_7_2_2";
-import { renderStandardTasksView } from "./modules/standard-tasks/standard-tasks-view.js?v=20260804.V1_7_2_2";
-import { renderPeriodsView } from "./modules/periods/periods-view.js?v=20260804.V1_7_2_2";
-import { renderPlansView } from "./modules/plans/plans-view.js?v=20260804.V1_7_2_2";
-import { renderEvaluationsView } from "./modules/evaluations/evaluations-view.js?v=20260804.V1_7_2_2";
-import { renderReportsView } from "./modules/reports/reports-view.js?v=20260804.V1_7_2_2";
-import { renderAdminView } from "./modules/admin/admin-view.js?v=20260804.V1_7_2_2";
+let currentPushUser = null;
+let saveCurrentPushSnapshot = null;
+
+import { renderDashboardView } from "./modules/dashboard/dashboard-view.js?v=20260804.V1_8_0";
+import { renderTasksView } from "./modules/tasks/tasks-view.js?v=20260804.V1_8_0";
+import { renderStandardTasksView } from "./modules/standard-tasks/standard-tasks-view.js?v=20260804.V1_8_0";
+import { renderPeriodsView } from "./modules/periods/periods-view.js?v=20260804.V1_8_0";
+import { renderPlansView } from "./modules/plans/plans-view.js?v=20260804.V1_8_0";
+import { renderEvaluationsView } from "./modules/evaluations/evaluations-view.js?v=20260804.V1_8_0";
+import { renderReportsView } from "./modules/reports/reports-view.js?v=20260804.V1_8_0";
+import { renderAdminView } from "./modules/admin/admin-view.js?v=20260804.V1_8_0";
 
 async function bootstrap() {
   const outlet = document.getElementById("appOutlet");
@@ -29,6 +32,7 @@ async function bootstrap() {
   bindMobileNavigation();
   initializePushNotifications(user);
   bindPushSubscriptionSync(user);
+  bindPushSettings(user);
 
   const router = new Router({
     outlet,
@@ -74,8 +78,24 @@ function bindLogout() {
 
   const logout = async () => {
     buttons.forEach(button => { button.disabled = true; });
-    try { await AuthService.logout(); }
-    catch (error) {
+    try {
+      /* Tắt đúng bản ghi thiết bị của tài khoản hiện tại trước khi Firebase logout. */
+      const snapshot = await window.TaskPush?.getSubscriptionSnapshot?.().catch(() => null);
+      if (snapshot?.subscriptionId && currentPushUser?.uid) {
+        const ref = FirebaseService.doc(
+          FirebaseService.db,
+          "taskPushSubscriptions",
+          `${currentPushUser.uid}_${snapshot.subscriptionId}`
+        );
+        await FirebaseService.setDoc(ref, {
+          active: false,
+          notificationPermission: snapshot.permission || "default",
+          updatedAt: FirebaseService.serverTimestamp()
+        }, { merge: true });
+      }
+      await window.TaskPush?.logout?.();
+      await AuthService.logout();
+    } catch (error) {
       console.error("Logout error:", error);
       ToastService.error("Không thể đăng xuất. Vui lòng thử lại.");
       buttons.forEach(button => { button.disabled = false; });
@@ -108,6 +128,7 @@ function bindMobileNavigation() {
 }
 
 function bindPushSubscriptionSync(user) {
+  currentPushUser = user;
   const save = async snapshot => {
     const subscriptionId = String(snapshot?.subscriptionId || "").trim();
     if (!subscriptionId) return;
@@ -128,6 +149,7 @@ function bindPushSubscriptionSync(user) {
       updatedAt: FirebaseService.serverTimestamp()
     }, { merge: true });
   };
+  saveCurrentPushSnapshot = save;
   window.addEventListener("taskpush:subscription-change", event => {
     save(event.detail).catch(error => console.warn("Chưa lưu được thiết bị nhận thông báo:", error));
   });
@@ -139,6 +161,108 @@ function bindPushSubscriptionSync(user) {
       console.warn("Chưa đồng bộ được thiết bị nhận thông báo:", error);
     }
   }, 1500);
+}
+
+function bindPushSettings(user) {
+  const openButton = document.getElementById("btnPushSettings");
+  const modal = document.getElementById("pushSettingsModal");
+  if (!openButton || !modal) return;
+
+  const closeButtons = [
+    document.getElementById("btnClosePushSettings"),
+    document.getElementById("btnPushSettingsDone")
+  ].filter(Boolean);
+  const stateBox = document.getElementById("pushSettingsState");
+  const syncButton = document.getElementById("btnPushResync");
+  const permissionButton = document.getElementById("btnPushRequestPermission");
+
+  const text = (id, value) => {
+    const target = document.getElementById(id);
+    if (target) target.textContent = String(value ?? "—");
+  };
+
+  const permissionLabel = value => ({
+    granted: "Đã cho phép",
+    denied: "Đang bị chặn",
+    default: "Chưa lựa chọn"
+  })[String(value || "default")] || String(value || "Không xác định");
+
+  const refresh = async ({ resync = false } = {}) => {
+    if (stateBox) {
+      stateBox.className = "push-settings-state is-loading";
+      stateBox.textContent = resync ? "Đang đồng bộ lại thiết bị…" : "Đang kiểm tra trạng thái…";
+    }
+    if (syncButton) syncButton.disabled = true;
+    try {
+      if (resync) await window.TaskPush?.identify?.(user.uid, user);
+      const snapshot = await window.TaskPush?.getSubscriptionSnapshot?.();
+      if (resync && saveCurrentPushSnapshot) await saveCurrentPushSnapshot(snapshot);
+
+      let firestoreState = "Chưa có Subscription ID";
+      if (snapshot?.subscriptionId) {
+        const ref = FirebaseService.doc(
+          FirebaseService.db,
+          "taskPushSubscriptions",
+          `${user.uid}_${snapshot.subscriptionId}`
+        );
+        const stored = await FirebaseService.getDoc(ref).catch(error => {
+          console.warn("Không đọc được trạng thái thiết bị Firestore:", error);
+          return null;
+        });
+        firestoreState = stored?.exists?.()
+          ? (stored.data()?.active === true ? "Đã đồng bộ · đang hoạt động" : "Đã đồng bộ · đang tắt")
+          : "Chưa có bản ghi thiết bị";
+      }
+
+      text("pushSettingPermission", permissionLabel(snapshot?.permission));
+      text("pushSettingOptedIn", snapshot?.optedIn === true ? "Đã đăng ký" : "Chưa đăng ký");
+      text("pushSettingSubscription", snapshot?.subscriptionId || "Chưa có");
+      text("pushSettingUid", user.uid || "—");
+      text("pushSettingFirestore", firestoreState);
+      text("pushSettingUpdatedAt", new Intl.DateTimeFormat("vi-VN", { dateStyle: "short", timeStyle: "medium" }).format(new Date()));
+
+      const ready = snapshot?.permission === "granted" && snapshot?.optedIn === true && Boolean(snapshot?.subscriptionId);
+      if (stateBox) {
+        stateBox.className = `push-settings-state ${ready ? "is-ready" : "is-warning"}`;
+        stateBox.textContent = ready
+          ? "Thiết bị đã sẵn sàng nhận thông báo nhiệm vụ."
+          : "Thiết bị chưa hoàn tất đăng ký thông báo; hãy mở quyền hoặc đồng bộ lại.";
+      }
+    } catch (error) {
+      console.error("Không kiểm tra được cài đặt thông báo:", error);
+      if (stateBox) {
+        stateBox.className = "push-settings-state is-error";
+        stateBox.textContent = error?.message || "Không kiểm tra được trạng thái thông báo.";
+      }
+    } finally {
+      if (syncButton) syncButton.disabled = false;
+    }
+  };
+
+  const open = () => {
+    modal.classList.remove("hidden");
+    document.body.classList.add("modal-open");
+    void refresh();
+  };
+  const close = () => {
+    modal.classList.add("hidden");
+    document.body.classList.remove("modal-open");
+  };
+
+  openButton.addEventListener("click", open);
+  closeButtons.forEach(button => button.addEventListener("click", close));
+  modal.addEventListener("click", event => { if (event.target === modal) close(); });
+  document.addEventListener("keydown", event => { if (event.key === "Escape" && !modal.classList.contains("hidden")) close(); });
+  syncButton?.addEventListener("click", () => refresh({ resync: true }));
+  permissionButton?.addEventListener("click", async () => {
+    permissionButton.disabled = true;
+    try {
+      await window.TaskPush?.requestPermission?.();
+      await refresh({ resync: true });
+    } finally {
+      permissionButton.disabled = false;
+    }
+  });
 }
 
 function initializePushNotifications(user) {
