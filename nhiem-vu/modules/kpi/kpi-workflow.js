@@ -3,16 +3,16 @@ import {
   addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, query,
   serverTimestamp, setDoc, Timestamp, updateDoc, where, limit, writeBatch
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
-import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260803.V1_7_2';
-import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260803.V1_7_2';
-import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260803.V1_7_2';
-import { PeriodReadService } from '../../services/period-read-service.js?v=20260803.V1_7_2';
-import { Permissions } from '../../core/permissions.js?v=20260803.V1_7_2';
-import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260803.V1_7_2';
+import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260804.V1_7_2_2';
+import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260804.V1_7_2_2';
+import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260804.V1_7_2_2';
+import { PeriodReadService } from '../../services/period-read-service.js?v=20260804.V1_7_2_2';
+import { Permissions } from '../../core/permissions.js?v=20260804.V1_7_2_2';
+import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260804.V1_7_2_2';
 import {
   KPI2B as KPI2C, COMMON_CRITERIA, calculateTaskScore, calculateKpiSummary,
   proposedRating, ratingName, round2, progressRateFromDates, convertAppendix04Rate
-} from '../../kpi-engine.js?v=20260803.V1_7_2';
+} from '../../kpi-engine.js?v=20260804.V1_7_2_2';
 
 export const KpiWorkflowState = {
   user: null,
@@ -118,6 +118,27 @@ function mergeSnapshotDocs(snapshots = []) {
   const docsById = new Map();
   snapshots.forEach(snapshot => snapshot?.docs?.forEach(item => docsById.set(item.id, item)));
   return { docs: [...docsById.values()] };
+}
+
+async function mergeAvailableSnapshotRequests(requests = [], label = 'dữ liệu') {
+  const results = await Promise.allSettled(requests);
+  const snapshots = [];
+  let firstError = null;
+
+  results.forEach((result, index) => {
+    if (result.status === 'fulfilled') {
+      snapshots.push(result.value);
+      return;
+    }
+    if (!firstError) firstError = result.reason;
+    console.warn(`Không tải được nhánh ${index + 1} của ${label}; tiếp tục với nhánh còn lại:`, result.reason);
+  });
+
+  if (!snapshots.length) {
+    throw firstError || new Error(`Không tải được ${label}.`);
+  }
+
+  return mergeSnapshotDocs(snapshots);
 }
 
 function delegationDepartmentId(delegation) {
@@ -645,10 +666,10 @@ async function loadAll() {
       : professionalCenterScope
         ? getDocs(query(collection(db, 'tasks'), where('periodId', '==', periodId), where('primaryDepartmentId', 'in', PROFESSIONAL_DEPARTMENT_IDS)))
         : departmentId === 'CDTN' && taskDepartmentScope
-          ? Promise.all([
+          ? mergeAvailableSnapshotRequests([
               getDocs(query(collection(db, 'tasks'), where('periodId', '==', periodId), where('primaryDepartmentId', '==', 'CDTN'))),
               getDocs(query(collection(db, 'tasks'), where('periodId', '==', periodId), where('organizationId', '==', 'CDTN')))
-            ]).then(mergeSnapshotDocs)
+            ], 'nhiệm vụ Chi đoàn')
           : taskDepartmentScope
             ? getDocs(query(collection(db, 'tasks'), where('periodId', '==', periodId), where('primaryDepartmentId', '==', departmentId)))
             : getDocs(query(collection(db, 'tasks'), where('periodId', '==', periodId), where('ownerUserId', '==', KpiWorkflowState.user.uid)));
@@ -658,10 +679,10 @@ async function loadAll() {
       : professionalCenterScope
         ? getDocs(query(collection(db, 'taskRegistrations'), where('periodId', '==', periodId), where('departmentId', 'in', PROFESSIONAL_DEPARTMENT_IDS)))
         : departmentId === 'CDTN' && registrationDepartmentScope
-          ? Promise.all([
+          ? mergeAvailableSnapshotRequests([
               getDocs(query(collection(db, 'taskRegistrations'), where('periodId', '==', periodId), where('departmentId', '==', 'CDTN'))),
               getDocs(query(collection(db, 'taskRegistrations'), where('periodId', '==', periodId), where('organizationId', '==', 'CDTN')))
-            ]).then(mergeSnapshotDocs)
+            ], 'đăng ký nhiệm vụ Chi đoàn')
           : registrationDepartmentScope
             ? getDocs(query(collection(db, 'taskRegistrations'), where('periodId', '==', periodId), where('departmentId', '==', departmentId)))
             : getDocs(query(collection(db, 'taskRegistrations'), where('periodId', '==', periodId), where('userId', '==', KpiWorkflowState.user.uid)));
@@ -671,10 +692,10 @@ async function loadAll() {
       : professionalCenterScope
         ? getDocs(query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId), where('departmentId', 'in', PROFESSIONAL_DEPARTMENT_IDS)))
         : departmentId === 'CDTN' && evaluationDepartmentScope
-          ? Promise.all([
+          ? mergeAvailableSnapshotRequests([
               getDocs(query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId), where('departmentId', '==', 'CDTN'))),
               getDocs(query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId), where('organizationId', '==', 'CDTN')))
-            ]).then(mergeSnapshotDocs)
+            ], 'đánh giá nhiệm vụ Chi đoàn')
           : evaluationDepartmentScope
             ? getDocs(query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId), where('departmentId', '==', departmentId)))
             : getDocs(query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId), where('ownerUserId', '==', KpiWorkflowState.user.uid)));
