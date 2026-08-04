@@ -3,8 +3,8 @@
  * STAFF gửi đề nghị; người giao nhiệm vụ xem xét và phê duyệt hoặc trả lại.
  */
 import { ToastService } from "../../core/toast-service.js";
-import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260804.V1_8_1";
-import { TaskAdjustmentService } from "../../services/task-adjustment-service.js?v=20260804.V1_8_1";
+import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260804.V1_8_2";
+import { TaskAdjustmentService } from "../../services/task-adjustment-service.js?v=20260804.V1_8_2";
 
 const STATUS_LABELS = Object.freeze({
   PENDING: ["Chờ phê duyệt", "warning"],
@@ -40,6 +40,13 @@ function formatDateTime(value) {
 function formatDateKey(value) {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ""));
   return match ? `${match[3]}/${match[2]}/${match[1]}` : "Không thay đổi";
+}
+
+function taskCompleted(task) {
+  return Boolean(
+    task?.completedAt ||
+    ["HOAN_THANH", "COMPLETED", "DA_HOAN_THANH"].includes(String(task?.status || "").trim().toUpperCase())
+  );
 }
 
 function statusPill(status) {
@@ -148,9 +155,10 @@ function openRequestModal(task, onSubmitted) {
     </div>
     <div class="modal-body task-form-grid">
       <label class="field-full"><span>Loại đề nghị *</span><select id="adjustmentType">
-        <option value="ADJUST_SCOPE">Điều chỉnh khối lượng/phạm vi</option>
-        <option value="EXEMPT_FROM_SCORING">Miễn đánh giá do điều động</option>
+        <option value="ADJUST_SCOPE" ${taskCompleted(task) ? "disabled" : ""}>Điều chỉnh khối lượng/phạm vi</option>
+        <option value="EXEMPT_FROM_SCORING" ${taskCompleted(task) ? "selected" : ""}>Miễn đánh giá do điều động</option>
       </select></label>
+      ${taskCompleted(task) ? `<div class="field-full warning-banner"><strong>Nhiệm vụ đã được đánh dấu hoàn thành.</strong><br>Hệ thống chỉ cho gửi đề nghị miễn đánh giá nếu điểm chưa được xác nhận hoặc khóa. Điều chỉnh khối lượng/phạm vi không còn áp dụng.</div>` : ""}
       <div id="adjustmentTypeNote" class="field-full info-banner compact-info-banner"></div>
       <label class="field-full"><span>Lý do *</span><textarea id="adjustmentReason" rows="4" maxlength="3000" placeholder="Ví dụ: Theo lệnh điều động ngày…, tôi được phân công nuôi bệnh nhân tại… từ ngày… đến ngày… nên không thể tiếp tục thực hiện đầu việc này."></textarea></label>
       <label class="field-full" data-scope-field><span>Khối lượng/phạm vi đề xuất</span><textarea id="adjustedWorkload" rows="3" maxlength="1000" placeholder="Nêu phần công việc giữ lại, giảm bớt hoặc thay đổi"></textarea></label>
@@ -174,6 +182,11 @@ function openRequestModal(task, onSubmitted) {
       const adjustmentType = overlay.querySelector("#adjustmentType")?.value || "ADJUST_SCOPE";
       const reason = overlay.querySelector("#adjustmentReason")?.value || "";
       if (!reason.trim()) throw new Error("Hãy nhập lý do đề nghị.");
+      if (!TaskAdjustmentService.canRequest(task, adjustmentType)) {
+        throw new Error(taskCompleted(task) && adjustmentType !== TaskAdjustmentService.TYPES.EXEMPT_FROM_SCORING
+          ? "Nhiệm vụ đã hoàn thành; hãy chọn “Miễn đánh giá do điều động”."
+          : "Nhiệm vụ không còn đủ điều kiện gửi đề nghị hoặc đã có đề nghị đang chờ xử lý.");
+      }
       button.disabled = true;
       button.textContent = "Đang gửi…";
       const selectedFile = overlay.querySelector("#adjustmentEvidenceFile")?.files?.[0] || null;

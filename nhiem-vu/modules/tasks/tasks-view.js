@@ -1,12 +1,15 @@
-import { Permissions } from "../../core/permissions.js?v=20260804.V1_8_1";
+import { Permissions } from "../../core/permissions.js?v=20260804.V1_8_2";
 import { ToastService } from "../../core/toast-service.js";
-import { TaskReadService } from "../../services/task-read-service.js?v=20260804.V1_8_1";
-import { openTaskCreateModal } from "./task-form-modal.js?v=20260804.V1_8_1";
-import { openTaskDetailModal } from "./task-detail-modal.js?v=20260804.V1_8_1";
+import { TaskReadService } from "../../services/task-read-service.js?v=20260804.V1_8_2";
+import { openTaskCreateModal } from "./task-form-modal.js?v=20260804.V1_8_2";
+import { openTaskDetailModal } from "./task-detail-modal.js?v=20260804.V1_8_2";
 
 let renderSequence = 0;
 let currentTasks = [];
 let currentOutlet = null;
+let stopTaskRealtime = null;
+let taskRealtimeCleanupBound = false;
+let taskRealtimeErrorShown = false;
 
 const DEPARTMENT_NAMES = Object.freeze({
   BGD: "Ban Giám đốc",
@@ -29,6 +32,44 @@ function taskWorkspaceId(task) {
   return primaryDepartmentId;
 }
 
+function stopTasksRealtime() {
+  try { stopTaskRealtime?.(); } catch (_) { /* Đóng listener an toàn. */ }
+  stopTaskRealtime = null;
+}
+
+function bindTasksRealtimeCleanup() {
+  if (taskRealtimeCleanupBound) return;
+  taskRealtimeCleanupBound = true;
+  document.addEventListener("v3:route-changed", event => {
+    if (event.detail?.route !== "#/tasks") stopTasksRealtime();
+  });
+}
+
+function startTasksRealtime(outlet, sequence) {
+  stopTasksRealtime();
+  bindTasksRealtimeCleanup();
+  taskRealtimeErrorShown = false;
+  stopTaskRealtime = TaskReadService.subscribe(
+    tasks => {
+      if (sequence !== renderSequence || currentOutlet !== outlet || window.location.hash !== "#/tasks") return;
+      currentTasks = tasks;
+      updateTasksPage(currentTasks);
+      const live = document.getElementById("taskRealtimeState");
+      if (live) {
+        live.textContent = "Đang đồng bộ trực tiếp";
+        live.classList.add("is-live");
+      }
+    },
+    error => {
+      console.warn("Không thể đồng bộ nhiệm vụ trực tiếp:", error);
+      if (!taskRealtimeErrorShown && window.location.hash === "#/tasks") {
+        taskRealtimeErrorShown = true;
+        ToastService.error("Đồng bộ trực tiếp tạm gián đoạn; nút Cập nhật vẫn sử dụng được.");
+      }
+    }
+  );
+}
+
 
 export async function renderTasksView(outlet) {
   currentOutlet = outlet;
@@ -40,6 +81,7 @@ export async function renderTasksView(outlet) {
     if (sequence !== renderSequence || currentOutlet !== outlet || window.location.hash !== "#/tasks") return;
     mountTasksPage(outlet);
     updateTasksPage(currentTasks);
+    startTasksRealtime(outlet, sequence);
   } catch (error) {
     renderTaskLoadError(outlet, error);
   }
@@ -62,14 +104,14 @@ function userFacingLoadError(error) {
   const detail = String(error?.message || "");
   if (["permission-denied", "firestore/permission-denied"].includes(code)
       || /missing or insufficient permissions/i.test(detail)) {
-    return "Chưa tải được nhiệm vụ theo phạm vi tài khoản. Hệ thống đã ghi nhận lỗi phân quyền; hãy thử lại sau khi Rules V1.8.1 được Publish.";
+    return "Chưa tải được nhiệm vụ theo phạm vi tài khoản. Hệ thống đã ghi nhận lỗi phân quyền; hãy thử lại sau khi Rules V1.8.2 được Publish.";
   }
   return "Không thể tải dữ liệu nhiệm vụ vào lúc này. Vui lòng kiểm tra kết nối và thử lại.";
 }
 
 function mountTasksPage(outlet) {
   outlet.innerHTML = `<section class="page-card tasks-page-card">
-    <div class="page-header"><div><h2>Nhiệm vụ</h2><p>Theo dõi nhiệm vụ được giao, tiến độ thực hiện và kết quả hoàn thành.</p></div>${Permissions.canCreateUnexpectedTask() ? '<button id="btnCreateTask" class="primary-button" type="button">＋ Giao nhiệm vụ đột xuất</button>' : ""}</div>
+    <div class="page-header"><div><h2>Nhiệm vụ</h2><p>Theo dõi nhiệm vụ được giao, tiến độ thực hiện và kết quả hoàn thành.</p><small id="taskRealtimeState" class="realtime-state">Đang kết nối đồng bộ trực tiếp…</small></div>${Permissions.canCreateUnexpectedTask() ? '<button id="btnCreateTask" class="primary-button" type="button">＋ Giao nhiệm vụ đột xuất</button>' : ""}</div>
     <div class="summary-grid compact-grid tasks-summary-grid">
       ${card("Tất cả", 0, "taskMetricTotal")}
       ${card("Đang xử lý", 0, "taskMetricInProgress")}
