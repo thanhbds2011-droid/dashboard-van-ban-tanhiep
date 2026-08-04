@@ -12,7 +12,7 @@ const standardView = read("nhiem-vu/modules/standard-tasks/standard-tasks-view.j
 const registration = read("nhiem-vu/services/task-registration-service.js");
 const standardRead = read("nhiem-vu/services/standard-task-read-service.js");
 const tasksView = read("nhiem-vu/modules/tasks/tasks-view.js");
-const accountSync = read("deployment/apps-script-account-sync-v3.3.0.gs");
+const accountSync = read("deployment/apps-script-account-sync-v3.3.1.gs");
 const sw = read("nhiem-vu/sw.js");
 
 function hasIndex(collectionGroup, fieldPath) {
@@ -29,7 +29,7 @@ test("Danh sách ủy quyền hiển thị vai trò Chi đoàn, không dùng ch�
 });
 
 test("Danh bạ Chi đoàn được đồng bộ vai trò ưu tiên và nhãn hiển thị", () => {
-  assert.match(accountSync, /VERSION: '3\.3\.0'/);
+  assert.match(accountSync, /VERSION: '3\.3\.1'/);
   assert.match(accountSync, /cdtnRole:/);
   assert.match(accountSync, /cdtnRoleLabel:/);
   assert.match(accountSync, /Ủy viên BCH Chi đoàn/);
@@ -82,7 +82,7 @@ test("Thanh lọc nhiệm vụ có sync nhỏ cùng hàng", () => {
   assert.match(tasksView, /button\.classList\.add\("is-loading"\)/);
 });
 
-test("Service Worker và import graph dùng V1.8.0", () => {
-  assert.match(sw, /nhiem-vu-20260804-v1-8-0/);
-  assert.match(sw, /app-v3\.js\?v=20260804\.V1_8_0/);
+test("Service Worker và import graph dùng V1.8.1", () => {
+  assert.match(sw, /nhiem-vu-20260804-v1-8-1/);
+  assert.match(sw, /app-v3\.js\?v=20260804\.V1_8_1/);
 });

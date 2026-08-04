@@ -13,7 +13,7 @@ const kpi = read("nhiem-vu/modules/kpi/kpi-workflow.js");
 const taskRead = read("nhiem-vu/services/task-read-service.js");
 const dashboard = read("nhiem-vu/modules/dashboard/dashboard-view.js");
 const rules = read("firestore.rules");
-const appsScript = read("deployment/apps-script-notification-ai-evidence-v6.3.0.gs");
+const appsScript = read("deployment/apps-script-notification-ai-evidence-v6.3.1.gs");
 
 
 test("Chi tiết nhiệm vụ gắn bảng điều chỉnh và biểu mẫu STAFF", () => {
@@ -77,8 +77,8 @@ test("Nhiệm vụ miễn đánh giá không bị thống kê trễ hạn hoặc
 });
 
 
-test("Apps Script V6.3.0 gửi thông báo đúng luồng và có người duyệt dự phòng", () => {
-  assert.match(appsScript, /V6\.3\.0/);
+test("Apps Script V6.3.1 gửi thông báo đúng luồng và có người duyệt dự phòng", () => {
+  assert.match(appsScript, /V6\.3\.1/);
   assert.match(appsScript, /TASK_ADJUSTMENT_REQUESTED/);
   assert.match(appsScript, /TASK_ADJUSTMENT_APPROVED/);
   assert.match(appsScript, /TASK_ADJUSTMENT_REJECTED/);
@@ -118,7 +118,7 @@ test("Rules tương thích nhiệm vụ cũ khi trường người duyệt đi�
 
 test("PWA cache đầy đủ service gửi thông báo của quy trình điều chỉnh", () => {
   const sw = read("nhiem-vu/sw.js");
-  assert.match(sw, /services\/task-notification-service\.js\?v=20260804\.V1_8_0/);
+  assert.match(sw, /services\/task-notification-service\.js\?v=20260804\.V1_8_1/);
 });
 
 

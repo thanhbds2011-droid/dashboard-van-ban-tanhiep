@@ -10,7 +10,7 @@ const permissions = read("nhiem-vu/core/permissions.js");
 const taskRead = read("nhiem-vu/services/task-read-service.js");
 const catalogRead = read("nhiem-vu/services/standard-task-read-service.js");
 const kpi = read("nhiem-vu/modules/kpi/kpi-workflow.js");
-const notification = read("deployment/apps-script-notification-ai-evidence-v6.3.0.gs");
+const notification = read("deployment/apps-script-notification-ai-evidence-v6.3.1.gs");
 
 test("ADMIN và Ban Giám đốc là hai vai trò duy nhất đọc đồng thời Phòng/Khu và Chi đoàn", () => {
   assert.match(permissions, /canViewAllScopes\(\)[\s\S]*return this\.isAdmin\(\) \|\| this\.isDirector\(\)/);

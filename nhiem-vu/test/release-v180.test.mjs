@@ -6,7 +6,7 @@ import { resolve } from 'node:path';
 const repo = resolve(import.meta.dirname, '../..');
 const read = relative => readFileSync(resolve(repo, relative), 'utf8');
 const rules = read('firestore.rules');
-const accountSync = read('deployment/apps-script-account-sync-v3.3.0.gs');
+const accountSync = read('deployment/apps-script-account-sync-v3.3.1.gs');
 const catalogSync = read('deployment/apps-script-standard-tasks-v4.2.0.gs');
 const catalogRead = read('nhiem-vu/services/standard-task-read-service.js');
 const catalogWrite = read('nhiem-vu/services/standard-task-write-service.js');
@@ -18,8 +18,8 @@ const index = read('nhiem-vu/index.html');
 const css = read('nhiem-vu/v3.css');
 
 
-test('V1.8.0 chuẩn hóa Trưởng/Phó bằng metadata rõ ràng', () => {
-  assert.match(accountSync, /VERSION: '3\.3\.0'/);
+test('V1.8.1 chuẩn hóa Trưởng/Phó bằng metadata rõ ràng', () => {
+  assert.match(accountSync, /VERSION: '3\.3\.1'/);
   assert.match(accountSync, /function derivedLeaderMetadata_/);
   assert.match(accountSync, /leaderLevel: 'HEAD'/);
   assert.match(accountSync, /leaderLevel: 'DEPUTY'/);
