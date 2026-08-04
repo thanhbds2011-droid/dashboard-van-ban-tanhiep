@@ -1,9 +1,9 @@
 /** Cập nhật tiến độ, kết quả và minh chứng nhiệm vụ. */
 import { UserContext } from "../../core/user-context.js";
-import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260804.V1_7_2_2";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260804.V1_7_2_2";
-import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260804.V1_7_2_2";
-import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260804.V1_7_2_2";
+import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260804.V1_8_0";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260804.V1_8_0";
+import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260804.V1_8_0";
+import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260804.V1_8_0";
 import { validateProgressInput, cleanText } from "./task-form-validator.js";
 
 function mayUpdate(task) {

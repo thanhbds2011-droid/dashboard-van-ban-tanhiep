@@ -1,8 +1,8 @@
-import { Permissions } from "../../core/permissions.js?v=20260804.V1_7_2_2";
+import { Permissions } from "../../core/permissions.js?v=20260804.V1_8_0";
 import { ToastService } from "../../core/toast-service.js";
-import { TaskReadService } from "../../services/task-read-service.js?v=20260804.V1_7_2_2";
-import { openTaskCreateModal } from "./task-form-modal.js?v=20260804.V1_7_2_2";
-import { openTaskDetailModal } from "./task-detail-modal.js?v=20260804.V1_7_2_2";
+import { TaskReadService } from "../../services/task-read-service.js?v=20260804.V1_8_0";
+import { openTaskCreateModal } from "./task-form-modal.js?v=20260804.V1_8_0";
+import { openTaskDetailModal } from "./task-detail-modal.js?v=20260804.V1_8_0";
 
 let renderSequence = 0;
 let currentTasks = [];
@@ -62,7 +62,7 @@ function userFacingLoadError(error) {
   const detail = String(error?.message || "");
   if (["permission-denied", "firestore/permission-denied"].includes(code)
       || /missing or insufficient permissions/i.test(detail)) {
-    return "Chưa tải được nhiệm vụ theo phạm vi tài khoản. Hệ thống đã ghi nhận lỗi phân quyền; hãy thử lại sau khi Rules V1.7.2 được Publish.";
+    return "Chưa tải được nhiệm vụ theo phạm vi tài khoản. Hệ thống đã ghi nhận lỗi phân quyền; hãy thử lại sau khi Rules V1.8.0 được Publish.";
   }
   return "Không thể tải dữ liệu nhiệm vụ vào lúc này. Vui lòng kiểm tra kết nối và thử lại.";
 }
@@ -85,7 +85,16 @@ function mountTasksPage(outlet) {
       <label><span>Trạng thái</span><select id="taskStatusFilter"><option value="ALL">Tất cả trạng thái</option><option value="IN_PROGRESS">Đang xử lý</option><option value="WAITING">Chờ phân công</option><option value="OVERDUE">Trễ hạn</option><option value="COMPLETED">Hoàn thành</option><option value="ADJUSTMENT_PENDING">Chờ duyệt điều chỉnh</option><option value="EXEMPT">Miễn đánh giá</option></select></label>
       <button id="refreshTasks" class="secondary-button compact-sync-button" type="button" title="Cập nhật danh sách nhiệm vụ" aria-label="Cập nhật danh sách nhiệm vụ">↻</button>
     </div>
-    <div id="taskListContainer" class="task-list-scroll"></div>
+    <div id="taskWorkspaceContainer" class="task-workspace-grid">
+      <section class="task-workspace-panel" data-task-workspace="PROFESSIONAL">
+        <header><div><span class="task-workspace-kicker">Chuyên môn</span><h3>Nhiệm vụ Phòng/Khu</h3></div><span id="taskProfessionalCount" class="task-workspace-count">0</span></header>
+        <div id="taskProfessionalList" class="task-list-scroll"></div>
+      </section>
+      <section id="taskCdtnPanel" class="task-workspace-panel task-workspace-cdtn" data-task-workspace="CDTN">
+        <header><div><span class="task-workspace-kicker">Chi đoàn</span><h3>Nhiệm vụ Chi đoàn</h3></div><span id="taskCdtnCount" class="task-workspace-count">0</span></header>
+        <div id="taskCdtnList" class="task-list-scroll"></div>
+      </section>
+    </div>
   </section>`;
 
   const refreshOnce = async () => {
@@ -159,9 +168,18 @@ function renderFilteredTasks() {
     return keywordMatch && departmentMatch && statusMatch;
   });
 
-  const container = document.getElementById("taskListContainer");
-  if (!container) return;
-  container.innerHTML = renderTaskList(filtered);
+  const professional = filtered.filter(task => taskWorkspaceId(task) !== "CDTN");
+  const cdtn = filtered.filter(task => taskWorkspaceId(task) === "CDTN");
+  const professionalContainer = document.getElementById("taskProfessionalList");
+  const cdtnContainer = document.getElementById("taskCdtnList");
+  const cdtnPanel = document.getElementById("taskCdtnPanel");
+  if (!professionalContainer || !cdtnContainer || !cdtnPanel) return;
+
+  professionalContainer.innerHTML = renderTaskList(professional, "Chưa có nhiệm vụ chuyên môn trong phạm vi hiển thị");
+  cdtnContainer.innerHTML = renderTaskList(cdtn, "Chưa có nhiệm vụ Chi đoàn trong phạm vi hiển thị");
+  cdtnPanel.hidden = cdtn.length === 0 && !currentTasks.some(task => taskWorkspaceId(task) === "CDTN");
+  setText("taskProfessionalCount", professional.length);
+  setText("taskCdtnCount", cdtn.length);
   bindRows(filtered);
 }
 
@@ -181,8 +199,8 @@ function bindRows(tasks) {
   });
 }
 
-function renderTaskList(tasks) {
-  if (!tasks.length) return `<div class="empty-state"><div class="empty-icon">📋</div><strong>Không có nhiệm vụ trong phạm vi hiển thị</strong><p>Hãy thay đổi bộ lọc hoặc chờ nhiệm vụ được giao.</p></div>`;
+function renderTaskList(tasks, emptyTitle = "Không có nhiệm vụ trong phạm vi hiển thị") {
+  if (!tasks.length) return `<div class="empty-state compact-empty-state"><div class="empty-icon">📋</div><strong>${escapeHtml(emptyTitle)}</strong><p>Hãy thay đổi bộ lọc hoặc chờ nhiệm vụ được giao.</p></div>`;
   return `<div class="data-list">${tasks.slice(0, 500).map(task => {
     const scoringStatus = String(task.scoringStatus || "").toUpperCase();
     const adjustmentStatus = String(task.adjustmentStatus || "").toUpperCase();
