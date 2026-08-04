@@ -736,3 +736,56 @@ body:has(.modal-backdrop) { overflow: hidden; }
 @media print {
   .registration-sticky { position: static; box-shadow: none; }
 }
+
+
+/* ===== Production V1.8.1: biểu mẫu giao việc 6 rõ và AI không bị che ===== */
+#taskCreateForm #taskAiAssistant {
+  grid-column: 1 / -1;
+  min-height: 76px;
+  height: auto;
+  max-height: none;
+  overflow: visible;
+  align-self: start;
+  z-index: 1;
+}
+#taskCreateForm #taskAiAssistant .task-ai-header {
+  min-height: 46px;
+  overflow: visible;
+}
+.six-clear-directive {
+  display: grid;
+  gap: 11px;
+  padding: 14px 15px;
+  border: 1px solid #c9deea;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #f8fcff, #edf7fc);
+}
+.six-clear-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+.six-clear-heading strong { color: #134f73; font-size: 15px; }
+.six-clear-heading span { color: #637b8a; font-size: 12px; }
+.six-clear-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+}
+.six-clear-grid > div {
+  min-width: 0;
+  padding: 10px 11px;
+  border: 1px solid #d8e7ef;
+  border-radius: 10px;
+  background: #fff;
+}
+.six-clear-grid b,
+.six-clear-grid span { display: block; }
+.six-clear-grid b { margin-bottom: 4px; color: #17628d; font-size: 12px; }
+.six-clear-grid span { color: #263f51; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.six-clear-detail .detail-grid strong { white-space: normal; overflow-wrap: anywhere; }
+@media (max-width: 760px) {
+  .six-clear-heading { align-items: flex-start; flex-direction: column; gap: 4px; }
+  .six-clear-grid { grid-template-columns: 1fr; }
+}

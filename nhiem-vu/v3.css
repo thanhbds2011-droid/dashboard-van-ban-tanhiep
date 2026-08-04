@@ -899,7 +899,7 @@ button,input,select,textarea{font-size:16px}
   .tasks-toolbar-compact > .compact-sync-button { grid-column: 2 !important; grid-row: 3 !important; }
 }
 
-/* ===== Production V1.8.0: workspace nhiệm vụ và cài đặt thông báo ===== */
+/* ===== Production V1.8.1: workspace nhiệm vụ và cài đặt thông báo ===== */
 .header-notification-button{display:inline-flex;align-items:center;gap:.4rem;white-space:nowrap}
 .app-modal-backdrop{position:fixed;inset:0;z-index:2200;display:grid;place-items:center;padding:1rem;background:rgba(6,27,42,.58);backdrop-filter:blur(4px)}
 .app-modal-backdrop.hidden{display:none!important}
