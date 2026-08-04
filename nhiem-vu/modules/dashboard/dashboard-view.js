@@ -1,11 +1,13 @@
 import { UserContext } from "../../core/user-context.js";
 import { Permissions } from "../../core/permissions.js";
 import { ToastService } from "../../core/toast-service.js";
-import { DashboardReadService } from "../../services/dashboard-read-service.js?v=20260804.V1_8_1";
-import { TaskReadService } from "../../services/task-read-service.js?v=20260804.V1_8_1";
+import { DashboardReadService } from "../../services/dashboard-read-service.js?v=20260804.V1_8_2";
+import { TaskReadService } from "../../services/task-read-service.js?v=20260804.V1_8_2";
 let currentData = null;
 let dashboardRenderSequence = 0;
 let dashboardDepartmentScope = "ALL";
+let stopDashboardRealtime = null;
+let dashboardRealtimeCleanupBound = false;
 
 const DEPARTMENT_NAMES = Object.freeze({
   BGD: "Ban Giám đốc",
@@ -37,6 +39,37 @@ function professionalLine(user = {}) {
   return [professional, ...additional].filter(Boolean).join(", ") || "Chưa cập nhật chức danh và đơn vị";
 }
 
+function stopDashboardTaskRealtime() {
+  try { stopDashboardRealtime?.(); } catch (_) { /* Đóng listener an toàn. */ }
+  stopDashboardRealtime = null;
+}
+
+function bindDashboardRealtimeCleanup() {
+  if (dashboardRealtimeCleanupBound) return;
+  dashboardRealtimeCleanupBound = true;
+  document.addEventListener("v3:route-changed", event => {
+    if (event.detail?.route !== "#/dashboard") stopDashboardTaskRealtime();
+  });
+}
+
+function startDashboardTaskRealtime(outlet, sequence) {
+  stopDashboardTaskRealtime();
+  bindDashboardRealtimeCleanup();
+  stopDashboardRealtime = TaskReadService.subscribe(
+    tasks => {
+      if (sequence !== dashboardRenderSequence || window.location.hash !== "#/dashboard" || !outlet.isConnected) return;
+      currentData = { ...(currentData || {}), tasks };
+      updateDashboard(currentData);
+      const live = document.getElementById("dashboardRealtimeState");
+      if (live) {
+        live.textContent = "Đang đồng bộ trực tiếp";
+        live.classList.add("is-live");
+      }
+    },
+    error => console.warn("Không thể đồng bộ trang chủ trực tiếp:", error)
+  );
+}
+
 export async function renderDashboardView(outlet) {
   const sequence = ++dashboardRenderSequence;
   const user = UserContext.requireUser();
@@ -47,6 +80,7 @@ export async function renderDashboardView(outlet) {
     if (sequence !== dashboardRenderSequence || window.location.hash !== "#/dashboard") return;
     mountDashboard(outlet, user);
     updateDashboard(currentData);
+    startDashboardTaskRealtime(outlet, sequence);
   } catch (error) {
     outlet.innerHTML = errorCard("Không thể tải trang chủ", error);
   }
@@ -55,7 +89,7 @@ export async function renderDashboardView(outlet) {
 function mountDashboard(outlet, user) {
   outlet.innerHTML = `
     <section class="page-card">
-      <div class="page-header"><div><h2>Tổng quan</h2><p>Theo dõi nhiệm vụ và kỳ đánh giá theo phạm vi tài khoản.</p></div><div class="dashboard-header-actions">${Permissions.canViewAllDepartments() ? '<label class="dashboard-department-filter"><span>Phòng/Khu</span><select id="dashboardDepartmentFilter"><option value="ALL">Toàn Trung tâm</option></select></label>' : ''}<button id="btnDashboardRefresh" class="secondary-button compact-sync-button" type="button" title="Cập nhật dữ liệu" aria-label="Cập nhật dữ liệu">↻</button></div></div>
+      <div class="page-header"><div><h2>Tổng quan</h2><p>Theo dõi nhiệm vụ và kỳ đánh giá theo phạm vi tài khoản.</p><small id="dashboardRealtimeState" class="realtime-state">Đang kết nối đồng bộ trực tiếp…</small></div><div class="dashboard-header-actions">${Permissions.canViewAllDepartments() ? '<label class="dashboard-department-filter"><span>Phòng/Khu</span><select id="dashboardDepartmentFilter"><option value="ALL">Toàn Trung tâm</option></select></label>' : ''}<button id="btnDashboardRefresh" class="secondary-button compact-sync-button" type="button" title="Cập nhật dữ liệu" aria-label="Cập nhật dữ liệu">↻</button></div></div>
       <section class="welcome-panel"><div><span class="welcome-label">Xin chào</span><h3>Đồng chí ${escapeHtml(user.fullName || "Người dùng")}</h3><p>${escapeHtml(professionalLine(user))}</p></div><span class="role-badge">${escapeHtml(formatRole(user.role))}</span></section>
       <div class="dashboard-period-inline"><span>Kỳ KPI hiện tại</span><strong id="dashboardPeriod">—</strong><small id="dashboardPeriodNote">Chưa có kỳ hoạt động</small></div>
       <div class="summary-grid dashboard-summary-grid">
