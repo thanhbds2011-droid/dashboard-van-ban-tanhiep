@@ -4,8 +4,8 @@
  */
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { TaskLogService } from "./task-log-service.js?v=20260804.V1_8_1";
-import { TaskNotificationService } from "./task-notification-service.js?v=20260804.V1_8_1";
+import { TaskLogService } from "./task-log-service.js?v=20260804.V1_8_2";
+import { TaskNotificationService } from "./task-notification-service.js?v=20260804.V1_8_2";
 
 const COLLECTION = "kpiAdjustments";
 const TYPES = Object.freeze({
@@ -72,6 +72,36 @@ function pendingStatus(task) {
   return String(task?.adjustmentStatus || "").toUpperCase() === "REQUESTED" || Boolean(clean(task?.pendingAdjustmentId, 200));
 }
 
+function normalizeAdjustmentType(value) {
+  const normalized = String(value || "").trim().toUpperCase();
+  return Object.values(TYPES).includes(normalized) ? normalized : "";
+}
+
+function baseRequestAllowed(task, user) {
+  const scoringStatus = String(task?.scoringStatus || "").trim().toUpperCase();
+  return Boolean(
+    task?.active !== false &&
+    task?.ownerUserId === user?.uid &&
+    task?.scoreLocked !== true &&
+    !["CONFIRMED", "ADJUSTMENT_EXEMPT", "NO_OCCURRENCE_CONFIRMED"].includes(scoringStatus) &&
+    String(task?.noOccurrenceStatus || "").trim().toUpperCase() !== "CONFIRMED" &&
+    !pendingStatus(task)
+  );
+}
+
+function requestAllowedForType(task, user, requestedType) {
+  if (!baseRequestAllowed(task, user)) return false;
+  if (requestedType === TYPES.EXEMPT_FROM_SCORING) {
+    /*
+     * Có thể đề nghị miễn đánh giá cả khi nhiệm vụ đã được đánh dấu hoàn thành,
+     * miễn là điểm chưa được xác nhận/khóa. Tình huống này dùng cho điều động,
+     * đi học, nuôi bệnh hoặc lý do khách quan được người giao nhiệm vụ phê duyệt.
+     */
+    return true;
+  }
+  return requestedType === TYPES.ADJUST_SCOPE && !completedTask(task);
+}
+
 function proposedSnapshot(task, data, type) {
   if (type === TYPES.EXEMPT_FROM_SCORING) {
     return {
@@ -134,17 +164,12 @@ export const TaskAdjustmentService = Object.freeze({
       .sort((a, b) => Number(b.createdAt?.seconds || 0) - Number(a.createdAt?.seconds || 0));
   },
 
-  canRequest(task) {
+  canRequest(task, requestedType = "") {
     const user = UserContext.requireUser();
-    return Boolean(
-      task?.active !== false &&
-      task.ownerUserId === user.uid &&
-      task.scoreLocked !== true &&
-      !completedTask(task) &&
-      !["CONFIRMED", "ADJUSTMENT_EXEMPT", "NO_OCCURRENCE_CONFIRMED"].includes(String(task.scoringStatus || "").toUpperCase()) &&
-      String(task.noOccurrenceStatus || "").toUpperCase() !== "CONFIRMED" &&
-      !pendingStatus(task)
-    );
+    const normalizedType = normalizeAdjustmentType(requestedType);
+    if (normalizedType) return requestAllowedForType(task, user, normalizedType);
+    return requestAllowedForType(task, user, TYPES.ADJUST_SCOPE)
+      || requestAllowedForType(task, user, TYPES.EXEMPT_FROM_SCORING);
   },
 
   canApprove(task, adjustment = null) {
@@ -159,12 +184,22 @@ export const TaskAdjustmentService = Object.freeze({
 
   async request(task, data = {}) {
     const user = UserContext.requireUser();
-    if (!this.canRequest(task)) throw new Error("Nhiệm vụ không đủ điều kiện gửi đề nghị điều chỉnh.");
+    const requestedType = normalizeAdjustmentType(data.adjustmentType) || TYPES.ADJUST_SCOPE;
+    if (!this.canRequest(task, requestedType)) {
+      const scoringStatus = String(task?.scoringStatus || "").trim().toUpperCase();
+      if (task?.scoreLocked === true || scoringStatus === "CONFIRMED") {
+        throw new Error("Nhiệm vụ đã khóa hoặc đã xác nhận điểm nên không thể gửi đề nghị miễn/điều chỉnh.");
+      }
+      if (pendingStatus(task)) {
+        throw new Error("Nhiệm vụ đã có một đề nghị đang chờ phê duyệt.");
+      }
+      if (completedTask(task) && requestedType === TYPES.ADJUST_SCOPE) {
+        throw new Error("Nhiệm vụ đã hoàn thành; chỉ có thể chọn “Miễn đánh giá do điều động” nếu điểm chưa được khóa.");
+      }
+      throw new Error("Nhiệm vụ không đủ điều kiện gửi đề nghị hoặc tài khoản không phải người phụ trách.");
+    }
     const reason = clean(data.reason, 3000);
     if (!reason) throw new Error("Hãy nêu lý do điều chỉnh hoặc điều động.");
-    const requestedType = Object.values(TYPES).includes(String(data.adjustmentType || "").toUpperCase())
-      ? String(data.adjustmentType).toUpperCase()
-      : TYPES.ADJUST_SCOPE;
     const approverId = approvalUserId(task);
     if (!approverId) throw new Error("Nhiệm vụ chưa xác định người giao để phê duyệt điều chỉnh.");
     const reference = FirebaseService.doc(FirebaseService.collection(FirebaseService.db, COLLECTION));
@@ -228,7 +263,25 @@ export const TaskAdjustmentService = Object.freeze({
       after: { ...proposed, adjustmentType: requestedType, adjustmentLabel: label(requestedType) },
       note: reason
     }));
-    await batch.commit();
+    try {
+      await batch.commit();
+    } catch (error) {
+      console.error("TASK_ADJUSTMENT_REQUEST_FAILED", {
+        taskId: task.id,
+        taskCode: task.taskCode || "",
+        ownerUserId: task.ownerUserId || "",
+        requestedByUserId: user.uid,
+        approverUserId: approverId,
+        adjustmentType: requestedType,
+        status: task.status || "",
+        completedAt: task.completedAt || null,
+        scoringStatus: task.scoringStatus || "",
+        scoreLocked: task.scoreLocked === true,
+        code: error?.code || "",
+        message: error?.message || String(error)
+      });
+      throw error;
+    }
     void TaskNotificationService.send("TASK_ADJUSTMENT_REQUESTED", task.id, {
       adjustmentType: requestedType,
       adjustmentLabel: label(requestedType),
