@@ -11,7 +11,7 @@ const userRead = read("nhiem-vu/services/user-read-service.js");
 const standardRead = read("nhiem-vu/services/standard-task-read-service.js");
 const kpi = read("nhiem-vu/modules/kpi/kpi-workflow.js");
 const sw = read("nhiem-vu/sw.js");
-const accountScript = read("deployment/apps-script-account-sync-v3.2.2.gs");
+const accountScript = read("deployment/apps-script-account-sync-v3.3.0.gs");
 
 test("STAFF không thể tạo nhiệm vụ trực tiếp trong Rules", () => {
   const body = /function canCreateTask\(\)\s*\{([\s\S]*?)\n\s*\}/.exec(rules)?.[1] || "";
@@ -56,8 +56,8 @@ test("Truy vấn người dùng và danh mục bám theo phạm vi Rules", () =>
 });
 
 test("PWA đóng gói app và module đang hoạt động", () => {
-  assert.match(sw, /app-v3\.js\?v=20260803\.V1_7_2/);
-  assert.match(sw, /modules\/kpi\/kpi-workflow\.js\?v=20260803\.V1_7_2/);
+  assert.match(sw, /app-v3\.js\?v=20260804\.V1_8_0/);
+  assert.match(sw, /modules\/kpi\/kpi-workflow\.js\?v=20260804\.V1_8_0/);
   assert.match(sw, /Promise\.allSettled/);
 });
 

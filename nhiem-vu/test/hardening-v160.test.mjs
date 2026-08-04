@@ -18,7 +18,7 @@ test('Lịch sử điều chỉnh của STAFF truy vấn kèm userId để khôn
 
 test('Người được ủy quyền không được tự duyệt đăng ký của chính mình', () => {
   assert.match(registration, /!directAuthority && \(!delegated \|\| item\.userId === reviewer\.uid\)/);
-  assert.match(rules, /isDelegatedRegistrationApprover\(resource\.data\.departmentId\)[\s\S]*resource\.data\.userId != request\.auth\.uid/);
+  assert.match(rules, /isDelegatedRegistrationApprover\(registrationScopeDepartmentId\(resource\.data\)\)[\s\S]*resource\.data\.userId != request\.auth\.uid/);
   assert.match(rules, /resource\.data\.ownerUserId != request\.auth\.uid/);
 });
 

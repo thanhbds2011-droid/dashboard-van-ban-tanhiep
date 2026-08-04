@@ -12,7 +12,7 @@ const standardView = read("nhiem-vu/modules/standard-tasks/standard-tasks-view.j
 const registration = read("nhiem-vu/services/task-registration-service.js");
 const standardRead = read("nhiem-vu/services/standard-task-read-service.js");
 const tasksView = read("nhiem-vu/modules/tasks/tasks-view.js");
-const accountSync = read("deployment/apps-script-account-sync-v3.2.2.gs");
+const accountSync = read("deployment/apps-script-account-sync-v3.3.0.gs");
 const sw = read("nhiem-vu/sw.js");
 
 function hasIndex(collectionGroup, fieldPath) {
@@ -29,7 +29,7 @@ test("Danh sách ủy quyền hiển thị vai trò Chi đoàn, không dùng ch�
 });
 
 test("Danh bạ Chi đoàn được đồng bộ vai trò ưu tiên và nhãn hiển thị", () => {
-  assert.match(accountSync, /VERSION: '3\.2\.2'/);
+  assert.match(accountSync, /VERSION: '3\.3\.0'/);
   assert.match(accountSync, /cdtnRole:/);
   assert.match(accountSync, /cdtnRoleLabel:/);
   assert.match(accountSync, /Ủy viên BCH Chi đoàn/);
@@ -45,22 +45,24 @@ test("Rules xác thực người được ủy quyền từ cdtnMembers", () => 
 test("KPI và báo cáo nhận diện nhiệm vụ Chi đoàn cũ bằng phạm vi logic", () => {
   assert.match(kpi, /function taskScopeDepartmentId\(task\)/);
   assert.match(kpi, /organizationId === 'CDTN'/);
-  assert.match(kpi, /taskScopeDepartmentId\(t\) === reportDepartmentId/);
+  assert.match(kpi, /taskScopeDepartmentId\(task\)/);
   assert.match(tasksView, /function taskWorkspaceId\(task\)/);
 });
 
-test("Tiêu chí chung 30 điểm của Chi đoàn có document độc lập", () => {
-  assert.match(kpi, /return scope === 'CDTN' \? `\$\{periodId\}_CDTN_\$\{userId\}`/);
-  assert.match(kpi, /departmentId:commonDepartmentId/);
-  assert.match(kpi, /scopeType:commonDepartmentId==='CDTN'\?'CDTN':'PROFESSIONAL'/);
+test("Mỗi cá nhân chỉ dùng một bộ tiêu chí chung 30 điểm trong kỳ", () => {
+  assert.match(kpi, /return `\$\{periodId\}_\$\{userId\}`/);
+  assert.match(kpi, /const commonDepartmentId=profileDepartmentId\(\)/);
+  assert.match(kpi, /scopeType:'PROFESSIONAL'/);
+  assert.doesNotMatch(kpi, /`\$\{periodId\}_CDTN_\$\{userId\}`/);
   assert.match(rules, /commonAssessmentDocumentIdValid/);
 });
 
-test("Báo cáo Chi đoàn giữ đủ 30 điểm và chỉ lấy nhiệm vụ đúng phạm vi", () => {
-  assert.match(kpi, /NHÓM TIÊU CHÍ CHUNG \(30 ĐIỂM\)/);
-  assert.match(kpi, /KẾT QUẢ THỰC HIỆN NHIỆM VỤ ĐƯỢC GIAO \(70 ĐIỂM\)/);
-  assert.match(kpi, /taskScopeDepartmentId\(t\) === reportDepartmentId/);
-  assert.match(kpi, /BÁO CÁO CÁ NHÂN – CHI ĐOÀN/);
+test("Báo cáo tổng hợp Chi đoàn chỉ thống kê nhiệm vụ, không tạo tổng điểm hoặc xếp loại thứ hai", () => {
+  assert.match(kpi, /BẢNG TỔNG HỢP HOẠT ĐỘNG CHI ĐOÀN/);
+  assert.match(kpi, /taskScopeDepartmentId\(task\) === 'CDTN'/);
+  assert.match(kpi, /không cộng tiêu chí chung, không tính tổng 100 điểm/i);
+  assert.match(kpi, /Điểm kế hoạch \(A\)/);
+  assert.match(kpi, /Điểm thực tế \(B\)/);
 });
 
 test("Các truy vấn tương thích organizationId có đủ composite index", () => {
@@ -80,7 +82,7 @@ test("Thanh lọc nhiệm vụ có sync nhỏ cùng hàng", () => {
   assert.match(tasksView, /button\.classList\.add\("is-loading"\)/);
 });
 
-test("Service Worker và import graph dùng V1.7.2", () => {
-  assert.match(sw, /nhiem-vu-20260803-v1-7-2/);
-  assert.match(sw, /app-v3\.js\?v=20260803\.V1_7_2/);
+test("Service Worker và import graph dùng V1.8.0", () => {
+  assert.match(sw, /nhiem-vu-20260804-v1-8-0/);
+  assert.match(sw, /app-v3\.js\?v=20260804\.V1_8_0/);
 });

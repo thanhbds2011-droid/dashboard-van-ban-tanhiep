@@ -25,9 +25,10 @@ test("TCHC đọc toàn bộ dữ liệu chuyên môn nhưng không dùng truy v
   assert.match(kpi, /where\('primaryDepartmentId', 'in', PROFESSIONAL_DEPARTMENT_IDS\)/);
 });
 
-test("Thành viên Chi đoàn có thể mở báo cáo cá nhân Chi đoàn, còn quyền tổng hợp được kiểm soát riêng", () => {
-  assert.match(kpi, /else if \(Permissions\.isCdtnMember\(\)\)/);
-  assert.match(kpi, /Cá nhân · Chi đoàn/);
+test("Thành viên Chi đoàn có một báo cáo cá nhân gộp; tổng hợp Chi đoàn được kiểm soát riêng", () => {
+  assert.match(kpi, /Permissions\.isCdtnMember\(\)/);
+  assert.match(kpi, /Báo cáo KPI cá nhân/i);
+  assert.doesNotMatch(kpi, /Cá nhân · Chi đoàn/);
   assert.match(kpi, /canViewCdtnAggregateReport/);
 });
 

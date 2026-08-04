@@ -6,7 +6,7 @@ import { resolve } from 'node:path';
 const repo = resolve(import.meta.dirname, '../..');
 const read = relative => readFileSync(resolve(repo, relative), 'utf8');
 const rules = read('firestore.rules');
-const accountSync = read('deployment/apps-script-account-sync-v3.2.2.gs');
+const accountSync = read('deployment/apps-script-account-sync-v3.3.0.gs');
 const registration = read('nhiem-vu/services/task-registration-service.js');
 const taskWrite = read('nhiem-vu/services/task-write-service.js');
 const dashboard = read('nhiem-vu/modules/dashboard/dashboard-view.js');
@@ -22,8 +22,10 @@ test('Ủy quyền Chi đoàn dùng danh bạ tối thiểu cdtnMembers thay vì
   assert.match(rules, /isCdtnMember\(\)/);
 });
 
-test('Apps Script tài khoản V3.2.2 đồng bộ và vô hiệu hóa danh bạ Chi đoàn', () => {
-  assert.match(accountSync, /VERSION: '3\.2\.2'/);
+test('Apps Script tài khoản V3.3.0 đồng bộ vai trò lãnh đạo và danh bạ Chi đoàn', () => {
+  assert.match(accountSync, /VERSION: '3\.3\.0'/);
+  assert.match(accountSync, /leaderLevel/);
+  assert.match(accountSync, /isDepartmentHead/);
   assert.match(accountSync, /CDTN_MEMBER_COLLECTION_NAME: 'cdtnMembers'/);
   assert.match(accountSync, /cdtnMemberUpserts/);
   assert.match(accountSync, /deactivatedCdtnMembers/);
@@ -56,8 +58,10 @@ test('Báo cáo không còn nút xem trước thừa và Chi đoàn vẫn có 30
   const mountBody = /function mount\(\) \{([\s\S]*?)\n\}/.exec(kpi)?.[1] || '';
   assert.doesNotMatch(mountBody, /Xem trước báo cáo/);
   assert.match(kpi, /Tiêu chí chung/);
-  assert.match(kpi, /BÁO CÁO CÁ NHÂN CHI ĐOÀN|Báo cáo cá nhân Chi đoàn/i);
-  assert.doesNotMatch(kpi, /Không áp dụng tiêu chí chung trong báo cáo Chi đoàn/);
+  assert.match(kpi, /Báo cáo KPI cá nhân/i);
+  assert.match(kpi, /Chuyên môn/);
+  assert.match(kpi, /Chi đoàn/);
+  assert.doesNotMatch(kpi, /BÁO CÁO CÁ NHÂN CHI ĐOÀN|Báo cáo cá nhân Chi đoàn/i);
 });
 
 test('Bí thư và Phó Bí thư được đọc 30 điểm của thành viên Chi đoàn qua danh bạ tối thiểu', () => {
@@ -66,7 +70,7 @@ test('Bí thư và Phó Bí thư được đọc 30 điểm của thành viên C
   assert.match(rules, /hasActiveCdtnApprovalDelegation\("CONFIRM_EVALUATIONS"\)/);
 });
 
-test('PWA nâng cache lên V1.7.2', () => {
-  assert.match(sw, /nhiem-vu-20260803-v1-7-2/);
-  assert.match(sw, /app-v3\.js\?v=20260803\.V1_7_2/);
+test('PWA nâng cache lên V1.8.0', () => {
+  assert.match(sw, /nhiem-vu-20260804-v1-8-0/);
+  assert.match(sw, /app-v3\.js\?v=20260804\.V1_8_0/);
 });

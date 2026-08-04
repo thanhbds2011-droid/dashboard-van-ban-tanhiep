@@ -20,11 +20,12 @@ const attendance = read('services/cdtn-attendance-service.js');
 const permissions = read('core/permissions.js');
 
 
-test('STAFF chỉ truy vấn đầu việc cốt lõi, không lấy đầu việc quản lý', () => {
-  assert.match(standardRead, /where\("isCoreTaskDefault", "==", true\)/);
-  assert.match(standardRead, /where\("isManagementTask", "==", false\)/);
-  assert.match(rules, /data\.isCoreTaskDefault == true/);
-  assert.match(rules, /data\.isManagementTask != true/);
+test('STAFF truy vấn ALL_DEPARTMENT; audienceType là nguồn quyết định quyền nhìn thấy', () => {
+  assert.match(standardRead, /where\("audienceType", "==", "ALL_DEPARTMENT"\)/);
+  assert.doesNotMatch(standardRead, /where\("isCoreTaskDefault", "==", true\)/);
+  assert.doesNotMatch(standardRead, /where\("isManagementTask", "==", false\)/);
+  assert.match(rules, /function standardTaskAudience\(data\)/);
+  assert.match(rules, /audience == "ALL_DEPARTMENT"/);
 });
 
 test('Danh mục Phòng\/Khu và Chi đoàn được tách độc lập', () => {
@@ -57,7 +58,8 @@ test('Bí thư và Phó Bí thư ngang quyền ủy quyền duyệt, điểm dan
 test('Mã thường xuyên và đột xuất dùng hai định dạng chuẩn độc lập', () => {
   assert.match(standardWrite, /`\$\{prefix\}-DX\$\{suffix\}`/);
   assert.match(standardWrite, /`\$\{prefix\}\$\{suffix\}`/);
-  assert.match(standardWrite, /LOWEST_AVAILABLE_PER_DEPARTMENT_AND_WORK_TYPE/);
+  assert.match(standardWrite, /MONOTONIC_MAX_PLUS_ONE/);
+  assert.match(standardWrite, /Math\.max\(observedState\.highestExistingNumber, storedHighest\) \+ 1/);
 });
 
 test('Chi tiết nhiệm vụ có đủ năm tab nghiệp vụ', () => {
@@ -71,7 +73,7 @@ test('Ban Giám đốc và phạm vi toàn Trung tâm có bộ lọc Phòng\/Khu
   assert.match(tasksView, /Toàn Trung tâm/);
   assert.match(dashboard, /dashboardDepartmentFilter/);
   assert.match(dashboard, /dashboardDepartmentBreakdown/);
-  assert.match(kpi, /kpiDepartmentScope/);
+  assert.match(kpi, /scopeSwitchHtml/);
   assert.match(kpi, /Phạm vi/);
 });
 
@@ -83,10 +85,11 @@ test('Xác nhận KPI được thu gọn theo nhân viên và hỗ trợ chọn 
 });
 
 test('Báo cáo và Mẫu 01 lọc chính xác theo Phòng\/Khu hoặc Chi đoàn', () => {
-  assert.match(kpi, /taskScopeDepartmentId\(t\) === reportDepartmentId/);
-  assert.match(kpi, /Báo cáo cá nhân Chi đoàn/);
-  assert.match(kpi, /BÁO CÁO CÁ NHÂN – \$\{departmentDisplayName\(reportDepartmentId\)\.toUpperCase\(\)\}/);
-  assert.match(kpi, /exportReportCsv\(mine, s, reportDepartmentId\)/);
+  assert.match(kpi, /taskScopeDepartmentId\(task\) === 'CDTN'/);
+  assert.match(kpi, /Báo cáo KPI cá nhân/i);
+  assert.match(kpi, /Chuyên môn/);
+  assert.match(kpi, /Chi đoàn/);
+  assert.match(kpi, /exportReportCsv\(mine, s/);
 });
 
 test('Lời chào hiển thị Đồng chí, đơn vị đầy đủ và vai trò kiêm nhiệm', () => {
