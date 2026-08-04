@@ -1,10 +1,10 @@
 import { UserContext } from "../../core/user-context.js";
-import { Permissions } from "../../core/permissions.js?v=20260804.V1_7_2_2";
+import { Permissions } from "../../core/permissions.js?v=20260804.V1_8_0";
 import { ToastService } from "../../core/toast-service.js";
-import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260804.V1_7_2_2";
-import { PeriodReadService } from "../../services/period-read-service.js?v=20260804.V1_7_2_2";
-import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260804.V1_7_2_2";
-import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260804.V1_7_2_2";
+import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260804.V1_8_0";
+import { PeriodReadService } from "../../services/period-read-service.js?v=20260804.V1_8_0";
+import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260804.V1_8_0";
+import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260804.V1_8_0";
 
 let currentCatalogAccess = { canManage: false, manageableDepartmentIds: [] };
 
@@ -429,7 +429,7 @@ async function openTaskEditor(item) {
     item?.audienceType || (item?.isManagementTask === true ? "MANAGEMENT" : initialDepartmentId === "CDTN" ? "CDTN_MEMBER" : "ALL_DEPARTMENT")
   ).toUpperCase();
   const currentCore = item?.isCoreTaskDefault === true;
-  const currentManagement = currentAudience === "MANAGEMENT";
+  const currentManagement = item?.isManagementTask === true;
 
   const departmentOptions = manageableDepartmentIds
     .map(departmentId => `<option value="${escapeHtml(departmentId)}" ${departmentId === initialDepartmentId ? "selected" : ""}>${escapeHtml(departmentName(departmentId))}</option>`)
@@ -442,7 +442,7 @@ async function openTaskEditor(item) {
     editing ? "Cập nhật đầu việc chuẩn" : "Thêm đầu việc chuẩn",
     `<div class="standard-task-editor-intro">
       <strong>${editing ? "Cập nhật trực tiếp trên hệ thống" : "Tạo đầu việc mới và cấp mã tự động"}</strong>
-      <span>Mã được cấp theo từng Phòng/Khu và từng tính chất: thường xuyên dạng TCHC01; đột xuất dạng TCHC-DX01. Mã đã giải phóng được cấp lại nhưng lịch sử cũ vẫn được lưu.</span>
+      <span>Mã được cấp theo từng Phòng/Khu và từng tính chất: thường xuyên dạng TCHC01; đột xuất dạng TCHC-DX01. Mã mới luôn tăng theo số lớn nhất hiện có; không quay lại 01 hoặc lấp khoảng trống.</span>
     </div>
     <div class="kpi-form-grid standard-task-editor-form">
       <div class="standard-form-section-title full"><span>1</span><div><strong>Thông tin đầu việc</strong><small>Xác định đúng tên, kết quả đầu ra và chu kỳ thực hiện.</small></div></div>
@@ -478,8 +478,12 @@ async function openTaskEditor(item) {
         <div class="kpi-field standard-task-score-preview"><span>Điểm quy đổi tối đa</span><strong id="catalogTaskMaximum">${formatNumber(Number(item?.baseScore || (currentWorkType === "DOT_XUAT" ? 12 : 10)) * Number(item?.difficultyCoefficient || 1))}</strong></div>
       </div>
       <div id="catalogDepartmentAudience" class="standard-task-audience-grid full">
-        <label class="standard-task-check"><input id="catalogTaskCore" type="checkbox" ${currentCore ? "checked" : ""}><span><strong>Đầu việc cốt lõi</strong><small>Trưởng/Phó phòng và nhân viên cùng Phòng/Khu đều nhìn thấy.</small></span></label>
-        <label class="standard-task-check"><input id="catalogTaskManagement" type="checkbox" ${currentManagement ? "checked" : ""}><span><strong>Chỉ dành cho lãnh đạo, quản lý</strong><small>Chỉ Trưởng/Phó phòng hoặc Ban Giám đốc nhìn thấy để đăng ký.</small></span></label>
+        <label class="kpi-field full"><span>Đối tượng được nhìn thấy và đăng ký</span><select id="catalogTaskProfessionalAudience">
+          <option value="ALL_DEPARTMENT" ${currentAudience === "ALL_DEPARTMENT" ? "selected" : ""}>Toàn Phòng/Khu — nhân viên và lãnh đạo</option>
+          <option value="MANAGEMENT" ${currentAudience === "MANAGEMENT" ? "selected" : ""}>Chỉ lãnh đạo, quản lý</option>
+        </select><small class="field-help">Đây là trường quyết định quyền hiển thị. Hai cờ “Cốt lõi” và “Nhiệm vụ quản lý” chỉ là metadata KPI, không tự ghi đè đối tượng.</small></label>
+        <label class="standard-task-check"><input id="catalogTaskCore" type="checkbox" ${currentCore ? "checked" : ""}><span><strong>Đầu việc cốt lõi</strong><small>Đánh dấu tính chất KPI mặc định; không quyết định ai được nhìn thấy.</small></span></label>
+        <label class="standard-task-check"><input id="catalogTaskManagement" type="checkbox" ${currentManagement ? "checked" : ""}><span><strong>Nhiệm vụ có tính chất quản lý</strong><small>Metadata phục vụ phân loại báo cáo; quyền hiển thị vẫn theo ô “Đối tượng”.</small></span></label>
       </div>
       <label id="catalogCdtnAudienceField" class="kpi-field full hidden"><span>Đối tượng Chi đoàn</span><select id="catalogTaskCdtnAudience">
         <option value="CDTN_SECRETARY" ${currentAudience === "CDTN_SECRETARY" ? "selected" : ""}>Bí thư/Phó Bí thư</option>
@@ -549,12 +553,7 @@ async function openTaskEditor(item) {
     }
   };
 
-  coreInput?.addEventListener("change", () => {
-    if (coreInput.checked && managementInput) managementInput.checked = false;
-  });
-  managementInput?.addEventListener("change", () => {
-    if (managementInput.checked && coreInput) coreInput.checked = false;
-  });
+  /* Cốt lõi và tính chất quản lý là metadata độc lập; audienceType mới quyết định quyền hiển thị. */
   departmentInput?.addEventListener("change", () => syncAudienceFields(true));
   document.getElementById("catalogTaskWorkType")?.addEventListener("change", async () => {
     syncBaseScoreWithWorkType();
@@ -575,7 +574,7 @@ async function openTaskEditor(item) {
       const isCdtn = departmentId === "CDTN";
       const audienceType = isCdtn
         ? document.getElementById("catalogTaskCdtnAudience")?.value
-        : (managementInput?.checked === true ? "MANAGEMENT" : "ALL_DEPARTMENT");
+        : document.getElementById("catalogTaskProfessionalAudience")?.value;
 
       const result = await StandardTaskWriteService.saveTask({
         departmentId,
@@ -592,7 +591,7 @@ async function openTaskEditor(item) {
         difficultyCoefficient: document.getElementById("catalogTaskCoefficient")?.value,
         audienceType,
         isCoreTaskDefault: coreInput?.checked === true,
-        isManagementTask: audienceType === "MANAGEMENT"
+        isManagementTask: managementInput?.checked === true
       }, item?.id || "");
       closeStandardModal(root);
       ToastService.success(editing ? `Đã cập nhật ${result.code}.` : `Đã tạo ${result.code} và đồng bộ vào Firestore.`);
