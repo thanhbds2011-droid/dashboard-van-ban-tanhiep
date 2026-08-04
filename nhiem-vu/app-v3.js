@@ -1,18 +1,18 @@
 /** Ứng dụng quản lý nhiệm vụ và đánh giá KPI. */
 import { Router } from "./core/router.js";
-import { AuthService } from "./core/auth-service.js?v=20260803.V1_7_2";
-import { Permissions } from "./core/permissions.js?v=20260803.V1_7_2";
+import { AuthService } from "./core/auth-service.js?v=20260804.V1_7_2_2";
+import { Permissions } from "./core/permissions.js?v=20260804.V1_7_2_2";
 import { ToastService } from "./core/toast-service.js";
 import { FirebaseService } from "./core/firebase-service.js";
 
-import { renderDashboardView } from "./modules/dashboard/dashboard-view.js?v=20260803.V1_7_2";
-import { renderTasksView } from "./modules/tasks/tasks-view.js?v=20260803.V1_7_2";
-import { renderStandardTasksView } from "./modules/standard-tasks/standard-tasks-view.js?v=20260803.V1_7_2";
-import { renderPeriodsView } from "./modules/periods/periods-view.js?v=20260803.V1_7_2";
-import { renderPlansView } from "./modules/plans/plans-view.js?v=20260803.V1_7_2";
-import { renderEvaluationsView } from "./modules/evaluations/evaluations-view.js?v=20260803.V1_7_2";
-import { renderReportsView } from "./modules/reports/reports-view.js?v=20260803.V1_7_2";
-import { renderAdminView } from "./modules/admin/admin-view.js?v=20260803.V1_7_2";
+import { renderDashboardView } from "./modules/dashboard/dashboard-view.js?v=20260804.V1_7_2_2";
+import { renderTasksView } from "./modules/tasks/tasks-view.js?v=20260804.V1_7_2_2";
+import { renderStandardTasksView } from "./modules/standard-tasks/standard-tasks-view.js?v=20260804.V1_7_2_2";
+import { renderPeriodsView } from "./modules/periods/periods-view.js?v=20260804.V1_7_2_2";
+import { renderPlansView } from "./modules/plans/plans-view.js?v=20260804.V1_7_2_2";
+import { renderEvaluationsView } from "./modules/evaluations/evaluations-view.js?v=20260804.V1_7_2_2";
+import { renderReportsView } from "./modules/reports/reports-view.js?v=20260804.V1_7_2_2";
+import { renderAdminView } from "./modules/admin/admin-view.js?v=20260804.V1_7_2_2";
 
 async function bootstrap() {
   const outlet = document.getElementById("appOutlet");
@@ -111,7 +111,8 @@ function bindPushSubscriptionSync(user) {
   const save = async snapshot => {
     const subscriptionId = String(snapshot?.subscriptionId || "").trim();
     if (!subscriptionId) return;
-    const ref = FirebaseService.doc(FirebaseService.db, "taskPushSubscriptions", subscriptionId);
+    const subscriptionDocumentId = `${user.uid}_${subscriptionId}`;
+    const ref = FirebaseService.doc(FirebaseService.db, "taskPushSubscriptions", subscriptionDocumentId);
     await FirebaseService.setDoc(ref, {
       subscriptionId,
       userId: user.uid,
