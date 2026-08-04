@@ -6,9 +6,9 @@
  */
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260804.V1_7_2_2";
+import { Permissions } from "../core/permissions.js?v=20260804.V1_8_0";
 
-const SYNC_VERSION = "20260804.V1_7_2_2";
+const SYNC_VERSION = "20260804.V1_8_0";
 const STANDARD_TASK_COLLECTION = "standardTasks";
 const SEQUENCE_COLLECTION = "standardTaskSequences";
 const VALID_COEFFICIENTS = Object.freeze([1, 1.1, 1.2]);
@@ -177,8 +177,8 @@ async function observedSequenceState(departmentId, workType = "THUONG_XUYEN") {
   const normalizedType = normalizeWorkType(workType);
   const items = await listDepartmentTasks(department);
   const usedNumbers = departmentSequenceNumbers(items, department, normalizedType);
-  const nextAvailableNumber = smallestAvailableNumber(usedNumbers, 1);
   const highestExistingNumber = usedNumbers.size ? Math.max(...usedNumbers) : 0;
+  const nextAvailableNumber = highestExistingNumber + 1;
   return { items, usedNumbers, nextAvailableNumber, highestExistingNumber, workType: normalizedType };
 }
 
@@ -191,18 +191,23 @@ async function updateSequenceHint(departmentId, user, workType = "THUONG_XUYEN")
     SEQUENCE_COLLECTION,
     department
   );
+  const currentSnapshot = await FirebaseService.getDoc(reference);
+  const current = currentSnapshot.exists() ? currentSnapshot.data() : {};
   const fieldPrefix = normalizedType === "DOT_XUAT" ? "unexpected" : "regular";
+  const storedHighest = Number(current?.[`${fieldPrefix}HighestExistingNumber`] || current?.[`${fieldPrefix}LastNumber`] || 0);
+  const highestExistingNumber = Math.max(state.highestExistingNumber, storedHighest);
+  const nextAvailableNumber = highestExistingNumber + 1;
   await FirebaseService.setDoc(reference, {
     departmentId: department,
-    allocationMode: "LOWEST_AVAILABLE_PER_DEPARTMENT_AND_WORK_TYPE",
-    [`${fieldPrefix}NextAvailableNumber`]: state.nextAvailableNumber,
-    [`${fieldPrefix}NextAvailableCode`]: formatTaskCode(department, state.nextAvailableNumber, normalizedType),
-    [`${fieldPrefix}HighestExistingNumber`]: state.highestExistingNumber,
+    allocationMode: "MONOTONIC_MAX_PLUS_ONE",
+    [`${fieldPrefix}NextAvailableNumber`]: nextAvailableNumber,
+    [`${fieldPrefix}NextAvailableCode`]: formatTaskCode(department, nextAvailableNumber, normalizedType),
+    [`${fieldPrefix}HighestExistingNumber`]: highestExistingNumber,
     updatedAt: FirebaseService.serverTimestamp(),
     updatedByUserId: user.uid,
     updatedByName: user.fullName || ""
   }, { merge: true });
-  return state;
+  return { ...state, nextAvailableNumber, highestExistingNumber };
 }
 
 function taskPayload({ data, user, departmentId, code, sequence, existing = false }) {
@@ -214,8 +219,9 @@ function taskPayload({ data, user, departmentId, code, sequence, existing = fals
     departmentId,
     data.isManagementTask === true
   );
-  const isManagementTask = audienceType === "MANAGEMENT";
-  const isCoreTaskDefault = isManagementTask ? false : data.isCoreTaskDefault === true;
+  /* audienceType quyết định quyền nhìn thấy/đăng ký. Hai cờ dưới đây chỉ là metadata KPI. */
+  const isManagementTask = data.isManagementTask === true;
+  const isCoreTaskDefault = data.isCoreTaskDefault === true;
   const maximumConvertedScore = Math.round(baseScore * difficultyCoefficient * 10) / 10;
   const trackingMode = normalizeTrackingMode(data.trackingMode);
   const workItemType = normalizeWorkItemType(data.workItemType, trackingMode);
@@ -306,7 +312,14 @@ export const StandardTaskWriteService = Object.freeze({
 
     const normalizedType = normalizeWorkType(workType);
     const state = await observedSequenceState(department, normalizedType);
-    return formatTaskCode(department, state.nextAvailableNumber, normalizedType);
+    const sequenceSnapshot = await FirebaseService.getDoc(
+      FirebaseService.doc(FirebaseService.db, SEQUENCE_COLLECTION, department)
+    );
+    const sequenceData = sequenceSnapshot.exists() ? sequenceSnapshot.data() : {};
+    const fieldPrefix = normalizedType === "DOT_XUAT" ? "unexpected" : "regular";
+    const storedHighest = Number(sequenceData?.[`${fieldPrefix}HighestExistingNumber`] || sequenceData?.[`${fieldPrefix}LastNumber`] || 0);
+    const nextNumber = Math.max(state.highestExistingNumber, storedHighest) + 1;
+    return formatTaskCode(department, nextNumber, normalizedType);
   },
 
   async listDelegationCandidates() {
@@ -431,27 +444,31 @@ export const StandardTaskWriteService = Object.freeze({
 
     const workType = normalizeWorkType(data.workType);
     const observedState = await observedSequenceState(departmentId, workType);
-    const usedNumbers = new Set(observedState.usedNumbers);
-    const firstCandidate = observedState.nextAvailableNumber;
     const sequenceReference = FirebaseService.doc(FirebaseService.db, SEQUENCE_COLLECTION, departmentId);
 
     return FirebaseService.runTransaction(FirebaseService.db, async transaction => {
-      let sequence = firstCandidate;
+      const sequenceSnapshot = await transaction.get(sequenceReference);
+      const sequenceData = sequenceSnapshot.exists() ? sequenceSnapshot.data() : {};
+      const fieldPrefix = workType === "DOT_XUAT" ? "unexpected" : "regular";
+      const storedHighest = Number(
+        sequenceData?.[`${fieldPrefix}HighestExistingNumber`]
+        || sequenceData?.[`${fieldPrefix}LastNumber`]
+        || 0
+      );
+      let sequence = Math.max(observedState.highestExistingNumber, storedHighest) + 1;
       let code = "";
       let reference = null;
 
       /*
-       * Cấp số nhỏ nhất đang còn trống trong chính Phòng/Khu.
-       * Ví dụ TCHC01 và TCHC03 đang tồn tại thì mã mới là TCHC02.
-       * Giao dịch kiểm tra lại document để tránh hai người lưu trùng mã cùng lúc.
+       * Cấp mã tăng dần theo số lớn nhất thực tế/sequence + 1.
+       * Không quay lại lấp khoảng trống nên Sheet đang YT06 thì ứng dụng cấp YT07.
+       * Transaction vẫn kiểm tra document để tránh hai người tạo trùng đồng thời.
        */
       for (let attempt = 0; attempt < 500; attempt += 1) {
-        sequence = smallestAvailableNumber(usedNumbers, sequence);
         code = formatTaskCode(departmentId, sequence, workType);
         reference = FirebaseService.doc(FirebaseService.db, STANDARD_TASK_COLLECTION, code);
         const existingSnapshot = await transaction.get(reference);
         if (!existingSnapshot.exists()) break;
-        usedNumbers.add(sequence);
         sequence += 1;
         reference = null;
       }
@@ -460,28 +477,22 @@ export const StandardTaskWriteService = Object.freeze({
         throw new Error("Không thể cấp mã đầu việc mới. Hãy đồng bộ lại dữ liệu và thử lại.");
       }
 
-      const numbersAfterCreate = new Set(usedNumbers);
-      numbersAfterCreate.add(sequence);
-      const nextAvailableNumber = smallestAvailableNumber(numbersAfterCreate, 1);
-      const highestExistingNumber = numbersAfterCreate.size
-        ? Math.max(...numbersAfterCreate)
-        : sequence;
-
+      const nextAvailableNumber = sequence + 1;
       transaction.set(sequenceReference, {
         departmentId,
-        allocationMode: "LOWEST_AVAILABLE_PER_DEPARTMENT_AND_WORK_TYPE",
+        allocationMode: "MONOTONIC_MAX_PLUS_ONE",
         ...(workType === "DOT_XUAT" ? {
           unexpectedLastNumber: sequence,
           unexpectedLastCode: code,
           unexpectedNextAvailableNumber: nextAvailableNumber,
           unexpectedNextAvailableCode: formatTaskCode(departmentId, nextAvailableNumber, workType),
-          unexpectedHighestExistingNumber: highestExistingNumber
+          unexpectedHighestExistingNumber: sequence
         } : {
           regularLastNumber: sequence,
           regularLastCode: code,
           regularNextAvailableNumber: nextAvailableNumber,
           regularNextAvailableCode: formatTaskCode(departmentId, nextAvailableNumber, workType),
-          regularHighestExistingNumber: highestExistingNumber
+          regularHighestExistingNumber: sequence
         }),
         updatedAt: FirebaseService.serverTimestamp(),
         updatedByUserId: user.uid,

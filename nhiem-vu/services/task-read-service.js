@@ -1,8 +1,8 @@
 /** Đọc nhiệm vụ theo kỳ hiện hành, phạm vi tài khoản và bộ nhớ đệm ngắn. */
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260804.V1_7_2_2";
-import { PeriodReadService } from "./period-read-service.js?v=20260804.V1_7_2_2";
+import { Permissions } from "../core/permissions.js?v=20260804.V1_8_0";
+import { PeriodReadService } from "./period-read-service.js?v=20260804.V1_8_0";
 
 const TASK_CACHE_MS = 45 * 1000;
 const PROFESSIONAL_DEPARTMENT_IDS = Object.freeze(["BGD", "TCHC", "CTXH", "KHTC", "YT", "KI", "KII", "KIII"]);
@@ -36,12 +36,20 @@ function scopedReferences(periodId) {
   }
 
   if (Permissions.canViewAllDepartments()) {
-    return [FirebaseService.query(
+    const references = [FirebaseService.query(
       reference,
       periodFilter,
       FirebaseService.where("primaryDepartmentId", "in", PROFESSIONAL_DEPARTMENT_IDS),
       FirebaseService.limit(5000)
     )];
+    /* Trưởng/Phó TCHC cũng theo dõi Chi đoàn ở vùng riêng; TCHC_COORDINATOR không tự có quyền này. */
+    if (Permissions.isTchcDepartmentLeader()) {
+      references.push(
+        FirebaseService.query(reference, periodFilter, FirebaseService.where("primaryDepartmentId", "==", "CDTN"), FirebaseService.limit(1000)),
+        FirebaseService.query(reference, periodFilter, FirebaseService.where("organizationId", "==", "CDTN"), FirebaseService.limit(1000))
+      );
+    }
+    return references;
   }
 
   if (Permissions.isDepartmentLeader()) {
@@ -58,7 +66,10 @@ function scopedReferences(periodId) {
         periodFilter,
         FirebaseService.where("visibleDepartmentIds", "array-contains", departmentId),
         FirebaseService.limit(1000)
-      )
+      ),
+      /* Lãnh đạo Phòng/Khu được theo dõi nhiệm vụ Chi đoàn nhưng không mặc nhiên có quyền sửa/duyệt. */
+      FirebaseService.query(reference, periodFilter, FirebaseService.where("primaryDepartmentId", "==", "CDTN"), FirebaseService.limit(1000)),
+      FirebaseService.query(reference, periodFilter, FirebaseService.where("organizationId", "==", "CDTN"), FirebaseService.limit(1000))
     ];
   }
 
@@ -139,7 +150,12 @@ async function loadScopedTasks(options = {}) {
   if (!force && taskRequest?.key === key) return taskRequest.promise;
 
   const promise = (async () => {
-    const resultSets = await Promise.all(scopedReferences(period.id).map(runReference));
+    const results = await Promise.allSettled(scopedReferences(period.id).map(runReference));
+    const resultSets = results.filter(result => result.status === "fulfilled").map(result => result.value);
+    results.filter(result => result.status === "rejected").forEach((result, index) => {
+      console.warn(`Không tải được nhánh nhiệm vụ ${index + 1}; tiếp tục với nhánh còn lại:`, result.reason);
+    });
+    if (!resultSets.length) throw results.find(result => result.status === "rejected")?.reason || new Error("Không tải được nhiệm vụ.");
     const items = uniqueById(resultSets.flat()).map(enrichTask);
     taskCache = { key, items, loadedAt: Date.now(), period };
     return items;
@@ -167,8 +183,13 @@ function subscribeScopedTasks(onData, onError) {
     const references = scopedReferences(period.id);
     const stores = references.map(() => new Map());
     const initialized = references.map(() => false);
+    const failed = references.map(() => false);
     const emit = () => {
       if (cancelled || initialized.some(value => value !== true)) return;
+      if (failed.every(Boolean)) {
+        onError?.(new Error("Không thể theo dõi bất kỳ nhánh nhiệm vụ nào."));
+        return;
+      }
       const merged = uniqueById(stores.flatMap(store => [...store.values()])).map(enrichTask);
       taskCache = { key: cacheKey(period.id), items: merged, loadedAt: Date.now(), period };
       onData(merged);
@@ -178,11 +199,15 @@ function subscribeScopedTasks(onData, onError) {
       snapshot => {
         stores[index] = new Map(mapSnapshot(snapshot).map(item => [item.id, item]));
         initialized[index] = true;
+        failed[index] = false;
         emit();
       },
       error => {
-        console.error("Không thể theo dõi nhiệm vụ:", error);
-        onError?.(error);
+        console.warn(`Không thể theo dõi nhánh nhiệm vụ ${index + 1}; tiếp tục với nhánh còn lại:`, error);
+        stores[index] = new Map();
+        initialized[index] = true;
+        failed[index] = true;
+        emit();
       }
     ));
     unsubscribeAll = () => unsubscribers.forEach(unsubscribe => {

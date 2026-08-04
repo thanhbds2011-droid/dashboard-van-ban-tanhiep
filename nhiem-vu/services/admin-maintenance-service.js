@@ -1,8 +1,8 @@
 /** Các thao tác bảo trì có chủ đích, chỉ ADMIN mới gọi được. */
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260804.V1_7_2_2";
-import { TaskLogService } from "./task-log-service.js?v=20260804.V1_7_2_2";
+import { Permissions } from "../core/permissions.js?v=20260804.V1_8_0";
+import { TaskLogService } from "./task-log-service.js?v=20260804.V1_8_0";
 
 const unique = values => [...new Set((values || []).map(value => String(value || "").trim()).filter(Boolean))];
 
@@ -36,7 +36,7 @@ export const AdminMaintenanceService = Object.freeze({
           visibleDepartmentIds,
           visibleUserIds,
           schemaVersion: 2,
-          appVersion: "1.7.2.2",
+          appVersion: "1.8.0",
           updatedAt: FirebaseService.serverTimestamp(),
           updatedByUserId: user.uid,
           updatedByName: user.fullName || user.email || "ADMIN"

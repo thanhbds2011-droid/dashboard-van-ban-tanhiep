@@ -1,7 +1,7 @@
 /** Đọc danh mục đầu việc theo đơn vị, vai trò và vai trò kiêm nhiệm. */
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260804.V1_7_2_2";
+import { Permissions } from "../core/permissions.js?v=20260804.V1_8_0";
 
 const CATALOG_CACHE_MS = 5 * 60 * 1000;
 const PROFESSIONAL_DEPARTMENT_IDS = Object.freeze(["BGD", "TCHC", "CTXH", "KHTC", "YT", "KI", "KII", "KIII"]);
@@ -50,8 +50,9 @@ function canRegisterCdtnItem(item) {
 
 /**
  * Chỉ kiểm tra quyền ĐĂNG KÝ, khác với quyền xem để quản trị.
- * - Nhân viên: chỉ đầu việc cốt lõi, không phải đầu việc quản lý.
- * - Trưởng/Phó phòng: được đăng ký đầu việc cốt lõi và đầu việc quản lý của đơn vị.
+ * - audienceType là nguồn quyết định quyền đăng ký.
+ * - ALL_DEPARTMENT: nhân viên và lãnh đạo đúng đơn vị đều được đăng ký.
+ * - MANAGEMENT: chỉ lãnh đạo đúng đơn vị được đăng ký.
  * - Ban Giám đốc: được đăng ký danh mục BGD và được duyệt ngay.
  * - Chi đoàn: tách theo additionalRoles, không trộn vào phòng chuyên môn.
  */
@@ -63,21 +64,17 @@ function canRegisterItem(item, user = UserContext.requireUser()) {
   if (departmentId === "CDTN") return canRegisterCdtnItem(item);
   if (departmentId !== upper(user.departmentId)) return false;
 
-  if (Permissions.isDirector()) return departmentId === "BGD";
-  if (Permissions.isDepartmentLeader()) {
-    return audience === "MANAGEMENT" || item?.isCoreTaskDefault === true;
-  }
+  if (Permissions.isDirector()) return departmentId === "BGD" && ["ALL_DEPARTMENT", "MANAGEMENT"].includes(audience);
+  if (Permissions.isDepartmentLeader()) return ["ALL_DEPARTMENT", "MANAGEMENT"].includes(audience);
 
-  return audience === "ALL_DEPARTMENT"
-    && item?.isManagementTask !== true
-    && item?.isCoreTaskDefault === true;
+  return audience === "ALL_DEPARTMENT";
 }
 
 function canViewItem(item, user = UserContext.requireUser()) {
   const departmentId = upper(item?.departmentId);
   if (Permissions.canViewAllScopes()) return true;
   if (Permissions.canViewAllDepartments() && PROFESSIONAL_DEPARTMENT_IDS.includes(departmentId)) return true;
-  if (departmentId === "CDTN") return canRegisterCdtnItem(item) || Permissions.isCdtnCatalogManager();
+  if (departmentId === "CDTN") return Permissions.isDepartmentLeader() || canRegisterCdtnItem(item) || Permissions.isCdtnCatalogManager();
   if (departmentId !== upper(user.departmentId)) return false;
   if (Permissions.isDepartmentLeader()) return true;
   return canRegisterItem(item, user);
@@ -123,20 +120,23 @@ function sourceReferences() {
       FirebaseService.where("departmentId", "==", upper(user.departmentId)),
       FirebaseService.limit(1000)
     ));
+    /* Trưởng/Phó Phòng/Khu được theo dõi danh mục Chi đoàn nhưng không được đăng ký nếu không có vai trò Chi đoàn. */
+    queries.push(FirebaseService.query(
+      reference,
+      FirebaseService.where("departmentId", "==", "CDTN"),
+      FirebaseService.limit(500)
+    ));
   } else {
     /*
-     * Nhân viên chỉ đọc đầu việc cốt lõi của đúng đơn vị. Đưa điều kiện
-     * isCoreTaskDefault vào chính truy vấn để Firestore Rules có thể chứng minh
-     * toàn bộ tập kết quả đều hợp lệ, tránh lỗi “Missing or insufficient permissions”.
-     * Đầu việc quản lý được chuẩn hóa isCoreTaskDefault = false nên không lọt vào đây.
+     * Nhân viên đọc toàn bộ đầu việc ALL_DEPARTMENT của đúng đơn vị.
+     * isCoreTaskDefault chỉ là metadata KPI; isManagementTask là metadata tương thích cũ.
+     * Hai cờ này không được ghi đè audienceType và làm mất đầu việc của nhân viên.
      */
     queries.push(FirebaseService.query(
       reference,
       FirebaseService.where("departmentId", "==", upper(user.departmentId)),
       FirebaseService.where("audienceType", "==", "ALL_DEPARTMENT"),
-      FirebaseService.where("isCoreTaskDefault", "==", true),
-      FirebaseService.where("isManagementTask", "==", false),
-      FirebaseService.limit(500)
+      FirebaseService.limit(1000)
     ));
   }
 
@@ -166,8 +166,15 @@ async function readAllReferences(options = {}) {
   if (!force && catalogCache.key === key && Date.now() - catalogCache.loadedAt < CATALOG_CACHE_MS) return catalogCache.items;
   if (!force && catalogRequest?.key === key) return catalogRequest.promise;
 
-  const promise = Promise.all(sourceReferences().map(ref => FirebaseService.getDocs(ref)))
-    .then(snapshots => normalize(snapshots.flatMap(mapSnapshot)))
+  const promise = Promise.allSettled(sourceReferences().map(ref => FirebaseService.getDocs(ref)))
+    .then(results => {
+      const snapshots = results.filter(result => result.status === "fulfilled").map(result => result.value);
+      results.filter(result => result.status === "rejected").forEach((result, index) => {
+        console.warn(`Không tải được nhánh danh mục ${index + 1}; tiếp tục với nhánh còn lại:`, result.reason);
+      });
+      if (!snapshots.length) throw results.find(result => result.status === "rejected")?.reason || new Error("Không tải được danh mục công việc.");
+      return normalize(snapshots.flatMap(mapSnapshot));
+    })
     .then(items => {
       catalogCache = { key, items, loadedAt: Date.now() };
       return items;
@@ -191,17 +198,29 @@ export const StandardTaskReadService = Object.freeze({
     const references = sourceReferences();
     const stores = references.map(() => []);
     const initialized = references.map(() => false);
-    const emit = () => initialized.every(Boolean) && onData(normalize(stores.flat()));
+    const failed = references.map(() => false);
+    const emit = () => {
+      if (!initialized.every(Boolean)) return;
+      if (failed.every(Boolean)) {
+        onError?.(new Error("Không thể theo dõi bất kỳ nhánh danh mục công việc nào."));
+        return;
+      }
+      onData(normalize(stores.flat()));
+    };
     const unsubscribers = references.map((reference, index) => FirebaseService.onSnapshot(
       reference,
       snapshot => {
         stores[index] = mapSnapshot(snapshot);
         initialized[index] = true;
+        failed[index] = false;
         emit();
       },
       error => {
-        console.error("Không thể theo dõi danh mục công việc:", error);
-        onError?.(error);
+        console.warn(`Không thể theo dõi nhánh danh mục ${index + 1}; tiếp tục với nhánh còn lại:`, error);
+        stores[index] = [];
+        initialized[index] = true;
+        failed[index] = true;
+        emit();
       }
     ));
     return () => unsubscribers.forEach(unsubscribe => unsubscribe?.());
