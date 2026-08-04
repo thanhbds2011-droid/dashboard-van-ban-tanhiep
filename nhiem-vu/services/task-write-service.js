@@ -1,10 +1,10 @@
 /** Tạo, phân công, tiếp nhận, cập nhật tiến độ và hoàn thành nhiệm vụ. */
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260804.V1_8_0";
+import { Permissions } from "../core/permissions.js?v=20260804.V1_8_1";
 import { TaskLogService } from "./task-log-service.js";
-import { TaskWorkItemService } from "./task-work-item-service.js?v=20260804.V1_8_0";
-import { PeriodReadService } from "./period-read-service.js?v=20260804.V1_8_0";
+import { TaskWorkItemService } from "./task-work-item-service.js?v=20260804.V1_8_1";
+import { PeriodReadService } from "./period-read-service.js?v=20260804.V1_8_1";
 
 const MAX_CODE_SCAN = 1000;
 
@@ -162,11 +162,21 @@ export const TaskWriteService = Object.freeze({
         );
 
         const payload = {
-          appVersion: "1.8.0",
+          appVersion: "1.8.1",
           active: true,
           taskCode: code,
           title: data.title,
           description: data.description || "",
+          expectedOutput: data.expectedOutput || "",
+          resultRequirement: data.resultRequirement || "",
+          sixClearDirective: {
+            person: data.ownerName || `Cấp ${departmentId}`,
+            work: data.title || "",
+            time: dateKey(data.deadline),
+            responsibility: `${departmentId} chịu trách nhiệm chính; ${data.ownerName || "cấp Phòng/Khu"} chịu trách nhiệm thực hiện và báo cáo.`,
+            product: data.expectedOutput || "",
+            result: data.resultRequirement || ""
+          },
           sourceType: data.sourceType || "GIAO_NHIEM_VU_DOT_XUAT",
           sourceReference: data.sourceReference || data.title,
           sourceDetail: data.sourceDetail || data.description || "",
@@ -277,17 +287,37 @@ export const TaskWriteService = Object.freeze({
       updatedByUserId: user.uid,
       updatedByName: user.fullName || ""
     };
-    const batch = FirebaseService.writeBatch(FirebaseService.db);
-    batch.update(taskRef(task.id), payload);
-    batch.set(logRef(), TaskLogService.buildTaskLog({
-      taskId: task.id,
-      taskCode: task.taskCode,
-      periodId: task.periodId || "",
-      action: "TASK_ASSIGNED",
-      before,
-      after: { ...before, ...payload, assignedAt: null, updatedAt: null }
-    }));
-    await batch.commit();
+    try {
+      await FirebaseService.updateDoc(taskRef(task.id), payload);
+    } catch (error) {
+      console.error("TASK_ASSIGN_UPDATE_DENIED", {
+        taskId: task.id,
+        taskCode: task.taskCode || "",
+        currentUserId: user.uid,
+        currentRole: user.role || "",
+        currentLeaderLevel: user.leaderLevel || "",
+        currentDepartmentId: user.departmentId || "",
+        taskDepartmentId: task.primaryDepartmentId || "",
+        ownerUserId,
+        errorCode: error?.code || "",
+        errorMessage: error?.message || String(error)
+      });
+      throw error;
+    }
+
+    // Nhật ký là lớp kiểm toán bổ sung. Không để lỗi ghi log làm hỏng phân công đã hợp lệ.
+    try {
+      await FirebaseService.setDoc(logRef(), TaskLogService.buildTaskLog({
+        taskId: task.id,
+        taskCode: task.taskCode,
+        periodId: task.periodId || "",
+        action: "TASK_ASSIGNED",
+        before,
+        after: { ...before, ...payload, assignedAt: null, updatedAt: null }
+      }));
+    } catch (logError) {
+      console.warn("Nhiệm vụ đã được phân công nhưng chưa ghi được nhật ký TASK_ASSIGNED:", logError);
+    }
   },
 
   async accept(task) {

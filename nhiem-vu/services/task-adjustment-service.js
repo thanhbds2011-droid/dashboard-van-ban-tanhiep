@@ -4,8 +4,8 @@
  */
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { TaskLogService } from "./task-log-service.js?v=20260804.V1_8_0";
-import { TaskNotificationService } from "./task-notification-service.js?v=20260804.V1_8_0";
+import { TaskLogService } from "./task-log-service.js?v=20260804.V1_8_1";
+import { TaskNotificationService } from "./task-notification-service.js?v=20260804.V1_8_1";
 
 const COLLECTION = "kpiAdjustments";
 const TYPES = Object.freeze({

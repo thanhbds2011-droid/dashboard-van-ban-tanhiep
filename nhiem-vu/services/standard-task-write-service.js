@@ -6,9 +6,9 @@
  */
 import { FirebaseService } from "../core/firebase-service.js";
 import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260804.V1_8_0";
+import { Permissions } from "../core/permissions.js?v=20260804.V1_8_1";
 
-const SYNC_VERSION = "20260804.V1_8_0";
+const SYNC_VERSION = "20260804.V1_8_1";
 const STANDARD_TASK_COLLECTION = "standardTasks";
 const SEQUENCE_COLLECTION = "standardTaskSequences";
 const VALID_COEFFICIENTS = Object.freeze([1, 1.1, 1.2]);
@@ -121,6 +121,26 @@ function canManageDepartment(user, departmentId, delegation = null) {
   const target = upper(departmentId);
   const delegated = delegationIsActive(delegation, user);
   return Permissions.canManageStandardTasks(target, delegated);
+}
+
+async function readCdtnDirectoryAccess(user) {
+  try {
+    const snapshot = await FirebaseService.getDoc(
+      FirebaseService.doc(FirebaseService.db, "cdtnMembers", user.uid)
+    );
+    if (!snapshot.exists()) return { active: false, roles: [], catalogManager: false };
+    const data = snapshot.data() || {};
+    const roles = Array.isArray(data.additionalRoles)
+      ? data.additionalRoles.map(upper)
+      : [];
+    const catalogManager = data.active === true
+      && data.userId === user.uid
+      && roles.some(role => ["CDTN_BI_THU", "CDTN_PHO_BI_THU"].includes(role));
+    return { active: data.active === true, roles, catalogManager };
+  } catch (error) {
+    console.warn("Không đọc được danh bạ quyền Chi đoàn; tiếp tục dùng hồ sơ users:", error);
+    return { active: false, roles: [], catalogManager: false };
+  }
 }
 
 async function queryHasDocument(collectionName, fieldName, value) {
@@ -284,18 +304,22 @@ export const StandardTaskWriteService = Object.freeze({
       console.warn("Không đọc được ủy quyền nhập danh mục:", error);
     }
 
+    const cdtnDirectory = await readCdtnDirectoryAccess(user);
+    const isCdtnCatalogManager = Permissions.isCdtnCatalogManager(user)
+      || cdtnDirectory.catalogManager === true;
     const manageableDepartmentIds = [];
     if (canManageDepartment(user, user.departmentId, delegation)) {
       manageableDepartmentIds.push(upper(user.departmentId));
     }
-    if (Permissions.isCdtnCatalogManager(user) && !manageableDepartmentIds.includes("CDTN")) {
+    if (isCdtnCatalogManager && !manageableDepartmentIds.includes("CDTN")) {
       manageableDepartmentIds.push("CDTN");
     }
 
     return {
       canManage: manageableDepartmentIds.length > 0,
       isDepartmentHead: Permissions.isDepartmentHead(user),
-      isCdtnCatalogManager: Permissions.isCdtnCatalogManager(user),
+      isCdtnCatalogManager,
+      cdtnDirectoryRoles: cdtnDirectory.roles,
       manageableDepartmentIds,
       delegation
     };
