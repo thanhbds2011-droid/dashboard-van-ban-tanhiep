@@ -3,16 +3,17 @@ import {
   addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, query,
   serverTimestamp, setDoc, Timestamp, updateDoc, where, limit, writeBatch
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
-import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260804.V1_8_1';
-import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260804.V1_8_1';
-import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260804.V1_8_1';
-import { PeriodReadService } from '../../services/period-read-service.js?v=20260804.V1_8_1';
-import { Permissions } from '../../core/permissions.js?v=20260804.V1_8_1';
-import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260804.V1_8_1';
+import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260804.V1_8_2';
+import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260804.V1_8_2';
+import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260804.V1_8_2';
+import { PeriodReadService } from '../../services/period-read-service.js?v=20260804.V1_8_2';
+import { TaskReadService } from '../../services/task-read-service.js?v=20260804.V1_8_2';
+import { Permissions } from '../../core/permissions.js?v=20260804.V1_8_2';
+import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260804.V1_8_2';
 import {
   KPI2B as KPI2C, COMMON_CRITERIA, calculateTaskScore, calculateKpiSummary,
   proposedRating, ratingName, round2, progressRateFromDates, convertAppendix04Rate
-} from '../../kpi-engine.js?v=20260804.V1_8_1';
+} from '../../kpi-engine.js?v=20260804.V1_8_2';
 
 export const KpiWorkflowState = {
   user: null,
@@ -36,6 +37,11 @@ export const KpiWorkflowState = {
 };
 
 let kpiPeriodReloading = false;
+let stopKpiTaskRealtime = null;
+let kpiRealtimeTimer = null;
+let kpiRealtimeCleanupBound = false;
+let kpiRealtimePrimed = false;
+let kpiRealtimeFingerprint = '';
 
 const el = (id) => document.getElementById(id);
 const clean = (value) => String(value ?? '').trim();
@@ -44,6 +50,99 @@ const fmt = (n) => Number(n || 0).toLocaleString('vi-VN', { maximumFractionDigit
 const coefficientPercent = (value) => `${Math.round(Number(value || 1) * 100)}%`;
 const dateVi = (key) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(clean(key)); return m ? `${m[3]}/${m[2]}/${m[1]}` : clean(key); };
 const normalizeDepartment = (value) => clean(value).toUpperCase();
+
+function realtimeTimestampKey(value) {
+  if (!value) return '';
+  if (typeof value.toMillis === 'function') return String(value.toMillis());
+  if (Number.isFinite(Number(value.seconds))) return `${value.seconds}:${value.nanoseconds || 0}`;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? String(parsed) : String(value);
+}
+
+function realtimeTaskFingerprint(tasks = []) {
+  return [...tasks]
+    .map(task => [
+      task.id || '',
+      realtimeTimestampKey(task.updatedAt),
+      task.status || '',
+      task.assignmentStatus || '',
+      task.ownerUserId || '',
+      task.adjustmentStatus || '',
+      task.scoringStatus || '',
+      task.progress ?? ''
+    ].join('|'))
+    .sort()
+    .join('||');
+}
+
+function kpiRouteActive() {
+  const route = String(window.location.hash || '');
+  return route === '#/reports' || route.startsWith('#/kpi');
+}
+
+function stopKpiRealtime() {
+  try { stopKpiTaskRealtime?.(); } catch (_) { /* Đóng listener an toàn. */ }
+  stopKpiTaskRealtime = null;
+  if (kpiRealtimeTimer) window.clearTimeout(kpiRealtimeTimer);
+  kpiRealtimeTimer = null;
+  kpiRealtimePrimed = false;
+  kpiRealtimeFingerprint = '';
+}
+
+function bindKpiRealtimeCleanup() {
+  if (kpiRealtimeCleanupBound) return;
+  kpiRealtimeCleanupBound = true;
+  document.addEventListener('v3:route-changed', () => {
+    if (!kpiRouteActive()) stopKpiRealtime();
+  });
+}
+
+function scheduleKpiRealtimeReload() {
+  if (!kpiRouteActive()) return;
+  if (kpiRealtimeTimer) window.clearTimeout(kpiRealtimeTimer);
+  kpiRealtimeTimer = window.setTimeout(async function reloadWhenReady() {
+    if (!kpiRouteActive()) return;
+    /* Không đóng hoặc làm mất dữ liệu người dùng đang nhập trong modal. */
+    if (document.querySelector('.modal-backdrop:not(.hidden), .kpi-modal:not(.kpi-hidden)')) {
+      kpiRealtimeTimer = window.setTimeout(reloadWhenReady, 900);
+      return;
+    }
+    try {
+      await loadAll();
+      const state = el('kpiRealtimeState');
+      if (state) {
+        state.textContent = 'Đã cập nhật trực tiếp';
+        state.classList.add('is-live');
+      }
+    } catch (error) {
+      console.warn('Không thể cập nhật KPI trực tiếp:', error);
+    }
+  }, 450);
+}
+
+function startKpiRealtime() {
+  stopKpiRealtime();
+  bindKpiRealtimeCleanup();
+  stopKpiTaskRealtime = TaskReadService.subscribe(
+    tasks => {
+      const fingerprint = realtimeTaskFingerprint(tasks);
+      if (!kpiRealtimePrimed) {
+        kpiRealtimePrimed = true;
+        kpiRealtimeFingerprint = fingerprint;
+        const state = el('kpiRealtimeState');
+        if (state) {
+          state.textContent = 'Đang đồng bộ trực tiếp';
+          state.classList.add('is-live');
+        }
+        return;
+      }
+      if (fingerprint === kpiRealtimeFingerprint) return;
+      kpiRealtimeFingerprint = fingerprint;
+      scheduleKpiRealtimeReload();
+    },
+    error => console.warn('Theo dõi thay đổi nhiệm vụ cho KPI bị gián đoạn:', error)
+  );
+}
 
 function assessmentRate(value, label) {
   const rate = Number(value);
@@ -327,7 +426,7 @@ function mount() {
         <div id="kpiPeriodLine" class="kpi-period-line"></div>
       </div>
       <div class="kpi-actions kpi-no-print">
-        <button id="kpiRefresh" class="kpi-button secondary kpi-icon-sync" type="button" title="Cập nhật dữ liệu" aria-label="Cập nhật dữ liệu">↻</button>
+        <div class="kpi-header-sync"><small id="kpiRealtimeState" class="realtime-state">Đang kết nối đồng bộ trực tiếp…</small><button id="kpiRefresh" class="kpi-button secondary kpi-icon-sync" type="button" title="Cập nhật dữ liệu" aria-label="Cập nhật dữ liệu">↻</button></div>
       </div>
     </div>
     <div id="kpiMessage"></div>
@@ -2591,6 +2690,7 @@ export async function renderKpiWorkflow(outlet, options = {}) {
   }
   mount();
   await loadAll();
+  startKpiRealtime();
   if (options.openReport === true && KpiWorkflowState.period) {
     openReport();
   }
