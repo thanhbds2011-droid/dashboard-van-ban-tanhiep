@@ -3,16 +3,16 @@ import {
   addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, query,
   serverTimestamp, setDoc, Timestamp, updateDoc, where, limit, writeBatch
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
-import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260804.V1_8_0';
-import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260804.V1_8_0';
-import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260804.V1_8_0';
-import { PeriodReadService } from '../../services/period-read-service.js?v=20260804.V1_8_0';
-import { Permissions } from '../../core/permissions.js?v=20260804.V1_8_0';
-import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260804.V1_8_0';
+import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260804.V1_8_1';
+import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260804.V1_8_1';
+import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260804.V1_8_1';
+import { PeriodReadService } from '../../services/period-read-service.js?v=20260804.V1_8_1';
+import { Permissions } from '../../core/permissions.js?v=20260804.V1_8_1';
+import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260804.V1_8_1';
 import {
   KPI2B as KPI2C, COMMON_CRITERIA, calculateTaskScore, calculateKpiSummary,
   proposedRating, ratingName, round2, progressRateFromDates, convertAppendix04Rate
-} from '../../kpi-engine.js?v=20260804.V1_8_0';
+} from '../../kpi-engine.js?v=20260804.V1_8_1';
 
 export const KpiWorkflowState = {
   user: null,
@@ -1905,8 +1905,33 @@ async function openSelfAssessment(taskId) {
       isExceededRequirement:exceeded,exceededRequirementDescription:exceededText,status:'PENDING_REVIEW',formulaVersion:'KPI_2026_PHU_LUC_4_NTK_V3',updatedAt:serverTimestamp(),createdAt:ev.createdAt||serverTimestamp()
     };
     if (!ev.id && evaluationScope === 'CDTN') evaluationPayload.organizationId = 'CDTN';
-    await setDoc(doc(db,'taskEvaluations',`${KpiWorkflowState.period.id}_${task.id}`),evaluationPayload,{merge:true});
-    await audit('SUBMIT_SELF_ASSESSMENT',{taskId, trackingMode:itemized?'ITEMIZED':'FINAL_OUTPUT', actualWorkItemCount:itemized?workSummary.count:null, selfExecutionScore:score.execution, selfActualScore:score.actual}); closeModal(); await loadAll();
+    try {
+      await setDoc(doc(db,'taskEvaluations',`${KpiWorkflowState.period.id}_${task.id}`),evaluationPayload,{merge:true});
+    } catch (error) {
+      console.error('KPI_SELF_ASSESSMENT_DENIED', {
+        taskId: task.id,
+        taskCode: task.taskCode || '',
+        ownerUserId: task.ownerUserId || '',
+        currentUserId: KpiWorkflowState.user.uid,
+        currentRole: KpiWorkflowState.profile.role || '',
+        leaderLevel: KpiWorkflowState.profile.leaderLevel || '',
+        profileDepartmentId: profileDepartmentId(),
+        evaluationDepartmentId: evaluationPayload.departmentId,
+        taskScopeDepartmentId: evaluationScope,
+        scoringEnabled: task.scoringEnabled,
+        active: task.active,
+        errorCode: error?.code || '',
+        errorMessage: error?.message || String(error)
+      });
+      alert(friendlyErrorMessage(error, 'Không lưu được tự đánh giá.'));
+      return;
+    }
+    try {
+      await audit('SUBMIT_SELF_ASSESSMENT',{taskId, trackingMode:itemized?'ITEMIZED':'FINAL_OUTPUT', actualWorkItemCount:itemized?workSummary.count:null, selfExecutionScore:score.execution, selfActualScore:score.actual});
+    } catch (auditError) {
+      console.warn('Đã lưu tự đánh giá nhưng chưa ghi được nhật ký KPI:', auditError);
+    }
+    closeModal(); await loadAll();
   });
 }
 
