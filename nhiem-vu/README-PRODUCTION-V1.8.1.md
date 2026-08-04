@@ -1,4 +1,4 @@
-# Nhiệm vụ và đánh giá KPI – Production V1.8.1
+# Nhiệm vụ và đánh giá KPI – Production V1.8.2
 
 Hotfix tập trung vào:
 - Phó Trưởng phòng tự đánh giá và báo cáo trên dữ liệu nhiệm vụ cũ thiếu `scoringEnabled`.

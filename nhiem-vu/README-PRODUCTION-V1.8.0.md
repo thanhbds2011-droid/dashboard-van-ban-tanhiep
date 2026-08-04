@@ -1,4 +1,4 @@
-# Nhiệm vụ và đánh giá KPI – Production V1.8.1
+# Nhiệm vụ và đánh giá KPI – Production V1.8.2
 
 Phạm vi triển khai: chỉ thư mục `/dashboard-van-ban-tanhiep/nhiem-vu/`.
 
@@ -22,7 +22,7 @@ Phạm vi triển khai: chỉ thư mục `/dashboard-van-ban-tanhiep/nhiem-vu/`.
 
 ## Phiên bản phụ thuộc
 
-- Firestore Rules: V1.8.1.
+- Firestore Rules: V1.8.2.
 - Apps Script tài khoản: V3.3.0.
 - Apps Script danh mục: V4.2.0.
 - Apps Script thông báo/AI/minh chứng/lưu trữ kỳ: V6.3.0.

@@ -738,7 +738,7 @@ body:has(.modal-backdrop) { overflow: hidden; }
 }
 
 
-/* ===== Production V1.8.1: biểu mẫu giao việc 6 rõ và AI không bị che ===== */
+/* ===== Production V1.8.2: biểu mẫu giao việc 6 rõ và AI không bị che ===== */
 #taskCreateForm #taskAiAssistant {
   grid-column: 1 / -1;
   min-height: 76px;
