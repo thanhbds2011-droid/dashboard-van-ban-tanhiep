@@ -18,12 +18,13 @@ const appsScript = readFileSync(resolve(root, "../deployment/apps-script-notific
 
 assert.match(taskRead, /where\("periodId",\s*"==",\s*periodId\)/, "Nhiệm vụ phải được lọc theo kỳ.");
 assert.match(taskRead, /TASK_CACHE_MS/, "Dịch vụ nhiệm vụ phải có bộ nhớ đệm ngắn.");
-assert.doesNotMatch(dashboardView, /\.subscribe\(/, "Trang chủ không được mở listener sau lần tải đầu.");
-assert.doesNotMatch(tasksView, /\.subscribe\(/, "Danh sách nhiệm vụ không được mở listener nền.");
-assert.doesNotMatch(catalogView, /startStandardRealtime/, "Danh mục không được mở listener nền.");
-
-const realtimeBody = /function setupKpiRealtime\(\)\s*\{([\s\S]*?)\n\}/.exec(kpiWorkflow)?.[1] || "";
-assert.doesNotMatch(realtimeBody, /onSnapshot\(/, "KPI không được mở listener nền.");
+assert.match(dashboardView, /TaskReadService\.subscribe\(/, "Trang chủ phải nhận thay đổi nhiệm vụ trực tiếp.");
+assert.match(dashboardView, /stopDashboardTaskRealtime/, "Trang chủ phải đóng listener khi rời màn hình.");
+assert.match(tasksView, /TaskReadService\.subscribe\(/, "Danh sách nhiệm vụ phải nhận thay đổi trực tiếp.");
+assert.match(tasksView, /stopTasksRealtime/, "Danh sách nhiệm vụ phải đóng listener khi rời màn hình.");
+assert.doesNotMatch(catalogView, /startStandardRealtime/, "Danh mục không mở listener khi không có nhu cầu giao việc trực tiếp.");
+assert.match(kpiWorkflow, /startKpiRealtime/, "KPI và Báo cáo phải tự nạp lại khi nhiệm vụ thay đổi.");
+assert.match(kpiWorkflow, /stopKpiRealtime/, "KPI phải đóng listener khi rời phân hệ.");
 assert.match(kpiWorkflow, /2026-M08/, "Quản lý kỳ phải hỗ trợ mã kỳ tháng.");
 assert.match(kpiWorkflow, /PeriodArchiveService\.archiveAndPurge/, "KPI phải lưu Drive trước khi dọn Firestore.");
 

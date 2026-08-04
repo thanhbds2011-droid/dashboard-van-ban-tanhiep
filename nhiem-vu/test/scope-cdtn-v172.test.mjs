@@ -82,7 +82,7 @@ test("Thanh lọc nhiệm vụ có sync nhỏ cùng hàng", () => {
   assert.match(tasksView, /button\.classList\.add\("is-loading"\)/);
 });
 
-test("Service Worker và import graph dùng V1.8.1", () => {
-  assert.match(sw, /nhiem-vu-20260804-v1-8-1/);
-  assert.match(sw, /app-v3\.js\?v=20260804\.V1_8_1/);
+test("Service Worker và import graph dùng V1.8.2", () => {
+  assert.match(sw, /nhiem-vu-20260804-v1-8-2/);
+  assert.match(sw, /app-v3\.js\?v=20260804\.V1_8_2/);
 });

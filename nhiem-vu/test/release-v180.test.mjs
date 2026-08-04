@@ -18,7 +18,7 @@ const index = read('nhiem-vu/index.html');
 const css = read('nhiem-vu/v3.css');
 
 
-test('V1.8.1 chuẩn hóa Trưởng/Phó bằng metadata rõ ràng', () => {
+test('V1.8.2 chuẩn hóa Trưởng/Phó bằng metadata rõ ràng', () => {
   assert.match(accountSync, /VERSION: '3\.3\.1'/);
   assert.match(accountSync, /function derivedLeaderMetadata_/);
   assert.match(accountSync, /leaderLevel: 'HEAD'/);

@@ -56,8 +56,8 @@ test("Truy vấn người dùng và danh mục bám theo phạm vi Rules", () =>
 });
 
 test("PWA đóng gói app và module đang hoạt động", () => {
-  assert.match(sw, /app-v3\.js\?v=20260804\.V1_8_1/);
-  assert.match(sw, /modules\/kpi\/kpi-workflow\.js\?v=20260804\.V1_8_1/);
+  assert.match(sw, /app-v3\.js\?v=20260804\.V1_8_2/);
+  assert.match(sw, /modules\/kpi\/kpi-workflow\.js\?v=20260804\.V1_8_2/);
   assert.match(sw, /Promise\.allSettled/);
 });
 
