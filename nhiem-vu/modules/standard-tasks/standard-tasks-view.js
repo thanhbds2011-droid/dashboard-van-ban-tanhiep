@@ -1,10 +1,10 @@
 import { UserContext } from "../../core/user-context.js";
-import { Permissions } from "../../core/permissions.js?v=20260805.V1_9_0";
+import { Permissions } from "../../core/permissions.js?v=20260805.V1_9_1";
 import { ToastService } from "../../core/toast-service.js";
-import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260805.V1_9_0";
-import { PeriodReadService } from "../../services/period-read-service.js?v=20260805.V1_9_0";
-import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260805.V1_9_0";
-import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260805.V1_9_0";
+import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260805.V1_9_1";
+import { PeriodReadService } from "../../services/period-read-service.js?v=20260805.V1_9_1";
+import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260805.V1_9_1";
+import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260805.V1_9_1";
 
 let currentCatalogAccess = { canManage: false, manageableDepartmentIds: [] };
 
@@ -239,7 +239,6 @@ function workspaceName(workspaceId) {
 }
 
 function renderRegistrationWorkspace(items, registeredMap, registrationOpen, canManageCatalog, approvedCancellationMap = {}) {
-  const availableItems = items.filter(item => !findRegistration(item, registeredMap));
   const registeredItems = items.filter(item => findRegistration(item, registeredMap));
 
   return `<div class="registration-workspace">
@@ -248,14 +247,19 @@ function renderRegistrationWorkspace(items, registeredMap, registrationOpen, can
         <div class="registration-column-icon" aria-hidden="true">📚</div>
         <div>
           <h3>Danh mục công việc</h3>
-          <p>Chọn các đầu việc dự kiến thực hiện trong kỳ.</p>
+          <p>Danh mục luôn hiển thị đầy đủ; nhiều người có thể đăng ký cùng một đầu việc.</p>
         </div>
-        <span class="registration-column-count">${availableItems.length}</span>
+        <span class="registration-column-count">${items.length}</span>
       </header>
       <div class="registration-column-list">
-        ${availableItems.length
-          ? availableItems.map(item => renderAvailableTask(item, registrationOpen, canManageCatalog)).join("")
-          : compactEmpty("Không còn đầu việc phù hợp", "Các đầu việc đang hiển thị đã được đăng ký.")}
+        ${items.length
+          ? items.map(item => {
+              const registration = findRegistration(item, registeredMap);
+              return registration
+                ? renderRegisteredTask(item, registration, registrationOpen, canManageCatalog, approvedCancellationMap)
+                : renderAvailableTask(item, registrationOpen, canManageCatalog);
+            }).join("")
+          : compactEmpty("Chưa có đầu việc phù hợp", "Danh mục chưa có dữ liệu đang hoạt động.")}
       </div>
     </section>
 
@@ -263,15 +267,15 @@ function renderRegistrationWorkspace(items, registeredMap, registrationOpen, can
       <header class="registration-column-header">
         <div class="registration-column-icon" aria-hidden="true">✅</div>
         <div>
-          <h3>Đã đăng ký</h3>
-          <p>Theo dõi trạng thái các đầu việc đã chọn trong kỳ.</p>
+          <h3>Đăng ký của tôi</h3>
+          <p>Theo dõi nhanh các đầu việc chính bạn đã đăng ký trong kỳ.</p>
         </div>
         <span class="registration-column-count">${registeredItems.length}</span>
       </header>
       <div class="registration-column-list">
         ${registeredItems.length
           ? registeredItems.map(item => renderRegisteredTask(item, findRegistration(item, registeredMap), registrationOpen, canManageCatalog, approvedCancellationMap)).join("")
-          : compactEmpty("Chưa có đầu việc đã đăng ký", "Đầu việc được chọn ở cột bên trái sẽ xuất hiện tại đây.")}
+          : compactEmpty("Chưa có đầu việc đã đăng ký", "Chọn đầu việc trong danh mục bên trái.")}
       </div>
     </section>
   </div>`;
