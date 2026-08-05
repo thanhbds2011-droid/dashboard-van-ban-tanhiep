@@ -1,4 +1,4 @@
-const CACHE_NAME = "nhiem-vu-20260805-v1-9-0";
+const CACHE_NAME = "nhiem-vu-20260805-v1-9-0-diag1";
 const SHELL = [
   "./",
   "./index.html",
