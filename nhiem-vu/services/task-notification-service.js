@@ -1,6 +1,6 @@
 /** Gọi Apps Script thông báo theo cơ chế không chặn thao tác chính. */
-import { FirebaseService } from "../core/firebase-service.js";
-import { NOTIFICATION_WEB_APP_URL } from "../notification-config.js";
+import { FirebaseService } from "../core/firebase-service.js?v=20260805.V1_9_2";
+import { NOTIFICATION_WEB_APP_URL } from "../notification-config.js?v=20260805.V1_9_2";
 
 export const TaskNotificationService = Object.freeze({
   async send(action, taskId, eventData = {}) {

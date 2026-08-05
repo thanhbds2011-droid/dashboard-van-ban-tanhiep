@@ -1,11 +1,12 @@
 /** Tạo, phân công, tiếp nhận, cập nhật tiến độ và hoàn thành nhiệm vụ. */
-import { FirebaseService } from "../core/firebase-service.js";
-import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260804.V1_8_2";
-import { TaskLogService } from "./task-log-service.js";
-import { TaskWorkItemService } from "./task-work-item-service.js?v=20260804.V1_8_2";
-import { PeriodReadService } from "./period-read-service.js?v=20260804.V1_8_2";
+import { FirebaseService } from "../core/firebase-service.js?v=20260805.V1_9_2";
+import { UserContext } from "../core/user-context.js?v=20260805.V1_9_2";
+import { Permissions } from "../core/permissions.js?v=20260805.V1_9_2";
+import { TaskLogService } from "./task-log-service.js?v=20260805.V1_9_2";
+import { TaskWorkItemService } from "./task-work-item-service.js?v=20260805.V1_9_2";
+import { PeriodReadService } from "./period-read-service.js?v=20260805.V1_9_2";
 
+const TASK_WRITE_BUILD_VERSION = "20260805.V1_9_2";
 const MAX_CODE_SCAN = 1000;
 
 function dateKey(date) {
@@ -272,6 +273,32 @@ export const TaskWriteService = Object.freeze({
     if (selfRegistered) {
       throw new Error("Đầu việc do cá nhân đăng ký phải do chính người đăng ký thực hiện; không được phân công lại.");
     }
+
+    const taskDepartmentId = String(task?.primaryDepartmentId || "").trim().toUpperCase();
+    const userDepartmentId = String(user?.departmentId || "").trim().toUpperCase();
+    const mayAssign = Permissions.isAdmin()
+      || (Permissions.isDirector() && taskDepartmentId === userDepartmentId)
+      || (Permissions.isDepartmentLeader() && taskDepartmentId === userDepartmentId);
+
+    if (!mayAssign) {
+      throw new Error("Tài khoản không có thẩm quyền phân công nhiệm vụ của Phòng/Khu này.");
+    }
+
+    const sourceDepartmentStatus = String(task?.departmentAssignmentStatus || "").toUpperCase();
+    const sourceAssignmentStatus = String(task?.assignmentStatus || "").toUpperCase();
+    const sourceStatus = String(task?.status || "").toUpperCase();
+    const sourceAccepted = sourceDepartmentStatus === "ACCEPTED"
+      || ["CHO_PHAN_CONG", "DA_PHAN_CONG"].includes(sourceAssignmentStatus)
+      || ["CHO_PHAN_CONG", "MOI_TIEP_NHAN"].includes(sourceStatus);
+
+    if (!sourceAccepted) {
+      throw new Error("Phòng/Khu phải xác nhận tiếp nhận nhiệm vụ trước khi phân công nội bộ.");
+    }
+
+    if (sourceAssignmentStatus === "DA_TIEP_NHAN" || task?.acceptedAt) {
+      throw new Error("Cá nhân đã tiếp nhận nhiệm vụ; không thể dùng thao tác phân công ban đầu để đổi người thực hiện.");
+    }
+
     const before = snapshotTask(task);
 
     const ownerUserId = String(assignment?.ownerUserId || "").trim();
@@ -307,6 +334,10 @@ export const TaskWriteService = Object.freeze({
       visibleUserIds,
 
       departmentAssignmentStatus: "ACCEPTED",
+      departmentAcceptedAt: task?.departmentAcceptedAt || FirebaseService.serverTimestamp(),
+      departmentAcceptedByUserId: String(task?.departmentAcceptedByUserId || user.uid),
+      departmentAcceptedByName: String(task?.departmentAcceptedByName || user.fullName || ""),
+      departmentAcceptedByPosition: String(task?.departmentAcceptedByPosition || user.position || ""),
 
       assignedByUserId: user.uid,
       assignedByName: user.fullName || "",
@@ -344,6 +375,7 @@ export const TaskWriteService = Object.freeze({
       await FirebaseService.updateDoc(taskRef(task.id), payload);
     } catch (error) {
       console.error("TASK_ASSIGN_UPDATE_DENIED", {
+        buildVersion: TASK_WRITE_BUILD_VERSION,
         taskId: task?.id || "",
         taskCode: task?.taskCode || "",
         currentUserId: user.uid,
@@ -351,6 +383,9 @@ export const TaskWriteService = Object.freeze({
         currentLeaderLevel: user.leaderLevel || "",
         currentDepartmentId: user.departmentId || "",
         taskDepartmentId: task?.primaryDepartmentId || "",
+        sourceStatus: task?.status || "",
+        sourceAssignmentStatus: task?.assignmentStatus || "",
+        sourceDepartmentAssignmentStatus: task?.departmentAssignmentStatus || "",
         previousAssignmentMode: task?.assignmentMode || "",
         previousDepartmentAssignmentStatus: task?.departmentAssignmentStatus || "",
         newAssignmentMode: payload.assignmentMode,
