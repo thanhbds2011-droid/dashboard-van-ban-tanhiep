@@ -2,7 +2,7 @@
 
 ## Build
 - Phiên bản: `V1.9.2`
-- Build: `20260805.V1_9_2`
+- Build: `20260805.V1_9_3`
 
 ## Nội dung
 - Đồng bộ toàn bộ chuỗi import JavaScript đang vận hành về cùng một build.
