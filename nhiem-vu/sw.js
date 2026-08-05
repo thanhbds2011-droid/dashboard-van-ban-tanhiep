@@ -1,4 +1,4 @@
-const CACHE_NAME = "nhiem-vu-20260805-v1-9-0-diag1";
+const CACHE_NAME = "nhiem-vu-20260805-v1-9-0-diag3";
 const SHELL = [
   "./",
   "./index.html",
@@ -35,7 +35,7 @@ const SHELL = [
   "./modules/reports/reports-view.js?v=20260805.V1_9_0",
   "./modules/standard-tasks/standard-tasks-view.js?v=20260805.V1_9_0",
   "./modules/tasks/task-adjustment-panel.js?v=20260805.V1_9_0",
-  "./modules/tasks/task-detail-modal.js?v=20260805.V1_9_0_DIAG1",
+  "./modules/tasks/task-detail-modal.js?v=20260805.V1_9_0_diag3",
   "./modules/tasks/task-form-modal.js?v=20260805.V1_9_0",
   "./modules/tasks/task-form-validator.js?v=20260805.V1_9_0",
   "./modules/tasks/task-progress-modal.js?v=20260805.V1_9_0",
