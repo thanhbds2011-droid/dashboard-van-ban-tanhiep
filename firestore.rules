@@ -1,0 +1,661 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /* ===== HÀM DÙNG CHUNG ===== */
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function currentUserPath() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+
+    function hasUserProfile() {
+      return signedIn() && exists(currentUserPath());
+    }
+
+    function currentUser() {
+      return get(currentUserPath()).data;
+    }
+
+    function activeUser() {
+      return hasUserProfile() && currentUser().active == true;
+    }
+
+    function roleIs(roleName) {
+      return activeUser() && currentUser().role == roleName;
+    }
+
+    function isAdmin() {
+      return roleIs("ADMIN");
+    }
+
+    function isDirector() {
+      return roleIs("DIRECTOR");
+    }
+
+    function isDepartmentLeader() {
+      return roleIs("DEPARTMENT_LEADER");
+    }
+
+    function isStaff() {
+      return roleIs("STAFF");
+    }
+
+    function isTchcCoordinator() {
+      return roleIs("TCHC_COORDINATOR");
+    }
+
+    function hasField(data, fieldName) {
+      return data.keys().hasAny([fieldName]);
+    }
+
+    function isHeadProfile(data) {
+      return data.role == "DEPARTMENT_LEADER"
+        && (
+          (hasField(data, "leaderLevel") && data.leaderLevel in ["HEAD", "DEPARTMENT_HEAD", "TRUONG"])
+          || (hasField(data, "isDepartmentHead") && data.isDepartmentHead == true)
+          || (hasField(data, "position") && data.position in [
+            "Trưởng phòng", "Trưởng Phòng", "Trưởng khu", "Trưởng Khu", "TP", "TP.", "TK", "TK.",
+            "Quyền Trưởng phòng", "Quyền Trưởng Phòng", "Quyền Trưởng khu", "Quyền Trưởng Khu",
+            "Phụ trách phòng", "Phụ trách Phòng", "Phụ trách khu", "Phụ trách Khu"
+          ])
+        );
+    }
+
+    function isDeputyProfile(data) {
+      return data.role == "DEPARTMENT_LEADER"
+        && (
+          (hasField(data, "leaderLevel") && data.leaderLevel in ["DEPUTY", "DEPARTMENT_DEPUTY", "PHO"])
+          || (hasField(data, "isDepartmentHead") && data.isDepartmentHead == false)
+          || (hasField(data, "position") && data.position in [
+            "Phó Trưởng phòng", "Phó trưởng phòng", "Phó Trưởng Phòng", "P.Trưởng phòng",
+            "Phó TP", "PTP", "Phó Trưởng khu", "Phó trưởng khu", "Phó Trưởng Khu", "P.Trưởng khu", "Phó TK", "PTK"
+          ])
+        );
+    }
+
+    function isDepartmentHead() {
+      return activeUser() && isHeadProfile(currentUser());
+    }
+
+    function isDepartmentDeputy() {
+      return activeUser() && isDeputyProfile(currentUser());
+    }
+
+    function canViewAllDepartments() {
+      return isAdmin() || isDirector() || isTchcCoordinator();
+    }
+
+    function sameDepartment(departmentId) {
+      return activeUser() && currentUser().departmentId == departmentId;
+    }
+
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function authenticatedEmail() {
+      return signedIn() && request.auth.token.email != null
+        ? request.auth.token.email
+        : "";
+    }
+
+    function accessAccountPath() {
+      return /databases/$(database)/documents/accessAccounts/$(authenticatedEmail());
+    }
+
+    function hasActiveAccessAccount() {
+      return signedIn()
+        && authenticatedEmail() != ""
+        && exists(accessAccountPath())
+        && get(accessAccountPath()).data.active == true;
+    }
+
+    function accessAccount() {
+      return get(accessAccountPath()).data;
+    }
+
+    /* ===== ỦY QUYỀN ===== */
+    function delegationId(departmentId) {
+      return departmentId + "_ACTIVE";
+    }
+
+    function delegationPath(departmentId) {
+      return /databases/$(database)/documents/approvalDelegations/$(delegationId(departmentId));
+    }
+
+    function delegationPermission(data, permissionName) {
+      return (
+          !hasField(data, "permissions")
+          || data.permissions.size() == 0
+        )
+        ? permissionName == "APPROVE_REGISTRATIONS"
+        : permissionName in data.permissions;
+    }
+
+    function delegationTimeValid(data) {
+      return (!hasField(data, "startAt") || data.startAt <= request.time)
+        && (!hasField(data, "endAt") || data.endAt >= request.time);
+    }
+
+    function hasActiveDelegation(departmentId, permissionName) {
+      return isDepartmentDeputy()
+        && sameDepartment(departmentId)
+        && exists(delegationPath(departmentId))
+        && get(delegationPath(departmentId)).data.active == true
+        && get(delegationPath(departmentId)).data.delegateUserId == request.auth.uid
+        && get(delegationPath(departmentId)).data.departmentId == departmentId
+        && delegationTimeValid(get(delegationPath(departmentId)).data)
+        && delegationPermission(get(delegationPath(departmentId)).data, permissionName);
+    }
+
+    function canApproveDepartmentRegistrations(departmentId) {
+      return isAdmin()
+        || (isDepartmentHead() && sameDepartment(departmentId))
+        || hasActiveDelegation(departmentId, "APPROVE_REGISTRATIONS");
+    }
+
+    function canConfirmDepartmentEvaluations(departmentId) {
+      return isAdmin()
+        || (isDepartmentHead() && sameDepartment(departmentId))
+        || hasActiveDelegation(departmentId, "CONFIRM_EVALUATIONS");
+    }
+
+    function canViewDepartmentReportData(departmentId) {
+      return canViewAllDepartments()
+        || (isDepartmentHead() && sameDepartment(departmentId))
+        || hasActiveDelegation(departmentId, "VIEW_DEPARTMENT_REPORT");
+    }
+
+    function canLockDepartmentPlan(departmentId) {
+      return isAdmin()
+        || (isDepartmentHead() && sameDepartment(departmentId))
+        || hasActiveDelegation(departmentId, "LOCK_PLAN");
+    }
+
+    function kpiPlanPath(periodId, departmentId) {
+      return /databases/$(database)/documents/kpiPlans/$(periodId + "_" + departmentId);
+    }
+
+    function registrationPlanOpen(data) {
+      return !exists(kpiPlanPath(data.periodId, data.departmentId))
+        || !hasField(get(kpiPlanPath(data.periodId, data.departmentId)).data, "locked")
+        || get(kpiPlanPath(data.periodId, data.departmentId)).data.locked != true;
+    }
+
+    /* ===== NHIỆM VỤ ===== */
+    function taskBelongsToCurrentDepartment(data) {
+      return activeUser()
+        && (
+          (data.primaryDepartmentId != null && data.primaryDepartmentId == currentUser().departmentId)
+          || (data.visibleDepartmentIds != null && currentUser().departmentId in data.visibleDepartmentIds)
+          || (data.supportDepartmentIds != null && currentUser().departmentId in data.supportDepartmentIds)
+          || (data.relatedDepartmentIds != null && currentUser().departmentId in data.relatedDepartmentIds)
+        );
+    }
+
+    function taskVisibleToCurrentUser(data) {
+      return activeUser()
+        && (
+          canViewAllDepartments()
+          || taskBelongsToCurrentDepartment(data)
+          || (data.ownerUserId != null && data.ownerUserId == request.auth.uid)
+          || (data.visibleUserIds != null && request.auth.uid in data.visibleUserIds)
+          || (data.createdByUserId != null && data.createdByUserId == request.auth.uid)
+        );
+    }
+
+    function canCreateTask() {
+      return activeUser()
+        && request.resource.data.createdByUserId == request.auth.uid
+        && (
+          isAdmin()
+          || isDirector()
+          || isDepartmentLeader()
+          || (request.resource.data.ownerUserId != null && request.resource.data.ownerUserId == request.auth.uid)
+        );
+    }
+
+    function canManageTask(data) {
+      return activeUser()
+        && (
+          canViewAllDepartments()
+          || (isDepartmentLeader() && taskBelongsToCurrentDepartment(data))
+        );
+    }
+
+    function ownerCanUpdateTask() {
+      return activeUser()
+        && resource.data.ownerUserId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "assignmentStatus", "status", "progress", "progressNote", "result", "resultSummary",
+          "difficulties", "proposal", "evidenceType", "evidenceUrl", "evidenceLink", "evidenceText",
+          "evidenceFileName", "evidenceStoragePath", "acceptedAt", "acceptedByUserId", "acceptedByName",
+          "completedAt", "completedByUserId", "completedByName", "updatedAt", "updatedByUserId", "updatedByName"
+        ]);
+    }
+
+    function changesTaskPlanApproval() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        "planApprovalStatus", "includedInA", "isCoreTask", "planApprovedByUserId",
+        "planApprovedByName", "planApprovedAt", "planRejectedReason", "planRejectedByUserId",
+        "planRejectedByName", "planRejectedAt"
+      ]);
+    }
+
+    function changesTaskScoreConfirmation() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        "scoringStatus", "scoreLocked", "confirmedActualScore"
+      ]);
+    }
+
+    function directorCanConfirmTask(data) {
+      return isDirector()
+        && data.ownerUserId != null
+        && exists(/databases/$(database)/documents/users/$(data.ownerUserId))
+        && get(/databases/$(database)/documents/users/$(data.ownerUserId)).data.role == "DEPARTMENT_LEADER"
+        && (
+          !hasField(data, "reviewerEmail")
+          || data.reviewerEmail == ""
+          || data.reviewerEmail == authenticatedEmail()
+        );
+    }
+
+    function canManageTaskUpdate(data) {
+      return canManageTask(data)
+        && (!changesTaskPlanApproval() || canApproveDepartmentRegistrations(data.primaryDepartmentId))
+        && (
+          !changesTaskScoreConfirmation()
+          || canConfirmDepartmentEvaluations(data.primaryDepartmentId)
+          || directorCanConfirmTask(data)
+        );
+    }
+
+    match /accessAccounts/{email} {
+      allow get: if signedIn() && (authenticatedEmail() == email || isAdmin());
+      allow list: if isAdmin();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /users/{userId} {
+      allow read: if activeUser() || (signedIn() && request.auth.uid == userId);
+
+      allow create: if signedIn()
+        && request.auth.uid == userId
+        && hasActiveAccessAccount()
+        && request.resource.data.email == authenticatedEmail()
+        && request.resource.data.role == accessAccount().role
+        && request.resource.data.departmentId == accessAccount().departmentId
+        && request.resource.data.active == true
+        && (!hasField(accessAccount(), "position") || request.resource.data.position == accessAccount().position)
+        && (!hasField(accessAccount(), "leaderLevel") || request.resource.data.leaderLevel == accessAccount().leaderLevel)
+        && (!hasField(accessAccount(), "isDepartmentHead") || request.resource.data.isDepartmentHead == accessAccount().isDepartmentHead);
+
+      allow update: if isAdmin()
+        || (
+          activeUser()
+          && request.auth.uid == userId
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+            "role", "departmentId", "active", "email", "position", "leaderLevel", "isDepartmentHead"
+          ])
+        );
+
+      allow delete: if isAdmin();
+    }
+
+    match /departments/{departmentId} {
+      allow read: if activeUser();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /standardTasks/{standardTaskId} {
+      allow read: if activeUser();
+      allow create, update: if isAdmin() || isTchcCoordinator();
+      allow delete: if isAdmin();
+    }
+
+    match /tasks/{taskId} {
+      allow read: if taskVisibleToCurrentUser(resource.data);
+      allow create: if canCreateTask();
+      allow update: if canManageTaskUpdate(resource.data) || ownerCanUpdateTask();
+      allow delete: if isAdmin();
+    }
+
+    match /taskLogs/{logId} {
+      allow read: if activeUser()
+        && (
+          canViewAllDepartments()
+          || (resource.data.performedByDepartmentId != null && resource.data.performedByDepartmentId == currentUser().departmentId)
+          || (resource.data.performedByUserId != null && resource.data.performedByUserId == request.auth.uid)
+        );
+      allow create: if activeUser() && request.resource.data.performedByUserId == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    match /evaluationPeriods/{periodId} {
+      allow read: if activeUser();
+      allow create, update, delete: if isAdmin();
+    }
+
+    /* ===== ĐĂNG KÝ KẾ HOẠCH ===== */
+    function registrationVisible(data) {
+      return activeUser()
+        && (
+          canViewAllDepartments()
+          || data.userId == request.auth.uid
+          || (isDepartmentHead() && sameDepartment(data.departmentId))
+          || hasActiveDelegation(data.departmentId, "APPROVE_REGISTRATIONS")
+          || hasActiveDelegation(data.departmentId, "VIEW_DEPARTMENT_REPORT")
+        );
+    }
+
+    function ownerRegistrationUpdateOnly() {
+      return activeUser()
+        && resource.data.userId == request.auth.uid
+        && resource.data.taskId == null
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "active", "status", "cancelReason", "cancelledAt", "cancelledByUserId", "updatedAt"
+        ]);
+    }
+
+    function directorCanReviewRegistration(data) {
+      return isDirector()
+        && data.userRole == "DEPARTMENT_LEADER"
+        && (
+          !hasField(data, "reviewerEmail")
+          || data.reviewerEmail == ""
+          || data.reviewerEmail == authenticatedEmail()
+        );
+    }
+
+    match /taskRegistrations/{registrationId} {
+      allow read: if registrationVisible(resource.data);
+
+      allow create: if activeUser()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.createdByUserId == request.auth.uid
+        && request.resource.data.departmentId == currentUser().departmentId
+        && registrationPlanOpen(request.resource.data);
+
+      allow update: if canApproveDepartmentRegistrations(resource.data.departmentId)
+        || directorCanReviewRegistration(resource.data)
+        || ownerRegistrationUpdateOnly();
+
+      allow delete: if isAdmin()
+        || (
+          activeUser()
+          && resource.data.userId == request.auth.uid
+          && resource.data.taskId == null
+          && resource.data.status in ["PENDING", "REJECTED"]
+        )
+        || (
+          isDepartmentLeader()
+          && sameDepartment(resource.data.departmentId)
+          && resource.data.taskId == null
+          && resource.data.status == "REJECTED"
+        );
+    }
+
+    /* ===== ỦY QUYỀN DUYỆT ===== */
+    function validDelegationTarget(data) {
+      return data.delegateUserId != request.auth.uid
+        && exists(/databases/$(database)/documents/users/$(data.delegateUserId))
+        && get(/databases/$(database)/documents/users/$(data.delegateUserId)).data.active == true
+        && get(/databases/$(database)/documents/users/$(data.delegateUserId)).data.departmentId == data.departmentId
+        && isDeputyProfile(get(/databases/$(database)/documents/users/$(data.delegateUserId)).data);
+    }
+
+    function validDelegationPermissions(data) {
+      return hasField(data, "permissions")
+        && data.permissions is list
+        && data.permissions.size() > 0
+        && data.permissions.toSet().hasOnly([
+          "APPROVE_REGISTRATIONS", "CONFIRM_EVALUATIONS", "LOCK_PLAN", "VIEW_DEPARTMENT_REPORT"
+        ]);
+    }
+
+    match /approvalDelegations/{delegationDocumentId} {
+      allow get: if activeUser()
+        && (
+          canViewAllDepartments()
+          || (
+            delegationDocumentId == delegationId(currentUser().departmentId)
+            && (isDepartmentHead() || isDepartmentDeputy())
+          )
+        );
+
+      allow list: if activeUser()
+        && (
+          canViewAllDepartments()
+          || resource.data.delegateUserId == request.auth.uid
+          || resource.data.delegatorUserId == request.auth.uid
+          || (isDepartmentHead() && sameDepartment(resource.data.departmentId))
+        );
+
+      allow create: if (
+          isAdmin()
+          || (isDepartmentHead() && sameDepartment(request.resource.data.departmentId))
+        )
+        && delegationDocumentId == delegationId(request.resource.data.departmentId)
+        && (isAdmin() || request.resource.data.delegatorUserId == request.auth.uid)
+        && validDelegationTarget(request.resource.data)
+        && validDelegationPermissions(request.resource.data)
+        && request.resource.data.startAt is timestamp
+        && request.resource.data.endAt is timestamp
+        && request.resource.data.startAt <= request.resource.data.endAt;
+
+      allow update: if (
+          isAdmin()
+          || (isDepartmentHead() && sameDepartment(resource.data.departmentId))
+        )
+        && request.resource.data.departmentId == resource.data.departmentId
+        && delegationDocumentId == delegationId(resource.data.departmentId)
+        && (
+          request.resource.data.active == false
+          || (
+            validDelegationTarget(request.resource.data)
+            && validDelegationPermissions(request.resource.data)
+            && request.resource.data.startAt is timestamp
+            && request.resource.data.endAt is timestamp
+            && request.resource.data.startAt <= request.resource.data.endAt
+          )
+        );
+
+      allow delete: if isAdmin();
+    }
+
+    /* ===== KẾ HOẠCH KPI PHÒNG/KHU ===== */
+    match /kpiPlans/{planId} {
+      allow read: if activeUser();
+
+      allow create: if canLockDepartmentPlan(request.resource.data.departmentId);
+
+      allow update: if request.resource.data.departmentId == resource.data.departmentId
+        && canLockDepartmentPlan(resource.data.departmentId);
+
+      allow delete: if isAdmin();
+    }
+
+    /* ===== TỰ ĐÁNH GIÁ NHIỆM VỤ ===== */
+    function evaluationVisible(data) {
+      return activeUser()
+        && (
+          canViewAllDepartments()
+          || data.ownerUserId == request.auth.uid
+          || (isDepartmentHead() && sameDepartment(data.departmentId))
+          || hasActiveDelegation(data.departmentId, "CONFIRM_EVALUATIONS")
+          || hasActiveDelegation(data.departmentId, "VIEW_DEPARTMENT_REPORT")
+        );
+    }
+
+    function ownerEvaluationUpdateOnly() {
+      return activeUser()
+        && resource.data.ownerUserId == request.auth.uid
+        && resource.data.status != "CONFIRMED"
+        && (!hasField(resource.data, "scoreLocked") || resource.data.scoreLocked != true)
+        && request.resource.data.ownerUserId == resource.data.ownerUserId
+        && request.resource.data.departmentId == resource.data.departmentId
+        && request.resource.data.periodId == resource.data.periodId
+        && request.resource.data.taskId == resource.data.taskId
+        && request.resource.data.status == "PENDING_REVIEW"
+        && request.resource.data.confirmedProgressRate == null
+        && request.resource.data.confirmedResultRate == null
+        && request.resource.data.confirmedActualScore == null
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "selfProgressRate", "selfResultRate", "selfExecutionScore", "selfActualScore", "selfComment",
+          "confirmedProgressRate", "confirmedResultRate", "confirmedActualScore",
+          "reviewerEmail", "reviewerUserId", "reviewerName", "isExceededRequirement",
+          "exceededRequirementDescription", "status", "formulaVersion", "updatedAt", "createdAt"
+        ]);
+    }
+
+    function directorCanConfirmEvaluation(data) {
+      return isDirector()
+        && data.ownerRole == "DEPARTMENT_LEADER"
+        && (
+          !hasField(data, "reviewerEmail")
+          || data.reviewerEmail == ""
+          || data.reviewerEmail == authenticatedEmail()
+        );
+    }
+
+    match /taskEvaluations/{evaluationId} {
+      allow read: if evaluationVisible(resource.data);
+
+      allow create: if activeUser()
+        && request.resource.data.ownerUserId == request.auth.uid
+        && request.resource.data.departmentId == currentUser().departmentId
+        && request.resource.data.status == "PENDING_REVIEW"
+        && request.resource.data.confirmedProgressRate == null
+        && request.resource.data.confirmedResultRate == null
+        && request.resource.data.confirmedActualScore == null;
+
+      allow update: if isAdmin()
+        || ownerEvaluationUpdateOnly()
+        || (
+          resource.data.status != "CONFIRMED"
+          && (!hasField(resource.data, "scoreLocked") || resource.data.scoreLocked != true)
+          && (
+            canConfirmDepartmentEvaluations(resource.data.departmentId)
+            || directorCanConfirmEvaluation(resource.data)
+          )
+        );
+
+      allow delete: if isAdmin();
+    }
+
+    /* ===== TIÊU CHÍ CHUNG ===== */
+    function commonAssessmentVisible(data) {
+      return activeUser()
+        && (
+          canViewAllDepartments()
+          || data.userId == request.auth.uid
+          || (isDepartmentHead() && sameDepartment(data.departmentId))
+          || hasActiveDelegation(data.departmentId, "CONFIRM_EVALUATIONS")
+          || hasActiveDelegation(data.departmentId, "VIEW_DEPARTMENT_REPORT")
+        );
+    }
+
+    function ownerCommonUpdateOnly() {
+      return activeUser()
+        && resource.data.userId == request.auth.uid
+        && resource.data.status != "CONFIRMED"
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "items", "selfTotal", "confirmedTotal", "status", "updatedAt", "createdAt", "fullName"
+        ])
+        && request.resource.data.status == "SELF_COMPLETED"
+        && request.resource.data.confirmedTotal == null;
+    }
+
+    match /commonCriteriaAssessments/{assessmentId} {
+      allow read: if commonAssessmentVisible(resource.data);
+
+      allow create: if activeUser()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.departmentId == currentUser().departmentId
+        && request.resource.data.status == "SELF_COMPLETED"
+        && request.resource.data.confirmedTotal == null;
+
+      allow update: if isAdmin()
+        || ownerCommonUpdateOnly()
+        || canConfirmDepartmentEvaluations(resource.data.departmentId);
+
+      allow delete: if isAdmin();
+    }
+
+    match /kpiAdjustments/{adjustmentId} {
+      allow read: if activeUser()
+        && (
+          canViewAllDepartments()
+          || resource.data.userId == request.auth.uid
+          || (isDepartmentHead() && sameDepartment(resource.data.departmentId))
+          || hasActiveDelegation(resource.data.departmentId, "VIEW_DEPARTMENT_REPORT")
+        );
+
+      allow create: if isAdmin()
+        || (isDepartmentHead() && sameDepartment(request.resource.data.departmentId));
+
+      allow update: if isAdmin()
+        || (isDepartmentHead() && sameDepartment(resource.data.departmentId));
+
+      allow delete: if isAdmin();
+    }
+
+    match /kpiProfiles/{profileId} {
+      allow read: if activeUser()
+        && (
+          canViewAllDepartments()
+          || resource.data.userId == request.auth.uid
+          || (isDepartmentHead() && sameDepartment(resource.data.departmentId))
+          || hasActiveDelegation(resource.data.departmentId, "CONFIRM_EVALUATIONS")
+          || hasActiveDelegation(resource.data.departmentId, "VIEW_DEPARTMENT_REPORT")
+        );
+
+      allow create: if isAdmin()
+        || (
+          activeUser()
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.departmentId == currentUser().departmentId
+        )
+        || (isDepartmentHead() && sameDepartment(request.resource.data.departmentId));
+
+      allow update: if isAdmin()
+        || (
+          activeUser()
+          && resource.data.userId == request.auth.uid
+          && request.resource.data.userId == resource.data.userId
+          && request.resource.data.departmentId == resource.data.departmentId
+        )
+        || (isDepartmentHead() && sameDepartment(resource.data.departmentId));
+
+      allow delete: if isAdmin();
+    }
+
+    match /kpiAuditLogs/{auditId} {
+      allow read: if isAdmin() || isDirector() || isTchcCoordinator();
+      allow create: if activeUser() && request.resource.data.performedByUserId == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    match /kpiDeletionLogs/{logId} {
+      allow read: if isAdmin() || isDirector() || isTchcCoordinator();
+      allow create: if isAdmin() && request.resource.data.deletedByUserId == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    match /taskPushSubscriptions/{subscriptionId} {
+      allow read: if activeUser()
+        && (resource.data.userId == request.auth.uid || canViewAllDepartments());
+      allow create: if activeUser() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if activeUser() && resource.data.userId == request.auth.uid;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
