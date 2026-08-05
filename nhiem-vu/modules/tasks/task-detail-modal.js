@@ -736,10 +736,31 @@ export async function openTaskDetailModal(task, { onSaved }) {
       close();
       await onSaved?.();
     } catch (error) {
-      window.alert(friendlyErrorMessage(error, "Không xác nhận được nhiệm vụ."));
-      button.disabled = false;
-      button.textContent = "Xác nhận cá nhân đã nhận";
-    }
+  console.error("TASK_PERSONAL_ACCEPT_FAILED", {
+    taskId: task?.id || "",
+    taskCode: task?.taskCode || "",
+    ownerUserId: task?.ownerUserId || "",
+    currentUserId: currentUser?.uid || "",
+    primaryDepartmentId: task?.primaryDepartmentId || "",
+    assignmentStatus: task?.assignmentStatus || "",
+    departmentAssignmentStatus: task?.departmentAssignmentStatus || "",
+    status: task?.status || "",
+    active: task?.active,
+    completedAt: task?.completedAt || null,
+    scoreLocked: task?.scoreLocked,
+    scoringStatus: task?.scoringStatus || "",
+    errorCode: error?.code || "",
+    errorMessage: error?.message || String(error),
+    error
+  });
+
+  window.alert(
+    friendlyErrorMessage(error, "Không xác nhận được nhiệm vụ.")
+  );
+
+  button.disabled = false;
+  button.textContent = "Xác nhận cá nhân đã nhận";
+}
   });
 
   overlay.querySelector("#updateTaskButton")?.addEventListener("click", async () => {
