@@ -223,6 +223,8 @@ function taskPayload(registration, reviewer, due, options = {}) {
       sourceDate: FirebaseService.Timestamp.fromDate(new Date()),
       sourceDateKey: dateKey(new Date()),
       entryMode: "SELF_REGISTERED_APPROVED",
+      selfRegistered: true,
+      selfRegisteredByUserId: registration.userId,
       primaryDepartmentId: registrationDepartmentId(registration),
       supportDepartmentIds: [],
       relatedDepartmentIds: [],

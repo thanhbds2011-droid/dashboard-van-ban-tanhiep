@@ -267,6 +267,11 @@ export const TaskWriteService = Object.freeze({
 
   async assign(task, assignment) {
     const user = UserContext.requireUser();
+    const selfRegistered = String(task?.entryMode || "").toUpperCase() === "SELF_REGISTERED_APPROVED"
+      || (String(task?.sourceType || "").toUpperCase() === "DANG_KY_KE_HOACH" && String(task?.registrationId || "").trim() !== "");
+    if (selfRegistered) {
+      throw new Error("Đầu việc do cá nhân đăng ký phải do chính người đăng ký thực hiện; không được phân công lại.");
+    }
     const before = snapshotTask(task);
 
     const ownerUserId = String(assignment?.ownerUserId || "").trim();
