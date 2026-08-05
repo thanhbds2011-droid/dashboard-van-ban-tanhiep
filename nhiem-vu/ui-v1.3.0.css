@@ -106,20 +106,56 @@ body { overflow-x: hidden; }
 }
 
 .registration-column {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
   border-radius: var(--ui-radius-lg);
   background: #f9fcfe;
   box-shadow: none;
 }
 
 .registration-column-header {
+  flex: 0 0 auto;
   min-height: 84px;
   padding: 16px 17px;
 }
 
+/*
+ * Giới hạn chiều cao riêng cho từng cột Danh mục/Đã đăng ký.
+ * Danh sách dài sẽ cuộn bên trong, không kéo toàn bộ trang xuống quá xa.
+ */
 .registration-column-list {
-  max-height: none;
-  overflow: visible;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: clamp(460px, 64vh, 720px);
+  overflow-y: auto;
+  overflow-x: hidden;
   padding: 13px;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: #9bb8c9 #eef5f8;
+}
+
+.registration-column-list::-webkit-scrollbar {
+  width: 10px;
+}
+
+.registration-column-list::-webkit-scrollbar-track {
+  background: #eef5f8;
+  border-radius: 999px;
+}
+
+.registration-column-list::-webkit-scrollbar-thumb {
+  border: 2px solid #eef5f8;
+  border-radius: 999px;
+  background: #9bb8c9;
+}
+
+.registration-column-list::-webkit-scrollbar-thumb:hover {
+  background: #6f98af;
 }
 
 .registration-column-list .registration-row,
@@ -645,7 +681,11 @@ body:has(.modal-backdrop) { overflow: hidden; }
   .toolbar > button { grid-column: auto; width: 100%; }
 
   .registration-column-header { padding: 12px; }
-  .registration-column-list { padding: 9px; }
+  .registration-column-list {
+    max-height: 58dvh;
+    padding: 9px;
+    scrollbar-gutter: auto;
+  }
   .registration-column-list .registration-row,
   .registration-row {
     grid-template-columns: 28px minmax(0, 1fr);
