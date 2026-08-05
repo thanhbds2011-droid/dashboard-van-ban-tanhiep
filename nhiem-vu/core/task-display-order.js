@@ -50,16 +50,35 @@ export function effectiveDepartmentAssignmentStatus(task = {}) {
   const status = normalizeTaskStatus(task.status);
   const assignmentStatus = normalizeTaskStatus(task.assignmentStatus);
   const assignmentMode = normalizeTaskStatus(task.assignmentMode);
+  const entryMode = normalizeTaskStatus(task.entryMode);
+  const createdByRole = normalizeTaskStatus(task.createdByRole);
   const ownerUserId = clean(task.ownerUserId);
 
   if (status === "CHO_PHONG_KHU_TIEP_NHAN" || assignmentStatus === "CHO_PHONG_KHU_TIEP_NHAN") {
     return "PENDING_ACCEPTANCE";
   }
-  if (!ownerUserId && assignmentMode === "DEPARTMENT") {
-    return status === "CHO_PHAN_CONG" ? "ACCEPTED" : "PENDING_ACCEPTANCE";
+
+  /*
+   * Dữ liệu V1.9.2 trở về trước: BGĐ giao cấp Phòng/Khu nhưng document
+   * được lưu thẳng CHO_PHAN_CONG và chưa có departmentAssignmentStatus.
+   * Bắt buộc đưa về bước Phòng/Khu tiếp nhận trước khi được phân công.
+   */
+  const directorOrigin = entryMode === "DIRECT_ASSIGNED"
+    || ["DIRECTOR", "ADMIN"].includes(createdByRole);
+  if (!ownerUserId && directorOrigin && (
+    status === "CHO_PHAN_CONG" || assignmentStatus === "CHO_PHAN_CONG"
+  )) {
+    return "PENDING_ACCEPTANCE";
   }
+
+  if (!ownerUserId && assignmentMode === "DEPARTMENT") return "PENDING_ACCEPTANCE";
   if (ownerUserId && assignmentMode === "TEAM_DIRECT") return "DIRECT_ASSIGNED";
   if (ownerUserId || ["DA_PHAN_CONG", "DA_TIEP_NHAN"].includes(assignmentStatus)) return "ACCEPTED";
+
+  /* Nhiệm vụ do Trưởng/Phó phòng tạo nhưng chưa chọn người: chờ phân công nội bộ. */
+  if (!ownerUserId && (status === "CHO_PHAN_CONG" || assignmentStatus === "CHO_PHAN_CONG")) {
+    return "ACCEPTED";
+  }
   return "";
 }
 
