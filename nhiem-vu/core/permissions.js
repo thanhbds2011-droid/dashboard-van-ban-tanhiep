@@ -151,6 +151,19 @@ export const Permissions = Object.freeze({
     );
   },
 
+  canApproveRegistrationForDepartment(departmentId = "", hasDelegation = false) {
+    const user = UserContext.getUser();
+    const targetDepartmentId = clean(departmentId).toUpperCase();
+    const userDepartmentId = clean(user?.departmentId).toUpperCase();
+    if (!targetDepartmentId) return false;
+    if (this.isAdmin()) return true;
+    if (targetDepartmentId === "CDTN") {
+      return this.isCdtnLeadership() || hasDelegation === true;
+    }
+    return (this.isDepartmentHead(user) && userDepartmentId === targetDepartmentId)
+      || (this.isDepartmentDeputy(user) && userDepartmentId === targetDepartmentId && hasDelegation === true);
+  },
+
   canAccessAdmin() {
     return this.isAdmin();
   },
