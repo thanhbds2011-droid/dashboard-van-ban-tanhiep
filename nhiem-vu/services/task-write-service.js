@@ -268,44 +268,102 @@ export const TaskWriteService = Object.freeze({
   async assign(task, assignment) {
     const user = UserContext.requireUser();
     const before = snapshotTask(task);
-    const ownerUserId = assignment.ownerUserId || "";
+
+    const ownerUserId = String(assignment?.ownerUserId || "").trim();
+    const ownerName = String(assignment?.ownerName || "").trim();
+    const ownerPosition = String(assignment?.ownerPosition || "").trim();
+    const teamId = String(assignment?.teamId || "").trim();
+
+    /*
+     * Giữ nguyên các tài khoản đã có quyền xem nhiệm vụ và bổ sung
+     * người vừa được phân công. Không thu hẹp visibleUserIds về một UID.
+     */
+    const currentVisibleUserIds = Array.isArray(task?.visibleUserIds)
+      ? task.visibleUserIds.filter(Boolean)
+      : [];
+
+    const visibleUserIds = Array.from(new Set([
+      ...currentVisibleUserIds,
+      ...(ownerUserId ? [ownerUserId] : [])
+    ]));
+
+    /*
+     * Luồng phân công nội bộ:
+     * Ban Giám đốc giao Phòng/Khu → Phòng/Khu tiếp nhận
+     * → Trưởng/Phó Phòng/Khu phân công cá nhân.
+     */
     const payload = {
+      assignmentMode: "DEPARTMENT_INTERNAL",
+
       ownerUserId,
-      ownerName: assignment.ownerName || "",
-      ownerPosition: assignment.ownerPosition || "",
-      teamId: assignment.teamId || "",
-      visibleUserIds: ownerUserId ? [ownerUserId] : [],
+      ownerName,
+      ownerPosition,
+      teamId,
+      visibleUserIds,
+
+      departmentAssignmentStatus: "ACCEPTED",
+
       assignedByUserId: user.uid,
       assignedByName: user.fullName || "",
       assignedByPosition: user.position || "",
+
+      internalAssignedByUserId: user.uid,
+      internalAssignedByName: user.fullName || "",
+      internalAssignedByPosition: user.position || "",
+      internalAssignedAt: FirebaseService.serverTimestamp(),
+
       adjustmentApproverUserId: user.uid,
       adjustmentApproverName: user.fullName || "",
+
       assignedAt: FirebaseService.serverTimestamp(),
-      assignmentStatus: ownerUserId ? "DA_PHAN_CONG" : "CHO_PHAN_CONG",
-      status: ownerUserId ? "MOI_TIEP_NHAN" : "CHO_PHAN_CONG",
+
+      assignmentStatus: ownerUserId
+        ? "DA_PHAN_CONG"
+        : "CHO_PHAN_CONG",
+
+      status: ownerUserId
+        ? "MOI_TIEP_NHAN"
+        : "CHO_PHAN_CONG",
+
+      /* Người mới phải tự xác nhận tiếp nhận nhiệm vụ. */
+      acceptedAt: null,
+      acceptedByUserId: "",
+      acceptedByName: "",
+
       updatedAt: FirebaseService.serverTimestamp(),
       updatedByUserId: user.uid,
       updatedByName: user.fullName || ""
     };
+
     try {
       await FirebaseService.updateDoc(taskRef(task.id), payload);
     } catch (error) {
       console.error("TASK_ASSIGN_UPDATE_DENIED", {
-        taskId: task.id,
-        taskCode: task.taskCode || "",
+        taskId: task?.id || "",
+        taskCode: task?.taskCode || "",
         currentUserId: user.uid,
         currentRole: user.role || "",
         currentLeaderLevel: user.leaderLevel || "",
         currentDepartmentId: user.departmentId || "",
-        taskDepartmentId: task.primaryDepartmentId || "",
+        taskDepartmentId: task?.primaryDepartmentId || "",
+        previousAssignmentMode: task?.assignmentMode || "",
+        previousDepartmentAssignmentStatus: task?.departmentAssignmentStatus || "",
+        newAssignmentMode: payload.assignmentMode,
+        newDepartmentAssignmentStatus: payload.departmentAssignmentStatus,
         ownerUserId,
+        ownerName,
+        teamId,
         errorCode: error?.code || "",
-        errorMessage: error?.message || String(error)
+        errorMessage: error?.message || String(error),
+        error
       });
       throw error;
     }
 
-    // Nhật ký là lớp kiểm toán bổ sung. Không để lỗi ghi log làm hỏng phân công đã hợp lệ.
+    /*
+     * Nhật ký là lớp kiểm toán bổ sung. Không để lỗi ghi nhật ký
+     * làm hỏng thao tác phân công đã cập nhật thành công.
+     */
     try {
       await FirebaseService.setDoc(logRef(), TaskLogService.buildTaskLog({
         taskId: task.id,
@@ -313,10 +371,19 @@ export const TaskWriteService = Object.freeze({
         periodId: task.periodId || "",
         action: "TASK_ASSIGNED",
         before,
-        after: { ...before, ...payload, assignedAt: null, updatedAt: null }
+        after: {
+          ...before,
+          ...payload,
+          assignedAt: null,
+          internalAssignedAt: null,
+          updatedAt: null
+        }
       }));
     } catch (logError) {
-      console.warn("Nhiệm vụ đã được phân công nhưng chưa ghi được nhật ký TASK_ASSIGNED:", logError);
+      console.warn(
+        "Nhiệm vụ đã được phân công nhưng chưa ghi được nhật ký TASK_ASSIGNED:",
+        logError
+      );
     }
   },
 
