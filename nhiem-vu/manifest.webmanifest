@@ -1,13 +1,22 @@
 {
   "id": "/dashboard-van-ban-tanhiep/nhiem-vu/",
   "name": "Nhiệm vụ và đánh giá KPI Tân Hiệp",
-  "short_name": "Nhiệm vụ KPI",
-  "start_url": "/dashboard-van-ban-tanhiep/nhiem-vu/",
+  "short_name": "KPI Tân Hiệp",
+  "description": "Quản lý nhiệm vụ, kế hoạch và đánh giá KPI tại Trung tâm Bảo trợ xã hội Tân Hiệp",
+  "start_url": "/dashboard-van-ban-tanhiep/nhiem-vu/#/dashboard",
   "scope": "/dashboard-van-ban-tanhiep/nhiem-vu/",
   "display": "standalone",
+  "display_override": [
+    "window-controls-overlay",
+    "standalone"
+  ],
   "background_color": "#edf4fa",
   "theme_color": "#17639a",
-  "orientation": "portrait-primary",
+  "orientation": "any",
+  "categories": [
+    "business",
+    "productivity"
+  ],
   "icons": [
     {
       "src": "./icons/icon-192.png",
@@ -20,6 +29,12 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    },
+    {
+      "src": "./icons/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
     }
   ]
 }

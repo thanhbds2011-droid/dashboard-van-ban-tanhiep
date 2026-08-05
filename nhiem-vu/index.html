@@ -11,10 +11,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./v3.css?v=20260805.V1_9_0">
-  <link rel="stylesheet" href="./kpi.css?v=20260805.V1_9_0">
-  <link rel="stylesheet" href="./ai-assistant.css?v=20260805.V1_9_0">
-  <link rel="stylesheet" href="./ui-v1.3.0.css?v=20260805.V1_9_0">
+  <link rel="stylesheet" href="./v3.css?v=20260805.V1_9_1">
+  <link rel="stylesheet" href="./kpi.css?v=20260805.V1_9_1">
+  <link rel="stylesheet" href="./ai-assistant.css?v=20260805.V1_9_1">
+  <link rel="stylesheet" href="./ui-v1.3.0.css?v=20260805.V1_9_1">
 </head>
 <body class="v3-body">
   <header class="v3-header">
@@ -29,6 +29,7 @@
       <div class="v3-user-area">
         <div id="currentUserAvatar" class="user-avatar" aria-hidden="true">ND</div>
         <div id="currentUserInfo" class="v3-user-info">Đang tải tài khoản…</div>
+        <button id="btnInstallApp" type="button" class="header-button hidden" title="Cài đặt ứng dụng">⬇ <span>Cài ứng dụng</span></button>
         <button id="btnPushSettings" type="button" class="header-button header-notification-button" title="Cài đặt thông báo">🔔 <span>Thông báo</span></button>
         <button id="btnLogout" type="button" class="header-button">Đăng xuất</button>
         <button id="btnMobileMenu" type="button" class="mobile-menu-button" aria-label="Mở menu" aria-expanded="false">☰</button>
@@ -73,14 +74,18 @@
     </section>
   </div>
 
+  <section id="offlineBanner" class="system-banner offline-banner hidden" role="status">Mất kết nối Internet. Dữ liệu đang hiển thị chỉ để xem; vui lòng kết nối lại trước khi lưu.</section>
+  <section id="appUpdateBanner" class="system-banner update-banner hidden" role="status"><span>Đã có phiên bản ứng dụng mới.</span><div><button id="btnApplyUpdate" class="primary-button" type="button">Cập nhật ngay</button><button id="btnDismissUpdate" class="secondary-button" type="button">Để sau</button></div></section>
+  <div id="iosInstallHelp" class="app-modal-backdrop hidden" role="dialog" aria-modal="true"><section class="app-modal-card install-help-card"><header class="app-modal-header"><div><h2>Cài ứng dụng trên thiết bị</h2><p>Trên iPhone/iPad: mở bằng Safari → Chia sẻ → Thêm vào Màn hình chính.</p></div><button id="btnCloseIosInstall" class="modal-close-button" type="button">×</button></header></section></div>
+
   <main id="appOutlet" class="v3-main" aria-live="polite">
     <section class="page-card"><div class="skeleton skeleton-title"></div><div class="skeleton skeleton-line"></div></section>
   </main>
 
-  <footer class="v3-footer">Quản lý giao việc • Theo dõi tiến độ • Lưu minh chứng • Đánh giá kết quả • V1.9.0</footer>
+  <footer class="v3-footer">Quản lý giao việc • Theo dõi tiến độ • Lưu minh chứng • Đánh giá kết quả • <span id="appVersionLabel">V1.9.1</span></footer>
   <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
-  <script src="./onesignal.js?v=20260805.V1_9_0" defer></script>
-  <script src="./pwa.js?v=20260805.V1_9_0" defer></script>
-  <script type="module" src="./app-v3.js?v=20260805.V1_9_0"></script>
+  <script src="./onesignal.js?v=20260805.V1_9_1" defer></script>
+  <script type="module" src="./pwa.js?v=20260805.V1_9_1" defer></script>
+  <script type="module" src="./app-v3.js?v=20260805.V1_9_1"></script>
 </body>
 </html>
