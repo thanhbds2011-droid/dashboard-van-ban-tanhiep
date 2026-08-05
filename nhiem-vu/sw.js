@@ -1,4 +1,4 @@
-const BUILD_VERSION = "20260805.V1_9_1";
+const BUILD_VERSION = "20260805.V1_9_2";
 const CACHE_NAME = "nhiem-vu-" + BUILD_VERSION.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 const SHELL = ["./", "./index.html", "./offline.html", "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon.png", "./icons/favicon-64.png"];
 self.addEventListener("install", event => {
