@@ -1,8 +1,9 @@
-import { Permissions } from "../../core/permissions.js?v=20260805.V1_9_2";
-import { ToastService } from "../../core/toast-service.js?v=20260805.V1_9_2";
-import { TaskReadService } from "../../services/task-read-service.js?v=20260805.V1_9_2";
-import { openTaskCreateModal } from "./task-form-modal.js?v=20260805.V1_9_2";
-import { openTaskDetailModal } from "./task-detail-modal.js?v=20260805.V1_9_2";
+import { Permissions } from "../../core/permissions.js?v=20260805.V1_9_3";
+import { ToastService } from "../../core/toast-service.js?v=20260805.V1_9_3";
+import { TaskReadService } from "../../services/task-read-service.js?v=20260805.V1_9_3";
+import { openTaskCreateModal } from "./task-form-modal.js?v=20260805.V1_9_3";
+import { openTaskDetailModal } from "./task-detail-modal.js?v=20260805.V1_9_3";
+import { effectiveDepartmentAssignmentStatus } from "../../core/task-display-order.js?v=20260805.V1_9_3";
 
 let renderSequence = 0;
 let currentTasks = [];
@@ -240,11 +241,14 @@ function taskStatusDescriptor(task) {
   const scoringStatus = String(task.scoringStatus || "").toUpperCase();
   const adjustmentStatus = String(task.adjustmentStatus || "").toUpperCase();
   const status = String(task._status || task.status || "").toUpperCase();
+  const departmentStatus = effectiveDepartmentAssignmentStatus(task);
   if (scoringStatus === "ADJUSTMENT_EXEMPT") return { label: "Miễn đánh giá", className: "info" };
   if (adjustmentStatus === "REQUESTED") return { label: "Chờ duyệt điều chỉnh", className: "warning" };
   if (task._overdue) return { label: "Trễ hạn", className: "danger" };
   if (task._completed) return { label: "Hoàn thành", className: "success" };
-  if (status === "CHO_PHONG_KHU_TIEP_NHAN") return { label: "Chờ Phòng/Khu tiếp nhận", className: "warning" };
+  if (departmentStatus === "PENDING_ACCEPTANCE" || status === "CHO_PHONG_KHU_TIEP_NHAN") {
+    return { label: "Chờ Phòng/Khu tiếp nhận", className: "warning" };
+  }
   if (["CHO_PHAN_CONG", "PENDING_ASSIGNMENT"].includes(status)) return { label: "Phòng/Khu đã nhận — Chờ phân công", className: "warning" };
   if (["DA_PHAN_CONG", "MOI_TIEP_NHAN"].includes(status)) return { label: "Chờ cá nhân tiếp nhận", className: "warning" };
   return { label: "Đang xử lý", className: "neutral" };

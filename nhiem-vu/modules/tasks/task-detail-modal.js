@@ -1,15 +1,15 @@
 /** Chi tiết, phân công và các lượt công việc phát sinh của nhiệm vụ. */
-import { UserContext } from "../../core/user-context.js?v=20260805.V1_9_2";
-import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260805.V1_9_2";
-import { Permissions } from "../../core/permissions.js?v=20260805.V1_9_2";
-import { effectiveDepartmentAssignmentStatus, isTerminalTask } from "../../core/task-display-order.js?v=20260805.V1_9_2";
-import { UserReadService } from "../../services/user-read-service.js?v=20260805.V1_9_2";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260805.V1_9_2";
-import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260805.V1_9_2";
-import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260805.V1_9_2";
-import { openTaskProgressModal } from "./task-progress-modal.js?v=20260805.V1_9_2";
-import { mountTaskAdjustmentPanel } from "./task-adjustment-panel.js?v=20260805.V1_9_2";
-import { TaskLogService } from "../../services/task-log-service.js?v=20260805.V1_9_2";
+import { UserContext } from "../../core/user-context.js?v=20260805.V1_9_3";
+import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260805.V1_9_3";
+import { Permissions } from "../../core/permissions.js?v=20260805.V1_9_3";
+import { effectiveDepartmentAssignmentStatus, isTerminalTask } from "../../core/task-display-order.js?v=20260805.V1_9_3";
+import { UserReadService } from "../../services/user-read-service.js?v=20260805.V1_9_3";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260805.V1_9_3";
+import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260805.V1_9_3";
+import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260805.V1_9_3";
+import { openTaskProgressModal } from "./task-progress-modal.js?v=20260805.V1_9_3";
+import { mountTaskAdjustmentPanel } from "./task-adjustment-panel.js?v=20260805.V1_9_3";
+import { TaskLogService } from "../../services/task-log-service.js?v=20260805.V1_9_3";
 
 const TEAM_LABELS = Object.freeze({
   BAO_VE: "Tổ Bảo vệ",
@@ -98,12 +98,8 @@ function canAssign(task) {
   const assignmentStatus = String(task?.assignmentStatus || "").toUpperCase();
   if (assignmentStatus === "DA_TIEP_NHAN" || task?.acceptedAt) return false;
 
-  const departmentStatus = String(task?.departmentAssignmentStatus || "").toUpperCase();
-  const status = String(task?.status || "").toUpperCase();
-  const readyForInternalAssignment = departmentStatus === "ACCEPTED"
-    || ["CHO_PHAN_CONG", "DA_PHAN_CONG"].includes(assignmentStatus)
-    || ["CHO_PHAN_CONG", "MOI_TIEP_NHAN"].includes(status);
-  if (!readyForInternalAssignment) return false;
+  const departmentStatus = effectiveDepartmentAssignmentStatus(task);
+  if (departmentStatus !== "ACCEPTED") return false;
 
   return Permissions.isAdmin()
     || (Permissions.isDirector() && sameTaskDepartment(task, user))
@@ -493,8 +489,12 @@ export async function openTaskDetailModal(task, { onSaved }) {
   const adjustmentExempt = String(task.scoringStatus || "").toUpperCase() === "ADJUSTMENT_EXEMPT";
   const mayAssign = canAssign(task);
   const mayAcceptDepartment = canAcceptDepartment(task);
-  const users = mayAssign ? await UserReadService.listActive() : [];
-  const departmentUsers = users.filter(user => user.departmentId === task.primaryDepartmentId);
+  const users = mayAssign ? await UserReadService.listActive({ force: true }) : [];
+  const taskDepartmentId = String(task.primaryDepartmentId || "").trim().toUpperCase();
+  const departmentUsers = users.filter(user =>
+    user.active === true
+    && String(user.departmentId || "").trim().toUpperCase() === taskDepartmentId
+  );
   const teams = departmentTeams(departmentUsers);
   let workItems = isItemizedTask(task) ? await TaskWorkItemService.list(task.id) : [];
   let taskLogs = [];
