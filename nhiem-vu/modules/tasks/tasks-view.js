@@ -1,8 +1,8 @@
-import { Permissions } from "../../core/permissions.js?v=20260805.V1_9_0";
-import { ToastService } from "../../core/toast-service.js";
-import { TaskReadService } from "../../services/task-read-service.js?v=20260805.V1_9_0";
-import { openTaskCreateModal } from "./task-form-modal.js?v=20260805.V1_9_0";
-import { openTaskDetailModal } from "./task-detail-modal.js?v=20260805.V1_9_0_DIAG3";
+import { Permissions } from "../../core/permissions.js?v=20260805.V1_9_2";
+import { ToastService } from "../../core/toast-service.js?v=20260805.V1_9_2";
+import { TaskReadService } from "../../services/task-read-service.js?v=20260805.V1_9_2";
+import { openTaskCreateModal } from "./task-form-modal.js?v=20260805.V1_9_2";
+import { openTaskDetailModal } from "./task-detail-modal.js?v=20260805.V1_9_2";
 
 let renderSequence = 0;
 let currentTasks = [];

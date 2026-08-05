@@ -1,15 +1,15 @@
 /** Chi tiết, phân công và các lượt công việc phát sinh của nhiệm vụ. */
-import { UserContext } from "../../core/user-context.js";
-import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260805.V1_9_1";
-import { Permissions } from "../../core/permissions.js?v=20260805.V1_9_1";
-import { effectiveDepartmentAssignmentStatus, isTerminalTask } from "../../core/task-display-order.js?v=20260805.V1_9_1";
-import { UserReadService } from "../../services/user-read-service.js";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260805.V1_9_1";
-import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260805.V1_9_1";
-import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260805.V1_9_1";
-import { openTaskProgressModal } from "./task-progress-modal.js?v=20260805.V1_9_1";
-import { mountTaskAdjustmentPanel } from "./task-adjustment-panel.js?v=20260805.V1_9_1";
-import { TaskLogService } from "../../services/task-log-service.js?v=20260805.V1_9_1";
+import { UserContext } from "../../core/user-context.js?v=20260805.V1_9_2";
+import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260805.V1_9_2";
+import { Permissions } from "../../core/permissions.js?v=20260805.V1_9_2";
+import { effectiveDepartmentAssignmentStatus, isTerminalTask } from "../../core/task-display-order.js?v=20260805.V1_9_2";
+import { UserReadService } from "../../services/user-read-service.js?v=20260805.V1_9_2";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260805.V1_9_2";
+import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260805.V1_9_2";
+import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260805.V1_9_2";
+import { openTaskProgressModal } from "./task-progress-modal.js?v=20260805.V1_9_2";
+import { mountTaskAdjustmentPanel } from "./task-adjustment-panel.js?v=20260805.V1_9_2";
+import { TaskLogService } from "../../services/task-log-service.js?v=20260805.V1_9_2";
 
 const TEAM_LABELS = Object.freeze({
   BAO_VE: "Tổ Bảo vệ",
@@ -94,6 +94,17 @@ function canAssign(task) {
   const user = UserContext.requireUser();
   if (isSelfRegisteredTask(task)) return false;
   if (isTerminalTask(task) || String(task?.scoringStatus || "").toUpperCase() === "ADJUSTMENT_EXEMPT") return false;
+
+  const assignmentStatus = String(task?.assignmentStatus || "").toUpperCase();
+  if (assignmentStatus === "DA_TIEP_NHAN" || task?.acceptedAt) return false;
+
+  const departmentStatus = String(task?.departmentAssignmentStatus || "").toUpperCase();
+  const status = String(task?.status || "").toUpperCase();
+  const readyForInternalAssignment = departmentStatus === "ACCEPTED"
+    || ["CHO_PHAN_CONG", "DA_PHAN_CONG"].includes(assignmentStatus)
+    || ["CHO_PHAN_CONG", "MOI_TIEP_NHAN"].includes(status);
+  if (!readyForInternalAssignment) return false;
+
   return Permissions.isAdmin()
     || (Permissions.isDirector() && sameTaskDepartment(task, user))
     || (Permissions.isDepartmentLeader() && sameTaskDepartment(task, user));
