@@ -8,8 +8,8 @@
  *   với accessAccounts để thay đổi vai trò/chức vụ có hiệu lực ổn định.
  */
 
-import { FirebaseService } from "./firebase-service.js";
-import { UserContext } from "./user-context.js";
+import { FirebaseService } from "./firebase-service.js?v=20260805.V1_9_2";
+import { UserContext } from "./user-context.js?v=20260805.V1_9_2";
 
 const LOGIN_URL = "./login.html";
 const AUTH_TIMEOUT_MS = 15000;
