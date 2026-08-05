@@ -1,14 +1,14 @@
 /** Đọc người dùng theo đúng phạm vi Firestore Rules. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260805.V1_9_2";
-import { UserContext } from "../core/user-context.js?v=20260805.V1_9_2";
-import { Permissions } from "../core/permissions.js?v=20260805.V1_9_2";
+import { FirebaseService } from "../core/firebase-service.js?v=20260805.V1_9_3";
+import { UserContext } from "../core/user-context.js?v=20260805.V1_9_3";
+import { Permissions } from "../core/permissions.js?v=20260805.V1_9_3";
 
 const CACHE_MS = 5 * 60 * 1000;
 const caches = new Map();
 const pending = new Map();
 
 function mapSnapshot(snapshot) {
-  return snapshot.docs.map(item => ({ id: item.id, ...item.data() }));
+  return snapshot.docs.map(item => ({ ...item.data(), id: item.id }));
 }
 
 function normalize(items = []) {
@@ -29,7 +29,7 @@ async function readCdtnMembers() {
   if (!Permissions.isCdtnMember()) return [];
   if (!Permissions.isCdtnLeadership()) {
     const own = await FirebaseService.getDoc(FirebaseService.doc(FirebaseService.db, "users", user.uid));
-    return own.exists() && own.data()?.active === true ? [{ id: own.id, ...own.data() }] : [];
+    return own.exists() && own.data()?.active === true ? [{ ...own.data(), id: own.id }] : [];
   }
   const roles = ["CDTN_BI_THU", "CDTN_PHO_BI_THU", "CDTN_UY_VIEN_BCH", "CDTN_DOAN_VIEN"];
   const results = await Promise.allSettled(roles.map(role => FirebaseService.getDocs(
@@ -42,7 +42,7 @@ async function readCdtnMembers() {
   const merged = new Map();
   for (const result of results) {
     if (result.status !== "fulfilled") continue;
-    for (const item of result.value.docs) merged.set(item.id, { id: item.id, ...item.data() });
+    for (const item of result.value.docs) merged.set(item.id, { ...item.data(), id: item.id });
   }
   return normalize([...merged.values()]);
 }
@@ -68,7 +68,7 @@ async function readAuthorizedUsers() {
     FirebaseService.doc(FirebaseService.db, "users", user.uid)
   );
   return snapshot.exists() && snapshot.data()?.active === true
-    ? [{ id: snapshot.id, ...snapshot.data() }]
+    ? [{ ...snapshot.data(), id: snapshot.id }]
     : [];
 }
 

@@ -4,11 +4,11 @@
  * - Trưởng phòng quản lý danh mục đơn vị mình; có thể ủy quyền cho một nhân viên.
  * - Bí thư/Phó Bí thư Chi đoàn quản lý danh mục CDTN theo vai trò kiêm nhiệm.
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260805.V1_9_2";
-import { UserContext } from "../core/user-context.js?v=20260805.V1_9_2";
-import { Permissions } from "../core/permissions.js?v=20260805.V1_9_2";
+import { FirebaseService } from "../core/firebase-service.js?v=20260805.V1_9_3";
+import { UserContext } from "../core/user-context.js?v=20260805.V1_9_3";
+import { Permissions } from "../core/permissions.js?v=20260805.V1_9_3";
 
-const SYNC_VERSION = "20260805.V1_9_2";
+const SYNC_VERSION = "20260805.V1_9_3";
 const STANDARD_TASK_COLLECTION = "standardTasks";
 const SEQUENCE_COLLECTION = "standardTaskSequences";
 const VALID_COEFFICIENTS = Object.freeze([1, 1.1, 1.2]);

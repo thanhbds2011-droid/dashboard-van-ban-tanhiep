@@ -1,12 +1,12 @@
 /** Tạo, phân công, tiếp nhận, cập nhật tiến độ và hoàn thành nhiệm vụ. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260805.V1_9_2";
-import { UserContext } from "../core/user-context.js?v=20260805.V1_9_2";
-import { Permissions } from "../core/permissions.js?v=20260805.V1_9_2";
-import { TaskLogService } from "./task-log-service.js?v=20260805.V1_9_2";
-import { TaskWorkItemService } from "./task-work-item-service.js?v=20260805.V1_9_2";
-import { PeriodReadService } from "./period-read-service.js?v=20260805.V1_9_2";
+import { FirebaseService } from "../core/firebase-service.js?v=20260805.V1_9_3";
+import { UserContext } from "../core/user-context.js?v=20260805.V1_9_3";
+import { Permissions } from "../core/permissions.js?v=20260805.V1_9_3";
+import { TaskLogService } from "./task-log-service.js?v=20260805.V1_9_3";
+import { TaskWorkItemService } from "./task-work-item-service.js?v=20260805.V1_9_3";
+import { PeriodReadService } from "./period-read-service.js?v=20260805.V1_9_3";
 
-const TASK_WRITE_BUILD_VERSION = "20260805.V1_9_2";
+const TASK_WRITE_BUILD_VERSION = "20260805.V1_9_3";
 const MAX_CODE_SCAN = 1000;
 
 function dateKey(date) {
@@ -125,16 +125,23 @@ export const TaskWriteService = Object.freeze({
     }
     const startingSequence = await getStartingSequence(departmentId, activePeriod.id);
 
-    const ownerUserId = data.ownerUserId || "";
+    const directorCreatesDepartmentTask = Permissions.isDirector() || Permissions.isAdmin();
+    const ownerUserId = directorCreatesDepartmentTask ? "" : String(data.ownerUserId || "").trim();
     const supportIds = [...new Set((data.supportDepartmentIds || [])
       .map(normalizeDepartmentId)
       .filter(Boolean)
       .filter(id => id !== departmentId))];
     const visibleDepartments = [...new Set([departmentId, ...supportIds])];
     const visibleUsers = [...new Set([ownerUserId].filter(Boolean))];
-    const assignmentStatus = ownerUserId ? "DA_PHAN_CONG" : "CHO_PHAN_CONG";
-    const status = ownerUserId ? "MOI_TIEP_NHAN" : "CHO_PHAN_CONG";
-    const entryMode = Permissions.isDirector() || Permissions.isAdmin()
+    const assignmentMode = directorCreatesDepartmentTask ? "DEPARTMENT" : "DEPARTMENT_INTERNAL";
+    const departmentAssignmentStatus = directorCreatesDepartmentTask ? "PENDING_ACCEPTANCE" : "ACCEPTED";
+    const assignmentStatus = directorCreatesDepartmentTask
+      ? "CHO_PHONG_KHU_TIEP_NHAN"
+      : (ownerUserId ? "DA_PHAN_CONG" : "CHO_PHAN_CONG");
+    const status = directorCreatesDepartmentTask
+      ? "CHO_PHONG_KHU_TIEP_NHAN"
+      : (ownerUserId ? "MOI_TIEP_NHAN" : "CHO_PHAN_CONG");
+    const entryMode = directorCreatesDepartmentTask
       ? "DIRECT_ASSIGNED"
       : "DEPARTMENT_ASSIGNED";
 
@@ -163,7 +170,7 @@ export const TaskWriteService = Object.freeze({
         );
 
         const payload = {
-          appVersion: "1.8.2",
+          appVersion: "1.9.3",
           active: true,
           taskCode: code,
           title: data.title,
@@ -184,6 +191,12 @@ export const TaskWriteService = Object.freeze({
           sourceDate: FirebaseService.Timestamp.fromDate(data.sourceDate || new Date()),
           sourceDateKey: dateKey(data.sourceDate || new Date()),
           entryMode,
+          assignmentMode,
+          departmentAssignmentStatus,
+          departmentAcceptedAt: directorCreatesDepartmentTask ? null : FirebaseService.serverTimestamp(),
+          departmentAcceptedByUserId: directorCreatesDepartmentTask ? "" : user.uid,
+          departmentAcceptedByName: directorCreatesDepartmentTask ? "" : (user.fullName || ""),
+          departmentAcceptedByPosition: directorCreatesDepartmentTask ? "" : (user.position || ""),
           primaryDepartmentId: departmentId,
           supportDepartmentIds: supportIds,
           relatedDepartmentIds: supportIds,
@@ -191,11 +204,15 @@ export const TaskWriteService = Object.freeze({
           ownerUserId,
           ownerName: data.ownerName || "",
           ownerPosition: data.ownerPosition || "",
-          teamId: String(data.teamId || "").toUpperCase(),
+          teamId: directorCreatesDepartmentTask ? "" : String(data.teamId || "").toUpperCase(),
           visibleUserIds: visibleUsers,
           assignedByUserId: ownerUserId ? user.uid : "",
           assignedByName: ownerUserId ? (user.fullName || "") : "",
           assignedByPosition: ownerUserId ? (user.position || "") : "",
+          internalAssignedByUserId: ownerUserId ? user.uid : "",
+          internalAssignedByName: ownerUserId ? (user.fullName || "") : "",
+          internalAssignedByPosition: ownerUserId ? (user.position || "") : "",
+          internalAssignedAt: ownerUserId ? FirebaseService.serverTimestamp() : null,
           adjustmentApproverUserId: user.uid,
           adjustmentApproverName: user.fullName || "",
           assignedAt: ownerUserId ? FirebaseService.serverTimestamp() : null,
@@ -266,6 +283,94 @@ export const TaskWriteService = Object.freeze({
     return result;
   },
 
+  async acceptDepartment(task) {
+    const user = UserContext.requireUser();
+    const taskDepartmentId = normalizeDepartmentId(task?.primaryDepartmentId);
+    const userDepartmentId = normalizeDepartmentId(user?.departmentId);
+    const mayAccept = Permissions.isDepartmentLeader()
+      && taskDepartmentId
+      && taskDepartmentId === userDepartmentId;
+
+    if (!mayAccept) {
+      throw new Error("Chỉ Trưởng/Phó Phòng/Khu phụ trách mới được xác nhận tiếp nhận nhiệm vụ.");
+    }
+    if (String(task?.ownerUserId || "").trim()) {
+      throw new Error("Nhiệm vụ đã có người phụ trách nên không còn ở bước Phòng/Khu tiếp nhận.");
+    }
+    if (task?.active === false || task?.completedAt) {
+      throw new Error("Nhiệm vụ không còn hiệu lực để tiếp nhận.");
+    }
+
+    const departmentStatus = String(task?.departmentAssignmentStatus || "").trim().toUpperCase();
+    const status = String(task?.status || "").trim().toUpperCase();
+    const assignmentStatus = String(task?.assignmentStatus || "").trim().toUpperCase();
+    const entryMode = String(task?.entryMode || "").trim().toUpperCase();
+    const createdByRole = String(task?.createdByRole || "").trim().toUpperCase();
+    const legacyDirectorTask = !departmentStatus
+      && (entryMode === "DIRECT_ASSIGNED" || ["DIRECTOR", "ADMIN"].includes(createdByRole))
+      && (status === "CHO_PHAN_CONG" || assignmentStatus === "CHO_PHAN_CONG");
+
+    if (departmentStatus !== "PENDING_ACCEPTANCE" && !legacyDirectorTask) {
+      if (departmentStatus === "ACCEPTED") {
+        throw new Error("Phòng/Khu đã xác nhận tiếp nhận nhiệm vụ trước đó.");
+      }
+      throw new Error("Nhiệm vụ không ở trạng thái chờ Phòng/Khu tiếp nhận.");
+    }
+
+    const before = snapshotTask(task);
+    const payload = {
+      assignmentMode: "DEPARTMENT",
+      departmentAssignmentStatus: "ACCEPTED",
+      departmentAcceptedAt: FirebaseService.serverTimestamp(),
+      departmentAcceptedByUserId: user.uid,
+      departmentAcceptedByName: user.fullName || "",
+      departmentAcceptedByPosition: user.position || "",
+      assignmentStatus: "CHO_PHAN_CONG",
+      status: "CHO_PHAN_CONG",
+      updatedAt: FirebaseService.serverTimestamp(),
+      updatedByUserId: user.uid,
+      updatedByName: user.fullName || ""
+    };
+
+    try {
+      await FirebaseService.updateDoc(taskRef(task.id), payload);
+    } catch (error) {
+      console.error("TASK_DEPARTMENT_ACCEPT_FAILED", {
+        buildVersion: TASK_WRITE_BUILD_VERSION,
+        taskId: task?.id || "",
+        taskCode: task?.taskCode || "",
+        currentUserId: user.uid,
+        currentDepartmentId: user.departmentId || "",
+        taskDepartmentId: task?.primaryDepartmentId || "",
+        sourceStatus: task?.status || "",
+        sourceAssignmentStatus: task?.assignmentStatus || "",
+        sourceDepartmentAssignmentStatus: task?.departmentAssignmentStatus || "",
+        errorCode: error?.code || "",
+        errorMessage: error?.message || String(error),
+        error
+      });
+      throw error;
+    }
+
+    try {
+      await FirebaseService.setDoc(logRef(), TaskLogService.buildTaskLog({
+        taskId: task.id,
+        taskCode: task.taskCode,
+        periodId: task.periodId || "",
+        action: "TASK_DEPARTMENT_ACCEPTED",
+        before,
+        after: {
+          ...before,
+          ...payload,
+          departmentAcceptedAt: null,
+          updatedAt: null
+        }
+      }));
+    } catch (logError) {
+      console.warn("Phòng/Khu đã tiếp nhận nhưng chưa ghi được nhật ký:", logError);
+    }
+  },
+
   async assign(task, assignment) {
     const user = UserContext.requireUser();
     const selfRegistered = String(task?.entryMode || "").toUpperCase() === "SELF_REGISTERED_APPROVED"
@@ -287,9 +392,7 @@ export const TaskWriteService = Object.freeze({
     const sourceDepartmentStatus = String(task?.departmentAssignmentStatus || "").toUpperCase();
     const sourceAssignmentStatus = String(task?.assignmentStatus || "").toUpperCase();
     const sourceStatus = String(task?.status || "").toUpperCase();
-    const sourceAccepted = sourceDepartmentStatus === "ACCEPTED"
-      || ["CHO_PHAN_CONG", "DA_PHAN_CONG"].includes(sourceAssignmentStatus)
-      || ["CHO_PHAN_CONG", "MOI_TIEP_NHAN"].includes(sourceStatus);
+    const sourceAccepted = sourceDepartmentStatus === "ACCEPTED";
 
     if (!sourceAccepted) {
       throw new Error("Phòng/Khu phải xác nhận tiếp nhận nhiệm vụ trước khi phân công nội bộ.");
@@ -302,9 +405,32 @@ export const TaskWriteService = Object.freeze({
     const before = snapshotTask(task);
 
     const ownerUserId = String(assignment?.ownerUserId || "").trim();
-    const ownerName = String(assignment?.ownerName || "").trim();
-    const ownerPosition = String(assignment?.ownerPosition || "").trim();
-    const teamId = String(assignment?.teamId || "").trim();
+    let ownerName = String(assignment?.ownerName || "").trim();
+    let ownerPosition = String(assignment?.ownerPosition || "").trim();
+    const teamId = String(assignment?.teamId || "").trim().toUpperCase();
+
+    if (ownerUserId) {
+      const ownerSnapshot = await FirebaseService.getDoc(
+        FirebaseService.doc(FirebaseService.db, "users", ownerUserId)
+      );
+      if (!ownerSnapshot.exists()) {
+        throw new Error("Không tìm thấy hồ sơ người được phân công trên hệ thống.");
+      }
+      const ownerProfile = ownerSnapshot.data() || {};
+      const ownerDepartmentId = normalizeDepartmentId(ownerProfile.departmentId);
+      const ownerTeamId = String(ownerProfile.teamId || "").trim().toUpperCase();
+      if (ownerProfile.active !== true) {
+        throw new Error("Tài khoản người được phân công đang ngừng hoạt động.");
+      }
+      if (ownerDepartmentId !== taskDepartmentId) {
+        throw new Error("Người được chọn không thuộc đúng Phòng/Khu của nhiệm vụ.");
+      }
+      if (teamId && ownerTeamId !== teamId) {
+        throw new Error("Người được chọn không thuộc Tổ/Nhóm đang phân công.");
+      }
+      ownerName = String(ownerProfile.fullName || ownerName || "").trim();
+      ownerPosition = String(ownerProfile.position || ownerPosition || "").trim();
+    }
 
     /*
      * Giữ nguyên các tài khoản đã có quyền xem nhiệm vụ và bổ sung
@@ -332,12 +458,6 @@ export const TaskWriteService = Object.freeze({
       ownerPosition,
       teamId,
       visibleUserIds,
-
-      departmentAssignmentStatus: "ACCEPTED",
-      departmentAcceptedAt: task?.departmentAcceptedAt || FirebaseService.serverTimestamp(),
-      departmentAcceptedByUserId: String(task?.departmentAcceptedByUserId || user.uid),
-      departmentAcceptedByName: String(task?.departmentAcceptedByName || user.fullName || ""),
-      departmentAcceptedByPosition: String(task?.departmentAcceptedByPosition || user.position || ""),
 
       assignedByUserId: user.uid,
       assignedByName: user.fullName || "",
@@ -389,7 +509,7 @@ export const TaskWriteService = Object.freeze({
         previousAssignmentMode: task?.assignmentMode || "",
         previousDepartmentAssignmentStatus: task?.departmentAssignmentStatus || "",
         newAssignmentMode: payload.assignmentMode,
-        newDepartmentAssignmentStatus: payload.departmentAssignmentStatus,
+        newDepartmentAssignmentStatus: task?.departmentAssignmentStatus || "",
         ownerUserId,
         ownerName,
         teamId,
@@ -409,7 +529,7 @@ export const TaskWriteService = Object.freeze({
         taskId: task.id,
         taskCode: task.taskCode,
         periodId: task.periodId || "",
-        action: "TASK_ASSIGNED",
+        action: "TASK_INTERNAL_ASSIGNED",
         before,
         after: {
           ...before,
@@ -421,7 +541,7 @@ export const TaskWriteService = Object.freeze({
       }));
     } catch (logError) {
       console.warn(
-        "Nhiệm vụ đã được phân công nhưng chưa ghi được nhật ký TASK_ASSIGNED:",
+        "Nhiệm vụ đã được phân công nhưng chưa ghi được nhật ký TASK_INTERNAL_ASSIGNED:",
         logError
       );
     }
