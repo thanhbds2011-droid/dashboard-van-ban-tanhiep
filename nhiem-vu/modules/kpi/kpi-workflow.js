@@ -3,17 +3,18 @@ import {
   addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, query,
   serverTimestamp, setDoc, Timestamp, updateDoc, where, limit, writeBatch
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
-import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260804.V1_8_2';
-import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260804.V1_8_2';
-import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260804.V1_8_2';
-import { PeriodReadService } from '../../services/period-read-service.js?v=20260804.V1_8_2';
-import { TaskReadService } from '../../services/task-read-service.js?v=20260804.V1_8_2';
-import { Permissions } from '../../core/permissions.js?v=20260804.V1_8_2';
-import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260804.V1_8_2';
+import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260805.V1_9_0';
+import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260805.V1_9_0';
+import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260805.V1_9_0';
+import { PeriodReadService } from '../../services/period-read-service.js?v=20260805.V1_9_0';
+import { TaskReadService } from '../../services/task-read-service.js?v=20260805.V1_9_0';
+import { Permissions } from '../../core/permissions.js?v=20260805.V1_9_0';
+import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260805.V1_9_0';
+import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260805.V1_9_0';
 import {
   KPI2B as KPI2C, COMMON_CRITERIA, calculateTaskScore, calculateKpiSummary,
   proposedRating, ratingName, round2, progressRateFromDates, convertAppendix04Rate
-} from '../../kpi-engine.js?v=20260804.V1_8_2';
+} from '../../kpi-engine.js?v=20260805.V1_9_0';
 
 export const KpiWorkflowState = {
   user: null,
@@ -1699,14 +1700,20 @@ function taskStatus(task, ev) {
   if (ev?.status === 'NEEDS_REVISION') return 'Yêu cầu bổ sung';
   if (task.planApprovalStatus === 'PENDING_APPROVAL') return 'Chờ duyệt kế hoạch';
   if (task.planApprovalStatus === 'REJECTED') return 'Kế hoạch bị trả lại';
-  if (task.planApprovalStatus === 'APPROVED') return 'Đã duyệt kế hoạch';
+  if (task.planApprovalStatus === 'APPROVED') {
+    const status = clean(task.status || task.assignmentStatus).toUpperCase();
+    if (status === 'CHO_PHONG_KHU_TIEP_NHAN') return 'Chờ Phòng/Khu tiếp nhận';
+    if (status === 'CHO_PHAN_CONG') return 'Phòng/Khu đã nhận · chờ phân công';
+    if (['DA_PHAN_CONG', 'MOI_TIEP_NHAN'].includes(status)) return 'Chờ cá nhân tiếp nhận';
+    return 'Đã duyệt kế hoạch';
+  }
   return task.status === 'HOAN_THANH' ? 'Đã hoàn thành' : 'Đang thực hiện';
 }
 function renderTasks() {
   const target = el('kpiTaskList');
   if (!target) return;
   if (!KpiWorkflowState.period) { target.innerHTML = '<div class="kpi-empty">Chưa có kỳ đánh giá.</div>'; return; }
-  const rows = KpiWorkflowState.tasks.filter(taskForCurrentUser).sort((a,b) => clean(a.taskCode).localeCompare(clean(b.taskCode)));
+  const rows = KpiWorkflowState.tasks.filter(taskForCurrentUser).sort(compareTasksForDisplay);
   const myRegistrations = KpiWorkflowState.registrations.filter(r => r.userId === KpiWorkflowState.user.uid);
   if (!rows.length && !myRegistrations.length) { target.innerHTML = '<div class="kpi-empty">Chưa có đầu việc trong kỳ. Viên chức vào “Danh mục công việc”, tick chọn và đăng ký kế hoạch.</div>'; return; }
   const registrationRows = myRegistrations.filter(r => !r.taskId).map(r => `<tr><td><strong>${esc(r.standardTaskCode || r.id)}</strong><br>${esc(r.standardTaskName || r.title)}</td><td><span class="kpi-status">${r.status === 'PENDING' ? 'Chờ cấp có thẩm quyền duyệt' : r.status === 'REJECTED' ? 'Đã trả lại' : 'Đã duyệt'}</span></td><td>${fmt(r.maximumConvertedScore)}</td><td>Chưa hình thành nhiệm vụ</td><td>${r.rejectionReason ? esc(r.rejectionReason) : '—'}</td></tr>`).join('');
@@ -1717,7 +1724,7 @@ function renderTasks() {
     const canSelf = task.ownerUserId === KpiWorkflowState.user.uid && task.planApprovalStatus === 'APPROVED' && KpiWorkflowState.period.status !== 'COMPLETED' && ev?.status !== 'CONFIRMED' && ev?.scoreLocked !== true && String(task.noOccurrenceStatus || '').toUpperCase() !== 'CONFIRMED'
       && String(task.scoringStatus || '').toUpperCase() !== 'ADJUSTMENT_EXEMPT'
       && String(task.adjustmentStatus || '').toUpperCase() !== 'REQUESTED';
-    return `<tr><td><strong>${esc(task.taskCode || task.standardTaskCode || task.id)}</strong><br>${esc(task.title)}<br><span class="kpi-small">${esc(task.ownerName || 'Chờ phân công')}</span></td>
+    return `<tr><td><strong>${esc(task.taskCode || task.standardTaskCode || task.id)}</strong><br>${esc(task.title)}<br><span class="kpi-small">${esc(task.ownerName || (clean(task.status).toUpperCase() === 'CHO_PHONG_KHU_TIEP_NHAN' ? 'Phòng/Khu chờ tiếp nhận' : 'Phòng/Khu chờ phân công'))}</span></td>
       <td><span class="kpi-status">${esc(taskStatus(task,ev))}</span><br><span class="kpi-small">${task.includedInA === true ? 'Thuộc A' : 'Chưa vào A'}</span>${task.isCoreTask === true ? '<br><strong>⭐ Cốt lõi</strong>' : ''}</td>
       <td>${fmt(task.maximumConvertedScore)}</td>
       <td>${exemptFromScoring ? '<strong>Không áp dụng</strong><br><span class="kpi-small">Miễn đánh giá do điều động</span>' : ev ? (()=>{const score=evaluationScoreSnapshot(ev);return `<strong>${fmt(score.convertedActualScore)}</strong><br><span class="kpi-small">Quy đổi thực tế · ${esc(score.label)}</span>`;})() : 'Chưa đánh giá'}</td>
