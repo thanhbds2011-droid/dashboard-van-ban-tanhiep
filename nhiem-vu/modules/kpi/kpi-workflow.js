@@ -3,18 +3,18 @@ import {
   addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, query,
   serverTimestamp, setDoc, Timestamp, updateDoc, where, limit, writeBatch
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
-import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260805.V1_9_0';
-import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260805.V1_9_0';
-import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260805.V1_9_0';
-import { PeriodReadService } from '../../services/period-read-service.js?v=20260805.V1_9_0';
-import { TaskReadService } from '../../services/task-read-service.js?v=20260805.V1_9_0';
-import { Permissions } from '../../core/permissions.js?v=20260805.V1_9_0';
-import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260805.V1_9_0';
-import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260805.V1_9_0';
+import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260805.V1_9_1';
+import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260805.V1_9_1';
+import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260805.V1_9_1';
+import { PeriodReadService } from '../../services/period-read-service.js?v=20260805.V1_9_1';
+import { TaskReadService } from '../../services/task-read-service.js?v=20260805.V1_9_1';
+import { Permissions } from '../../core/permissions.js?v=20260805.V1_9_1';
+import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260805.V1_9_1';
+import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260805.V1_9_1';
 import {
   KPI2B as KPI2C, COMMON_CRITERIA, calculateTaskScore, calculateKpiSummary,
   proposedRating, ratingName, round2, progressRateFromDates, convertAppendix04Rate
-} from '../../kpi-engine.js?v=20260805.V1_9_0';
+} from '../../kpi-engine.js?v=20260805.V1_9_1';
 
 export const KpiWorkflowState = {
   user: null,
@@ -307,6 +307,14 @@ function sameDepartment(data) {
   return departmentId === activeScopeDepartmentId();
 }
 
+/* Quyền duyệt phải theo phòng của hồ sơ người dùng, không theo phạm vi đang xem (có thể là ALL). */
+function registrationInApproverDepartment(registration) {
+  const departmentId = normalizeDepartment(registration?.departmentId);
+  if (!departmentId) return false;
+  if (departmentId === 'CDTN') return true;
+  return departmentId === profileDepartmentId();
+}
+
 function canApproveRegistration(registration) {
   if (!registration || registration.status !== 'PENDING') return false;
   if (activeRole('ADMIN')) return true;
@@ -316,7 +324,7 @@ function canApproveRegistration(registration) {
     const directAuthority = Permissions.isCdtnLeadership();
     const delegated = hasActiveApprovalDelegation('APPROVE_REGISTRATIONS', 'CDTN');
     return Boolean(
-      sameDepartment(registration)
+      registrationInApproverDepartment(registration)
       && (directAuthority || delegated)
       && (directAuthority || registration.userId !== KpiWorkflowState.user.uid)
     );
@@ -333,11 +341,11 @@ function canApproveRegistration(registration) {
       isDepartmentHead: registration.userIsDepartmentHead
     });
     if (deputy) {
-      return Permissions.canApproveStaffRegistrations(delegated) && sameDepartment(registration) && registration.userId !== KpiWorkflowState.user.uid;
+      return Permissions.canApproveRegistrationForDepartment(registrationDepartmentId, delegated) && registrationInApproverDepartment(registration) && registration.userId !== KpiWorkflowState.user.uid;
     }
     return activeRole('DIRECTOR');
   }
-  return Permissions.canApproveStaffRegistrations(delegated) && sameDepartment(registration);
+  return Permissions.canApproveRegistrationForDepartment(registrationDepartmentId, delegated) && registrationInApproverDepartment(registration);
 }
 
 function canViewDepartmentData() {
