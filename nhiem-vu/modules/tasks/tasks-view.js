@@ -1,8 +1,8 @@
-import { Permissions } from "../../core/permissions.js?v=20260804.V1_8_2";
+import { Permissions } from "../../core/permissions.js?v=20260805.V1_9_0";
 import { ToastService } from "../../core/toast-service.js";
-import { TaskReadService } from "../../services/task-read-service.js?v=20260804.V1_8_2";
-import { openTaskCreateModal } from "./task-form-modal.js?v=20260804.V1_8_2";
-import { openTaskDetailModal } from "./task-detail-modal.js?v=20260804.V1_8_2";
+import { TaskReadService } from "../../services/task-read-service.js?v=20260805.V1_9_0";
+import { openTaskCreateModal } from "./task-form-modal.js?v=20260805.V1_9_0";
+import { openTaskDetailModal } from "./task-detail-modal.js?v=20260805.V1_9_0";
 
 let renderSequence = 0;
 let currentTasks = [];
@@ -104,7 +104,7 @@ function userFacingLoadError(error) {
   const detail = String(error?.message || "");
   if (["permission-denied", "firestore/permission-denied"].includes(code)
       || /missing or insufficient permissions/i.test(detail)) {
-    return "Chưa tải được nhiệm vụ theo phạm vi tài khoản. Hệ thống đã ghi nhận lỗi phân quyền; hãy thử lại sau khi Rules V1.8.2 được Publish.";
+    return "Chưa tải được nhiệm vụ theo phạm vi tài khoản. Hệ thống đã ghi nhận lỗi phân quyền; hãy thử lại sau khi Rules V1.9.0 được Publish.";
   }
   return "Không thể tải dữ liệu nhiệm vụ vào lúc này. Vui lòng kiểm tra kết nối và thử lại.";
 }
@@ -124,7 +124,7 @@ function mountTasksPage(outlet) {
     <div class="toolbar tasks-toolbar tasks-toolbar-compact">
       <label class="field-grow"><span>Tìm kiếm</span><input id="taskSearch" type="search" placeholder="Tìm mã, tiêu đề, người thực hiện…"></label>
       ${(Permissions.canViewAllDepartments() || Permissions.isCdtnMember()) ? '<label><span>Phạm vi</span><select id="taskDepartmentFilter"><option value="ALL">Tất cả nhiệm vụ</option></select></label>' : ""}
-      <label><span>Trạng thái</span><select id="taskStatusFilter"><option value="ALL">Tất cả trạng thái</option><option value="IN_PROGRESS">Đang xử lý</option><option value="WAITING">Chờ phân công</option><option value="OVERDUE">Trễ hạn</option><option value="COMPLETED">Hoàn thành</option><option value="ADJUSTMENT_PENDING">Chờ duyệt điều chỉnh</option><option value="EXEMPT">Miễn đánh giá</option></select></label>
+      <label><span>Trạng thái</span><select id="taskStatusFilter"><option value="ALL">Tất cả trạng thái</option><option value="IN_PROGRESS">Đang xử lý</option><option value="WAITING">Chờ tiếp nhận/phân công</option><option value="OVERDUE">Trễ hạn</option><option value="COMPLETED">Hoàn thành</option><option value="ADJUSTMENT_PENDING">Chờ duyệt điều chỉnh</option><option value="EXEMPT">Miễn đánh giá</option></select></label>
       <button id="refreshTasks" class="secondary-button compact-sync-button" type="button" title="Cập nhật danh sách nhiệm vụ" aria-label="Cập nhật danh sách nhiệm vụ">↻</button>
     </div>
     <div id="taskWorkspaceContainer" class="task-workspace-grid">
@@ -201,8 +201,8 @@ function renderFilteredTasks() {
     const keywordMatch = !keyword || text.includes(keyword);
     const departmentMatch = departmentId === "ALL" || taskWorkspaceId(task) === departmentId;
     const statusMatch = status === "ALL" ||
-      (status === "IN_PROGRESS" && !task._completed && !task._exempt && !task._overdue && !["CHO_PHAN_CONG", "PENDING_ASSIGNMENT", "MOI_TIEP_NHAN"].includes(task._status)) ||
-      (status === "WAITING" && !task._exempt && ["CHO_PHAN_CONG", "PENDING_ASSIGNMENT", "MOI_TIEP_NHAN"].includes(task._status)) ||
+      (status === "IN_PROGRESS" && !task._completed && !task._exempt && !task._overdue && !["CHO_PHONG_KHU_TIEP_NHAN", "CHO_PHAN_CONG", "PENDING_ASSIGNMENT", "DA_PHAN_CONG", "MOI_TIEP_NHAN"].includes(task._status)) ||
+      (status === "WAITING" && !task._exempt && ["CHO_PHONG_KHU_TIEP_NHAN", "CHO_PHAN_CONG", "PENDING_ASSIGNMENT", "DA_PHAN_CONG", "MOI_TIEP_NHAN"].includes(task._status)) ||
       (status === "OVERDUE" && task._overdue) ||
       (status === "COMPLETED" && task._completed) ||
       (status === "ADJUSTMENT_PENDING" && String(task.adjustmentStatus || "").toUpperCase() === "REQUESTED") ||
@@ -225,6 +225,31 @@ function renderFilteredTasks() {
   bindRows(filtered);
 }
 
+function taskOwnerSummary(task) {
+  if (String(task?.ownerName || "").trim()) return task.ownerName;
+  const departmentId = taskWorkspaceId(task);
+  const department = DEPARTMENT_NAMES[departmentId] || departmentId || "Phòng/Khu";
+  const departmentStatus = String(task?._departmentAssignmentStatus || task?.departmentAssignmentStatus || "").toUpperCase();
+  if (departmentStatus === "PENDING_ACCEPTANCE" || task?._status === "CHO_PHONG_KHU_TIEP_NHAN") {
+    return `${department} — Chờ tiếp nhận`;
+  }
+  return `${department} — Chờ phân công`;
+}
+
+function taskStatusDescriptor(task) {
+  const scoringStatus = String(task.scoringStatus || "").toUpperCase();
+  const adjustmentStatus = String(task.adjustmentStatus || "").toUpperCase();
+  const status = String(task._status || task.status || "").toUpperCase();
+  if (scoringStatus === "ADJUSTMENT_EXEMPT") return { label: "Miễn đánh giá", className: "info" };
+  if (adjustmentStatus === "REQUESTED") return { label: "Chờ duyệt điều chỉnh", className: "warning" };
+  if (task._overdue) return { label: "Trễ hạn", className: "danger" };
+  if (task._completed) return { label: "Hoàn thành", className: "success" };
+  if (status === "CHO_PHONG_KHU_TIEP_NHAN") return { label: "Chờ Phòng/Khu tiếp nhận", className: "warning" };
+  if (["CHO_PHAN_CONG", "PENDING_ASSIGNMENT"].includes(status)) return { label: "Phòng/Khu đã nhận — Chờ phân công", className: "warning" };
+  if (["DA_PHAN_CONG", "MOI_TIEP_NHAN"].includes(status)) return { label: "Chờ cá nhân tiếp nhận", className: "warning" };
+  return { label: "Đang xử lý", className: "neutral" };
+}
+
 function bindRows(tasks) {
   document.querySelectorAll("[data-task-id]").forEach(row => {
     row.addEventListener("click", () => {
@@ -244,22 +269,8 @@ function bindRows(tasks) {
 function renderTaskList(tasks, emptyTitle = "Không có nhiệm vụ trong phạm vi hiển thị") {
   if (!tasks.length) return `<div class="empty-state compact-empty-state"><div class="empty-icon">📋</div><strong>${escapeHtml(emptyTitle)}</strong><p>Hãy thay đổi bộ lọc hoặc chờ nhiệm vụ được giao.</p></div>`;
   return `<div class="data-list">${tasks.slice(0, 500).map(task => {
-    const scoringStatus = String(task.scoringStatus || "").toUpperCase();
-    const adjustmentStatus = String(task.adjustmentStatus || "").toUpperCase();
-    const status = scoringStatus === "ADJUSTMENT_EXEMPT"
-      ? { label: "Miễn đánh giá", className: "info" }
-      : adjustmentStatus === "REQUESTED"
-        ? { label: "Chờ duyệt điều chỉnh", className: "warning" }
-        : task._overdue
-          ? { label: "Trễ hạn", className: "danger" }
-          : task._completed
-            ? { label: "Hoàn thành", className: "success" }
-            : ["CHO_PHAN_CONG", "PENDING_ASSIGNMENT"].includes(task._status)
-              ? { label: "Chờ phân công", className: "warning" }
-              : task._status === "MOI_TIEP_NHAN"
-                ? { label: "Chờ tiếp nhận", className: "warning" }
-                : { label: "Đang xử lý", className: "neutral" };
-    return `<button type="button" class="data-row task-row-button" data-task-id="${escapeHtml(task.id)}"><div class="data-row-main"><strong>${escapeHtml(task.title || task.taskCode || "Nhiệm vụ không có tiêu đề")}</strong><small>${escapeHtml(task.taskCode || task.id)} • ${escapeHtml(DEPARTMENT_NAMES[taskWorkspaceId(task)] || taskWorkspaceId(task) || "-")} • ${escapeHtml(task.ownerName || "Chưa phân công")}</small><div class="progress-track"><span style="width:${Math.min(100, Math.max(0, Number(task.progress || 0)))}%"></span></div></div><div class="data-row-meta"><span class="status-pill ${status.className}">${status.label}</span><small>${formatDate(task._deadline)}</small><strong>${Number(task.progress || 0)}%</strong></div></button>`;
+    const status = taskStatusDescriptor(task);
+    return `<button type="button" class="data-row task-row-button" data-task-id="${escapeHtml(task.id)}"><div class="data-row-main"><strong>${escapeHtml(task.title || task.taskCode || "Nhiệm vụ không có tiêu đề")}</strong><small>${escapeHtml(task.taskCode || task.id)} • ${escapeHtml(DEPARTMENT_NAMES[taskWorkspaceId(task)] || taskWorkspaceId(task) || "-")} • ${escapeHtml(taskOwnerSummary(task))}</small><div class="progress-track"><span style="width:${Math.min(100, Math.max(0, Number(task.progress || 0)))}%"></span></div></div><div class="data-row-meta"><span class="status-pill ${status.className}">${status.label}</span><small>${formatDate(task._deadline)}</small><strong>${Number(task.progress || 0)}%</strong></div></button>`;
   }).join("")}</div>`;
 }
 

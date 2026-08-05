@@ -12,6 +12,19 @@ export function validateTaskCreateInput(data) {
   if (data.priority !== "DOT_XUAT") errors.push("Nhiệm vụ phát sinh phải được ghi nhận là nhiệm vụ đột xuất.");
   if (data.workType !== "DOT_XUAT") errors.push("Loại công việc chưa hợp lệ.");
 
+  const assignmentMode = cleanText(data.assignmentMode, 40).toUpperCase();
+  if (!["DEPARTMENT", "TEAM_DIRECT", "DEPARTMENT_INTERNAL"].includes(assignmentMode)) {
+    errors.push("Phương thức giao nhiệm vụ chưa hợp lệ.");
+  }
+  if (assignmentMode === "DEPARTMENT") {
+    if (cleanText(data.teamId, 80)) errors.push("Giao chung cho Phòng/Khu không được lưu Tổ/Nhóm.");
+    if (cleanText(data.ownerUserId, 200)) errors.push("Giao chung cho Phòng/Khu không được lưu người phụ trách cá nhân.");
+  }
+  if (assignmentMode === "TEAM_DIRECT") {
+    if (!cleanText(data.teamId, 80)) errors.push("Giao trực tiếp qua Tổ/Nhóm phải có Tổ/Nhóm.");
+    if (!cleanText(data.ownerUserId, 200)) errors.push("Giao trực tiếp qua Tổ/Nhóm phải có người phụ trách.");
+  }
+
   const coefficient = Number(data.difficultyCoefficient);
   if (![1, 1.1, 1.2].some(value => Math.abs(value - coefficient) < 0.000001)) {
     errors.push("Hệ số độ khó chỉ được chọn 100%, 110% hoặc 120%.");

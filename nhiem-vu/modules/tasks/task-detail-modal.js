@@ -1,19 +1,32 @@
 /** Chi tiết, phân công và các lượt công việc phát sinh của nhiệm vụ. */
 import { UserContext } from "../../core/user-context.js";
-import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260804.V1_8_2";
-import { Permissions } from "../../core/permissions.js?v=20260804.V1_8_2";
+import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260805.V1_9_0";
+import { Permissions } from "../../core/permissions.js?v=20260805.V1_9_0";
+import { effectiveDepartmentAssignmentStatus, isTerminalTask } from "../../core/task-display-order.js?v=20260805.V1_9_0";
 import { UserReadService } from "../../services/user-read-service.js";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260804.V1_8_2";
-import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260804.V1_8_2";
-import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260804.V1_8_2";
-import { openTaskProgressModal } from "./task-progress-modal.js?v=20260804.V1_8_2";
-import { mountTaskAdjustmentPanel } from "./task-adjustment-panel.js?v=20260804.V1_8_2";
-import { TaskLogService } from "../../services/task-log-service.js?v=20260804.V1_8_2";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260805.V1_9_0";
+import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260805.V1_9_0";
+import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260805.V1_9_0";
+import { openTaskProgressModal } from "./task-progress-modal.js?v=20260805.V1_9_0";
+import { mountTaskAdjustmentPanel } from "./task-adjustment-panel.js?v=20260805.V1_9_0";
+import { TaskLogService } from "../../services/task-log-service.js?v=20260805.V1_9_0";
 
 const TEAM_LABELS = Object.freeze({
   BAO_VE: "Tổ Bảo vệ",
   DIEN_NUOC: "Tổ Điện nước",
   HAU_CAN: "Tổ Hậu cần"
+});
+
+const DEPARTMENT_NAMES = Object.freeze({
+  BGD: "Ban Giám đốc",
+  TCHC: "Phòng Tổ chức - Hành chính",
+  CTXH: "Phòng Công tác xã hội",
+  KHTC: "Phòng Kế hoạch - Tài chính",
+  YT: "Phòng Y tế",
+  KI: "Khu I",
+  KII: "Khu II",
+  KIII: "Khu III",
+  CDTN: "Chi đoàn Trung tâm"
 });
 
 const RESULT_RATE_OPTIONS = Object.freeze([
@@ -68,18 +81,58 @@ function teamLabel(value) {
     .join(" ");
 }
 
+function sameTaskDepartment(task, user = UserContext.requireUser()) {
+  return String(task?.primaryDepartmentId || "").toUpperCase() === String(user?.departmentId || "").toUpperCase();
+}
+
 function canAssign(task) {
   const user = UserContext.requireUser();
-  return Permissions.isAdmin() || Permissions.isDirector() ||
-    (Permissions.isDepartmentLeader() && task.primaryDepartmentId === user.departmentId);
+  if (isTerminalTask(task) || String(task?.scoringStatus || "").toUpperCase() === "ADJUSTMENT_EXEMPT") return false;
+  return Permissions.isAdmin()
+    || (Permissions.isDirector() && sameTaskDepartment(task, user))
+    || (Permissions.isDepartmentLeader() && sameTaskDepartment(task, user));
+}
+
+function canAcceptDepartment(task) {
+  const user = UserContext.requireUser();
+  const departmentStatus = effectiveDepartmentAssignmentStatus(task);
+  return Permissions.isDepartmentLeader()
+    && sameTaskDepartment(task, user)
+    && !String(task?.ownerUserId || "").trim()
+    && departmentStatus === "PENDING_ACCEPTANCE"
+    && !isTerminalTask(task);
+}
+
+function departmentName(task) {
+  const id = String(task?.primaryDepartmentId || "").toUpperCase();
+  return DEPARTMENT_NAMES[id] || id || "Phòng/Khu";
+}
+
+function ownerDisplayName(task) {
+  if (String(task?.ownerName || "").trim()) return task.ownerName;
+  const departmentStatus = effectiveDepartmentAssignmentStatus(task);
+  if (departmentStatus === "PENDING_ACCEPTANCE") return `${departmentName(task)} — Chờ tiếp nhận`;
+  return `${departmentName(task)} — Chờ phân công`;
+}
+
+function departmentAcceptanceLabel(task) {
+  const status = effectiveDepartmentAssignmentStatus(task);
+  if (status === "PENDING_ACCEPTANCE") return "Chờ Phòng/Khu tiếp nhận";
+  if (status === "DIRECT_ASSIGNED") return "Ban Giám đốc đã giao trực tiếp";
+  if (status === "ACCEPTED") {
+    const actor = String(task?.departmentAcceptedByName || "").trim();
+    return actor ? `Đã nhận — ${actor}` : "Phòng/Khu đã nhận";
+  }
+  return "Theo dữ liệu cũ";
 }
 
 function canReviewNoOccurrence(task) {
   const user = UserContext.requireUser();
   if (task.ownerUserId === user.uid) return false;
-  return Permissions.isAdmin() ||
-    (Permissions.isDepartmentHead() && task.primaryDepartmentId === user.departmentId) ||
-    (Permissions.isDirector() && task.primaryDepartmentId === "BGD");
+  const directApprover = String(
+    task.adjustmentApproverUserId || task.assignedByUserId || task.createdByUserId || ""
+  ) === user.uid;
+  return Permissions.isAdmin() || directApprover;
 }
 
 function coefficientLabel(value) {
@@ -419,11 +472,10 @@ export async function openTaskDetailModal(task, { onSaved }) {
   const currentUser = UserContext.requireUser();
   const isOwner = task.ownerUserId === currentUser.uid;
   const accepted = task.assignmentStatus === "DA_TIEP_NHAN";
-  const completed = task._completed === true ||
-    ["HOAN_THANH", "COMPLETED", "DA_HOAN_THANH"].includes(String(task.status || "").toUpperCase()) ||
-    Boolean(task.completedAt);
+  const completed = isTerminalTask(task);
   const adjustmentExempt = String(task.scoringStatus || "").toUpperCase() === "ADJUSTMENT_EXEMPT";
-  const mayAssign = canAssign(task) && !adjustmentExempt;
+  const mayAssign = canAssign(task);
+  const mayAcceptDepartment = canAcceptDepartment(task);
   const users = mayAssign ? await UserReadService.listActive() : [];
   const departmentUsers = users.filter(user => user.departmentId === task.primaryDepartmentId);
   const teams = departmentTeams(departmentUsers);
@@ -462,7 +514,8 @@ export async function openTaskDetailModal(task, { onSaved }) {
         <section class="task-detail-tab-panel is-active" data-task-panel="overview">
           <div class="detail-grid task-detail-summary">
             ${detail("Người giao", task.createdByName || task.assignedByName || "—")}
-            ${detail("Người phụ trách", task.ownerName || "Chưa phân công")}
+            ${detail("Người phụ trách", ownerDisplayName(task))}
+            ${detail("Tiếp nhận Phòng/Khu", departmentAcceptanceLabel(task))}
             ${detail("Tổ/Nhóm", task.teamId ? teamLabel(task.teamId) : "Không áp dụng")}
             ${detail("Tiến độ", `${Number(task.progress || 0)}%`)}
             ${detail("Hạn xử lý", formatDate(task._deadline || task.deadline))}
@@ -473,7 +526,14 @@ export async function openTaskDetailModal(task, { onSaved }) {
             ${detail("Điểm tối đa", numberVi(task.maximumConvertedScore || 0))}
           </div>
           <section class="detail-section"><h3>Nội dung thực hiện</h3><p>${escapeHtml(task.description || "Chưa có nội dung chi tiết.")}</p></section>
-          ${(task.expectedOutput || task.resultRequirement) ? `<section class="detail-section six-clear-detail"><h3>Chỉ đạo theo tinh thần 6 rõ</h3><div class="detail-grid"><div><span>Sản phẩm đầu ra</span><strong>${escapeHtml(task.expectedOutput || "Chưa ghi")}</strong></div><div><span>Kết quả/tiêu chí nghiệm thu</span><strong>${escapeHtml(task.resultRequirement || "Chưa ghi")}</strong></div></div></section>` : ""}
+          ${(task.expectedOutput || task.resultRequirement || task.sixClearDirective) ? `<section class="detail-section six-clear-detail"><h3>Chỉ đạo theo tinh thần 6 rõ</h3><div class="detail-grid six-clear-grid">
+            <div><span>Rõ người</span><strong>${escapeHtml(task.sixClearDirective?.person || ownerDisplayName(task))}</strong></div>
+            <div><span>Rõ việc</span><strong>${escapeHtml(task.sixClearDirective?.work || task.title || "Chưa ghi")}</strong></div>
+            <div><span>Rõ thời gian</span><strong>${escapeHtml(task.sixClearDirective?.time || formatDate(task._deadline || task.deadline))}</strong></div>
+            <div><span>Rõ trách nhiệm</span><strong>${escapeHtml(task.sixClearDirective?.responsibility || `${departmentName(task)} chịu trách nhiệm chính`)}</strong></div>
+            <div><span>Rõ sản phẩm</span><strong>${escapeHtml(task.sixClearDirective?.product || task.expectedOutput || "Chưa ghi")}</strong></div>
+            <div><span>Rõ kết quả</span><strong>${escapeHtml(task.sixClearDirective?.result || task.resultRequirement || "Chưa ghi")}</strong></div>
+          </div></section>` : ""}
           ${mayAssign ? `<section class="detail-section"><h3>Phân công nội bộ</h3><div class="inline-form assignment-inline-form">
             <select id="assignTeam"><option value="">— Không chọn Tổ/Nhóm —</option>${teams.map(team => `<option value="${escapeHtml(team.id)}" ${team.id === normalizeTeamId(task.teamId) ? "selected" : ""}>${escapeHtml(team.label)}</option>`).join("")}</select>
             <select id="assignOwner"><option value="">— Chưa phân công cá nhân —</option></select>
@@ -514,7 +574,7 @@ export async function openTaskDetailModal(task, { onSaved }) {
           <section class="detail-section"><h3>Lịch sử thao tác</h3>${renderTaskLogs(taskLogs)}</section>
         </section>
       </div>
-      <div class="modal-footer"><button class="secondary-button" type="button" data-close>Đóng</button>${isOwner && !accepted && !completed ? '<button id="acceptTaskButton" class="primary-button" type="button">Xác nhận đã nhận nhiệm vụ</button>' : ""}${isOwner && accepted && !completed && String(task.noOccurrenceStatus || "").toUpperCase() !== "CONFIRMED" && String(task.scoringStatus || "").toUpperCase() !== "ADJUSTMENT_EXEMPT" ? '<button id="updateTaskButton" class="primary-button" type="button">Cập nhật nhiệm vụ</button>' : ""}</div>
+      <div class="modal-footer"><button class="secondary-button" type="button" data-close>Đóng</button>${mayAcceptDepartment ? '<button id="acceptDepartmentButton" class="primary-button" type="button">Xác nhận Phòng/Khu đã nhận</button>' : ""}${isOwner && !accepted && !completed ? '<button id="acceptTaskButton" class="primary-button" type="button">Xác nhận cá nhân đã nhận</button>' : ""}${isOwner && accepted && !completed && String(task.noOccurrenceStatus || "").toUpperCase() !== "CONFIRMED" && String(task.scoringStatus || "").toUpperCase() !== "ADJUSTMENT_EXEMPT" ? '<button id="updateTaskButton" class="primary-button" type="button">Cập nhật nhiệm vụ</button>' : ""}</div>
     </section>`;
 
   document.body.appendChild(overlay);
@@ -652,6 +712,21 @@ export async function openTaskDetailModal(task, { onSaved }) {
     }
   });
 
+  overlay.querySelector("#acceptDepartmentButton")?.addEventListener("click", async () => {
+    const button = overlay.querySelector("#acceptDepartmentButton");
+    try {
+      button.disabled = true;
+      button.textContent = "Đang xác nhận...";
+      await TaskWriteService.acceptDepartment(task);
+      close();
+      await onSaved?.();
+    } catch (error) {
+      window.alert(friendlyErrorMessage(error, "Không xác nhận được Phòng/Khu đã nhận nhiệm vụ."));
+      button.disabled = false;
+      button.textContent = "Xác nhận Phòng/Khu đã nhận";
+    }
+  });
+
   overlay.querySelector("#acceptTaskButton")?.addEventListener("click", async () => {
     const button = overlay.querySelector("#acceptTaskButton");
     try {
@@ -663,7 +738,7 @@ export async function openTaskDetailModal(task, { onSaved }) {
     } catch (error) {
       window.alert(friendlyErrorMessage(error, "Không xác nhận được nhiệm vụ."));
       button.disabled = false;
-      button.textContent = "Xác nhận đã nhận nhiệm vụ";
+      button.textContent = "Xác nhận cá nhân đã nhận";
     }
   });
 
@@ -682,7 +757,15 @@ function statusName(task) {
   if (String(task.noOccurrenceStatus || "").toUpperCase() === "CONFIRMED") return "Không phát sinh";
   if (task._overdue) return "Trễ hạn";
   if (task._completed) return "Hoàn thành";
-  const map = { CHO_PHAN_CONG: "Chờ phân công", MOI_TIEP_NHAN: "Chờ tiếp nhận", DANG_XU_LY: "Đang xử lý", TAM_DUNG: "Tạm dừng" };
+  const map = {
+    CHO_PHONG_KHU_TIEP_NHAN: "Chờ Phòng/Khu tiếp nhận",
+    CHO_PHAN_CONG: "Phòng/Khu đã nhận — Chờ phân công",
+    DA_PHAN_CONG: "Chờ cá nhân tiếp nhận",
+    MOI_TIEP_NHAN: "Chờ cá nhân tiếp nhận",
+    DANG_XU_LY: "Đang xử lý",
+    TAM_DUNG: "Tạm dừng",
+    HUY: "Đã hủy"
+  };
   return map[task.status] || "Đang xử lý";
 }
 
@@ -702,7 +785,14 @@ function logActionName(action) {
   return ({
     TASK_CREATED: "Tạo nhiệm vụ",
     TASK_REGISTRATION_APPROVED: "Duyệt đăng ký",
-    TASK_ACCEPTED: "Tiếp nhận nhiệm vụ",
+    TASK_ACCEPTED: "Tiếp nhận nhiệm vụ (dữ liệu cũ)",
+    TASK_DEPARTMENT_ASSIGNED: "Ban Giám đốc giao Phòng/Khu",
+    TASK_TEAM_DIRECT_ASSIGNED: "Ban Giám đốc giao trực tiếp qua Tổ/Nhóm",
+    TASK_DEPARTMENT_ACCEPTED: "Phòng/Khu xác nhận đã nhận",
+    TASK_SELF_ASSIGNED: "Lãnh đạo tự phân công",
+    TASK_INTERNAL_ASSIGNED: "Phân công nội bộ",
+    TASK_INTERNAL_UNASSIGNED: "Chuyển về chờ phân công",
+    TASK_PERSONAL_ACCEPTED: "Cá nhân xác nhận đã nhận",
     TASK_UPDATED: "Cập nhật nhiệm vụ",
     TASK_COMPLETED: "Hoàn thành nhiệm vụ",
     TASK_ADJUSTMENT_REQUESTED: "Gửi đề nghị điều chỉnh",

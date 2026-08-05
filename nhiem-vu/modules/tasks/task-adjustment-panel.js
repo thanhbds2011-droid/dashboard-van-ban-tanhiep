@@ -3,8 +3,8 @@
  * STAFF gửi đề nghị; người giao nhiệm vụ xem xét và phê duyệt hoặc trả lại.
  */
 import { ToastService } from "../../core/toast-service.js";
-import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260804.V1_8_2";
-import { TaskAdjustmentService } from "../../services/task-adjustment-service.js?v=20260804.V1_8_2";
+import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260805.V1_9_0";
+import { TaskAdjustmentService } from "../../services/task-adjustment-service.js?v=20260805.V1_9_0";
 
 const STATUS_LABELS = Object.freeze({
   PENDING: ["Chờ phê duyệt", "warning"],
