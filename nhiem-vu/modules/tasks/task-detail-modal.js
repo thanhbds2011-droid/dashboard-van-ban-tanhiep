@@ -1,15 +1,15 @@
 /** Chi tiết, phân công và các lượt công việc phát sinh của nhiệm vụ. */
 import { UserContext } from "../../core/user-context.js";
-import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260805.V1_9_0";
-import { Permissions } from "../../core/permissions.js?v=20260805.V1_9_0";
-import { effectiveDepartmentAssignmentStatus, isTerminalTask } from "../../core/task-display-order.js?v=20260805.V1_9_0";
+import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260805.V1_9_1";
+import { Permissions } from "../../core/permissions.js?v=20260805.V1_9_1";
+import { effectiveDepartmentAssignmentStatus, isTerminalTask } from "../../core/task-display-order.js?v=20260805.V1_9_1";
 import { UserReadService } from "../../services/user-read-service.js";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260805.V1_9_0";
-import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260805.V1_9_0";
-import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260805.V1_9_0";
-import { openTaskProgressModal } from "./task-progress-modal.js?v=20260805.V1_9_0";
-import { mountTaskAdjustmentPanel } from "./task-adjustment-panel.js?v=20260805.V1_9_0";
-import { TaskLogService } from "../../services/task-log-service.js?v=20260805.V1_9_0";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260805.V1_9_1";
+import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260805.V1_9_1";
+import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260805.V1_9_1";
+import { openTaskProgressModal } from "./task-progress-modal.js?v=20260805.V1_9_1";
+import { mountTaskAdjustmentPanel } from "./task-adjustment-panel.js?v=20260805.V1_9_1";
+import { TaskLogService } from "../../services/task-log-service.js?v=20260805.V1_9_1";
 
 const TEAM_LABELS = Object.freeze({
   BAO_VE: "Tổ Bảo vệ",
@@ -85,8 +85,14 @@ function sameTaskDepartment(task, user = UserContext.requireUser()) {
   return String(task?.primaryDepartmentId || "").toUpperCase() === String(user?.departmentId || "").toUpperCase();
 }
 
+function isSelfRegisteredTask(task) {
+  return String(task?.entryMode || "").toUpperCase() === "SELF_REGISTERED_APPROVED"
+    || (String(task?.sourceType || "").toUpperCase() === "DANG_KY_KE_HOACH" && String(task?.registrationId || "").trim() !== "");
+}
+
 function canAssign(task) {
   const user = UserContext.requireUser();
+  if (isSelfRegisteredTask(task)) return false;
   if (isTerminalTask(task) || String(task?.scoringStatus || "").toUpperCase() === "ADJUSTMENT_EXEMPT") return false;
   return Permissions.isAdmin()
     || (Permissions.isDirector() && sameTaskDepartment(task, user))
@@ -534,7 +540,7 @@ export async function openTaskDetailModal(task, { onSaved }) {
             <div><span>Rõ sản phẩm</span><strong>${escapeHtml(task.sixClearDirective?.product || task.expectedOutput || "Chưa ghi")}</strong></div>
             <div><span>Rõ kết quả</span><strong>${escapeHtml(task.sixClearDirective?.result || task.resultRequirement || "Chưa ghi")}</strong></div>
           </div></section>` : ""}
-          ${mayAssign ? `<section class="detail-section"><h3>Phân công nội bộ</h3><div class="inline-form assignment-inline-form">
+          ${isSelfRegisteredTask(task) ? `<div class="info-banner"><strong>Đầu việc do chính người đăng ký thực hiện</strong><span>Đầu việc đăng ký kế hoạch không được phân công lại cho người khác.</span></div>` : ""}${mayAssign ? `<section class="detail-section"><h3>Phân công nội bộ</h3><div class="inline-form assignment-inline-form">
             <select id="assignTeam"><option value="">— Không chọn Tổ/Nhóm —</option>${teams.map(team => `<option value="${escapeHtml(team.id)}" ${team.id === normalizeTeamId(task.teamId) ? "selected" : ""}>${escapeHtml(team.label)}</option>`).join("")}</select>
             <select id="assignOwner"><option value="">— Chưa phân công cá nhân —</option></select>
             <button id="assignTaskButton" class="secondary-button" type="button">Lưu phân công</button>
