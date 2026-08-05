@@ -1,5 +1,5 @@
-import { auth } from "./firebase-config.js?v=20260718.2000";
-import { NOTIFICATION_WEB_APP_URL } from "./notification-config.js?v=20260718.2000";
+import { auth } from "./firebase-config.js?v=20260805.V1_9_0";
+import { NOTIFICATION_WEB_APP_URL } from "./notification-config.js?v=20260805.V1_9_0";
 import { UserContext } from "./core/user-context.js";
 
 /* =========================================================
@@ -10,8 +10,8 @@ import { UserContext } from "./core/user-context.js";
  * và xóa nhánh AI_SUGGEST_TASK cùng khối AI MODULE V4 — HEALTH CHECK + CALLBACK + MOBILE POLLING trong Code.gs.
  * ========================================================= */
 
-const AI_CLIENT_VERSION = "4.0.0";
-const AI_REQUEST_TIMEOUT_MS = 55000;
+const AI_CLIENT_VERSION = "4.1.0";
+const AI_REQUEST_TIMEOUT_MS = 24000;
 const AI_SOURCE = "TASK_AI_SUGGESTION";
 const AI_HEALTH_ACTION = "AI_HEALTH";
 const AI_POLL_ACTION = "AI_GET_RESULT";
@@ -608,6 +608,38 @@ function buildAiPollUrl(requestId, pollToken) {
 }
 
 
+function buildLocalSixClearSuggestion(context) {
+  const title = clean(context.title || "Nhiệm vụ được giao", 250);
+  const department = clean(context.primaryDepartment || "Phòng/Khu phụ trách", 300);
+  const deadline = clean(context.deadline || "theo thời hạn được giao", 40);
+  const source = clean(context.sourceDetail || context.sourceType || "chỉ đạo của cấp có thẩm quyền", 500);
+  const description = clean(context.description || title, 1800);
+  return {
+    suggestedTitle: title,
+    suggestedContent: clean([
+      `Rõ người: ${department} tổ chức thực hiện và phân công cá nhân chịu trách nhiệm.`,
+      `Rõ việc: ${description}.`,
+      `Rõ thời gian: hoàn thành trước hoặc trong ngày ${deadline}.`,
+      `Rõ trách nhiệm: người phụ trách chủ động thực hiện, báo cáo khó khăn và chịu trách nhiệm về tiến độ, chất lượng.`,
+      `Rõ sản phẩm: sản phẩm/hồ sơ/kết quả phù hợp với ${source}.`,
+      `Rõ kết quả: hoàn thành đúng hạn, đúng yêu cầu và có minh chứng kiểm tra được.`
+    ].join(" "), 3000),
+    missingItems: [
+      "Kiểm tra và bổ sung sản phẩm đầu ra cụ thể.",
+      "Kiểm tra tiêu chí nghiệm thu và loại minh chứng bắt buộc."
+    ],
+    checks: {
+      person: Boolean(department),
+      work: Boolean(description),
+      time: Boolean(context.deadline),
+      responsibility: true,
+      product: Boolean(context.sourceDetail),
+      result: true
+    },
+    localFallback: true
+  };
+}
+
 async function requestTaskSuggestion() {
   hideMessage("taskAiMessage");
 
@@ -639,11 +671,15 @@ async function requestTaskSuggestion() {
       "success"
     );
   } catch (error) {
+    const context = collectTaskContext();
+    currentSuggestion = buildLocalSixClearSuggestion(context);
+    renderTaskSuggestion(currentSuggestion);
     showMessage(
       "taskAiMessage",
-      error?.message || "Không tạo được gợi ý AI.",
-      "error"
+      "Dịch vụ AI đang chậm hoặc chưa sẵn sàng. Hệ thống đã tạo mẫu gợi ý cục bộ theo 6 rõ; hãy kiểm tra và chỉnh trước khi áp dụng.",
+      "warning"
     );
+    console.warn("AI_SUGGESTION_FALLBACK", error);
   } finally {
     setButtonBusy("taskAiSuggestButton", false, "Đang gợi ý...", "Gợi ý nội dung");
     setButtonBusy("taskAiRegenerateButton", false, "Đang tạo lại...", "Tạo lại");

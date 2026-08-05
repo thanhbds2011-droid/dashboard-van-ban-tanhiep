@@ -738,7 +738,7 @@ body:has(.modal-backdrop) { overflow: hidden; }
 }
 
 
-/* ===== Production V1.8.2: biểu mẫu giao việc 6 rõ và AI không bị che ===== */
+/* ===== Production V1.9.0: biểu mẫu giao việc 6 rõ và AI không bị che ===== */
 #taskCreateForm #taskAiAssistant {
   grid-column: 1 / -1;
   min-height: 76px;
@@ -788,4 +788,73 @@ body:has(.modal-backdrop) { overflow: hidden; }
 @media (max-width: 760px) {
   .six-clear-heading { align-items: flex-start; flex-direction: column; gap: 4px; }
   .six-clear-grid { grid-template-columns: 1fr; }
+}
+
+/* V1.9.0 — tiếp nhận Phòng/Khu, phân công phân cấp và modal không che nội dung 6 rõ */
+.task-detail-modal.task-detail-tabbed {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 32px);
+}
+
+.task-detail-modal .task-detail-tab-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  padding-bottom: 28px;
+}
+
+.six-clear-detail .six-clear-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.six-clear-detail .six-clear-grid > div {
+  min-width: 0;
+  padding: 13px 14px;
+  border: 1px solid #dbe8f0;
+  border-radius: 11px;
+  background: #f8fbfd;
+}
+
+.six-clear-detail .six-clear-grid span,
+.six-clear-detail .six-clear-grid strong {
+  display: block;
+}
+
+.six-clear-detail .six-clear-grid span {
+  margin-bottom: 5px;
+  color: #60778a;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.six-clear-detail .six-clear-grid strong {
+  color: #183b52;
+  line-height: 1.55;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.assignment-inline-form select,
+.assignment-inline-form button {
+  min-height: 46px;
+}
+
+@media (max-width: 720px) {
+  .task-detail-modal.task-detail-tabbed {
+    height: 100dvh;
+    max-height: 100dvh;
+  }
+
+  .task-detail-modal .task-detail-tab-body {
+    padding-bottom: calc(118px + env(safe-area-inset-bottom));
+  }
+
+  .six-clear-detail .six-clear-grid {
+    grid-template-columns: 1fr;
+  }
 }

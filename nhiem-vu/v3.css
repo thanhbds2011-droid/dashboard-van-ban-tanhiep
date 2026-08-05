@@ -899,7 +899,7 @@ button,input,select,textarea{font-size:16px}
   .tasks-toolbar-compact > .compact-sync-button { grid-column: 2 !important; grid-row: 3 !important; }
 }
 
-/* ===== Production V1.8.2: workspace nhiệm vụ và cài đặt thông báo ===== */
+/* ===== Production V1.9.0: workspace nhiệm vụ và cài đặt thông báo ===== */
 .header-notification-button{display:inline-flex;align-items:center;gap:.4rem;white-space:nowrap}
 .app-modal-backdrop{position:fixed;inset:0;z-index:2200;display:grid;place-items:center;padding:1rem;background:rgba(6,27,42,.58);backdrop-filter:blur(4px)}
 .app-modal-backdrop.hidden{display:none!important}
@@ -926,7 +926,7 @@ button,input,select,textarea{font-size:16px}
 @media(max-width:980px){.task-workspace-grid{grid-template-columns:1fr}.task-workspace-panel .task-list-scroll{height:auto;max-height:520px}.header-notification-button span{display:none}}
 @media(max-width:640px){.push-settings-grid{grid-template-columns:1fr}.app-modal-card{border-radius:18px}.app-modal-actions>*{flex:1 1 140px}}
 
-/* V1.8.2 — trạng thái đồng bộ Firestore trực tiếp */
+/* V1.9.0 — trạng thái đồng bộ Firestore trực tiếp */
 .realtime-state {
   display: inline-flex;
   align-items: center;
