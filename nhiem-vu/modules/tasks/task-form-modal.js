@@ -1,12 +1,12 @@
 /** Biểu mẫu giao nhiệm vụ phát sinh/đột xuất. */
-import { UserContext } from "../../core/user-context.js?v=20260805.V1_9_3";
-import { Permissions } from "../../core/permissions.js?v=20260805.V1_9_3";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260805.V1_9_3";
-import { UserReadService } from "../../services/user-read-service.js?v=20260805.V1_9_3";
-import { DepartmentReadService } from "../../services/department-read-service.js?v=20260805.V1_9_3";
-import { validateTaskCreateInput, cleanText } from "./task-form-validator.js?v=20260805.V1_9_3";
-import { mountTaskAiAssistant } from "../../ai-assistant.js?v=20260805.V1_9_3";
-import { ToastService } from "../../core/toast-service.js?v=20260805.V1_9_3";
+import { UserContext } from "../../core/user-context.js?v=20260806.V1_9_4";
+import { Permissions } from "../../core/permissions.js?v=20260806.V1_9_4";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260806.V1_9_4";
+import { UserReadService } from "../../services/user-read-service.js?v=20260806.V1_9_4";
+import { DepartmentReadService } from "../../services/department-read-service.js?v=20260806.V1_9_4";
+import { validateTaskCreateInput, cleanText } from "./task-form-validator.js?v=20260806.V1_9_4";
+import { mountTaskAiAssistant } from "../../ai-assistant.js?v=20260806.V1_9_4";
+import { ToastService } from "../../core/toast-service.js?v=20260806.V1_9_4";
 
 const DIRECT_TASK_BASE_SCORE = 12;
 const DIFFICULTY_OPTIONS = Object.freeze([
