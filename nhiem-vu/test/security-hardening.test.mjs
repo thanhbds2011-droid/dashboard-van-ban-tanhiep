@@ -55,9 +55,10 @@ test("Truy vấn người dùng và danh mục bám theo phạm vi Rules", () =>
   assert.match(standardRead, /CDTN_MEMBER/);
 });
 
-test("PWA đóng gói app và module đang hoạt động", () => {
-  assert.match(sw, /app-v3\.js\?v=20260804\.V1_8_2/);
-  assert.match(sw, /modules\/kpi\/kpi-workflow\.js\?v=20260804\.V1_8_2/);
+test("PWA đóng gói shell và cập nhật module theo chiến lược network-first", () => {
+  assert.match(sw, /BUILD_VERSION = "20260806\.V1_9_4"/);
+  assert.match(sw, /networkFirst/);
+  assert.match(sw, /event\.waitUntil\(cacheResponse/);
   assert.match(sw, /Promise\.allSettled/);
 });
 

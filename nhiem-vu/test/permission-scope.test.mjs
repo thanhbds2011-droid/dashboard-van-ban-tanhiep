@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { UserContext } from "../core/user-context.js";
-import { Permissions } from "../core/permissions.js?v=20260803.V1_7_2";
+import { UserContext } from "../core/user-context.js?v=20260806.V1_9_4";
+import { Permissions } from "../core/permissions.js?v=20260806.V1_9_4";
 
 function setUser(overrides = {}) {
   return UserContext.setUser({

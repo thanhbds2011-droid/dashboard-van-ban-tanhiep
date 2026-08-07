@@ -14,7 +14,7 @@ const archiveService = read("services/period-archive-service.js");
 const taskWrite = read("services/task-write-service.js");
 const registrationService = read("services/task-registration-service.js");
 const rules = readFileSync(resolve(root, "../firestore.rules"), "utf8");
-const appsScript = readFileSync(resolve(root, "../deployment/apps-script-notification-ai-evidence-v6.3.1.gs"), "utf8");
+const appsScript = readFileSync(resolve(root, "../deployment/apps-script-notification-ai-evidence-v6.4.0.gs"), "utf8");
 
 assert.match(taskRead, /where\("periodId",\s*"==",\s*periodId\)/, "Nhiệm vụ phải được lọc theo kỳ.");
 assert.match(taskRead, /TASK_CACHE_MS/, "Dịch vụ nhiệm vụ phải có bộ nhớ đệm ngắn.");

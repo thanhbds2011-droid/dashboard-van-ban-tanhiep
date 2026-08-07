@@ -40,7 +40,7 @@ test("Điều chỉnh phạm vi vẫn bị khóa sau khi nhiệm vụ hoàn thà
 });
 
 test("Luồng gửi đề nghị được Rules xét trước các nhánh cập nhật khác", () => {
-  assert.match(rules, /allow update: if ownerCanRequestTaskAdjustment\(taskId\)[\s\S]*adjustmentApproverCanUpdateTask\(taskId\)/);
+  assert.match(rules, /ownerCanRequestTaskAdjustment\(taskId\)[\s\S]*adjustmentApproverCanUpdateTask\(taskId\)[\s\S]*canManageTaskUpdate\(taskId\)/);
   assert.match(rules, /existsAfter\(\/databases\/\$\(database\)\/documents\/kpiAdjustments\/\$\(request\.resource\.data\.pendingAdjustmentId\)\)/);
   assert.match(rules, /TASK_ADJUSTMENT_REQUESTED/);
 });
@@ -68,9 +68,9 @@ test("Nhiệm vụ, Trang chủ, KPI và Báo cáo cập nhật trực tiếp", 
   assert.match(kpiWorkflow, /stopKpiRealtime/);
 });
 
-test("Bản phát hành và cache là V1.8.2", () => {
-  assert.match(index, /V1\.8\.2/);
-  assert.match(index, /20260804\.V1_8_2/);
-  assert.match(sw, /nhiem-vu-20260804-v1-8-2/);
+test("Bản phát hành và cache là V1.9.4", () => {
+  assert.match(index, /V1\.9\.4/);
+  assert.match(index, /20260806\.V1_9_4/);
+  assert.match(sw, /BUILD_VERSION = "20260806\.V1_9_4"/);
   assert.doesNotMatch(sw, /20260804\.V1_8_1/);
 });

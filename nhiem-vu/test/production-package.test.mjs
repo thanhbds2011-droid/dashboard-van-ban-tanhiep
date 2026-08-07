@@ -11,7 +11,7 @@ const required = [
   "deployment/firestore.indexes.json",
   "deployment/apps-script-account-sync-v3.3.1.gs",
   "deployment/apps-script-standard-tasks-v4.2.0.gs",
-  "deployment/apps-script-notification-ai-evidence-v6.3.1.gs",
+  "deployment/apps-script-notification-ai-evidence-v6.4.0.gs",
   "nhiem-vu/app-v3.js",
   "nhiem-vu/sw.js",
   "nhiem-vu/icons/icon-192.png",
@@ -22,7 +22,7 @@ test("Gói production có đủ thành phần triển khai", () => {
 });
 
 test("Không đưa private key hoặc OneSignal API key thật vào GitHub", () => {
-  const files = ["nhiem-vu/app-v3.js", "nhiem-vu/firebase-config.js", "deployment/apps-script-notification-ai-evidence-v6.3.1.gs"];
+  const files = ["nhiem-vu/app-v3.js", "nhiem-vu/firebase-config.js", "deployment/apps-script-notification-ai-evidence-v6.4.0.gs"];
   const content = files.map(file => readFileSync(resolve(repo, file), "utf8")).join("\n");
   assert.doesNotMatch(content, /-----BEGIN PRIVATE KEY-----/);
   assert.doesNotMatch(content, /ONESIGNAL_API_KEY\s*[:=]\s*["'][^"']{20,}["']/);

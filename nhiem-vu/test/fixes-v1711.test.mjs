@@ -70,7 +70,7 @@ test('Bí thư và Phó Bí thư được đọc 30 điểm của thành viên C
   assert.match(rules, /hasActiveCdtnApprovalDelegation\("CONFIRM_EVALUATIONS"\)/);
 });
 
-test('PWA nâng cache lên V1.8.2', () => {
-  assert.match(sw, /nhiem-vu-20260804-v1-8-2/);
-  assert.match(sw, /app-v3\.js\?v=20260804\.V1_8_2/);
+test('PWA nâng cache lên V1.9.4', () => {
+  assert.match(sw, /BUILD_VERSION = "20260806\.V1_9_4"/);
+  assert.match(sw, /event\.waitUntil\(cacheResponse/);
 });

@@ -13,7 +13,7 @@ const kpi = read("nhiem-vu/modules/kpi/kpi-workflow.js");
 const taskRead = read("nhiem-vu/services/task-read-service.js");
 const dashboard = read("nhiem-vu/modules/dashboard/dashboard-view.js");
 const rules = read("firestore.rules");
-const appsScript = read("deployment/apps-script-notification-ai-evidence-v6.3.1.gs");
+const appsScript = read("deployment/apps-script-notification-ai-evidence-v6.4.0.gs");
 
 
 test("Chi tiết nhiệm vụ gắn bảng điều chỉnh và biểu mẫu STAFF", () => {
@@ -77,8 +77,8 @@ test("Nhiệm vụ miễn đánh giá không bị thống kê trễ hạn hoặc
 });
 
 
-test("Apps Script V6.3.1 gửi thông báo đúng luồng và có người duyệt dự phòng", () => {
-  assert.match(appsScript, /V6\.3\.1/);
+test("Apps Script V6.4.0 gửi thông báo đúng luồng và có người duyệt dự phòng", () => {
+  assert.match(appsScript, /V6\.4\.0/);
   assert.match(appsScript, /TASK_ADJUSTMENT_REQUESTED/);
   assert.match(appsScript, /TASK_ADJUSTMENT_APPROVED/);
   assert.match(appsScript, /TASK_ADJUSTMENT_REJECTED/);
@@ -97,7 +97,7 @@ test("Điều chỉnh phạm vi giữ nguyên trạng thái tham gia KPI hiện 
 
 test("Nhiệm vụ đã miễn đánh giá khóa cập nhật lượt và phân công lại trên giao diện", () => {
   assert.match(detail, /const adjustmentExempt = String\(task\.scoringStatus \|\| ""\)\.toUpperCase\(\) === "ADJUSTMENT_EXEMPT"/);
-  assert.match(detail, /const mayAssign = canAssign\(task\) && !adjustmentExempt/);
+  assert.match(detail, /function canAssign\(task\)[\s\S]*scoringStatus[\s\S]*ADJUSTMENT_EXEMPT/);
   assert.match(detail, /\["CONFIRMED", "NO_OCCURRENCE_CONFIRMED", "ADJUSTMENT_EXEMPT"\]/);
 });
 
@@ -116,9 +116,10 @@ test("Rules tương thích nhiệm vụ cũ khi trường người duyệt đi�
 });
 
 
-test("PWA cache đầy đủ service gửi thông báo của quy trình điều chỉnh", () => {
+test("PWA cập nhật service gửi thông báo của quy trình điều chỉnh theo network-first", () => {
   const sw = read("nhiem-vu/sw.js");
-  assert.match(sw, /services\/task-notification-service\.js\?v=20260804\.V1_8_2/);
+  assert.match(sw, /networkFirst/);
+  assert.match(service, /task-notification-service\.js\?v=20260806\.V1_9_4/);
 });
 
 

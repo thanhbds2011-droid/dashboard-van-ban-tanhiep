@@ -14,6 +14,7 @@ const standardRead = read("nhiem-vu/services/standard-task-read-service.js");
 const tasksView = read("nhiem-vu/modules/tasks/tasks-view.js");
 const accountSync = read("deployment/apps-script-account-sync-v3.3.1.gs");
 const sw = read("nhiem-vu/sw.js");
+const indexHtml = read("nhiem-vu/index.html");
 
 function hasIndex(collectionGroup, fieldPath) {
   return indexes.indexes.some(index => index.collectionGroup === collectionGroup
@@ -82,7 +83,7 @@ test("Thanh lọc nhiệm vụ có sync nhỏ cùng hàng", () => {
   assert.match(tasksView, /button\.classList\.add\("is-loading"\)/);
 });
 
-test("Service Worker và import graph dùng V1.8.2", () => {
-  assert.match(sw, /nhiem-vu-20260804-v1-8-2/);
-  assert.match(sw, /app-v3\.js\?v=20260804\.V1_8_2/);
+test("Service Worker và import graph dùng V1.9.4", () => {
+  assert.match(sw, /BUILD_VERSION = "20260806\.V1_9_4"/);
+  assert.match(indexHtml, /app-v3\.js\?v=20260806\.V1_9_4/);
 });
