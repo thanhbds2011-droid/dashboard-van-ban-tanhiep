@@ -1,20 +1,20 @@
-import { auth, db } from '../../firebase-config.js?v=20260805.V1_9_3';
+import { auth, db } from '../../firebase-config.js?v=20260806.V1_9_4';
 import {
   addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, query,
   serverTimestamp, setDoc, Timestamp, updateDoc, where, limit, writeBatch
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
-import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260805.V1_9_3';
-import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260805.V1_9_3';
-import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260805.V1_9_3';
-import { PeriodReadService } from '../../services/period-read-service.js?v=20260805.V1_9_3';
-import { TaskReadService } from '../../services/task-read-service.js?v=20260805.V1_9_3';
-import { Permissions } from '../../core/permissions.js?v=20260805.V1_9_3';
-import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260805.V1_9_3';
-import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260805.V1_9_3';
+import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260806.V1_9_4';
+import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260806.V1_9_4';
+import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260806.V1_9_4';
+import { PeriodReadService } from '../../services/period-read-service.js?v=20260806.V1_9_4';
+import { TaskReadService } from '../../services/task-read-service.js?v=20260806.V1_9_4';
+import { Permissions } from '../../core/permissions.js?v=20260806.V1_9_4';
+import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260806.V1_9_4';
+import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260806.V1_9_4';
 import {
   KPI2B as KPI2C, COMMON_CRITERIA, calculateTaskScore, calculateKpiSummary,
   proposedRating, ratingName, round2, progressRateFromDates, convertAppendix04Rate
-} from '../../kpi-engine.js?v=20260805.V1_9_3';
+} from '../../kpi-engine.js?v=20260806.V1_9_4';
 
 export const KpiWorkflowState = {
   user: null,
