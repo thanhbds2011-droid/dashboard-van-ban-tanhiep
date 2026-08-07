@@ -1,12 +1,17 @@
-import { UserContext } from "../../core/user-context.js?v=20260805.V1_9_3";
-import { Permissions } from "../../core/permissions.js?v=20260805.V1_9_3";
-import { ToastService } from "../../core/toast-service.js?v=20260805.V1_9_3";
-import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260805.V1_9_3";
-import { PeriodReadService } from "../../services/period-read-service.js?v=20260805.V1_9_3";
-import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260805.V1_9_3";
-import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260805.V1_9_3";
+import { UserContext } from "../../core/user-context.js?v=20260806.V1_9_4";
+import { Permissions } from "../../core/permissions.js?v=20260806.V1_9_4";
+import { ToastService } from "../../core/toast-service.js?v=20260806.V1_9_4";
+import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260806.V1_9_4";
+import { PeriodReadService } from "../../services/period-read-service.js?v=20260806.V1_9_4";
+import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260806.V1_9_4";
+import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260806.V1_9_4";
 
-let currentCatalogAccess = { canManage: false, manageableDepartmentIds: [] };
+let currentCatalogAccess = {
+  canManage: false,
+  canCreate: false,
+  creatableDepartmentIds: [],
+  authorizationByDepartment: {}
+};
 
 export async function renderStandardTasksView(outlet) {
   const user = UserContext.requireUser();
@@ -22,7 +27,12 @@ export async function renderStandardTasksView(outlet) {
     const workspacePlans = period
       ? await TaskRegistrationService.getWorkspacePlans(period.id)
       : {};
-    currentCatalogAccess = catalogAccess || { canManage: false, manageableDepartmentIds: [] };
+    currentCatalogAccess = catalogAccess || {
+      canManage: false,
+      canCreate: false,
+      creatableDepartmentIds: [],
+      authorizationByDepartment: {}
+    };
     const catalogItems = items.map(item => ({
       ...item,
       _workspaceId: StandardTaskReadService.workspaceId(item, user),
@@ -54,8 +64,8 @@ export async function renderStandardTasksView(outlet) {
             : "Tra cứu danh mục công việc theo vị trí việc làm."}</p>
         </div>
         <div class="standard-task-header-actions">
-          ${catalogAccess.canManage ? '<button id="btnAddStandardTask" class="primary-button" type="button">＋ Thêm đầu việc</button>' : ""}
-          ${catalogAccess.isDepartmentHead ? '<button id="btnDelegateCatalogEditor" class="secondary-button" type="button">👤 Ủy quyền nhập danh mục</button>' : ""}
+          ${catalogAccess.canCreate ? '<button id="btnAddStandardTask" class="primary-button" type="button">＋ Thêm đầu việc</button>' : ""}
+          ${catalogAccess.canDelegateCatalogEditor ? '<button id="btnDelegateCatalogEditor" class="secondary-button" type="button">👤 Ủy quyền nhập danh mục</button>' : ""}
           ${Permissions.isCdtnLeadership() ? '<button id="btnDelegateCdtnApproval" class="secondary-button" type="button">👥 Ủy quyền duyệt Chi đoàn</button>' : ""}
           <button id="btnStandardRefresh" class="secondary-button" type="button">↻ Cập nhật</button>
         </div>
@@ -65,7 +75,7 @@ export async function renderStandardTasksView(outlet) {
         <span>Đơn vị chính: <strong>${escapeHtml(user.departmentId || "Toàn hệ thống")}</strong></span>
         <span>${period ? `Kỳ hiện tại: <strong>${escapeHtml(period.name || period.id)}</strong>` : "<strong>Chưa có kỳ hoạt động.</strong>"}</span>
         ${workspaceIds.map(id => `<span>${escapeHtml(workspaceName(id))}: <strong>${workspacePlans[id]?.locked === true ? "Đã khóa" : "Đang mở"}</strong></span>`).join("")}
-        ${catalogAccess.canManage ? `<span>Quản lý danh mục: <strong>${catalogAccess.isDepartmentHead ? "Trưởng phòng" : catalogAccess.isCdtnCatalogManager ? "Vai trò Chi đoàn" : "Được ủy quyền"}</strong></span>` : ""}
+        ${catalogAccess.canCreate ? `<span>Quyền thêm danh mục: <strong>${catalogAccess.isDepartmentHead ? "Trưởng phòng" : catalogAccess.isDepartmentDeputy ? "Phó Trưởng phòng" : catalogAccess.isCdtnCatalogManager ? "Ban Chấp hành Chi đoàn" : "Được ủy quyền"}</strong></span>` : ""}
       </div>
 
       <div class="summary-grid compact-grid standard-task-summary">
@@ -139,12 +149,12 @@ export async function renderStandardTasksView(outlet) {
           const registration = registrations.find(item => item.id === button.dataset.cancelApprovedRegistration);
           if (!registration) return;
           const reason = window.prompt(
-            "Nhập lý do hủy đầu việc đã duyệt. Chỉ được hủy khi nhiệm vụ chưa được tiếp nhận và chưa phát sinh tiến độ hoặc minh chứng.",
+            "Bạn đang hủy đầu việc do chính mình đăng ký. Thao tác chỉ được thực hiện khi nhiệm vụ chưa hoàn thành, chưa đánh giá, chưa khóa điểm và chưa phát sinh tiến độ, lượt công việc hoặc minh chứng.\n\nVui lòng nhập lý do hủy:",
             "Đăng ký nhầm đầu việc"
           );
           if (reason === null) return;
           if (!String(reason).trim()) return ToastService.error("Vui lòng nhập lý do hủy đầu việc.");
-          if (!window.confirm("Xác nhận hủy đầu việc đã duyệt và đưa đầu việc trở lại danh mục lựa chọn?")) return;
+          if (!window.confirm("Xác nhận hủy nhiệm vụ tự đăng ký và đưa đầu việc trở lại danh mục lựa chọn? Lịch sử thao tác vẫn được giữ để kiểm tra.")) return;
           button.disabled = true;
           try {
             await TaskRegistrationService.cancelApprovedRegistration(registration, reason);
@@ -192,11 +202,11 @@ export async function renderStandardTasksView(outlet) {
                 <div><span class="page-eyebrow">${group.workspaceId === "CDTN" ? "Chi đoàn" : "Phòng/Khu"}</span><h3>${escapeHtml(workspaceName(group.workspaceId))}</h3><p>${group.workspaceId === "CDTN" ? "Đầu việc và đăng ký thuộc Chi đoàn." : "Đầu việc và đăng ký thuộc Phòng/Khu."}</p></div>
                 <span class="status-pill ${workspacePlans[group.workspaceId]?.locked === true ? "warning" : "success"}">${workspacePlans[group.workspaceId]?.locked === true ? "Đã khóa đăng ký" : "Đang mở đăng ký"}</span>
               </header>
-              ${renderRegistrationWorkspace(group.items, registeredMap, workspacePlans[group.workspaceId]?.locked !== true, catalogAccess.canManage, approvedCancellationMap)}
+              ${renderRegistrationWorkspace(group.items, registeredMap, workspacePlans[group.workspaceId]?.locked !== true, catalogAccess, approvedCancellationMap)}
             </section>`).join("")
           : compactEmpty("Không có đầu việc phù hợp", "Hãy thay đổi nội dung tìm kiếm.");
       } else {
-        listContainer.innerHTML = renderCatalogList(visibleItems, catalogAccess.canManage);
+        listContainer.innerHTML = renderCatalogList(visibleItems, catalogAccess);
       }
       bindListActions();
     };
@@ -238,7 +248,7 @@ function workspaceName(workspaceId) {
     : departmentName(workspaceId);
 }
 
-function renderRegistrationWorkspace(items, registeredMap, registrationOpen, canManageCatalog, approvedCancellationMap = {}) {
+function renderRegistrationWorkspace(items, registeredMap, registrationOpen, catalogAccess, approvedCancellationMap = {}) {
   const registeredItems = items.filter(item => findRegistration(item, registeredMap));
 
   return `<div class="registration-workspace">
@@ -256,8 +266,8 @@ function renderRegistrationWorkspace(items, registeredMap, registrationOpen, can
           ? items.map(item => {
               const registration = findRegistration(item, registeredMap);
               return registration
-                ? renderRegisteredTask(item, registration, registrationOpen, canManageCatalog, approvedCancellationMap)
-                : renderAvailableTask(item, registrationOpen, canManageCatalog);
+                ? renderRegisteredTask(item, registration, registrationOpen, catalogAccess, approvedCancellationMap, true)
+                : renderAvailableTask(item, registrationOpen, catalogAccess);
             }).join("")
           : compactEmpty("Chưa có đầu việc phù hợp", "Danh mục chưa có dữ liệu đang hoạt động.")}
       </div>
@@ -274,14 +284,14 @@ function renderRegistrationWorkspace(items, registeredMap, registrationOpen, can
       </header>
       <div class="registration-column-list">
         ${registeredItems.length
-          ? registeredItems.map(item => renderRegisteredTask(item, findRegistration(item, registeredMap), registrationOpen, canManageCatalog, approvedCancellationMap)).join("")
+          ? registeredItems.map(item => renderRegisteredTask(item, findRegistration(item, registeredMap), registrationOpen, catalogAccess, approvedCancellationMap, false)).join("")
           : compactEmpty("Chưa có đầu việc đã đăng ký", "Chọn đầu việc trong danh mục bên trái.")}
       </div>
     </section>
   </div>`;
 }
 
-function renderAvailableTask(item, registrationOpen, canManageCatalog) {
+function renderAvailableTask(item, registrationOpen, catalogAccess) {
   const key = taskKey(item);
   const registrationEligible = item._registrationEligible !== false;
   return `<article class="registration-row registration-row-available">
@@ -298,12 +308,12 @@ function renderAvailableTask(item, registrationOpen, canManageCatalog) {
     <div class="data-row-meta">
       <span class="status-pill neutral">Chưa đăng ký</span>
       <small>Điểm tối đa: ${formatNumber(item.maximumConvertedScore || 0)}</small>
-      ${catalogActionButtons(item, canManageCatalog)}
+      ${catalogActionButtons(item, catalogAccess)}
     </div>
   </article>`;
 }
 
-function renderRegisteredTask(item, registration, registrationOpen, canManageCatalog, approvedCancellationMap = {}) {
+function renderRegisteredTask(item, registration, registrationOpen, catalogAccess, approvedCancellationMap = {}, showCatalogActions = false) {
   const status = ({
     PENDING: "Chờ duyệt",
     APPROVED: "Đã duyệt",
@@ -337,13 +347,13 @@ function renderRegisteredTask(item, registration, registrationOpen, canManageCat
       <span class="status-pill ${statusClass}">${escapeHtml(status)}</span>
       <small>Điểm tối đa: ${formatNumber(item.maximumConvertedScore || 0)}</small>
       ${canDelete ? `<button class="registration-delete-button" type="button" data-delete-registration="${escapeHtml(registration.id)}">Hủy đăng ký</button>` : ""}
-      ${canCancelApproved ? `<button class="registration-cancel-approved-button" type="button" data-cancel-approved-registration="${escapeHtml(registration.id)}">Hủy đầu việc</button>` : ""}
-      ${catalogActionButtons(item, canManageCatalog)}
+      ${canCancelApproved ? `<button class="registration-cancel-approved-button" type="button" data-cancel-approved-registration="${escapeHtml(registration.id)}">Hủy nhiệm vụ tự đăng ký</button>` : ""}
+      ${showCatalogActions ? catalogActionButtons(item, catalogAccess) : ""}
     </div>
   </article>`;
 }
 
-function renderCatalogList(items, canManageCatalog) {
+function renderCatalogList(items, catalogAccess) {
   if (!items.length) return compactEmpty("Không có đầu việc phù hợp", "Hãy thay đổi nội dung tìm kiếm.");
   return `<div class="registration-list">${items.map(item => `<article class="registration-row registration-row-catalog-only">
     <div class="registration-state-mark" aria-hidden="true">📄</div>
@@ -354,28 +364,46 @@ function renderCatalogList(items, canManageCatalog) {
     </div>
     <div class="data-row-meta">
       <small>Điểm tối đa: ${formatNumber(item.maximumConvertedScore || 0)}</small>
-      ${catalogActionButtons(item, canManageCatalog)}
+      ${catalogActionButtons(item, catalogAccess)}
     </div>
   </article>`).join("")}</div>`;
 }
 
-function catalogActionButtons(item, canManageCatalog) {
-  const allowedDepartments = currentCatalogAccess?.manageableDepartmentIds || [];
-  if (!canManageCatalog || !allowedDepartments.includes(String(item?.departmentId || "").toUpperCase())) return "";
-  return `<div class="catalog-row-actions">
-    <button class="catalog-edit-button" type="button" data-edit-standard-task="${escapeHtml(item.id)}">Sửa</button>
-    <button class="catalog-delete-button" type="button" data-delete-standard-task="${escapeHtml(item.id)}">Xóa</button>
+function catalogAuthorization(item) {
+  const departmentId = String(item?.departmentId || "").toUpperCase();
+  return currentCatalogAccess?.authorizationByDepartment?.[departmentId] || null;
+}
+
+function mayEditCatalogItem(item) {
+  const authorization = catalogAuthorization(item);
+  const user = UserContext.getUser();
+  if (!authorization || !user) return false;
+  if (authorization.canEditAll === true) return true;
+  return authorization.canEditOwn === true
+    && String(item?.createdByUserId || "") === String(user.uid || "");
+}
+
+function mayDeleteCatalogItem(item) {
+  return catalogAuthorization(item)?.canDelete === true;
+}
+
+function catalogActionButtons(item, catalogAccess = currentCatalogAccess) {
+  if (!catalogAccess) return "";
+  const canEdit = mayEditCatalogItem(item);
+  const canDelete = mayDeleteCatalogItem(item);
+  if (!canEdit && !canDelete) return "";
+  return `<div class="catalog-row-actions" aria-label="Quản trị danh mục">
+    ${canEdit ? `<button class="catalog-edit-button" type="button" data-edit-standard-task="${escapeHtml(item.id)}">Sửa danh mục</button>` : ""}
+    ${canDelete ? `<button class="catalog-delete-button" type="button" data-delete-standard-task="${escapeHtml(item.id)}">Xóa danh mục</button>` : ""}
   </div>`;
 }
 
 async function confirmAndRemoveStandardTask(item, button = null, modalRoot = null) {
   const code = item?.code || item?.id || "đầu việc";
   if (!window.confirm(
-    `Xóa ${code} khỏi danh mục đang sử dụng?
-
-` +
-    "Nếu đầu việc chưa phát sinh đăng ký hoặc nhiệm vụ, dữ liệu sẽ được xóa. " +
-    "Nếu đã có lịch sử, hệ thống chỉ đưa ra khỏi danh mục hiện hành để không làm mất báo cáo cũ."
+    `Xóa ${code} khỏi DANH MỤC CÔNG VIỆC CHUẨN?\n\n` +
+    "Đây không phải thao tác hủy nhiệm vụ cá nhân. Nếu đầu việc chưa phát sinh đăng ký hoặc nhiệm vụ, document danh mục sẽ được xóa. " +
+    "Nếu đã có lịch sử, hệ thống chỉ đưa đầu việc ra khỏi danh mục hiện hành để không làm mất báo cáo cũ."
   )) return false;
 
   if (button) button.disabled = true;
@@ -398,8 +426,12 @@ async function confirmAndRemoveStandardTask(item, button = null, modalRoot = nul
 
 async function openTaskEditor(item) {
   const editing = Boolean(item?.id);
-  const manageableDepartmentIds = Array.isArray(currentCatalogAccess?.manageableDepartmentIds)
-    ? currentCatalogAccess.manageableDepartmentIds
+  if (editing && !mayEditCatalogItem(item)) {
+    ToastService.error("Tài khoản không có quyền sửa đầu việc danh mục này.");
+    return;
+  }
+  const manageableDepartmentIds = Array.isArray(currentCatalogAccess?.creatableDepartmentIds)
+    ? currentCatalogAccess.creatableDepartmentIds
     : [];
   const initialDepartmentId = String(
     item?.departmentId || manageableDepartmentIds[0] || UserContext.getUser()?.departmentId || ""
@@ -495,7 +527,7 @@ async function openTaskEditor(item) {
         <option value="CDTN_MEMBER" ${currentAudience === "CDTN_MEMBER" ? "selected" : ""}>Đoàn viên Chi đoàn</option>
       </select><small class="field-help">Danh mục này được lọc theo vai trò kiêm nhiệm trong hồ sơ tài khoản, không làm thay đổi Phòng/Khu công tác chính.</small></label>
     </div>`,
-    `${editing ? '<button id="deleteCatalogTask" class="kpi-button danger" type="button">Xóa danh mục</button>' : ""}<button class="kpi-button secondary" data-standard-close type="button">Đóng</button><button id="saveCatalogTask" class="kpi-button" type="button">Lưu đầu việc</button>`
+    `${editing && mayDeleteCatalogItem(item) ? '<button id="deleteCatalogTask" class="kpi-button danger" type="button">Xóa danh mục</button>' : ""}<button class="kpi-button secondary" data-standard-close type="button">Đóng</button><button id="saveCatalogTask" class="kpi-button" type="button">Lưu đầu việc</button>`
   );
 
   const departmentInput = document.getElementById("catalogTaskDepartment");
