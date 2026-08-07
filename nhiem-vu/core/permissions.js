@@ -2,10 +2,14 @@
  * Lớp kiểm tra quyền dùng thống nhất cho giao diện.
  * Firestore Security Rules vẫn là lớp kiểm soát bắt buộc ở phía dữ liệu.
  */
-import { UserContext } from "./user-context.js?v=20260805.V1_9_3";
+import { UserContext } from "./user-context.js?v=20260806.V1_9_4";
 
 function clean(value) {
   return String(value ?? "").trim();
+}
+
+function upper(value) {
+  return clean(value).toUpperCase();
 }
 
 function normalize(value) {
@@ -21,11 +25,11 @@ function normalize(value) {
 }
 
 function leaderLevel(user) {
-  const explicit = clean(user?.leaderLevel).toUpperCase();
+  const explicit = upper(user?.leaderLevel);
   if (["HEAD", "DEPARTMENT_HEAD", "TRUONG"].includes(explicit)) return "HEAD";
   if (["DEPUTY", "DEPARTMENT_DEPUTY", "PHO"].includes(explicit)) return "DEPUTY";
   if (user?.isDepartmentHead === true) return "HEAD";
-  if (user?.isDepartmentHead === false && user?.role === "DEPARTMENT_LEADER") return "DEPUTY";
+  if (user?.isDepartmentHead === false && upper(user?.role) === "DEPARTMENT_LEADER") return "DEPUTY";
 
   const position = normalize(user?.position);
   if (!position) return "";
@@ -53,70 +57,95 @@ function activeUser(user = UserContext.getUser()) {
   return Boolean(user?.uid && user?.active === true);
 }
 
+function roleIs(user, roleName) {
+  return activeUser(user) && upper(user?.role) === upper(roleName);
+}
+
+function profileHasAdditionalRole(user, ...roles) {
+  if (!activeUser(user)) return false;
+  const assigned = Array.isArray(user?.additionalRoles)
+    ? user.additionalRoles.map(upper)
+    : [];
+  return roles.map(upper).some(role => assigned.includes(role));
+}
+
+function sameDepartment(user, departmentId) {
+  return activeUser(user) && upper(user?.departmentId) === upper(departmentId);
+}
+
+function createdByCurrentUser(task, user) {
+  return Boolean(
+    task &&
+    user?.uid &&
+    clean(task.createdByUserId) &&
+    clean(task.createdByUserId) === user.uid
+  );
+}
+
 export const Permissions = Object.freeze({
   getLeaderLevel(user = UserContext.getUser()) {
     return leaderLevel(user);
   },
 
-  isAdmin() {
-    return UserContext.hasRole("ADMIN");
+  isAdmin(user = UserContext.getUser()) {
+    return roleIs(user, "ADMIN");
   },
 
-  isDirector() {
-    return UserContext.hasRole("DIRECTOR");
+  isDirector(user = UserContext.getUser()) {
+    return roleIs(user, "DIRECTOR");
   },
 
-  isDepartmentLeader() {
-    return UserContext.hasRole("DEPARTMENT_LEADER");
+  isDepartmentLeader(user = UserContext.getUser()) {
+    return roleIs(user, "DEPARTMENT_LEADER");
   },
 
-  isStaff() {
-    return UserContext.hasRole("STAFF");
+  isStaff(user = UserContext.getUser()) {
+    return roleIs(user, "STAFF");
   },
 
-  isTchcCoordinator() {
-    return UserContext.hasRole("TCHC_COORDINATOR");
+  isTchcCoordinator(user = UserContext.getUser()) {
+    return roleIs(user, "TCHC_COORDINATOR");
   },
 
   isTchcDepartmentLeader(user = UserContext.getUser()) {
     return Boolean(
-      activeUser(user) &&
-      clean(user?.role).toUpperCase() === "DEPARTMENT_LEADER" &&
-      clean(user?.departmentId).toUpperCase() === "TCHC"
+      this.isDepartmentLeader(user) &&
+      upper(user?.departmentId) === "TCHC"
     );
   },
 
   hasAdditionalRole(...roles) {
-    return UserContext.hasAdditionalRole(...roles);
+    return profileHasAdditionalRole(UserContext.getUser(), ...roles);
   },
 
-  isCdtnSecretary() {
-    return this.hasAdditionalRole("CDTN_BI_THU");
+  isCdtnSecretary(user = UserContext.getUser()) {
+    return profileHasAdditionalRole(user, "CDTN_BI_THU");
   },
 
-  isCdtnDeputySecretary() {
-    return this.hasAdditionalRole("CDTN_PHO_BI_THU");
+  isCdtnDeputySecretary(user = UserContext.getUser()) {
+    return profileHasAdditionalRole(user, "CDTN_PHO_BI_THU");
   },
 
-  isCdtnExecutiveMember() {
-    return this.hasAdditionalRole(
+  isCdtnExecutiveMember(user = UserContext.getUser()) {
+    return profileHasAdditionalRole(
+      user,
       "CDTN_BI_THU",
       "CDTN_PHO_BI_THU",
       "CDTN_UY_VIEN_BCH"
     );
   },
 
-  isCdtnMember() {
-    return this.isCdtnExecutiveMember() || this.hasAdditionalRole("CDTN_DOAN_VIEN");
+  isCdtnMember(user = UserContext.getUser()) {
+    return this.isCdtnExecutiveMember(user) || profileHasAdditionalRole(user, "CDTN_DOAN_VIEN");
   },
 
-  isCdtnLeadership() {
-    return this.isCdtnSecretary() || this.isCdtnDeputySecretary();
+  isCdtnLeadership(user = UserContext.getUser()) {
+    return this.isCdtnSecretary(user) || this.isCdtnDeputySecretary(user);
   },
 
-  isCdtnCatalogManager() {
-    /* Bí thư và Phó Bí thư có quyền nghiệp vụ ngang nhau trong phạm vi Chi đoàn. */
-    return this.isCdtnLeadership();
+  isCdtnCatalogManager(user = UserContext.getUser()) {
+    /* V1.9.4: Bí thư, Phó Bí thư và Ủy viên BCH đều được tạo đầu việc Chi đoàn. */
+    return this.isCdtnExecutiveMember(user);
   },
 
   canApproveCdtnRegistrations(hasDelegation = false) {
@@ -137,31 +166,28 @@ export const Permissions = Object.freeze({
 
   isDepartmentHead(user = UserContext.getUser()) {
     return Boolean(
-      activeUser(user) &&
-      clean(user?.role).toUpperCase() === "DEPARTMENT_LEADER" &&
+      this.isDepartmentLeader(user) &&
       leaderLevel(user) === "HEAD"
     );
   },
 
   isDepartmentDeputy(user = UserContext.getUser()) {
     return Boolean(
-      activeUser(user) &&
-      clean(user?.role).toUpperCase() === "DEPARTMENT_LEADER" &&
+      this.isDepartmentLeader(user) &&
       leaderLevel(user) === "DEPUTY"
     );
   },
 
   canApproveRegistrationForDepartment(departmentId = "", hasDelegation = false) {
     const user = UserContext.getUser();
-    const targetDepartmentId = clean(departmentId).toUpperCase();
-    const userDepartmentId = clean(user?.departmentId).toUpperCase();
+    const targetDepartmentId = upper(departmentId);
     if (!targetDepartmentId) return false;
-    if (this.isAdmin()) return true;
+    if (this.isAdmin(user)) return true;
     if (targetDepartmentId === "CDTN") {
-      return this.isCdtnLeadership() || hasDelegation === true;
+      return this.isCdtnLeadership(user) || hasDelegation === true;
     }
-    return (this.isDepartmentHead(user) && userDepartmentId === targetDepartmentId)
-      || (this.isDepartmentDeputy(user) && userDepartmentId === targetDepartmentId && hasDelegation === true);
+    return (this.isDepartmentHead(user) && sameDepartment(user, targetDepartmentId))
+      || (this.isDepartmentDeputy(user) && sameDepartment(user, targetDepartmentId) && hasDelegation === true);
   },
 
   canAccessAdmin() {
@@ -174,36 +200,64 @@ export const Permissions = Object.freeze({
 
   canManageEvaluationPeriods() {
     const user = UserContext.getUser();
-    return this.isDepartmentHead(user)
-      && clean(user?.departmentId).toUpperCase() === "TCHC";
+    return this.isDepartmentHead(user) && upper(user?.departmentId) === "TCHC";
   },
 
   canRegisterStandardTasks() {
     return this.isStaff() || this.isDepartmentLeader() || this.isDirector() || this.isTchcCoordinator();
   },
 
-  canManageStandardTasks(departmentId = "", hasDelegation = false) {
-    const user = UserContext.getUser();
-    let targetDepartment = clean(departmentId).toUpperCase();
-    let delegated = hasDelegation === true;
-
-    // Tương thích các lời gọi cũ chỉ truyền một giá trị boolean.
-    if (typeof departmentId === "boolean") {
-      delegated = departmentId === true;
-      targetDepartment = clean(user?.departmentId).toUpperCase();
-    }
-    if (!targetDepartment) targetDepartment = clean(user?.departmentId).toUpperCase();
-
-    if (targetDepartment === "CDTN") return this.isCdtnCatalogManager();
+  canCreateStandardTask(departmentId = "", hasDelegation = false, user = UserContext.getUser()) {
+    const targetDepartment = upper(departmentId || user?.departmentId);
+    const delegated = hasDelegation === true;
+    if (!activeUser(user) || !targetDepartment) return false;
+    if (this.isAdmin(user)) return true;
+    if (targetDepartment === "CDTN") return this.isCdtnCatalogManager(user);
     if (targetDepartment === "BGD") {
-      return this.isDirector() && clean(user?.departmentId).toUpperCase() === "BGD";
+      return this.isDirector(user) && sameDepartment(user, "BGD");
     }
+    if (!sameDepartment(user, targetDepartment)) return false;
+    return this.isDepartmentHead(user)
+      || this.isDepartmentDeputy(user)
+      || (this.isStaff(user) && delegated);
+  },
 
-    const sameDepartment = targetDepartment === clean(user?.departmentId).toUpperCase();
-    return sameDepartment && (
-      this.isDepartmentHead(user)
-      || (this.isStaff() && delegated)
-    );
+  canUpdateStandardTask(task, hasDelegation = false, user = UserContext.getUser()) {
+    const departmentId = upper(task?.departmentId);
+    if (!activeUser(user) || !task || !departmentId) return false;
+    if (this.isAdmin(user)) return true;
+    if (departmentId === "CDTN") {
+      return this.isCdtnLeadership(user)
+        || (this.isCdtnExecutiveMember(user) && createdByCurrentUser(task, user));
+    }
+    if (departmentId === "BGD") {
+      return this.isDirector(user) && sameDepartment(user, "BGD");
+    }
+    if (!sameDepartment(user, departmentId)) return false;
+    if (this.isDepartmentHead(user)) return true;
+    if (this.isDepartmentDeputy(user)) return createdByCurrentUser(task, user);
+    return this.isStaff(user) && hasDelegation === true && createdByCurrentUser(task, user);
+  },
+
+  canDeleteStandardTask(task, user = UserContext.getUser()) {
+    const departmentId = upper(task?.departmentId);
+    if (!activeUser(user) || !task || !departmentId) return false;
+    if (this.isAdmin(user)) return true;
+    if (departmentId === "CDTN") return this.isCdtnLeadership(user);
+    if (departmentId === "BGD") return this.isDirector(user) && sameDepartment(user, "BGD");
+    return this.isDepartmentHead(user) && sameDepartment(user, departmentId);
+  },
+
+  canManageStandardTasks(departmentId = "", hasDelegation = false) {
+    /* Tương thích lời gọi cũ: quyền "quản lý" tại UI được hiểu là quyền tạo. */
+    if (typeof departmentId === "boolean") {
+      return this.canCreateStandardTask("", departmentId);
+    }
+    return this.canCreateStandardTask(departmentId, hasDelegation);
+  },
+
+  canDelegateStandardTaskEditor(user = UserContext.getUser()) {
+    return this.isDepartmentHead(user) || this.isDepartmentDeputy(user);
   },
 
   canCreateUnexpectedTask() {
@@ -263,41 +317,36 @@ export const Permissions = Object.freeze({
       registration.userId === user.uid &&
       !hasTask &&
       planLocked !== true &&
-      ["PENDING", "REJECTED"].includes(clean(registration.status).toUpperCase())
+      ["PENDING", "REJECTED"].includes(upper(registration.status))
     );
   },
 
-  canCancelOwnApprovedRegistration(registration, hasDelegation = false) {
-    const user = UserContext.getUser();
-    const sameDepartment = clean(registration?.departmentId).toUpperCase() === clean(user?.departmentId).toUpperCase();
-    const authorizedLeader = this.isDepartmentHead(user)
-      || (this.isDepartmentDeputy(user) && hasDelegation === true);
+  canCancelOwnApprovedRegistration(registration, user = UserContext.getUser()) {
+    const departmentId = upper(registration?.departmentId);
+    if (!activeUser(user) || !registration || registration.userId !== user.uid) return false;
+    if (upper(registration.status) !== "APPROVED" || !clean(registration.taskId)) return false;
 
-    return Boolean(
-      activeUser(user) &&
-      registration &&
-      registration.userId === user.uid &&
-      clean(registration.status).toUpperCase() === "APPROVED" &&
-      Boolean(clean(registration.taskId)) &&
-      sameDepartment &&
-      authorizedLeader
-    );
+    if (departmentId === "CDTN") return this.isCdtnExecutiveMember(user);
+    if (departmentId === "BGD") return this.isDirector(user) && sameDepartment(user, "BGD");
+    return sameDepartment(user, departmentId)
+      && (this.isDepartmentHead(user) || this.isDepartmentDeputy(user));
   },
 
   canCancelRegistrationForEmployee(registration, planLocked = false, hasDelegation = false) {
     const user = UserContext.getUser();
     const hasTask = Boolean(clean(registration?.taskId));
-    const sameDepartment = clean(registration?.departmentId).toUpperCase() === clean(user?.departmentId).toUpperCase();
-    const authorizedManager = this.isDepartmentHead(user) || (this.isDepartmentDeputy(user) && hasDelegation === true);
+    const registrationDepartment = upper(registration?.departmentId);
+    const authorizedManager = this.isDepartmentHead(user)
+      || (this.isDepartmentDeputy(user) && hasDelegation === true);
     return Boolean(
       activeUser(user) &&
       registration &&
       registration.userId !== user.uid &&
       !hasTask &&
       planLocked === true &&
-      sameDepartment &&
+      sameDepartment(user, registrationDepartment) &&
       authorizedManager &&
-      ["PENDING", "REJECTED"].includes(clean(registration.status).toUpperCase())
+      ["PENDING", "REJECTED"].includes(upper(registration.status))
     );
   },
 
@@ -317,12 +366,10 @@ export const Permissions = Object.freeze({
   },
 
   canViewAllScopes() {
-    /* Chỉ ADMIN và Ban Giám đốc được đọc đồng thời Phòng/Khu và Chi đoàn. */
     return this.isAdmin() || this.isDirector();
   },
 
   canViewAllDepartments() {
-    /* Phạm vi toàn Trung tâm ở đây chỉ áp dụng cho dữ liệu chuyên môn Phòng/Khu. */
     return this.canViewAllScopes()
       || this.isTchcCoordinator()
       || this.isTchcDepartmentLeader();
