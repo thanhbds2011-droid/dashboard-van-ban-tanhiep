@@ -1,12 +1,12 @@
 /** Tạo, phân công, tiếp nhận, cập nhật tiến độ và hoàn thành nhiệm vụ. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260805.V1_9_3";
-import { UserContext } from "../core/user-context.js?v=20260805.V1_9_3";
-import { Permissions } from "../core/permissions.js?v=20260805.V1_9_3";
-import { TaskLogService } from "./task-log-service.js?v=20260805.V1_9_3";
-import { TaskWorkItemService } from "./task-work-item-service.js?v=20260805.V1_9_3";
-import { PeriodReadService } from "./period-read-service.js?v=20260805.V1_9_3";
+import { FirebaseService } from "../core/firebase-service.js?v=20260806.V1_9_4";
+import { UserContext } from "../core/user-context.js?v=20260806.V1_9_4";
+import { Permissions } from "../core/permissions.js?v=20260806.V1_9_4";
+import { TaskLogService } from "./task-log-service.js?v=20260806.V1_9_4";
+import { TaskWorkItemService } from "./task-work-item-service.js?v=20260806.V1_9_4";
+import { PeriodReadService } from "./period-read-service.js?v=20260806.V1_9_4";
 
-const TASK_WRITE_BUILD_VERSION = "20260805.V1_9_3";
+const TASK_WRITE_BUILD_VERSION = "20260806.V1_9_4";
 const MAX_CODE_SCAN = 1000;
 
 function dateKey(date) {
