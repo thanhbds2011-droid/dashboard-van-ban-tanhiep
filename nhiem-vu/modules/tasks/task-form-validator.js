@@ -1,7 +1,12 @@
 /** Chuẩn hóa và kiểm tra dữ liệu form nhiệm vụ. */
+import { normalizeSentenceText } from "../../core/text-normalizer.js?v=20260808.V1_10_0";
 
 export function cleanText(value, maxLength = 5000) {
   return String(value || "").replace(/\s+/g, " ").trim().slice(0, maxLength);
+}
+
+export function cleanTaskSentence(value, maxLength = 5000) {
+  return normalizeSentenceText(value, maxLength);
 }
 
 export function validateTaskCreateInput(data) {
@@ -21,8 +26,8 @@ export function validateTaskCreateInput(data) {
     if (cleanText(data.ownerUserId, 200)) errors.push("Giao chung cho Phòng/Khu không được lưu người phụ trách cá nhân.");
   }
   if (assignmentMode === "TEAM_DIRECT") {
-    if (!cleanText(data.teamId, 80)) errors.push("Giao trực tiếp qua Tổ/Nhóm phải có Tổ/Nhóm.");
-    if (!cleanText(data.ownerUserId, 200)) errors.push("Giao trực tiếp qua Tổ/Nhóm phải có người phụ trách.");
+    if (!cleanText(data.teamId, 80)) errors.push("Ban Giám đốc giao trực tiếp cá nhân phải chọn Tổ/Nhóm trước.");
+    if (!cleanText(data.ownerUserId, 200)) errors.push("Ban Giám đốc giao trực tiếp qua Tổ/Nhóm phải chọn người phụ trách.");
   }
 
   const coefficient = Number(data.difficultyCoefficient);

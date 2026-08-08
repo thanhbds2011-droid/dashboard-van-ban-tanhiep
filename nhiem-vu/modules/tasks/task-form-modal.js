@@ -1,10 +1,18 @@
-/** Biểu mẫu giao nhiệm vụ phát sinh/đột xuất. */
+/**
+ * Biểu mẫu giao nhiệm vụ phát sinh/đột xuất - V1.10.0.
+ *
+ * Luồng BGĐ:
+ * - Không chọn Tổ/Nhóm: giao cấp Phòng/Khu như V1.9.4.
+ * - Có chọn Tổ/Nhóm: bắt buộc chọn đúng một cá nhân thuộc Tổ/Nhóm đó.
+ * - Phòng/Khu phối hợp chỉ theo dõi, không phải tiếp nhận/phân công.
+ */
 import { UserContext } from "../../core/user-context.js?v=20260806.V1_9_4";
 import { Permissions } from "../../core/permissions.js?v=20260806.V1_9_4";
 import { TaskWriteService } from "../../services/task-write-service.js?v=20260806.V1_9_4";
+import { DirectorTaskService } from "../../services/director-task-service.js?v=20260808.V1_10_0";
 import { UserReadService } from "../../services/user-read-service.js?v=20260806.V1_9_4";
 import { DepartmentReadService } from "../../services/department-read-service.js?v=20260806.V1_9_4";
-import { validateTaskCreateInput, cleanText } from "./task-form-validator.js?v=20260806.V1_9_4";
+import { validateTaskCreateInput, cleanTaskSentence } from "./task-form-validator.js?v=20260808.V1_10_0";
 import { mountTaskAiAssistant } from "../../ai-assistant.js?v=20260806.V1_9_4";
 import { ToastService } from "../../core/toast-service.js?v=20260806.V1_9_4";
 
@@ -58,7 +66,7 @@ function teamLabel(teamId) {
 function listDepartmentTeams(users, departmentId) {
   const values = new Map();
   for (const user of users || []) {
-    if (String(user.departmentId || "") !== String(departmentId || "")) continue;
+    if (String(user.departmentId || "").toUpperCase() !== String(departmentId || "").toUpperCase()) continue;
     const id = normalizeTeamId(user.teamId);
     if (!id) continue;
     values.set(id, teamLabel(id));
@@ -78,17 +86,24 @@ function departmentPrefix(value) {
     .toUpperCase() || "NV";
 }
 
+function normalizeInputValue(input, maxLength) {
+  if (!input) return "";
+  const normalized = cleanTaskSentence(input.value, maxLength);
+  input.value = normalized;
+  return normalized;
+}
+
 export async function openTaskCreateModal({ onSaved }) {
   const current = UserContext.requireUser();
   const [users, departments] = await Promise.all([
-    UserReadService.listActive(),
+    UserReadService.listActive({ force: true }),
     DepartmentReadService.listActive()
   ]);
 
   const directorAssignmentMode = Permissions.isAdmin() || Permissions.isDirector();
   const canChooseDepartment = directorAssignmentMode;
   const defaultDepartment = canChooseDepartment
-    ? (current.departmentId || "TCHC")
+    ? (current.departmentId || departments[0]?.id || departments[0]?.code || "TCHC")
     : current.departmentId;
   const deadline = new Date();
   deadline.setDate(deadline.getDate() + 7);
@@ -106,15 +121,15 @@ export async function openTaskCreateModal({ onSaved }) {
         <button class="icon-button" type="button" data-close>✕</button>
       </div>
       <form id="taskCreateForm" class="modal-body task-form-grid">
-        <div id="taskCodeHint" class="field-full info-banner">
-          Mã nhiệm vụ sẽ được cấp tự động theo Phòng/Khu, bắt đầu từ số tiếp theo sau danh mục hiện có.
-        </div>
-        <label class="field-full"><span>Tên nhiệm vụ *</span><input id="taskTitle" maxlength="300" required></label>
+        <div id="taskCodeHint" class="field-full info-banner">Mã nhiệm vụ sẽ được cấp tự động theo Phòng/Khu.</div>
+
+        <label class="field-full"><span>Tên nhiệm vụ *</span><input id="taskTitle" maxlength="300" required placeholder="Ví dụ: Thực hiện kiểm tra an ninh trật tự"></label>
         <label class="field-full"><span>Nội dung/Yêu cầu thực hiện</span><textarea id="taskDescription" rows="4" maxlength="5000"></textarea></label>
         <label class="field-full"><span>Sản phẩm đầu ra dự kiến</span><textarea id="expectedOutput" rows="2" maxlength="3000" placeholder="Ví dụ: Báo cáo, hồ sơ, văn bản, danh sách hoặc sản phẩm cuối cùng phải bàn giao"></textarea></label>
         <label class="field-full"><span>Kết quả/tiêu chí nghiệm thu</span><textarea id="resultRequirement" rows="2" maxlength="3000" placeholder="Nêu rõ mức hoàn thành, chất lượng, số lượng hoặc điều kiện được xem là hoàn thành"></textarea></label>
+
         <section id="sixClearDirective" class="field-full six-clear-directive" aria-label="Chỉ đạo theo tinh thần 6 rõ">
-          <div class="six-clear-heading"><strong>Chỉ đạo theo tinh thần 6 rõ</strong><span>Luôn hiển thị để người giao kiểm tra trước khi lưu.</span></div>
+          <div class="six-clear-heading"><strong>Chỉ đạo theo tinh thần 6 rõ</strong><span>Kiểm tra lại trước khi lưu.</span></div>
           <div class="six-clear-grid">
             <div><b>Rõ người</b><span id="sixClearPerson">Giao cấp Phòng/Khu</span></div>
             <div><b>Rõ việc</b><span id="sixClearWork">Chưa nhập tên nhiệm vụ</span></div>
@@ -124,20 +139,29 @@ export async function openTaskCreateModal({ onSaved }) {
             <div><b>Rõ kết quả</b><span id="sixClearResult">Chưa nhập tiêu chí nghiệm thu</span></div>
           </div>
         </section>
+
         <label><span>Phòng/Khu chính *</span><select id="primaryDepartmentId" ${canChooseDepartment ? "" : "disabled"}>${departments.map(d => option(d.id || d.code, d.name || d.id, (d.id || d.code) === defaultDepartment)).join("")}</select></label>
-        <label id="teamField" class="task-team-field" hidden><span>Tổ/Nhóm</span><select id="teamId"><option value="">— Không chọn Tổ/Nhóm —</option></select></label>
-        <label id="ownerField" ${directorAssignmentMode ? "hidden" : ""}><span id="ownerFieldLabel">Người phụ trách</span><select id="ownerUserId"><option value="">— Giao cấp Phòng/Khu —</option></select><small id="ownerFieldHelp">${directorAssignmentMode ? "Ban Giám đốc giao cấp Phòng/Khu; Trưởng/Phó phòng tiếp nhận và phân công nội bộ." : "Có thể chọn chính mình hoặc nhân sự thuộc Phòng/Khu."}</small></label>
+        <label id="teamField" class="task-team-field" hidden><span>Tổ/Nhóm${directorAssignmentMode ? " (chỉ chọn khi giao thẳng cá nhân)" : ""}</span><select id="teamId"><option value="">— Không chọn Tổ/Nhóm —</option></select></label>
+        <label id="ownerField" hidden><span id="ownerFieldLabel">Người phụ trách trực tiếp</span><select id="ownerUserId"><option value="">— Giao cấp Phòng/Khu —</option></select><small id="ownerFieldHelp"></small></label>
+
+        ${directorAssignmentMode ? `<div class="field-full info-banner director-assignment-help">
+          <strong>Nguyên tắc giao việc của Ban Giám đốc</strong>
+          <span>Không chọn Tổ/Nhóm: Phòng/Khu tiếp nhận rồi phân công nội bộ. Nếu chọn Tổ/Nhóm: phải chọn đúng một cá nhân thuộc Tổ/Nhóm đó; cá nhân tự xác nhận tiếp nhận. Phòng/Khu phối hợp chỉ theo dõi.</span>
+        </div>` : ""}
+
         <label><span>Hạn xử lý *</span><input id="deadline" type="date" value="${dateInputValue(deadline)}" required></label>
         <label><span>Hệ số độ khó *</span><select id="difficultyCoefficient">${DIFFICULTY_OPTIONS.map(item => option(item.value, item.label, item.value === 1)).join("")}</select></label>
         <label class="field-full"><span>Cách theo dõi trong kỳ</span><select id="trackingMode"><option value="FINAL_OUTPUT">Theo sản phẩm/kết quả cuối cùng</option><option value="ITEMIZED">Theo từng lượt công việc phát sinh</option></select></label>
         <label id="workItemTypeField" class="field-full" hidden><span>Nội dung chi tiết cần theo dõi</span><select id="workItemType"><option value="GENERIC">Công việc phát sinh thông thường</option><option value="DOCUMENT">Văn bản/hồ sơ được giao</option><option value="QUANTITY">Sản lượng theo tháng và kết quả quý</option><option value="ATTENDANCE">Buổi hoạt động và tình trạng tham dự</option></select></label>
         <label id="quantityUnitField" class="field-full" hidden><span>Đơn vị sản lượng</span><input id="quantityUnit" maxlength="80" placeholder="Ví dụ: kg rau, suất ăn, hồ sơ"></label>
+
         <div class="task-score-preview">
           <span>Điểm chuẩn nhiệm vụ đột xuất</span>
           <strong id="directTaskScore">${formatScore(DIRECT_TASK_BASE_SCORE)}</strong>
           <small>Điểm tối đa = 12 × hệ số độ khó.</small>
         </div>
-        <label class="field-full"><span>Phòng/Khu phối hợp</span><div id="supportDepartments" class="checkbox-grid">${departments.map(d => `<label class="check-row"><input type="checkbox" value="${escapeHtml(d.id || d.code)}"><span>${escapeHtml(d.name || d.id)}</span></label>`).join("")}</div></label>
+
+        <label class="field-full"><span>Phòng/Khu phối hợp</span><div id="supportDepartments" class="checkbox-grid">${departments.map(d => `<label class="check-row"><input type="checkbox" value="${escapeHtml(d.id || d.code)}"><span>${escapeHtml(d.name || d.id)}</span></label>`).join("")}</div><small>Đơn vị phối hợp chỉ theo dõi và phối hợp, không phải tiếp nhận hoặc phân công lại nhiệm vụ.</small></label>
         <label class="field-full"><span>Nguồn/Yêu cầu giao việc</span><input id="sourceReference" maxlength="500" placeholder="Ví dụ: Chỉ đạo tại giao ban, kế hoạch, văn bản..."></label>
       </form>
       <div class="modal-footer">
@@ -161,13 +185,18 @@ export async function openTaskCreateModal({ onSaved }) {
   const trackingModeSelect = $("trackingMode");
   const workItemTypeSelect = $("workItemType");
 
+  const currentDepartmentId = () => departmentSelect.value || defaultDepartment;
+
   const refreshSixClear = () => {
     const selectedOwner = users.find(user => user.id === ownerSelect.value);
     const departmentName = departmentSelect.options?.[departmentSelect.selectedIndex]?.textContent || defaultDepartment;
-    const person = selectedOwner?.fullName || `Cấp ${departmentName}`;
-    const title = cleanText($("taskTitle")?.value, 300) || "Chưa nhập tên nhiệm vụ";
-    const output = cleanText($("expectedOutput")?.value, 3000) || "Chưa nhập sản phẩm đầu ra";
-    const result = cleanText($("resultRequirement")?.value, 3000) || "Chưa nhập tiêu chí nghiệm thu";
+    const selectedTeam = normalizeTeamId(teamSelect.value);
+    const person = selectedOwner?.fullName || (directorAssignmentMode && selectedTeam
+      ? `Chưa chọn cá nhân thuộc ${teamLabel(selectedTeam)}`
+      : `Cấp ${departmentName}`);
+    const title = cleanTaskSentence($("taskTitle")?.value, 300) || "Chưa nhập tên nhiệm vụ";
+    const output = cleanTaskSentence($("expectedOutput")?.value, 3000) || "Chưa nhập sản phẩm đầu ra";
+    const result = cleanTaskSentence($("resultRequirement")?.value, 3000) || "Chưa nhập tiêu chí nghiệm thu";
     const deadlineValue = $("deadline")?.value || "Chưa chọn hạn";
     $("sixClearPerson").textContent = person;
     $("sixClearWork").textContent = title;
@@ -178,77 +207,73 @@ export async function openTaskCreateModal({ onSaved }) {
   };
 
   const refreshCodeHint = () => {
-    const prefix = departmentPrefix(departmentSelect.value || defaultDepartment);
+    const prefix = departmentPrefix(currentDepartmentId());
     const hint = $("taskCodeHint");
     if (hint) {
-      hint.innerHTML = `Mã nhiệm vụ sẽ được cấp tự động theo Phòng/Khu: <strong>${escapeHtml(prefix)}…</strong> (ví dụ ${escapeHtml(prefix)}28, ${escapeHtml(prefix)}29).`;
+      hint.innerHTML = `Mã nhiệm vụ sẽ được cấp tự động theo Phòng/Khu: <strong>${escapeHtml(prefix)}-DX…</strong>.`;
     }
   };
 
   const refreshTeams = () => {
-    if (directorAssignmentMode) {
-      teamField.hidden = true;
-      teamSelect.disabled = true;
-      teamSelect.value = "";
-      teamSelect.innerHTML = '<option value="">— Phòng/Khu phân công sau khi tiếp nhận —</option>';
-      return;
-    }
-    const departmentId = departmentSelect.value || defaultDepartment;
+    const departmentId = currentDepartmentId();
     const previous = normalizeTeamId(teamSelect.value);
     const teams = listDepartmentTeams(users, departmentId);
     const hasTeams = teams.length > 0;
     teamField.hidden = !hasTeams;
     teamSelect.disabled = !hasTeams;
     teamSelect.innerHTML = hasTeams
-      ? `<option value="">— Không chọn Tổ/Nhóm —</option>${teams.map(team => option(team.id, team.label, team.id === previous)).join("")}`
-      : `<option value="">— Không áp dụng —</option>`;
+      ? `<option value="">— ${directorAssignmentMode ? "Giao chung cho Phòng/Khu" : "Không chọn Tổ/Nhóm"} —</option>${teams.map(team => option(team.id, team.label, team.id === previous)).join("")}`
+      : `<option value="">— Phòng/Khu chưa có Tổ/Nhóm —</option>`;
     if (!hasTeams) teamSelect.value = "";
     if (previous && teams.some(team => team.id === previous)) teamSelect.value = previous;
   };
 
   const refreshUsers = () => {
-    const departmentId = departmentSelect.value || defaultDepartment;
+    const departmentId = currentDepartmentId();
     const selectedTeam = normalizeTeamId(teamSelect.value);
     const previousOwnerId = ownerSelect.value;
 
-    if (directorAssignmentMode) {
-      ownerSelect.value = "";
-      ownerSelect.disabled = true;
-      ownerSelect.required = false;
-      ownerSelect.innerHTML = '<option value="">— Ban Giám đốc giao chung cho Phòng/Khu —</option>';
-      ownerField.hidden = true;
-      if (ownerFieldLabel) ownerFieldLabel.textContent = "Người phụ trách trực tiếp";
-      if (ownerFieldHelp) ownerFieldHelp.textContent = "Phòng/Khu tiếp nhận rồi mới phân công cá nhân.";
-      return;
-    }
-
-    ownerField.hidden = false;
-    ownerSelect.disabled = false;
-    ownerSelect.required = directorAssignmentMode && Boolean(selectedTeam);
-    if (ownerFieldLabel) {
-      ownerFieldLabel.textContent = directorAssignmentMode
-        ? "Người phụ trách trực tiếp *"
-        : "Người phụ trách";
-    }
-    if (ownerFieldHelp) {
-      ownerFieldHelp.textContent = directorAssignmentMode
-        ? "Chỉ hiển thị nhân sự đang hoạt động thuộc đúng Tổ/Nhóm."
-        : "Không chọn Tổ/Nhóm sẽ hiển thị toàn bộ nhân sự trong Phòng/Khu.";
-    }
-
-    const candidates = UserReadService.byDepartment(users, departmentId)
+    const candidates = users
+      .filter(user => user.active === true)
+      .filter(user => String(user.departmentId || "").toUpperCase() === String(departmentId || "").toUpperCase())
       .filter(user => !selectedTeam || normalizeTeamId(user.teamId) === selectedTeam);
 
-    const emptyLabel = directorAssignmentMode
-      ? "— Chọn người phụ trách trực tiếp —"
-      : "— Giao cấp Phòng/Khu —";
-    ownerSelect.innerHTML = `<option value="">${emptyLabel}</option>` + candidates
-      .map(user => option(
-        user.id,
-        `${user.fullName || user.email} — ${user.position || user.role}${user.teamId ? ` • ${teamLabel(user.teamId)}` : ""}`,
-        user.id === previousOwnerId
-      ))
-      .join("");
+    if (directorAssignmentMode) {
+      if (!selectedTeam) {
+        ownerSelect.value = "";
+        ownerSelect.disabled = true;
+        ownerSelect.required = false;
+        ownerSelect.innerHTML = '<option value="">— Phòng/Khu phân công sau khi tiếp nhận —</option>';
+        ownerField.hidden = true;
+        if (ownerFieldHelp) ownerFieldHelp.textContent = "Muốn giao trực tiếp cá nhân, Ban Giám đốc phải chọn Tổ/Nhóm trước.";
+        return;
+      }
+      ownerField.hidden = false;
+      ownerSelect.disabled = false;
+      ownerSelect.required = true;
+      if (ownerFieldLabel) ownerFieldLabel.textContent = "Người phụ trách trực tiếp *";
+      if (ownerFieldHelp) ownerFieldHelp.textContent = `Chỉ hiển thị người đang hoạt động thuộc ${teamLabel(selectedTeam)} của Phòng/Khu đã chọn.`;
+      ownerSelect.innerHTML = '<option value="">— Chọn người phụ trách trực tiếp —</option>' + candidates
+        .map(user => option(
+          user.id,
+          `${user.fullName || user.email} — ${user.position || user.role}`,
+          user.id === previousOwnerId
+        ))
+        .join("");
+    } else {
+      ownerField.hidden = false;
+      ownerSelect.disabled = false;
+      ownerSelect.required = false;
+      if (ownerFieldLabel) ownerFieldLabel.textContent = "Người phụ trách";
+      if (ownerFieldHelp) ownerFieldHelp.textContent = "Có thể chọn chính mình hoặc nhân sự thuộc Phòng/Khu.";
+      ownerSelect.innerHTML = '<option value="">— Giao cấp Phòng/Khu/chờ phân công —</option>' + candidates
+        .map(user => option(
+          user.id,
+          `${user.fullName || user.email} — ${user.position || user.role}${user.teamId ? ` • ${teamLabel(user.teamId)}` : ""}`,
+          user.id === previousOwnerId
+        ))
+        .join("");
+    }
 
     if (previousOwnerId && candidates.some(user => user.id === previousOwnerId)) {
       ownerSelect.value = previousOwnerId;
@@ -258,9 +283,9 @@ export async function openTaskCreateModal({ onSaved }) {
   };
 
   const refreshSupportDepartments = () => {
-    const primary = departmentSelect.value || defaultDepartment;
+    const primary = currentDepartmentId();
     overlay.querySelectorAll("#supportDepartments input[type='checkbox']").forEach(input => {
-      const isPrimary = input.value === primary;
+      const isPrimary = String(input.value).toUpperCase() === String(primary).toUpperCase();
       input.disabled = isPrimary;
       if (isPrimary) input.checked = false;
       input.closest("label")?.classList.toggle("disabled", isPrimary);
@@ -295,11 +320,13 @@ export async function openTaskCreateModal({ onSaved }) {
     refreshSupportDepartments();
     refreshSixClear();
   });
+
   teamSelect.addEventListener("change", () => {
     ownerSelect.value = "";
     refreshUsers();
     refreshSixClear();
   });
+
   ownerSelect.addEventListener("change", () => {
     const owner = users.find(user => user.id === ownerSelect.value);
     const ownerTeam = normalizeTeamId(owner?.teamId);
@@ -310,9 +337,24 @@ export async function openTaskCreateModal({ onSaved }) {
     }
     refreshSixClear();
   });
+
   coefficientSelect.addEventListener("change", refreshScore);
   trackingModeSelect.addEventListener("change", refreshTrackingFields);
   workItemTypeSelect.addEventListener("change", refreshTrackingFields);
+
+  const sentenceFields = [
+    ["taskTitle", 300],
+    ["taskDescription", 5000],
+    ["expectedOutput", 3000],
+    ["resultRequirement", 3000],
+    ["sourceReference", 500]
+  ];
+  sentenceFields.forEach(([id, maxLength]) => {
+    $(id)?.addEventListener("blur", () => {
+      normalizeInputValue($(id), maxLength);
+      refreshSixClear();
+    });
+  });
   ["taskTitle", "expectedOutput", "resultRequirement", "deadline"].forEach(id => {
     $(id)?.addEventListener("input", refreshSixClear);
     $(id)?.addEventListener("change", refreshSixClear);
@@ -333,35 +375,37 @@ export async function openTaskCreateModal({ onSaved }) {
     try {
       button.disabled = true;
       button.textContent = "Đang lưu...";
+
+      sentenceFields.forEach(([id, maxLength]) => normalizeInputValue($(id), maxLength));
+
       const selectedTeamId = normalizeTeamId(teamSelect.value);
       const selectedOwner = users.find(user => user.id === ownerSelect.value);
       const assignmentMode = directorAssignmentMode
-        ? "DEPARTMENT"
+        ? (selectedTeamId ? "TEAM_DIRECT" : "DEPARTMENT")
         : "DEPARTMENT_INTERNAL";
+
       const supportDepartmentIds = [...overlay.querySelectorAll("#supportDepartments input:checked")]
         .map(input => input.value);
       const dueDate = new Date(`${$("deadline").value}T23:59:59`);
       const coefficient = Number(coefficientSelect.value || 1);
 
       const data = {
-        title: cleanText($("taskTitle").value, 300),
-        description: cleanText($("taskDescription").value, 5000),
-        expectedOutput: cleanText($("expectedOutput").value, 3000),
-        resultRequirement: cleanText($("resultRequirement").value, 3000),
-        primaryDepartmentId: departmentSelect.value || defaultDepartment,
+        title: cleanTaskSentence($("taskTitle").value, 300),
+        description: cleanTaskSentence($("taskDescription").value, 5000),
+        expectedOutput: cleanTaskSentence($("expectedOutput").value, 3000),
+        resultRequirement: cleanTaskSentence($("resultRequirement").value, 3000),
+        primaryDepartmentId: currentDepartmentId(),
         assignmentMode,
         ownerUserId: assignmentMode === "DEPARTMENT" ? "" : (selectedOwner?.id || ""),
         ownerName: assignmentMode === "DEPARTMENT" ? "" : (selectedOwner?.fullName || ""),
         ownerPosition: assignmentMode === "DEPARTMENT" ? "" : (selectedOwner?.position || ""),
-        teamId: assignmentMode === "DEPARTMENT"
-          ? ""
-          : normalizeTeamId(selectedTeamId || selectedOwner?.teamId),
+        teamId: assignmentMode === "DEPARTMENT" ? "" : normalizeTeamId(selectedTeamId || selectedOwner?.teamId),
         deadline: dueDate,
         priority: "DOT_XUAT",
         workType: "DOT_XUAT",
         supportDepartmentIds,
         sourceType: "GIAO_NHIEM_VU_DOT_XUAT",
-        sourceReference: cleanText($("sourceReference").value, 500),
+        sourceReference: cleanTaskSentence($("sourceReference").value, 500),
         standardTaskCode: "",
         standardTaskName: "",
         baseScore: DIRECT_TASK_BASE_SCORE,
@@ -370,13 +414,30 @@ export async function openTaskCreateModal({ onSaved }) {
         mandatoryEvidence: "",
         trackingMode: trackingModeSelect.value,
         workItemType: workItemTypeSelect.value,
-        quantityUnit: cleanText($("quantityUnit").value, 80),
+        quantityUnit: String($("quantityUnit").value || "").trim().slice(0, 80),
         confirmer: current.fullName || ""
       };
 
       validateTaskCreateInput(data);
+
+      // TaskWriteService giữ nguyên luồng đã ổn định: BGĐ tạo trước ở cấp Phòng/Khu.
+      // Nếu BGĐ chọn Tổ/Nhóm + cá nhân, lớp điều hành cập nhật ngay sang TEAM_DIRECT
+      // sau khi mã nhiệm vụ đã được cấp an toàn.
       const created = await TaskWriteService.create(data);
-      ToastService.success(`Đã giao nhiệm vụ ${created.taskCode || ""} thành công.`);
+      let finalTask = created;
+      if (directorAssignmentMode && assignmentMode === "TEAM_DIRECT") {
+        finalTask = await DirectorTaskService.assignTeamDirect(created, {
+          departmentId: data.primaryDepartmentId,
+          teamId: data.teamId,
+          ownerUserId: data.ownerUserId
+        });
+      }
+
+      ToastService.success(
+        assignmentMode === "TEAM_DIRECT"
+          ? `Đã giao trực tiếp nhiệm vụ ${finalTask.taskCode || ""} qua Tổ/Nhóm.`
+          : `Đã giao nhiệm vụ ${finalTask.taskCode || ""} thành công.`
+      );
       close();
       await onSaved?.();
     } catch (error) {
