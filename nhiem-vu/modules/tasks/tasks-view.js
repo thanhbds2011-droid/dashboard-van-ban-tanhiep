@@ -1,9 +1,9 @@
-import { Permissions } from "../../core/permissions.js?v=20260806.V1_9_4";
-import { ToastService } from "../../core/toast-service.js?v=20260806.V1_9_4";
-import { TaskReadService } from "../../services/task-read-service.js?v=20260806.V1_9_4";
-import { openTaskCreateModal } from "./task-form-modal.js?v=20260806.V1_9_4";
-import { openTaskDetailModal } from "./task-detail-modal.js?v=20260806.V1_9_4";
-import { effectiveDepartmentAssignmentStatus } from "../../core/task-display-order.js?v=20260806.V1_9_4";
+import { Permissions } from "../../core/permissions.js?v=20260808.V1_10_1";
+import { ToastService } from "../../core/toast-service.js?v=20260808.V1_10_1";
+import { TaskReadService } from "../../services/task-read-service.js?v=20260808.V1_10_1";
+import { openTaskCreateModal } from "./task-form-modal.js?v=20260808.V1_10_1";
+import { openTaskDetailModal } from "./task-detail-modal.js?v=20260808.V1_10_1";
+import { effectiveDepartmentAssignmentStatus } from "../../core/task-display-order.js?v=20260808.V1_10_1";
 
 let renderSequence = 0;
 let currentTasks = [];
@@ -105,7 +105,7 @@ function userFacingLoadError(error) {
   const detail = String(error?.message || "");
   if (["permission-denied", "firestore/permission-denied"].includes(code)
       || /missing or insufficient permissions/i.test(detail)) {
-    return "Chưa tải được nhiệm vụ theo phạm vi tài khoản. Hệ thống đã ghi nhận lỗi phân quyền; hãy thử lại sau khi Rules V1.9.0 được Publish.";
+    return "Chưa tải được nhiệm vụ theo phạm vi tài khoản. Vui lòng bấm Cập nhật; nếu lỗi vẫn còn, liên hệ quản trị viên.";
   }
   return "Không thể tải dữ liệu nhiệm vụ vào lúc này. Vui lòng kiểm tra kết nối và thử lại.";
 }

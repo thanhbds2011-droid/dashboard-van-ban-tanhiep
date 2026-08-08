@@ -1,15 +1,15 @@
 /** Chi tiết, phân công và các lượt công việc phát sinh của nhiệm vụ. */
-import { UserContext } from "../../core/user-context.js?v=20260806.V1_9_4";
-import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260806.V1_9_4";
-import { Permissions } from "../../core/permissions.js?v=20260806.V1_9_4";
-import { effectiveDepartmentAssignmentStatus, isTerminalTask } from "../../core/task-display-order.js?v=20260806.V1_9_4";
-import { UserReadService } from "../../services/user-read-service.js?v=20260806.V1_9_4";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260806.V1_9_4";
-import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260806.V1_9_4";
-import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260806.V1_9_4";
-import { openTaskProgressModal } from "./task-progress-modal.js?v=20260806.V1_9_4";
-import { mountTaskAdjustmentPanel } from "./task-adjustment-panel.js?v=20260806.V1_9_4";
-import { TaskLogService } from "../../services/task-log-service.js?v=20260806.V1_9_4";
+import { UserContext } from "../../core/user-context.js?v=20260808.V1_10_1";
+import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260808.V1_10_1";
+import { Permissions } from "../../core/permissions.js?v=20260808.V1_10_1";
+import { effectiveDepartmentAssignmentStatus, isTerminalTask } from "../../core/task-display-order.js?v=20260808.V1_10_1";
+import { UserReadService } from "../../services/user-read-service.js?v=20260808.V1_10_1";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260808.V1_10_1";
+import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260808.V1_10_1";
+import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260808.V1_10_1";
+import { openTaskProgressModal } from "./task-progress-modal.js?v=20260808.V1_10_1";
+import { mountTaskAdjustmentPanel } from "./task-adjustment-panel.js?v=20260808.V1_10_1";
+import { TaskLogService } from "../../services/task-log-service.js?v=20260808.V1_10_1";
 
 const TEAM_LABELS = Object.freeze({
   BAO_VE: "Tổ Bảo vệ",
@@ -496,7 +496,14 @@ export async function openTaskDetailModal(task, { onSaved }) {
     && String(user.departmentId || "").trim().toUpperCase() === taskDepartmentId
   );
   const teams = departmentTeams(departmentUsers);
-  let workItems = isItemizedTask(task) ? await TaskWorkItemService.list(task.id) : [];
+  let workItems = [];
+  if (isItemizedTask(task)) {
+    try {
+      workItems = await TaskWorkItemService.list(task.id);
+    } catch (error) {
+      console.warn("Không tải được dữ liệu lượt công việc:", error);
+    }
+  }
   let taskLogs = [];
   try {
     taskLogs = await TaskLogService.list(task.id);
