@@ -2,19 +2,25 @@
 <html lang="vi">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0f5f8f">
   <meta name="description" content="Hệ thống quản lý nhiệm vụ và đánh giá KPI">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="KPI Tân Hiệp">
   <title>Nhiệm vụ và đánh giá KPI</title>
   <link rel="icon" type="image/png" href="./icons/favicon-64.png">
-  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+  <link rel="manifest" href="./manifest.webmanifest?v=20260808.V1_10_0">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./v3.css?v=20260806.V1_9_4">
-  <link rel="stylesheet" href="./kpi.css?v=20260806.V1_9_4">
-  <link rel="stylesheet" href="./ai-assistant.css?v=20260806.V1_9_4">
-  <link rel="stylesheet" href="./ui-v1.3.0.css?v=20260806.V1_9_4">
+  <link rel="stylesheet" href="./v3.css?v=20260808.V1_10_0">
+  <link rel="stylesheet" href="./kpi.css?v=20260808.V1_10_0">
+  <link rel="stylesheet" href="./ai-assistant.css?v=20260808.V1_10_0">
+  <link rel="stylesheet" href="./ui-v1.3.0.css?v=20260808.V1_10_0">
+  <link rel="stylesheet" href="./ui-v1.10.0.css?v=20260808.V1_10_0">
 </head>
 <body class="v3-body">
   <header class="v3-header">
@@ -44,6 +50,7 @@
     <a href="#/kpi" data-route="#/kpi"><span aria-hidden="true">📊</span>Kế hoạch KPI</a>
     <a href="#/reports" data-route="#/reports"><span aria-hidden="true">📄</span>Báo cáo</a>
     <a id="adminMenuItem" href="#/admin" data-route="#/admin" hidden><span aria-hidden="true">⚙️</span>Quản trị</a>
+    <button id="btnMobilePushSettings" type="button" class="mobile-logout-button mobile-notification-settings"><span aria-hidden="true">🔔</span>Cài đặt thông báo</button>
     <button id="btnMobileLogout" type="button" class="mobile-logout-button"><span aria-hidden="true">↪</span>Đăng xuất</button>
   </nav>
   <div id="navOverlay" class="nav-overlay" hidden></div>
@@ -76,16 +83,25 @@
 
   <section id="offlineBanner" class="system-banner offline-banner hidden" role="status">Mất kết nối Internet. Dữ liệu đang hiển thị chỉ để xem; vui lòng kết nối lại trước khi lưu.</section>
   <section id="appUpdateBanner" class="system-banner update-banner hidden" role="status"><span>Đã có phiên bản ứng dụng mới.</span><div><button id="btnApplyUpdate" class="primary-button" type="button">Cập nhật ngay</button><button id="btnDismissUpdate" class="secondary-button" type="button">Để sau</button></div></section>
-  <div id="iosInstallHelp" class="app-modal-backdrop hidden" role="dialog" aria-modal="true"><section class="app-modal-card install-help-card"><header class="app-modal-header"><div><h2>Cài ứng dụng trên thiết bị</h2><p>Trên iPhone/iPad: mở bằng Safari → Chia sẻ → Thêm vào Màn hình chính.</p></div><button id="btnCloseIosInstall" class="modal-close-button" type="button">×</button></header></section></div>
+
+  <div id="iosInstallHelp" class="app-modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="installHelpTitle">
+    <section class="app-modal-card install-help-card">
+      <header class="app-modal-header">
+        <div><h2 id="installHelpTitle">Cài ứng dụng Nhiệm vụ và đánh giá KPI</h2><p id="installHelpText">Đang xác định hướng dẫn phù hợp thiết bị…</p></div>
+        <button id="btnCloseIosInstall" class="modal-close-button" type="button" aria-label="Đóng">×</button>
+      </header>
+    </section>
+  </div>
 
   <main id="appOutlet" class="v3-main" aria-live="polite">
     <section class="page-card"><div class="skeleton skeleton-title"></div><div class="skeleton skeleton-line"></div></section>
   </main>
 
-  <footer class="v3-footer">Quản lý giao việc • Theo dõi tiến độ • Lưu minh chứng • Đánh giá kết quả • <span id="appVersionLabel">V1.9.4</span></footer>
+  <footer class="v3-footer">Quản lý giao việc • Theo dõi tiến độ • Lưu minh chứng • Đánh giá kết quả • <span id="appVersionLabel">V1.10.0</span></footer>
   <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
-  <script src="./onesignal.js?v=20260806.V1_9_4" defer></script>
-  <script type="module" src="./pwa.js?v=20260806.V1_9_4" defer></script>
-  <script type="module" src="./app-v3.js?v=20260806.V1_9_4"></script>
+  <script src="./onesignal.js?v=20260808.V1_10_0" defer></script>
+  <script type="module" src="./pwa.js?v=20260808.V1_10_0" defer></script>
+  <script type="module" src="./app-v3.js?v=20260808.V1_10_0"></script>
+  <script type="module" src="./release-v1.10.0.js?v=20260808.V1_10_0"></script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-const BUILD_VERSION = "20260806.V1_9_4";
+const BUILD_VERSION = "20260808.V1_10_0";
 const CACHE_NAME = "nhiem-vu-" + BUILD_VERSION.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 const SHELL = [
   "./",
@@ -18,26 +18,18 @@ async function cacheResponse(request, response) {
 }
 
 self.addEventListener("install", event => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then(cache =>
-      Promise.allSettled(SHELL.map(url => cache.add(url)))
-    )
-  );
+  event.waitUntil(caches.open(CACHE_NAME).then(cache => Promise.allSettled(SHELL.map(url => cache.add(url)))));
 });
 
-/* Đăng ký message ngay khi worker được đánh giá để tương thích trình duyệt/PWA. */
+// Bắt message ngay ở lần đánh giá đầu tiên của worker.
 self.addEventListener("message", event => {
-  if (event.data?.type === "SKIP_WAITING") {
-    self.skipWaiting();
-  }
+  if (event.data?.type === "SKIP_WAITING") self.skipWaiting();
 });
 
 self.addEventListener("activate", event => {
   event.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(
-        keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))
-      ))
+      .then(keys => Promise.all(keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))))
       .then(() => self.clients.claim())
   );
 });
@@ -45,7 +37,6 @@ self.addEventListener("activate", event => {
 self.addEventListener("fetch", event => {
   const request = event.request;
   if (request.method !== "GET") return;
-
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
@@ -53,14 +44,11 @@ self.addEventListener("fetch", event => {
     event.respondWith((async () => {
       try {
         const response = await fetch(request, { cache: "no-store" });
-        /* Clone ngay khi body còn nguyên; cache là phần việc sống cùng fetch event. */
-        const cacheCopy = response.clone();
-        event.waitUntil(cacheResponse("./index.html", cacheCopy));
+        const copy = response.clone();
+        event.waitUntil(cacheResponse("./index.html", copy));
         return response;
-      } catch (error) {
-        return (await caches.match("./index.html"))
-          || (await caches.match("./offline.html"))
-          || Response.error();
+      } catch (_) {
+        return (await caches.match("./index.html")) || (await caches.match("./offline.html")) || Response.error();
       }
     })());
     return;
@@ -71,10 +59,10 @@ self.addEventListener("fetch", event => {
     event.respondWith((async () => {
       try {
         const response = await fetch(request, { cache: "no-store" });
-        const cacheCopy = response.clone();
-        event.waitUntil(cacheResponse(request, cacheCopy));
+        const copy = response.clone();
+        event.waitUntil(cacheResponse(request, copy));
         return response;
-      } catch (error) {
+      } catch (_) {
         return (await caches.match(request, { ignoreSearch: true })) || Response.error();
       }
     })());
@@ -84,10 +72,9 @@ self.addEventListener("fetch", event => {
   event.respondWith((async () => {
     const cached = await caches.match(request, { ignoreSearch: true });
     if (cached) return cached;
-
     const response = await fetch(request);
-    const cacheCopy = response.clone();
-    event.waitUntil(cacheResponse(request, cacheCopy));
+    const copy = response.clone();
+    event.waitUntil(cacheResponse(request, copy));
     return response;
   })());
 });

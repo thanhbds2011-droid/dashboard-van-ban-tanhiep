@@ -1,4 +1,4 @@
-import { BUILD_VERSION } from "./core/app-version.js?v=20260806.V1_9_4";
+import { BUILD_VERSION } from "./core/app-version.js?v=20260808.V1_10_0";
 
 let deferredInstallPrompt = null;
 let refreshing = false;
@@ -7,6 +7,7 @@ let registration = null;
 function isStandalone() {
   return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
 }
+function isIos() { return /iphone|ipad|ipod/i.test(navigator.userAgent || ""); }
 function show(id) { document.getElementById(id)?.classList.remove("hidden"); }
 function hide(id) { document.getElementById(id)?.classList.add("hidden"); }
 function setOnlineState() {
@@ -22,6 +23,17 @@ function showUpdate(reg) {
   document.getElementById("btnApplyUpdate")?.addEventListener("click", () => {
     reg.waiting.postMessage({ type: "SKIP_WAITING" });
   }, { once: true });
+}
+function renderInstallHelp() {
+  const title = document.getElementById("installHelpTitle");
+  const text = document.getElementById("installHelpText");
+  if (title) title.textContent = "Cài ứng dụng Nhiệm vụ và đánh giá KPI";
+  if (!text) return;
+  if (isIos()) {
+    text.innerHTML = "Trên iPhone/iPad: mở trang bằng <strong>Safari</strong> → bấm <strong>Chia sẻ</strong> → <strong>Thêm vào Màn hình chính</strong> → bật <strong>Mở dưới dạng ứng dụng web</strong> nếu thiết bị hiển thị tùy chọn này.";
+  } else {
+    text.innerHTML = "Trên Chrome/Edge máy tính: dùng mục <strong>Cài đặt ứng dụng / Install app</strong> ở thanh địa chỉ hoặc menu trình duyệt. <strong>Không dùng “Tạo lối tắt”</strong>; lối tắt thường còn biểu tượng Chrome. Khi cài đúng PWA, ứng dụng mở ở cửa sổ riêng theo chế độ standalone.";
+  }
 }
 async function registerPwa() {
   if (!("serviceWorker" in navigator)) return;
@@ -41,27 +53,41 @@ async function registerPwa() {
     });
     await registration.update();
     window.setInterval(() => registration?.update().catch(() => {}), 60 * 60 * 1000);
-  } catch (error) { console.warn("Không đăng ký được chế độ ứng dụng:", error); }
+  } catch (error) {
+    console.warn("Không đăng ký được chế độ ứng dụng:", error);
+  }
 }
 window.addEventListener("beforeinstallprompt", event => {
   event.preventDefault();
   deferredInstallPrompt = event;
   if (!isStandalone()) show("btnInstallApp");
 });
-window.addEventListener("appinstalled", () => { deferredInstallPrompt = null; hide("btnInstallApp"); });
+window.addEventListener("appinstalled", () => {
+  deferredInstallPrompt = null;
+  hide("btnInstallApp");
+  document.body.classList.add("is-installed-app");
+});
 window.addEventListener("online", setOnlineState);
 window.addEventListener("offline", setOnlineState);
+
 document.addEventListener("DOMContentLoaded", () => {
   setOnlineState();
+  document.body.classList.toggle("is-installed-app", isStandalone());
   if (isStandalone()) hide("btnInstallApp");
+  renderInstallHelp();
+
   document.getElementById("btnInstallApp")?.addEventListener("click", async () => {
+    if (isStandalone()) return;
     if (deferredInstallPrompt) {
       deferredInstallPrompt.prompt();
-      await deferredInstallPrompt.userChoice;
-      deferredInstallPrompt = null;
-      hide("btnInstallApp");
+      const choice = await deferredInstallPrompt.userChoice;
+      if (choice?.outcome === "accepted") {
+        deferredInstallPrompt = null;
+        hide("btnInstallApp");
+      }
       return;
     }
+    renderInstallHelp();
     show("iosInstallHelp");
   });
   document.getElementById("btnCloseIosInstall")?.addEventListener("click", () => hide("iosInstallHelp"));
