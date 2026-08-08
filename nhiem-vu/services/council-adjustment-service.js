@@ -6,9 +6,9 @@
  * councilReviewRounds/{periodId}/departments/{departmentId}
  * councilReviewRounds/{periodId}/departments/{departmentId}/requests/{userId}_{targetId}
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260806.V1_9_4";
-import { UserContext } from "../core/user-context.js?v=20260806.V1_9_4";
-import { Permissions } from "../core/permissions.js?v=20260806.V1_9_4";
+import { FirebaseService } from "../core/firebase-service.js?v=20260808.V1_10_1";
+import { UserContext } from "../core/user-context.js?v=20260808.V1_10_1";
+import { Permissions } from "../core/permissions.js?v=20260808.V1_10_1";
 
 const REQUEST_TYPES = Object.freeze(["SCORE", "EVIDENCE", "SCORE_AND_EVIDENCE"]);
 const OPEN_REQUEST_STATUSES = Object.freeze(["OPEN", "RETURNED"]);
@@ -40,7 +40,7 @@ function isTchcHead(user = UserContext.getUser()) {
 
 function isDepartmentManagerFor(departmentId, user = UserContext.getUser()) {
   return Permissions.isAdmin(user) || (
-    Permissions.isDepartmentHead(user) && upper(user?.departmentId) === upper(departmentId)
+    Permissions.isDepartmentLeader(user) && upper(user?.departmentId) === upper(departmentId)
   );
 }
 
@@ -235,7 +235,7 @@ export const CouncilAdjustmentService = Object.freeze({
   async createTaskRequest({ periodId, departmentId, user, task, requestType, instruction, requestedScore = null }) {
     const actor = UserContext.requireUser();
     const dept = upper(departmentId);
-    if (!isDepartmentManagerFor(dept, actor)) throw new Error("Chỉ Trưởng Phòng/Khu được giao yêu cầu điều chỉnh cho nhân sự của đơn vị mình.");
+    if (!isDepartmentManagerFor(dept, actor)) throw new Error("Chỉ Trưởng/Phó Phòng/Khu được giao yêu cầu điều chỉnh cho nhân sự của đơn vị mình.");
     await ensureOpenRound(periodId, dept);
     if (!user?.id || upper(user.departmentId) !== dept) throw new Error("Người được chọn không thuộc Phòng/Khu hiện tại.");
     if (!task?.id || task.ownerUserId !== user.id || upper(task.primaryDepartmentId) !== dept) {
@@ -304,7 +304,7 @@ export const CouncilAdjustmentService = Object.freeze({
   async createCriterionRequest({ periodId, departmentId, user, assessment, criterionIndex, requestType, instruction, requestedScore = null }) {
     const actor = UserContext.requireUser();
     const dept = upper(departmentId);
-    if (!isDepartmentManagerFor(dept, actor)) throw new Error("Chỉ Trưởng Phòng/Khu được giao yêu cầu điều chỉnh tiêu chí chung.");
+    if (!isDepartmentManagerFor(dept, actor)) throw new Error("Chỉ Trưởng/Phó Phòng/Khu được giao yêu cầu điều chỉnh tiêu chí chung.");
     await ensureOpenRound(periodId, dept);
     if (!assessment?.id || assessment.userId !== user?.id) throw new Error("Không tìm thấy bộ tiêu chí chung của cá nhân.");
     const items = Array.isArray(assessment.items) ? assessment.items : [];
@@ -408,7 +408,7 @@ export const CouncilAdjustmentService = Object.freeze({
 
   async returnToEmployee(requestItem, note = "") {
     const actor = UserContext.requireUser();
-    if (!isDepartmentManagerFor(requestItem?.departmentId, actor)) throw new Error("Chỉ Trưởng Phòng/Khu được trả yêu cầu về cho cá nhân bổ sung.");
+    if (!isDepartmentManagerFor(requestItem?.departmentId, actor)) throw new Error("Chỉ Trưởng/Phó Phòng/Khu được trả yêu cầu về cho cá nhân bổ sung.");
     await ensureOpenRound(requestItem.periodId, requestItem.departmentId);
     const reason = clean(note);
     if (!reason) throw new Error("Hãy nhập nội dung cần cá nhân bổ sung thêm.");
@@ -424,9 +424,9 @@ export const CouncilAdjustmentService = Object.freeze({
 
   async confirmRequest(requestItem, { finalScore = null, managerNote = "" } = {}) {
     const actor = UserContext.requireUser();
-    if (!isDepartmentManagerFor(requestItem?.departmentId, actor)) throw new Error("Chỉ Trưởng Phòng/Khu được chốt kết quả sau Hội đồng của đơn vị mình.");
+    if (!isDepartmentManagerFor(requestItem?.departmentId, actor)) throw new Error("Chỉ Trưởng/Phó Phòng/Khu được chốt kết quả sau Hội đồng của đơn vị mình.");
     await ensureOpenRound(requestItem.periodId, requestItem.departmentId);
-    if (upper(requestItem.status) !== "EMPLOYEE_SUBMITTED") throw new Error("Cá nhân chưa gửi lại nội dung điều chỉnh để Trưởng phòng chốt.");
+    if (upper(requestItem.status) !== "EMPLOYEE_SUBMITTED") throw new Error("Cá nhân chưa gửi lại nội dung điều chỉnh để Trưởng/Phó Phòng/Khu chốt.");
 
     const scoreRequired = ["SCORE", "SCORE_AND_EVIDENCE"].includes(upper(requestItem.requestType));
     const scoreValue = scoreRequired

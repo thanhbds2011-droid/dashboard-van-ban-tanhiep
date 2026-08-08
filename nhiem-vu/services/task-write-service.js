@@ -1,12 +1,12 @@
 /** Tạo, phân công, tiếp nhận, cập nhật tiến độ và hoàn thành nhiệm vụ. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260806.V1_9_4";
-import { UserContext } from "../core/user-context.js?v=20260806.V1_9_4";
-import { Permissions } from "../core/permissions.js?v=20260806.V1_9_4";
-import { TaskLogService } from "./task-log-service.js?v=20260806.V1_9_4";
-import { TaskWorkItemService } from "./task-work-item-service.js?v=20260806.V1_9_4";
-import { PeriodReadService } from "./period-read-service.js?v=20260806.V1_9_4";
+import { FirebaseService } from "../core/firebase-service.js?v=20260808.V1_10_1";
+import { UserContext } from "../core/user-context.js?v=20260808.V1_10_1";
+import { Permissions } from "../core/permissions.js?v=20260808.V1_10_1";
+import { TaskLogService } from "./task-log-service.js?v=20260808.V1_10_1";
+import { TaskWorkItemService } from "./task-work-item-service.js?v=20260808.V1_10_1";
+import { PeriodReadService } from "./period-read-service.js?v=20260808.V1_10_1";
 
-const TASK_WRITE_BUILD_VERSION = "20260806.V1_9_4";
+const TASK_WRITE_BUILD_VERSION = "20260808.V1_10_1";
 const MAX_CODE_SCAN = 1000;
 
 function dateKey(date) {
@@ -170,7 +170,7 @@ export const TaskWriteService = Object.freeze({
         );
 
         const payload = {
-          appVersion: "1.9.3",
+          appVersion: "1.10.1",
           active: true,
           taskCode: code,
           title: data.title,

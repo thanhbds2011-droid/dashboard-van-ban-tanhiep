@@ -5,9 +5,9 @@
  * lớp này chỉ quan sát log MỚI do chính tài khoản hiện tại tạo và gọi đúng
  * action mà Apps Script V6.x đã hỗ trợ.
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260806.V1_9_4";
-import { UserContext } from "../core/user-context.js?v=20260806.V1_9_4";
-import { TaskNotificationService } from "./task-notification-service.js?v=20260808.V1_10_0";
+import { FirebaseService } from "../core/firebase-service.js?v=20260808.V1_10_1";
+import { UserContext } from "../core/user-context.js?v=20260808.V1_10_1";
+import { TaskNotificationService } from "./task-notification-service.js?v=20260808.V1_10_1";
 
 const DIRECT_ACTIONS = Object.freeze({
   TASK_CREATED: "TASK_CREATED",
@@ -20,6 +20,7 @@ const DIRECT_ACTIONS = Object.freeze({
   TASK_ADJUSTMENT_REQUESTED: "TASK_ADJUSTMENT_REQUESTED",
   TASK_ADJUSTMENT_APPROVED: "TASK_ADJUSTMENT_APPROVED",
   TASK_ADJUSTMENT_REJECTED: "TASK_ADJUSTMENT_REJECTED",
+  TASK_TEAM_DIRECT_ASSIGNED: "TASK_TEAM_DIRECT_ASSIGNED",
   CDTN_ATTENDANCE_UPDATED: "CDTN_ATTENDANCE_UPDATED"
 });
 
@@ -27,13 +28,13 @@ const DERIVED_ACTIONS = Object.freeze({
   TASK_DEPARTMENT_ACCEPTED: "TASK_UPDATED",
   TASK_ACCEPTED: "TASK_UPDATED",
   TASK_DIRECTOR_REASSIGNED: "TASK_UPDATED",
-  TASK_DIRECTOR_RECALLED: "TASK_UPDATED",
-  TASK_TEAM_DIRECT_ASSIGNED: "TASK_INTERNAL_ASSIGNED"
+  TASK_DIRECTOR_RECALLED: "TASK_UPDATED"
 });
 
 const ACTION_PRIORITY = Object.freeze({
   TASK_DELETED: 100,
   TASK_COMPLETED: 90,
+  TASK_TEAM_DIRECT_ASSIGNED: 85,
   TASK_INTERNAL_ASSIGNED: 80,
   TASK_CREATED: 70,
   TASK_ADJUSTMENT_REJECTED: 60,
@@ -95,8 +96,8 @@ async function dispatch(taskId) {
   if (!candidates.length) return;
 
   // Nếu BGĐ vừa tạo nhiệm vụ rồi giao thẳng qua Tổ/Nhóm, hai log có thể xuất hiện
-  // gần nhau. Chỉ gửi TASK_INTERNAL_ASSIGNED theo log TEAM_DIRECT để đúng người nhận
-  // và không phát sinh thêm một thông báo TASK_CREATED cho cấp Phòng/Khu.
+  // gần nhau. Giữ nguyên action TASK_TEAM_DIRECT_ASSIGNED để Apps Script xác thực đúng
+  // actor BGĐ và chọn đúng người phụ trách; không phát sinh thêm TASK_CREATED.
   const hasTeamDirect = candidates.some(item => upper(item.action) === "TASK_TEAM_DIRECT_ASSIGNED");
   const filtered = hasTeamDirect
     ? candidates.filter(item => upper(item.action) === "TASK_TEAM_DIRECT_ASSIGNED")
