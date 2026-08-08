@@ -1,10 +1,10 @@
-import { UserContext } from "../../core/user-context.js?v=20260806.V1_9_4";
-import { Permissions } from "../../core/permissions.js?v=20260806.V1_9_4";
-import { ToastService } from "../../core/toast-service.js?v=20260806.V1_9_4";
-import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260806.V1_9_4";
-import { PeriodReadService } from "../../services/period-read-service.js?v=20260806.V1_9_4";
-import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260806.V1_9_4";
-import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260806.V1_9_4";
+import { UserContext } from "../../core/user-context.js?v=20260808.V1_10_1";
+import { Permissions } from "../../core/permissions.js?v=20260808.V1_10_1";
+import { ToastService } from "../../core/toast-service.js?v=20260808.V1_10_1";
+import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260808.V1_10_1";
+import { PeriodReadService } from "../../services/period-read-service.js?v=20260808.V1_10_1";
+import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260808.V1_10_1";
+import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260808.V1_10_1";
 
 let currentCatalogAccess = {
   canManage: false,
@@ -517,9 +517,7 @@ async function openTaskEditor(item) {
         <label class="kpi-field full"><span>Đối tượng được nhìn thấy và đăng ký</span><select id="catalogTaskProfessionalAudience">
           <option value="ALL_DEPARTMENT" ${currentAudience === "ALL_DEPARTMENT" ? "selected" : ""}>Toàn Phòng/Khu — nhân viên và lãnh đạo</option>
           <option value="MANAGEMENT" ${currentAudience === "MANAGEMENT" ? "selected" : ""}>Chỉ lãnh đạo, quản lý</option>
-        </select><small class="field-help">Đây là trường quyết định quyền hiển thị. Hai cờ “Cốt lõi” và “Nhiệm vụ quản lý” chỉ là metadata KPI, không tự ghi đè đối tượng.</small></label>
-        <label class="standard-task-check"><input id="catalogTaskCore" type="checkbox" ${currentCore ? "checked" : ""}><span><strong>Đầu việc cốt lõi</strong><small>Đánh dấu tính chất KPI mặc định; không quyết định ai được nhìn thấy.</small></span></label>
-        <label class="standard-task-check"><input id="catalogTaskManagement" type="checkbox" ${currentManagement ? "checked" : ""}><span><strong>Nhiệm vụ có tính chất quản lý</strong><small>Metadata phục vụ phân loại báo cáo; quyền hiển thị vẫn theo ô “Đối tượng”.</small></span></label>
+        </select><small class="field-help">Đây là trường duy nhất quyết định ai được nhìn thấy và đăng ký đầu việc. Các cờ kỹ thuật cũ vẫn được giữ trong dữ liệu để tương thích nhưng không còn hiển thị trên ứng dụng.</small></label>
       </div>
       <label id="catalogCdtnAudienceField" class="kpi-field full hidden"><span>Đối tượng Chi đoàn</span><select id="catalogTaskCdtnAudience">
         <option value="CDTN_SECRETARY" ${currentAudience === "CDTN_SECRETARY" ? "selected" : ""}>Bí thư/Phó Bí thư</option>
@@ -532,8 +530,6 @@ async function openTaskEditor(item) {
 
   const departmentInput = document.getElementById("catalogTaskDepartment");
   const codeInput = document.getElementById("catalogTaskCode");
-  const coreInput = document.getElementById("catalogTaskCore");
-  const managementInput = document.getElementById("catalogTaskManagement");
   const departmentAudience = document.getElementById("catalogDepartmentAudience");
   const cdtnAudienceField = document.getElementById("catalogCdtnAudienceField");
   const trackingModeInput = document.getElementById("catalogTaskTrackingMode");
@@ -626,8 +622,9 @@ async function openTaskEditor(item) {
         baseScore: document.getElementById("catalogTaskBaseScore")?.value,
         difficultyCoefficient: document.getElementById("catalogTaskCoefficient")?.value,
         audienceType,
-        isCoreTaskDefault: coreInput?.checked === true,
-        isManagementTask: managementInput?.checked === true
+        // V1.10.1: audienceType là nguồn quyền duy nhất. Hai cờ legacy chỉ giữ để tương thích dữ liệu cũ.
+        isCoreTaskDefault: editing ? currentCore : false,
+        isManagementTask: isCdtn ? currentManagement : audienceType === "MANAGEMENT"
       }, item?.id || "");
       closeStandardModal(root);
       ToastService.success(editing ? `Đã cập nhật ${result.code}.` : `Đã tạo ${result.code} và đồng bộ vào Firestore.`);
