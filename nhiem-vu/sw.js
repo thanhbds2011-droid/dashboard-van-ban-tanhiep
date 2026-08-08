@@ -1,4 +1,4 @@
-const BUILD_VERSION = "20260808.V1_10_0";
+const BUILD_VERSION = "20260808.V1_10_1";
 const CACHE_NAME = "nhiem-vu-" + BUILD_VERSION.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 const SHELL = [
   "./",
@@ -29,7 +29,7 @@ self.addEventListener("message", event => {
 self.addEventListener("activate", event => {
   event.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))))
+      .then(keys => Promise.all(keys.filter(key => key.startsWith("nhiem-vu-") && key !== CACHE_NAME).map(key => caches.delete(key))))
       .then(() => self.clients.claim())
   );
 });

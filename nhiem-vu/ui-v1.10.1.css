@@ -1,0 +1,558 @@
+/* =========================================================
+ * UI V1.10.1 — lớp hoàn thiện giao diện, ưu tiên mobile/PWA.
+ * File này phải được load SAU ui-v1.3.0.css.
+ * ========================================================= */
+
+:root {
+  --v110-primary: #0f6798;
+  --v110-primary-dark: #0b4f78;
+  --v110-ink: #123047;
+  --v110-muted: #657f92;
+  --v110-line: #d4e4ee;
+  --v110-soft: #f3f8fb;
+  --v110-success: #167a49;
+  --v110-warning: #9a6500;
+  --v110-danger: #b42318;
+}
+
+.hidden,
+[hidden] { display: none !important; }
+
+/* Các cờ metadata cũ bị loại khỏi nghiệp vụ từ V1.10.0. */
+.legacy-standard-task-flag-hidden { display: none !important; }
+
+/* ---------- Nút/hành động mới ---------- */
+.danger-button {
+  border: 1px solid #efb8b3;
+  background: #fff4f3;
+  color: var(--v110-danger);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.danger-button:hover { background: #ffe9e7; }
+.danger-button:disabled { opacity: .45; cursor: not-allowed; }
+.compact-button { padding: 7px 10px !important; font-size: 13px !important; }
+
+.v110-task-extra-actions,
+.director-control-panel {
+  margin-top: 18px;
+  border: 1px solid var(--v110-line);
+  border-radius: 14px;
+  padding: 14px;
+  background: #fbfdff;
+}
+.v110-task-extra-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.v110-task-extra-actions small { flex: 1 1 280px; color: var(--v110-muted); }
+.director-control-panel h3 { margin: 0 0 6px; }
+.director-control-panel p { margin: 0 0 12px; color: var(--v110-muted); }
+.director-control-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ---------- Hội đồng ---------- */
+.v110-council-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 10px;
+  border: 1px solid var(--v110-line);
+  border-radius: 14px;
+  background: linear-gradient(135deg, #f7fbfe, #eef7fb);
+}
+
+.council-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(10, 33, 51, .58);
+  backdrop-filter: blur(3px);
+}
+.council-modal {
+  width: min(1080px, 96vw);
+  max-height: min(900px, 92dvh);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid var(--v110-line);
+  border-radius: 18px;
+  box-shadow: 0 24px 70px rgba(7, 45, 68, .24);
+}
+.council-modal-header,
+.council-modal-footer {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  background: #fff;
+}
+.council-modal-header { border-bottom: 1px solid var(--v110-line); }
+.council-modal-footer { justify-content: flex-end; border-top: 1px solid var(--v110-line); }
+.council-modal-header h2 { margin: 2px 0 0; color: var(--v110-ink); font-size: 23px; }
+.council-modal-header p { margin: 5px 0 0; color: var(--v110-muted); }
+.council-close {
+  width: 40px; height: 40px; flex: 0 0 40px;
+  border: 0; border-radius: 12px; background: #eef5f9;
+  font-size: 24px; line-height: 1; cursor: pointer; color: var(--v110-ink);
+}
+.council-modal-body { overflow: auto; padding: 18px 20px 24px; }
+.council-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.council-form-grid label { display: grid; gap: 6px; color: var(--v110-ink); font-weight: 700; }
+.council-form-grid .field-full { grid-column: 1 / -1; }
+.council-form-grid input,
+.council-form-grid select,
+.council-form-grid textarea,
+.council-manager-layout select {
+  width: 100%; box-sizing: border-box; border: 1px solid #bdd5e4; border-radius: 10px;
+  background: #fff; color: var(--v110-ink); padding: 10px 12px; font: inherit; font-weight: 500;
+}
+.council-form-grid input:focus,
+.council-form-grid select:focus,
+.council-form-grid textarea:focus { outline: 3px solid rgba(15,103,152,.12); border-color: var(--v110-primary); }
+.council-request-summary { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; margin-bottom: 14px; }
+.council-request-summary > div { display: grid; gap: 4px; padding: 12px; border: 1px solid var(--v110-line); border-radius: 12px; background: var(--v110-soft); }
+.council-request-summary span { font-size: 12px; color: var(--v110-muted); }
+.council-request-summary strong { color: var(--v110-ink); font-size: 17px; }
+.council-round-state { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px; border-radius: 13px; background: #f2f6f8; margin-bottom: 16px; }
+.council-round-state.open { background: #e9f8ef; color: var(--v110-success); }
+.council-round-state.closed { background: #f4f4f4; color: #53636d; }
+.council-department-picker { margin: 12px 0 18px; }
+.council-department-picker h3,
+.council-overview h3 { margin: 0 0 10px; color: var(--v110-ink); }
+.council-department-picker { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+.council-department-picker h3 { grid-column: 1 / -1; }
+.council-department-picker label { display: flex; align-items: center; gap: 10px; border: 1px solid var(--v110-line); border-radius: 11px; padding: 10px 12px; background: #fff; }
+.council-overview-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+.council-overview-grid > div { display: grid; gap: 4px; padding: 10px 12px; border: 1px solid var(--v110-line); border-radius: 10px; background: #fff; }
+.council-overview-grid span { color: var(--v110-muted); font-size: 13px; }
+.council-manager-layout { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr); gap: 18px; }
+.council-manager-layout > section { min-width: 0; }
+.council-manager-layout label { display: grid; gap: 6px; font-weight: 700; }
+.council-targets { margin-top: 14px; }
+.council-target-group { margin-top: 14px; }
+.council-target-group h4 { margin: 0 0 8px; color: var(--v110-ink); }
+.council-target-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border: 1px solid var(--v110-line); border-radius: 11px; margin-bottom: 8px; background: #fff; }
+.council-target-row > div { min-width: 0; display: grid; gap: 4px; }
+.council-target-row strong { color: var(--v110-ink); overflow-wrap: anywhere; }
+.council-target-row span { color: var(--v110-muted); font-size: 13px; }
+.council-list { display: grid; gap: 10px; }
+.council-request-card { border: 1px solid var(--v110-line); border-radius: 13px; padding: 12px; background: #fff; }
+.council-request-card-head { display: flex; justify-content: space-between; align-items: start; gap: 10px; }
+.council-request-card-head > div { min-width: 0; display: grid; gap: 3px; }
+.council-request-card-head strong { color: var(--v110-ink); overflow-wrap: anywhere; }
+.council-request-card-head span { color: var(--v110-muted); font-size: 13px; }
+.council-request-card p { color: var(--v110-muted); margin: 8px 0 10px; }
+.council-request-meta { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 8px; }
+.council-request-meta span { padding: 4px 7px; border-radius: 999px; background: #eef5f8; color: #3d6074; font-size: 12px; font-weight: 700; }
+.council-status { display: inline-flex; align-items: center; border-radius: 999px; padding: 5px 8px; font-size: 11px !important; font-weight: 800; white-space: normal; text-align: center; }
+.council-status.open,.council-status.returned { background: #fff3cf; color: #7a5400; }
+.council-status.employee_submitted { background: #e8f2ff; color: #175b9a; }
+.council-status.confirmed { background: #e7f7ed; color: #166d42; }
+.council-upload-state { min-height: 18px; color: var(--v110-primary); font-weight: 700; }
+.council-report-table-wrap { overflow: auto; border: 1px solid var(--v110-line); border-radius: 12px; }
+.council-report-table { width: 100%; min-width: 900px; border-collapse: collapse; font-size: 13px; }
+.council-report-table th,.council-report-table td { padding: 9px 10px; border-bottom: 1px solid var(--v110-line); text-align: left; vertical-align: top; }
+.council-report-table th { position: sticky; top: 0; z-index: 1; background: #0f5f89; color: #fff; }
+.kpi-report-option.is-council { border-color: #c9d7ef; background: linear-gradient(135deg,#f8f7ff,#eef5ff); }
+.director-monitoring-note { margin-bottom: 12px; }
+.text-danger { color: var(--v110-danger) !important; }
+
+/* ---------- Desktop/tablet: tinh gọn dashboard ---------- */
+.tasks-summary-grid .summary-card,
+.kpi-summary-grid .kpi-metric,
+.kpi-metrics .kpi-metric { min-height: 104px; }
+.tasks-toolbar-compact { align-items: end; }
+
+/* ---------- Mobile ---------- */
+@media (max-width: 700px) {
+  body { overflow-x: hidden; }
+  .v3-main { padding-inline: 10px !important; }
+  .page-card,
+  .tasks-page-card,
+  .standard-tasks-page-card { border-radius: 16px !important; padding: 14px !important; }
+
+  /* Header: giữ gọn đúng như ảnh hiện tại. */
+  .v3-header-inner { min-height: 76px; padding: 10px 14px !important; }
+  .brand-block { min-width: 0; }
+  .brand-block h1 { font-size: clamp(19px, 5.8vw, 26px) !important; line-height: 1.15; }
+  .brand-block p { font-size: 12px !important; }
+  .brand-mark { display: none !important; }
+  .v3-user-info { display: none !important; }
+  .header-button span { display: none; }
+  .header-button { min-width: 48px; padding-inline: 10px !important; }
+
+  /* Dashboard số liệu: 2 cột, chiều cao vừa đủ, card lẻ cuối chiếm ngang. */
+  .summary-grid,
+  .summary-grid.compact-grid,
+  .tasks-summary-grid,
+  .kpi-metrics,
+  .kpi-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 9px !important; }
+  .summary-card,
+  .tasks-summary-grid .summary-card,
+  .kpi-metric,
+  .kpi-metrics .kpi-metric { min-height: 94px !important; height: auto !important; padding: 12px !important; }
+  .summary-card strong,
+  .kpi-metric strong { font-size: clamp(25px, 8vw, 35px) !important; line-height: 1.1 !important; overflow-wrap: anywhere; }
+  .kpi-metric strong:not(:has(+ *)) { word-break: normal; }
+  .kpi-metric .kpi-insufficient,
+  .kpi-metric strong:has(+ small) { max-width: 100%; }
+  .tasks-summary-grid > :last-child:nth-child(odd),
+  .kpi-metrics > :last-child:nth-child(odd),
+  .kpi-summary-grid > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+
+  /* Toolbar mobile: mỗi trường một hàng, nút sync vuông gọn. */
+  .toolbar,
+  .tasks-toolbar,
+  .tasks-toolbar-compact { grid-template-columns: minmax(0,1fr) !important; display: grid !important; gap: 10px !important; }
+  .toolbar label,
+  .tasks-toolbar label { width: 100%; min-width: 0 !important; }
+  .toolbar input,.toolbar select,.tasks-toolbar input,.tasks-toolbar select { width: 100%; box-sizing: border-box; }
+  .compact-sync-button { justify-self: end; width: 48px !important; min-width: 48px !important; height: 48px; }
+
+  /* Danh mục đầu việc: bỏ scroll nội bộ + bỏ fixed height gây chồng chữ như ảnh iPhone. */
+  .standard-task-workspace-grid,
+  .registration-workspace-grid,
+  .registration-board,
+  .registration-columns { grid-template-columns: 1fr !important; }
+  .registration-list,
+  .registration-list-scroll,
+  .standard-task-list,
+  .standard-task-list-scroll,
+  .task-list-scroll { max-height: none !important; height: auto !important; overflow: visible !important; }
+  .registration-row,
+  .data-row,
+  .standard-task-row,
+  .catalog-task-row {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    align-items: start !important;
+    grid-auto-rows: auto !important;
+  }
+  .registration-row { grid-template-columns: 28px minmax(0,1fr) !important; gap: 9px !important; padding: 12px 10px !important; }
+  .registration-row > *,
+  .data-row > *,
+  .standard-task-row > * { min-width: 0 !important; position: static !important; transform: none !important; }
+  .data-row-main,
+  .registration-main,
+  .standard-task-main { min-width: 0 !important; overflow: visible !important; }
+  .data-row-main strong,
+  .registration-main strong,
+  .standard-task-main strong,
+  .registration-title { display: block; white-space: normal !important; overflow: visible !important; text-overflow: clip !important; overflow-wrap: anywhere; line-height: 1.35 !important; }
+  .data-row-main p,
+  .registration-main p,
+  .standard-task-main p { display: block !important; white-space: normal !important; overflow: visible !important; -webkit-line-clamp: unset !important; line-clamp: unset !important; max-height: none !important; }
+  .data-row-meta,
+  .registration-meta,
+  .standard-task-meta,
+  .task-tags,
+  .registration-tags,
+  .data-row-tags { display: flex !important; flex-wrap: wrap !important; gap: 5px !important; position: static !important; margin-top: 8px !important; max-height: none !important; overflow: visible !important; }
+  .registration-row .row-actions,
+  .standard-task-row .row-actions { grid-column: 2; display: flex !important; flex-wrap: wrap; gap: 6px; position: static !important; }
+
+  /* Khối danh mục/đăng ký của tôi: lần lượt theo chiều dọc để đọc dễ. */
+  .standard-task-board,
+  .catalog-registration-board,
+  .standard-task-columns,
+  .registration-panel-grid { grid-template-columns: 1fr !important; }
+
+  /* Nhiệm vụ: card rõ, không ép chiều cao. */
+  .task-workspace-grid { grid-template-columns: 1fr !important; }
+  .task-workspace-panel { min-height: 0 !important; }
+  .task-row { min-height: 0 !important; height: auto !important; padding: 13px !important; }
+  .task-row-title { white-space: normal !important; overflow-wrap: anywhere; }
+
+  /* KPI scope: cho swipe ngang, không cắt mất Ban Giám đốc/Chi đoàn/Phòng. */
+  .kpi-scope-switch,
+  .scope-switch,
+  .kpi-scope-tabs {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    max-width: 100% !important;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 4px;
+  }
+  .kpi-scope-switch::-webkit-scrollbar,
+  .scope-switch::-webkit-scrollbar,
+  .kpi-scope-tabs::-webkit-scrollbar { display: none; }
+  .kpi-scope-switch > *,
+  .scope-switch > *,
+  .kpi-scope-tabs > * { flex: 0 0 auto !important; min-width: 150px !important; max-width: 210px; scroll-snap-align: start; }
+
+  /* KPI: bảng chính chuyển thành card dọc, không còn cắt cột trên điện thoại. */
+  #kpiTaskList > .kpi-table-wrap,
+  #kpiTaskList .kpi-table-wrap { overflow: visible !important; border: 0 !important; }
+  #kpiTaskList table.kpi-table,
+  #kpiTaskList .kpi-table { min-width: 0 !important; width: 100% !important; display: block; }
+  #kpiTaskList .kpi-table thead { display: none !important; }
+  #kpiTaskList .kpi-table tbody { display: grid; gap: 9px; }
+  #kpiTaskList .kpi-table tr { display: grid !important; grid-template-columns: 1fr; gap: 6px; border: 1px solid var(--v110-line); border-radius: 13px; padding: 12px; background: #fff; box-shadow: 0 2px 8px rgba(17,76,110,.04); }
+  #kpiTaskList .kpi-table td { display: grid !important; grid-template-columns: 108px minmax(0,1fr); gap: 8px; align-items: start; border: 0 !important; padding: 2px 0 !important; white-space: normal !important; min-width: 0 !important; }
+  #kpiTaskList .kpi-table td::before { color: var(--v110-muted); font-size: 12px; font-weight: 700; }
+  #kpiTaskList .kpi-table td:nth-child(1)::before { content: "STT"; }
+  #kpiTaskList .kpi-table td:nth-child(2)::before { content: "Họ và tên"; }
+  #kpiTaskList .kpi-table td:nth-child(3)::before { content: "Đầu việc"; }
+  #kpiTaskList .kpi-table td:nth-child(4)::before { content: "Tổng điểm"; }
+  #kpiTaskList .kpi-table td:nth-child(5)::before { content: "Trạng thái"; }
+  #kpiTaskList .kpi-table td:nth-child(6)::before { content: "Thao tác"; }
+
+  .kpi-report-options { grid-template-columns: 1fr !important; }
+  .kpi-report-option { min-height: 0 !important; padding: 16px !important; }
+
+  /* Form/modal: không tràn chiều ngang trên iPhone. */
+  .modal-backdrop,
+  .council-modal-backdrop { padding: 8px !important; align-items: end; }
+  .modal-panel,
+  .app-modal-card,
+  .council-modal { width: 100% !important; max-width: none !important; max-height: 94dvh !important; border-radius: 18px 18px 0 0 !important; }
+  .modal-body,
+  .council-modal-body { padding: 14px !important; }
+  .task-form-grid,
+  .kpi-form-grid,
+  .council-form-grid,
+  .council-manager-layout { grid-template-columns: 1fr !important; }
+  .field-full,
+  .council-form-grid .field-full { grid-column: auto !important; }
+  .six-clear-grid { grid-template-columns: 1fr !important; }
+  .director-control-actions,
+  .v110-task-extra-actions,
+  .v110-council-toolbar { display: grid !important; grid-template-columns: 1fr !important; }
+  .director-control-actions button,
+  .v110-task-extra-actions button,
+  .v110-council-toolbar button { width: 100%; }
+  .council-request-summary,
+  .council-department-picker,
+  .council-overview-grid { grid-template-columns: 1fr !important; }
+  .council-target-row,
+  .council-request-card-head { align-items: stretch; flex-direction: column; }
+  .council-target-row button { width: 100%; }
+  .council-modal-footer { flex-wrap: wrap; }
+  .council-modal-footer button { flex: 1 1 150px; }
+}
+
+@media (max-width: 390px) {
+  /* Không chuyển toàn bộ metric về 1 cột; iPhone vẫn giữ 2 cột gọn. */
+  .summary-grid,
+  .summary-grid.compact-grid,
+  .tasks-summary-grid,
+  .kpi-metrics,
+  .kpi-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .summary-card,
+  .kpi-metric { padding: 10px !important; }
+  .summary-card strong,
+  .kpi-metric strong { font-size: 24px !important; }
+}
+
+/* Installed PWA: tránh khoảng trống/header hành xử như tab trình duyệt. */
+body.is-installed-app .btn-install-app,
+body.is-installed-app #btnInstallApp { display: none !important; }
+
+/* Bổ sung selector đúng cấu trúc registration hiện hành. */
+@media (max-width: 700px) {
+  .registration-column-list {
+    max-height: none !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+  .standard-task-tags {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: flex-start !important;
+    gap: 5px !important;
+    position: static !important;
+    margin-top: 8px !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  .registration-row .data-row-meta {
+    grid-column: 2 !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    gap: 6px !important;
+  }
+  .registration-row .catalog-row-actions {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+  }
+  .registration-sticky {
+    position: sticky !important;
+    bottom: max(8px, env(safe-area-inset-bottom)) !important;
+    z-index: 20;
+  }
+}
+
+@media (max-width: 700px) {
+  /* Nút đầu trang Danh mục: ưu tiên hành động chính + sync gọn. */
+  .standard-task-header-actions {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 52px !important;
+    gap: 8px !important;
+  }
+  .standard-task-header-actions #btnAddStandardTask { width: 100% !important; }
+  .standard-task-header-actions #btnStandardRefresh {
+    width: 52px !important;
+    min-width: 52px !important;
+    height: 48px !important;
+    padding: 0 !important;
+    font-size: 0 !important;
+  }
+  .standard-task-header-actions #btnStandardRefresh::before {
+    content: "↻";
+    font-size: 25px;
+    line-height: 1;
+  }
+  .standard-task-header-actions #btnDelegateCatalogEditor,
+  .standard-task-header-actions #btnDelegateCdtnApproval {
+    grid-column: 1 / -1;
+    width: 100% !important;
+  }
+
+  /* KPI: nút refresh luôn là nút vuông nhỏ bên phải. */
+  .kpi-header { align-items: flex-start !important; gap: 10px !important; }
+  .kpi-header-sync { display: flex !important; align-items: center !important; gap: 8px !important; }
+  #kpiRefresh.kpi-icon-sync { width: 50px !important; min-width: 50px !important; height: 48px !important; padding: 0 !important; }
+
+  /* Phạm vi KPI: chính dải nút bên trong được vuốt ngang. */
+  .kpi-scope-switch { display: block !important; overflow: hidden !important; }
+  .kpi-scope-switch-label { display: block !important; margin: 0 0 8px !important; }
+  .kpi-scope-switch-options {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    gap: 8px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    padding: 2px 2px 6px !important;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .kpi-scope-switch-options::-webkit-scrollbar { display: none; }
+  .kpi-scope-option {
+    flex: 0 0 auto !important;
+    min-width: 180px !important;
+    max-width: 220px !important;
+    scroll-snap-align: start;
+  }
+
+  /* Trạng thái chữ dài không được phóng như số KPI. */
+  #kpiMetric70,
+  #kpiMetric100 {
+    font-size: clamp(22px, 6.2vw, 30px) !important;
+    line-height: 1.22 !important;
+    word-break: normal !important;
+    overflow-wrap: break-word !important;
+  }
+}
+
+
+/* =========================================================
+ * V1.10.1 — Mobile KPI hardening
+ * - BGĐ dùng select Phòng/Khu thay vì render danh sách toàn Trung tâm.
+ * - Loại nested scroll/max-height gây chồng card khi đánh giá trên điện thoại.
+ * ========================================================= */
+.kpi-mobile-scope-select { display: none; }
+@media (max-width: 700px) {
+  .kpi-mobile-scope-select {
+    display: grid !important;
+    gap: 6px;
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+  .kpi-mobile-scope-select > span {
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--v110-muted);
+  }
+  .kpi-mobile-scope-select select {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 46px;
+    border: 1px solid var(--v110-line);
+    border-radius: 12px;
+    background: #fff;
+    padding: 0 12px;
+    font: inherit;
+    font-weight: 700;
+    color: var(--v110-ink);
+  }
+  body .kpi-scope-switch:has(.kpi-mobile-scope-select) .kpi-scope-switch-options {
+    display: none !important;
+  }
+  .kpi-review-layout {
+    grid-template-columns: minmax(0, 1fr) !important;
+    min-height: 0 !important;
+    gap: 12px !important;
+  }
+  .kpi-review-people,
+  .kpi-review-task-scroll,
+  .kpi-people-plan-table {
+    max-height: none !important;
+    height: auto !important;
+    overflow: visible !important;
+    scrollbar-gutter: auto !important;
+  }
+  .kpi-review-people {
+    grid-template-columns: minmax(0, 1fr) !important;
+    padding-right: 0 !important;
+  }
+  .kpi-review-tasks {
+    min-width: 0 !important;
+    overflow: visible !important;
+  }
+  .kpi-review-task-row {
+    grid-template-columns: 28px minmax(0, 1fr) !important;
+    grid-auto-rows: auto !important;
+    min-height: 0 !important;
+    height: auto !important;
+    align-items: start !important;
+    overflow: visible !important;
+  }
+  .kpi-review-task-main,
+  .kpi-review-task-score,
+  .kpi-review-task-action {
+    min-width: 0 !important;
+    position: static !important;
+    transform: none !important;
+  }
+  .kpi-review-task-main strong,
+  .kpi-review-task-main span,
+  .kpi-review-task-score span,
+  .kpi-review-task-score strong {
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    overflow-wrap: anywhere !important;
+  }
+  .kpi-review-task-score,
+  .kpi-review-task-action {
+    grid-column: 2 !important;
+    text-align: left !important;
+    justify-content: flex-start !important;
+  }
+  .kpi-review-tasks-toolbar {
+    position: static !important;
+    align-items: stretch !important;
+  }
+  .kpi-review-tasks-toolbar > div:last-child {
+    justify-content: flex-start !important;
+  }
+}
