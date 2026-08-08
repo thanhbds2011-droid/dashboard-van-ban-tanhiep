@@ -1,20 +1,20 @@
-import { auth, db } from '../../firebase-config.js?v=20260806.V1_9_4';
+import { auth, db } from '../../firebase-config.js?v=20260808.V1_10_1';
 import {
   addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, query,
   serverTimestamp, setDoc, Timestamp, updateDoc, where, limit, writeBatch
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
-import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260806.V1_9_4';
-import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260806.V1_9_4';
-import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260806.V1_9_4';
-import { PeriodReadService } from '../../services/period-read-service.js?v=20260806.V1_9_4';
-import { TaskReadService } from '../../services/task-read-service.js?v=20260806.V1_9_4';
-import { Permissions } from '../../core/permissions.js?v=20260806.V1_9_4';
-import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260806.V1_9_4';
-import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260806.V1_9_4';
+import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260808.V1_10_1';
+import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260808.V1_10_1';
+import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260808.V1_10_1';
+import { PeriodReadService } from '../../services/period-read-service.js?v=20260808.V1_10_1';
+import { TaskReadService } from '../../services/task-read-service.js?v=20260808.V1_10_1';
+import { Permissions } from '../../core/permissions.js?v=20260808.V1_10_1';
+import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260808.V1_10_1';
+import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260808.V1_10_1';
 import {
   KPI2B as KPI2C, COMMON_CRITERIA, calculateTaskScore, calculateKpiSummary,
   proposedRating, ratingName, round2, progressRateFromDates, convertAppendix04Rate
-} from '../../kpi-engine.js?v=20260806.V1_9_4';
+} from '../../kpi-engine.js?v=20260808.V1_10_1';
 
 export const KpiWorkflowState = {
   user: null,
@@ -189,6 +189,8 @@ const isDeputyLeader = () => Permissions.isDepartmentDeputy();
 const isDepartmentHead = () => Permissions.isDepartmentHead();
 const profileDepartmentId = () => normalizeDepartment(KpiWorkflowState.profile?.departmentId);
 const todayKey = () => new Date().toISOString().slice(0, 10);
+const mobileKpiViewport = () => window.matchMedia?.('(max-width: 700px)')?.matches === true;
+const directorMobileScope = () => Permissions.isDirector() && mobileKpiViewport();
 
 function taskScopeDepartmentId(task) {
   const organizationId = normalizeDepartment(task?.organizationId);
@@ -468,8 +470,10 @@ function mount() {
 }
 
 function scopeSwitchHtml(options, selectedScope) {
-  return `<div class="kpi-scope-switch" role="tablist" aria-label="Chọn phạm vi KPI">
+  const mobileOptions = directorMobileScope() ? options.filter(option => option.value !== 'ALL') : options;
+  return `<div class="kpi-scope-switch" role="group" aria-label="Chọn phạm vi KPI">
     <span class="kpi-scope-switch-label">Phạm vi</span>
+    ${directorMobileScope() ? `<label class="kpi-mobile-scope-select"><span>Chọn Phòng/Khu</span><select id="kpiMobileScopeSelect">${mobileOptions.map(option => `<option value="${esc(option.value)}" ${selectedScope === option.value ? 'selected' : ''}>${esc(option.label)}</option>`).join('')}</select></label>` : ''}
     <div class="kpi-scope-switch-options">${options.map(option => `<button type="button" role="tab" class="kpi-scope-option ${selectedScope === option.value ? 'is-active' : ''}" aria-selected="${selectedScope === option.value ? 'true' : 'false'}" data-kpi-scope="${esc(option.value)}"><span>${option.value === 'CDTN' ? '🌿' : option.value === 'ALL' ? '🏢' : '📁'}</span><strong>${esc(option.label)}</strong><small>${option.value === 'CDTN' ? 'Chi đoàn' : option.value === 'ALL' ? 'Toàn hệ thống' : 'Chuyên môn'}</small></button>`).join('')}</div>
   </div>`;
 }
@@ -545,6 +549,17 @@ function renderManagementToolbar() {
     message(`Đang tải phạm vi ${departmentDisplayName(nextScope)}...`);
     await loadAll();
   }));
+  toolbar.querySelector('#kpiMobileScopeSelect')?.addEventListener('change', async event => {
+    const nextScope = normalizeDepartment(event.currentTarget.value);
+    if (!nextScope || nextScope === 'ALL' || nextScope === activeScopeDepartmentId()) return;
+    KpiWorkflowState.scopeDepartmentId = nextScope;
+    KpiWorkflowState.tasks = [];
+    KpiWorkflowState.registrations = [];
+    KpiWorkflowState.evaluations = [];
+    KpiWorkflowState.commonAll = [];
+    message(`Đang tải phạm vi ${departmentDisplayName(nextScope)}...`);
+    await loadAll();
+  });
   el('kpiCommonButton')?.addEventListener('click', openCommonCriteria);
   el('kpiLockPlan')?.addEventListener('click', lockDepartmentPlan);
   el('kpiDelegateApproval')?.addEventListener('click', openDelegationManager);
@@ -730,7 +745,9 @@ async function loadAll() {
     const homeDepartmentId = profileDepartmentId();
     const periodId = KpiWorkflowState.period.id;
 
-    if (!globalRole() && normalizeDepartment(KpiWorkflowState.scopeDepartmentId) === 'ALL') {
+    if (directorMobileScope() && normalizeDepartment(KpiWorkflowState.scopeDepartmentId) === 'ALL') {
+      KpiWorkflowState.scopeDepartmentId = 'BGD';
+    } else if (!globalRole() && normalizeDepartment(KpiWorkflowState.scopeDepartmentId) === 'ALL') {
       KpiWorkflowState.scopeDepartmentId = homeDepartmentId;
     }
 
@@ -2676,7 +2693,7 @@ function exportReportCsv(tasks, summaryData, departmentId = profileDepartmentId(
   const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`Bao_cao_KPI_${normalizeDepartment(departmentId)}_${KpiWorkflowState.period?.id||'ky'}_${KpiWorkflowState.profile?.fullName||'ca_nhan'}.csv`;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
 }
 
-async function audit(action, detail){try{await addDoc(collection(db,'kpiAuditLogs'),{appVersion:'1.7.2',periodId:KpiWorkflowState.period?.id||'',action,detail,scopeUserId:KpiWorkflowState.user.uid,scopeDepartmentId:activeScopeDepartmentId()||KpiWorkflowState.profile.departmentId||'',performedByUserId:KpiWorkflowState.user.uid,performedByName:KpiWorkflowState.profile.fullName||'',performedByRole:KpiWorkflowState.profile.role||'',performedAt:serverTimestamp()});}catch(error){console.warn('Không ghi được KPI audit log',error);}}
+async function audit(action, detail){try{await addDoc(collection(db,'kpiAuditLogs'),{appVersion:'1.10.1',periodId:KpiWorkflowState.period?.id||'',action,detail,scopeUserId:KpiWorkflowState.user.uid,scopeDepartmentId:activeScopeDepartmentId()||KpiWorkflowState.profile.departmentId||'',performedByUserId:KpiWorkflowState.user.uid,performedByName:KpiWorkflowState.profile.fullName||'',performedByRole:KpiWorkflowState.profile.role||'',performedAt:serverTimestamp()});}catch(error){console.warn('Không ghi được KPI audit log',error);}}
 
 window.KPI2C = {
   getActivePeriodSnapshot: () => KpiWorkflowState.period ? { id:KpiWorkflowState.period.id,name:KpiWorkflowState.period.name,startDate:KpiWorkflowState.period.startDate,endDate:KpiWorkflowState.period.endDate,status:KpiWorkflowState.period.status } : null,

@@ -1,12 +1,12 @@
 /** Giao diện quy trình điều chỉnh sau Hội đồng - V1.10.0. */
-import { UserContext } from "../../core/user-context.js?v=20260806.V1_9_4";
-import { Permissions } from "../../core/permissions.js?v=20260806.V1_9_4";
-import { FirebaseService } from "../../core/firebase-service.js?v=20260806.V1_9_4";
-import { PeriodReadService } from "../../services/period-read-service.js?v=20260806.V1_9_4";
-import { DepartmentReadService } from "../../services/department-read-service.js?v=20260806.V1_9_4";
-import { UserReadService } from "../../services/user-read-service.js?v=20260806.V1_9_4";
-import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260806.V1_9_4";
-import { CouncilAdjustmentService } from "../../services/council-adjustment-service.js?v=20260808.V1_10_0";
+import { UserContext } from "../../core/user-context.js?v=20260808.V1_10_1";
+import { Permissions } from "../../core/permissions.js?v=20260808.V1_10_1";
+import { FirebaseService } from "../../core/firebase-service.js?v=20260808.V1_10_1";
+import { PeriodReadService } from "../../services/period-read-service.js?v=20260808.V1_10_1";
+import { DepartmentReadService } from "../../services/department-read-service.js?v=20260808.V1_10_1";
+import { UserReadService } from "../../services/user-read-service.js?v=20260808.V1_10_1";
+import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260808.V1_10_1";
+import { CouncilAdjustmentService } from "../../services/council-adjustment-service.js?v=20260808.V1_10_1";
 
 const PROFESSIONAL_DEPARTMENTS = Object.freeze(["TCHC", "CTXH", "KHTC", "YT", "KI", "KII", "KIII"]);
 
@@ -26,7 +26,7 @@ function timeText(value) {
 function isTchcHead(user = UserContext.getUser()) {
   return Permissions.isAdmin(user) || (Permissions.isDepartmentHead(user) && upper(user?.departmentId) === "TCHC");
 }
-function isHead(user = UserContext.getUser()) { return Permissions.isAdmin(user) || Permissions.isDepartmentHead(user); }
+function isDepartmentManager(user = UserContext.getUser()) { return Permissions.isAdmin(user) || Permissions.isDepartmentLeader(user); }
 
 function openModal({ title, subtitle = "", body = "", footer = "" }) {
   const backdrop = document.createElement("div");
@@ -340,7 +340,7 @@ async function managerContent(modal, period, departmentId, users) {
 
 export async function openDepartmentCouncilManager() {
   const current = UserContext.requireUser();
-  if (!isHead(current)) return alert("Chỉ Trưởng Phòng/Khu được giao yêu cầu điều chỉnh cho nhân sự của đơn vị.");
+  if (!isDepartmentManager(current)) return alert("Chỉ Trưởng/Phó Phòng/Khu được giao yêu cầu điều chỉnh cho nhân sự của đơn vị.");
   const period = await PeriodReadService.getActive({ force: true });
   if (!period) return alert("Chưa có kỳ đánh giá đang hoạt động.");
   const departmentId = upper(current.departmentId);
@@ -387,7 +387,7 @@ export async function openCouncilReport() {
   let departmentIds = [];
   if (Permissions.isDirector(current) || isTchcHead(current) || Permissions.isAdmin(current)) {
     departmentIds = departments.map(d => upper(d.id || d.code)).filter(id => PROFESSIONAL_DEPARTMENTS.includes(id));
-  } else if (isHead(current)) {
+  } else if (isDepartmentManager(current)) {
     departmentIds = [upper(current.departmentId)];
   } else {
     departmentIds = [upper(current.departmentId)];
@@ -395,13 +395,13 @@ export async function openCouncilReport() {
   const all = [];
   for (const departmentId of departmentIds) {
     try {
-      const rows = isHead(current) || Permissions.isDirector(current) || isTchcHead(current) || Permissions.isAdmin(current)
+      const rows = isDepartmentManager(current) || Permissions.isDirector(current) || isTchcHead(current) || Permissions.isAdmin(current)
         ? await CouncilAdjustmentService.listDepartmentRequests(period.id, departmentId)
         : await CouncilAdjustmentService.listMyRequests(period.id, departmentId);
       all.push(...rows);
     } catch (_) { /* Phạm vi không được phép thì bỏ qua. */ }
   }
-  const ownOnly = !(Permissions.isDirector(current) || isTchcHead(current) || Permissions.isAdmin(current) || isHead(current));
+  const ownOnly = !(Permissions.isDirector(current) || isTchcHead(current) || Permissions.isAdmin(current) || isDepartmentManager(current));
   const rows = ownOnly ? all.filter(item => item.userId === current.uid) : all;
   const modal = openModal({
     title: "Báo cáo điều chỉnh sau Hội đồng",
