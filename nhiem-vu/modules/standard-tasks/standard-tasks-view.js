@@ -1,10 +1,10 @@
-import { UserContext } from "../../core/user-context.js?v=20260808.V1_10_1";
-import { Permissions } from "../../core/permissions.js?v=20260808.V1_10_1";
-import { ToastService } from "../../core/toast-service.js?v=20260808.V1_10_1";
-import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260808.V1_10_1";
-import { PeriodReadService } from "../../services/period-read-service.js?v=20260808.V1_10_1";
-import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260808.V1_10_1";
-import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260808.V1_10_1";
+import { UserContext } from "../../core/user-context.js?v=20260809.V1_10_2";
+import { Permissions } from "../../core/permissions.js?v=20260809.V1_10_2";
+import { ToastService } from "../../core/toast-service.js?v=20260809.V1_10_2";
+import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260809.V1_10_2";
+import { PeriodReadService } from "../../services/period-read-service.js?v=20260809.V1_10_2";
+import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260809.V1_10_2";
+import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260809.V1_10_2";
 
 let currentCatalogAccess = {
   canManage: false,
@@ -53,6 +53,15 @@ export async function renderStandardTasksView(outlet) {
     const regularCount = catalogItems.filter(item => !isUnexpectedTask(item)).length;
     const unexpectedCount = catalogItems.filter(isUnexpectedTask).length;
     const workspaceIds = [...new Set(catalogItems.map(item => item._workspaceId))];
+    const departmentIds = [...new Set(catalogItems
+      .map(item => String(item.departmentId || item._workspaceId || "").trim().toUpperCase())
+      .filter(Boolean))]
+      .sort((a, b) => departmentName(a).localeCompare(departmentName(b), "vi"));
+    const userDepartmentId = String(user.departmentId || "").trim().toUpperCase();
+    const mobileViewport = window.matchMedia?.("(max-width: 760px)")?.matches === true;
+    const defaultDepartmentScope = mobileViewport && departmentIds.includes(userDepartmentId)
+      ? userDepartmentId
+      : "ALL";
     const anyWorkspaceOpen = workspaceIds.some(id => workspacePlans[id]?.locked !== true);
 
     outlet.innerHTML = `<section class="page-card standard-task-page">
@@ -85,14 +94,24 @@ export async function renderStandardTasksView(outlet) {
         ${metric("Đã duyệt", registrations.filter(item => item.status === "APPROVED").length)}
       </div>
 
-      <div class="toolbar standard-task-toolbar">
-        <label class="field-grow"><span>Tìm kiếm</span><input id="standardTaskSearch" type="search" placeholder="Tìm theo mã, tên đầu việc, tần suất hoặc sản phẩm đầu ra…"></label>
+      <div class="toolbar standard-task-toolbar standard-task-filter-panel">
+        <label class="field-grow standard-task-search-field"><span>Tìm kiếm</span><input id="standardTaskSearch" type="search" placeholder="Tìm mã hoặc tên đầu việc…"></label>
+        ${departmentIds.length > 1 ? `<label class="standard-task-department-filter"><span>Phòng/Khu</span><select id="standardTaskDepartmentFilter">
+          <option value="ALL" ${defaultDepartmentScope === "ALL" ? "selected" : ""}>Toàn bộ đơn vị (${catalogItems.length})</option>
+          ${departmentIds.map(id => `<option value="${escapeHtml(id)}" ${defaultDepartmentScope === id ? "selected" : ""}>${escapeHtml(departmentName(id))} (${catalogItems.filter(item => String(item.departmentId || item._workspaceId || "").trim().toUpperCase() === id).length})</option>`).join("")}
+        </select></label>` : ""}
         <label><span>Loại công việc</span><select id="standardTaskTypeFilter">
-          <option value="ALL">Tất cả (${catalogItems.length})</option>
+          <option value="ALL">Tất cả</option>
           <option value="THUONG_XUYEN">Thường xuyên (${regularCount})</option>
           <option value="DOT_XUAT">Đột xuất (${unexpectedCount})</option>
         </select></label>
+        ${registrationMode ? `<label><span>Đăng ký</span><select id="standardTaskRegistrationFilter">
+          <option value="ALL">Tất cả</option>
+          <option value="AVAILABLE">Chưa đăng ký (${availableCount})</option>
+          <option value="REGISTERED">Đã đăng ký (${registeredCount})</option>
+        </select></label>` : ""}
       </div>
+      <div class="standard-task-filter-summary"><strong id="standardTaskVisibleCount">${catalogItems.length}</strong><span>đầu việc đang hiển thị</span></div>
 
       <div id="standardTaskListContainer"></div>
 
@@ -108,6 +127,8 @@ export async function renderStandardTasksView(outlet) {
     const search = document.getElementById("standardTaskSearch");
     const listContainer = document.getElementById("standardTaskListContainer");
     const typeFilter = document.getElementById("standardTaskTypeFilter");
+    const departmentFilter = document.getElementById("standardTaskDepartmentFilter");
+    const registrationFilter = document.getElementById("standardTaskRegistrationFilter");
 
     const updateCount = () => {
       const selectedInputs = [...document.querySelectorAll("[data-registration-check]:checked")];
@@ -186,12 +207,22 @@ export async function renderStandardTasksView(outlet) {
     const renderCurrentLists = () => {
       const keyword = String(search?.value || "").trim().toLowerCase();
       const selectedType = String(typeFilter?.value || "ALL").toUpperCase();
+      const selectedDepartment = String(departmentFilter?.value || defaultDepartmentScope || "ALL").toUpperCase();
+      const selectedRegistration = String(registrationFilter?.value || "ALL").toUpperCase();
       const visibleItems = catalogItems.filter(item => {
+        const itemDepartmentId = String(item.departmentId || item._workspaceId || "").trim().toUpperCase();
         const typeMatches = selectedType === "ALL" || normalizedWorkType(item) === selectedType;
-        const textMatches = [item.code, item.name, item.outputRequirement, item.frequency, workTypeLabel(item)]
+        const departmentMatches = selectedDepartment === "ALL" || itemDepartmentId === selectedDepartment;
+        const registration = findRegistration(item, registeredMap);
+        const registrationMatches = selectedRegistration === "ALL"
+          || (selectedRegistration === "REGISTERED" && Boolean(registration))
+          || (selectedRegistration === "AVAILABLE" && item._registrationEligible && !registration);
+        const textMatches = [item.code, item.name, item.outputRequirement, item.frequency, workTypeLabel(item), departmentName(itemDepartmentId)]
           .join(" ").toLowerCase().includes(keyword);
-        return typeMatches && textMatches;
+        return typeMatches && departmentMatches && registrationMatches && textMatches;
       });
+      const visibleCount = document.getElementById("standardTaskVisibleCount");
+      if (visibleCount) visibleCount.textContent = String(visibleItems.length);
 
       if (registrationMode) {
         const groups = [...new Set(visibleItems.map(item => item._workspaceId))]
@@ -206,13 +237,17 @@ export async function renderStandardTasksView(outlet) {
             </section>`).join("")
           : compactEmpty("Không có đầu việc phù hợp", "Hãy thay đổi nội dung tìm kiếm.");
       } else {
-        listContainer.innerHTML = renderCatalogList(visibleItems, catalogAccess);
+        listContainer.innerHTML = departmentIds.length > 1
+          ? renderCatalogGroups(visibleItems, catalogAccess)
+          : renderCatalogList(visibleItems, catalogAccess);
       }
       bindListActions();
     };
 
     search?.addEventListener("input", renderCurrentLists);
     typeFilter?.addEventListener("change", renderCurrentLists);
+    departmentFilter?.addEventListener("change", renderCurrentLists);
+    registrationFilter?.addEventListener("change", renderCurrentLists);
     document.getElementById("btnStandardRefresh")?.addEventListener("click", reloadRoute);
     document.getElementById("btnAddStandardTask")?.addEventListener("click", () => openTaskEditor(null));
     document.getElementById("btnDelegateCatalogEditor")?.addEventListener("click", () => openCatalogDelegation(catalogAccess.delegation, period));
@@ -369,6 +404,22 @@ function renderCatalogList(items, catalogAccess) {
   </article>`).join("")}</div>`;
 }
 
+function renderCatalogGroups(items, catalogAccess) {
+  if (!items.length) return compactEmpty("Không có đầu việc phù hợp", "Hãy chọn Phòng/Khu khác hoặc thay đổi bộ lọc.");
+  const groups = [...new Set(items.map(item => String(item.departmentId || item._workspaceId || "").trim().toUpperCase()).filter(Boolean))]
+    .sort((a, b) => departmentName(a).localeCompare(departmentName(b), "vi"));
+  return `<div class="standard-task-catalog-groups">${groups.map(departmentId => {
+    const rows = items.filter(item => String(item.departmentId || item._workspaceId || "").trim().toUpperCase() === departmentId);
+    return `<section class="standard-task-workspace standard-task-catalog-group" data-workspace="${escapeHtml(departmentId)}">
+      <header class="standard-task-workspace-head compact-workspace-head">
+        <div><span class="page-eyebrow">${departmentId === "CDTN" ? "Chi đoàn" : "Phòng/Khu"}</span><h3>${escapeHtml(workspaceName(departmentId))}</h3></div>
+        <span class="status-pill neutral">${rows.length} đầu việc</span>
+      </header>
+      ${renderCatalogList(rows, catalogAccess)}
+    </section>`;
+  }).join("")}</div>`;
+}
+
 function catalogAuthorization(item) {
   const departmentId = String(item?.departmentId || "").toUpperCase();
   return currentCatalogAccess?.authorizationByDepartment?.[departmentId] || null;
@@ -412,7 +463,7 @@ async function confirmAndRemoveStandardTask(item, button = null, modalRoot = nul
     modalRoot && closeStandardModal(modalRoot);
     ToastService.success(
       result.mode === "DELETED"
-        ? "Đã xóa đầu việc khỏi danh mục và Firestore."
+        ? "Đã xóa đầu việc khỏi Danh mục công việc."
         : "Đã đưa đầu việc khỏi danh mục hiện hành; lịch sử cũ vẫn được giữ."
     );
     reloadRoute();
@@ -627,7 +678,7 @@ async function openTaskEditor(item) {
         isManagementTask: isCdtn ? currentManagement : audienceType === "MANAGEMENT"
       }, item?.id || "");
       closeStandardModal(root);
-      ToastService.success(editing ? `Đã cập nhật ${result.code}.` : `Đã tạo ${result.code} và đồng bộ vào Firestore.`);
+      ToastService.success(editing ? `Đã cập nhật ${result.code}.` : `Đã tạo ${result.code} trong Danh mục công việc.`);
       reloadRoute();
     } catch (error) {
       ToastService.error(error.message || "Không lưu được đầu việc.");
