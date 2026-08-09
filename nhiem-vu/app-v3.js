@@ -1,22 +1,23 @@
 /** Ứng dụng quản lý nhiệm vụ và đánh giá KPI. */
-import { Router } from "./core/router.js?v=20260808.V1_10_1";
-import { APP_VERSION_LABEL, BUILD_VERSION } from "./core/app-version.js?v=20260808.V1_10_1";
-import { AuthService } from "./core/auth-service.js?v=20260808.V1_10_1";
-import { Permissions } from "./core/permissions.js?v=20260808.V1_10_1";
-import { ToastService } from "./core/toast-service.js?v=20260808.V1_10_1";
-import { FirebaseService } from "./core/firebase-service.js?v=20260808.V1_10_1";
+import { Router } from "./core/router.js?v=20260809.V1_10_2";
+import { APP_VERSION_LABEL, BUILD_VERSION } from "./core/app-version.js?v=20260809.V1_10_2";
+import { AuthService } from "./core/auth-service.js?v=20260809.V1_10_2";
+import { Permissions } from "./core/permissions.js?v=20260809.V1_10_2";
+import { ToastService } from "./core/toast-service.js?v=20260809.V1_10_2";
+import { FirebaseService } from "./core/firebase-service.js?v=20260809.V1_10_2";
 
 let currentPushUser = null;
 let saveCurrentPushSnapshot = null;
+let stopInAppTaskAlerts = null;
 
-import { renderDashboardView } from "./modules/dashboard/dashboard-view.js?v=20260808.V1_10_1";
-import { renderTasksView } from "./modules/tasks/tasks-view.js?v=20260808.V1_10_1";
-import { renderStandardTasksView } from "./modules/standard-tasks/standard-tasks-view.js?v=20260808.V1_10_1";
-import { renderPeriodsView } from "./modules/periods/periods-view.js?v=20260808.V1_10_1";
-import { renderPlansView } from "./modules/plans/plans-view.js?v=20260808.V1_10_1";
-import { renderEvaluationsView } from "./modules/evaluations/evaluations-view.js?v=20260808.V1_10_1";
-import { renderReportsView } from "./modules/reports/reports-view.js?v=20260808.V1_10_1";
-import { renderAdminView } from "./modules/admin/admin-view.js?v=20260808.V1_10_1";
+import { renderDashboardView } from "./modules/dashboard/dashboard-view.js?v=20260809.V1_10_2";
+import { renderTasksView } from "./modules/tasks/tasks-view.js?v=20260809.V1_10_2";
+import { renderStandardTasksView } from "./modules/standard-tasks/standard-tasks-view.js?v=20260809.V1_10_2";
+import { renderPeriodsView } from "./modules/periods/periods-view.js?v=20260809.V1_10_2";
+import { renderPlansView } from "./modules/plans/plans-view.js?v=20260809.V1_10_2";
+import { renderEvaluationsView } from "./modules/evaluations/evaluations-view.js?v=20260809.V1_10_2";
+import { renderReportsView } from "./modules/reports/reports-view.js?v=20260809.V1_10_2";
+import { renderAdminView } from "./modules/admin/admin-view.js?v=20260809.V1_10_2";
 
 async function bootstrap() {
   const outlet = document.getElementById("appOutlet");
@@ -37,6 +38,7 @@ async function bootstrap() {
   initializePushNotifications(user);
   bindPushSubscriptionSync(user);
   bindPushSettings(user);
+  bindInAppTaskAssignmentAlerts(user);
 
   const router = new Router({
     outlet,
@@ -97,6 +99,8 @@ function bindLogout() {
           updatedAt: FirebaseService.serverTimestamp()
         }, { merge: true });
       }
+      try { stopInAppTaskAlerts?.(); } catch (_) { /* listener đã dừng */ }
+      stopInAppTaskAlerts = null;
       await window.TaskPush?.logout?.();
       await AuthService.logout();
     } catch (error) {
@@ -168,9 +172,12 @@ function bindPushSubscriptionSync(user) {
 }
 
 function bindPushSettings(user) {
-  const openButton = document.getElementById("btnPushSettings");
+  const openButtons = [
+    document.getElementById("btnPushSettings"),
+    document.getElementById("btnMobilePushSettings")
+  ].filter(Boolean);
   const modal = document.getElementById("pushSettingsModal");
-  if (!openButton || !modal) return;
+  if (!openButtons.length || !modal) return;
 
   const closeButtons = [
     document.getElementById("btnClosePushSettings"),
@@ -202,7 +209,7 @@ function bindPushSettings(user) {
       const snapshot = await window.TaskPush?.getSubscriptionSnapshot?.();
       if (resync && saveCurrentPushSnapshot) await saveCurrentPushSnapshot(snapshot);
 
-      let firestoreState = "Chưa có Subscription ID";
+      let firestoreState = "Chưa có mã thiết bị";
       if (snapshot?.subscriptionId) {
         const ref = FirebaseService.doc(
           FirebaseService.db,
@@ -210,18 +217,18 @@ function bindPushSettings(user) {
           `${user.uid}_${snapshot.subscriptionId}`
         );
         const stored = await FirebaseService.getDoc(ref).catch(error => {
-          console.warn("Không đọc được trạng thái thiết bị Firestore:", error);
+          console.warn("Không đọc được trạng thái liên kết thiết bị:", error);
           return null;
         });
         firestoreState = stored?.exists?.()
           ? (stored.data()?.active === true ? "Đã đồng bộ · đang hoạt động" : "Đã đồng bộ · đang tắt")
-          : "Chưa có bản ghi thiết bị";
+          : "Chưa liên kết với tài khoản";
       }
 
       text("pushSettingPermission", permissionLabel(snapshot?.permission));
       text("pushSettingOptedIn", snapshot?.optedIn === true ? "Đã đăng ký" : "Chưa đăng ký");
       text("pushSettingSubscription", snapshot?.subscriptionId || "Chưa có");
-      text("pushSettingUid", user.uid || "—");
+      text("pushSettingUid", user.fullName || user.email || "Tài khoản hiện tại");
       text("pushSettingFirestore", firestoreState);
       text("pushSettingUpdatedAt", new Intl.DateTimeFormat("vi-VN", { dateStyle: "short", timeStyle: "medium" }).format(new Date()));
 
@@ -253,7 +260,19 @@ function bindPushSettings(user) {
     document.body.classList.remove("modal-open");
   };
 
-  openButton.addEventListener("click", open);
+  openButtons.forEach(button => {
+    if (button.dataset.pushSettingsBound === "V1.10.2") return;
+    button.dataset.pushSettingsBound = "V1.10.2";
+    button.addEventListener("click", () => {
+      open();
+      if (button.id === "btnMobilePushSettings") {
+        document.getElementById("v3Navigation")?.classList.remove("open");
+        const overlay = document.getElementById("navOverlay");
+        if (overlay) overlay.hidden = true;
+        document.getElementById("btnMobileMenu")?.setAttribute("aria-expanded", "false");
+      }
+    });
+  });
   closeButtons.forEach(button => button.addEventListener("click", close));
   modal.addEventListener("click", event => { if (event.target === modal) close(); });
   document.addEventListener("keydown", event => { if (event.key === "Escape" && !modal.classList.contains("hidden")) close(); });
@@ -266,6 +285,44 @@ function bindPushSettings(user) {
     } finally {
       permissionButton.disabled = false;
     }
+  });
+}
+
+function bindInAppTaskAssignmentAlerts(user) {
+  try { stopInAppTaskAlerts?.(); } catch (_) { /* listener cũ đã dừng */ }
+  stopInAppTaskAlerts = null;
+  if (!user?.uid) return;
+
+  const reference = FirebaseService.query(
+    FirebaseService.collection(FirebaseService.db, "tasks"),
+    FirebaseService.where("ownerUserId", "==", user.uid)
+  );
+  const knownTaskIds = new Set();
+  let initialized = false;
+
+  stopInAppTaskAlerts = FirebaseService.onSnapshot(reference, snapshot => {
+    if (!initialized) {
+      snapshot.docs.forEach(doc => knownTaskIds.add(doc.id));
+      initialized = true;
+      return;
+    }
+
+    snapshot.docChanges().forEach(change => {
+      if (change.type !== "added") return;
+      const task = { id: change.doc.id, ...change.doc.data() };
+      if (knownTaskIds.has(task.id)) return;
+      knownTaskIds.add(task.id);
+      if (task.active === false) return;
+      if (String(task.assignmentStatus || "").toUpperCase() === "DA_TIEP_NHAN") return;
+      const code = String(task.taskCode || "").trim();
+      const title = String(task.title || "Nhiệm vụ mới").trim();
+      ToastService.success(
+        `Bạn vừa được giao ${code ? `${code} – ` : ""}${title}.`,
+        6500
+      );
+    });
+  }, error => {
+    console.warn("Không theo dõi được nhiệm vụ mới của tài khoản hiện tại:", error);
   });
 }
 

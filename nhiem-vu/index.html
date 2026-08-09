@@ -12,15 +12,16 @@
   <title>Nhiệm vụ và đánh giá KPI</title>
   <link rel="icon" type="image/png" href="./icons/favicon-64.png">
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
-  <link rel="manifest" href="./manifest.webmanifest?v=20260808.V1_10_1">
+  <link rel="manifest" href="./manifest.webmanifest?v=20260809.V1_10_2">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./v3.css?v=20260808.V1_10_1">
-  <link rel="stylesheet" href="./kpi.css?v=20260808.V1_10_1">
-  <link rel="stylesheet" href="./ai-assistant.css?v=20260808.V1_10_1">
-  <link rel="stylesheet" href="./ui-v1.3.0.css?v=20260808.V1_10_1">
-  <link rel="stylesheet" href="./ui-v1.10.1.css?v=20260808.V1_10_1">
+  <link rel="stylesheet" href="./v3.css?v=20260809.V1_10_2">
+  <link rel="stylesheet" href="./kpi.css?v=20260809.V1_10_2">
+  <link rel="stylesheet" href="./ai-assistant.css?v=20260809.V1_10_2">
+  <link rel="stylesheet" href="./ui-v1.3.0.css?v=20260809.V1_10_2">
+  <link rel="stylesheet" href="./ui-v1.10.1.css?v=20260809.V1_10_2">
+  <link rel="stylesheet" href="./ui-v1.10.2.css?v=20260809.V1_10_2">
 </head>
 <body class="v3-body">
   <header class="v3-header">
@@ -60,17 +61,17 @@
   <div id="pushSettingsModal" class="app-modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="pushSettingsTitle">
     <section class="app-modal-card push-settings-card">
       <header class="app-modal-header">
-        <div><span class="modal-kicker">Thiết bị hiện tại</span><h2 id="pushSettingsTitle">🔔 Cài đặt thông báo</h2><p>Kiểm tra quyền trình duyệt, OneSignal và liên kết Firestore của tài khoản đang đăng nhập.</p></div>
+        <div><span class="modal-kicker">Thiết bị hiện tại</span><h2 id="pushSettingsTitle">🔔 Cài đặt thông báo</h2><p>Kiểm tra trạng thái nhận thông báo trên thiết bị và tài khoản đang đăng nhập.</p></div>
         <button id="btnClosePushSettings" class="modal-close-button" type="button" aria-label="Đóng">×</button>
       </header>
       <div id="pushSettingsState" class="push-settings-state">Đang kiểm tra…</div>
       <dl class="push-settings-grid">
-        <div><dt>Quyền trình duyệt</dt><dd id="pushSettingPermission">—</dd></div>
-        <div><dt>OneSignal</dt><dd id="pushSettingOptedIn">—</dd></div>
-        <div><dt>Subscription ID</dt><dd id="pushSettingSubscription">—</dd></div>
-        <div><dt>UID nhận thông báo</dt><dd id="pushSettingUid">—</dd></div>
-        <div><dt>Firestore</dt><dd id="pushSettingFirestore">—</dd></div>
-        <div><dt>Lần kiểm tra</dt><dd id="pushSettingUpdatedAt">—</dd></div>
+        <div><dt>Quyền thông báo</dt><dd id="pushSettingPermission">—</dd></div>
+        <div><dt>Đăng ký nhận thông báo</dt><dd id="pushSettingOptedIn">—</dd></div>
+        <div><dt>Mã thiết bị</dt><dd id="pushSettingSubscription">—</dd></div>
+        <div><dt>Tài khoản nhận</dt><dd id="pushSettingUid">—</dd></div>
+        <div><dt>Liên kết hệ thống</dt><dd id="pushSettingFirestore">—</dd></div>
+        <div><dt>Kiểm tra lúc</dt><dd id="pushSettingUpdatedAt">—</dd></div>
       </dl>
       <div class="push-settings-help">Nếu quyền bị chặn, bấm biểu tượng cài đặt cạnh thanh địa chỉ → Quyền trang web → Thông báo → Cho phép, rồi tải lại trang.</div>
       <footer class="app-modal-actions">
@@ -97,11 +98,11 @@
     <section class="page-card"><div class="skeleton skeleton-title"></div><div class="skeleton skeleton-line"></div></section>
   </main>
 
-  <footer class="v3-footer">Quản lý giao việc • Theo dõi tiến độ • Lưu minh chứng • Đánh giá kết quả • <span id="appVersionLabel">V1.10.0</span></footer>
+  <footer class="v3-footer">Quản lý giao việc • Theo dõi tiến độ • Lưu minh chứng • Đánh giá kết quả • <span id="appVersionLabel">V1.10.2</span></footer>
   <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
-  <script src="./onesignal.js?v=20260808.V1_10_1" defer></script>
-  <script type="module" src="./pwa.js?v=20260808.V1_10_1" defer></script>
-  <script type="module" src="./app-v3.js?v=20260808.V1_10_1"></script>
-  <script type="module" src="./release-v1.10.1.js?v=20260808.V1_10_1"></script>
+  <script src="./onesignal.js?v=20260809.V1_10_2" defer></script>
+  <script type="module" src="./pwa.js?v=20260809.V1_10_2" defer></script>
+  <script type="module" src="./app-v3.js?v=20260809.V1_10_2"></script>
+  <script type="module" src="./release-v1.10.2.js?v=20260809.V1_10_2"></script>
 </body>
 </html>

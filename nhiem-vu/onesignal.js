@@ -252,7 +252,7 @@
       mode: "loading",
       title: "Đang đồng bộ thiết bị",
       text:
-        "Trình duyệt đã cấp quyền thông báo. OneSignal đang hoàn tất đăng ký thiết bị.",
+        "Trình duyệt đã cấp quyền thông báo. Hệ thống đang hoàn tất đăng ký thiết bị.",
       showBox: true,
       showAction: false
     });
@@ -850,7 +850,7 @@
           title:
             "Đang đồng bộ thiết bị",
           text:
-            "Trình duyệt đã cấp quyền. OneSignal đang hoàn tất đăng ký thiết bị; bạn có thể tiếp tục sử dụng ứng dụng.",
+            "Trình duyệt đã cấp quyền. Hệ thống đang hoàn tất đăng ký thiết bị; bạn có thể tiếp tục sử dụng ứng dụng.",
           showBox: true,
           showAction: false
         });
@@ -882,7 +882,7 @@
           "Không bật được thông báo",
         text:
           error?.message ||
-          "Không đăng ký được thiết bị với OneSignal. Hãy tải lại ứng dụng rồi thử lại.",
+          "Không đăng ký được thiết bị nhận thông báo. Hãy tải lại ứng dụng rồi thử lại.",
         showBox: true,
         showAction: true,
         actionText:
