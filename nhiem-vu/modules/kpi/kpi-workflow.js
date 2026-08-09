@@ -1,20 +1,20 @@
-import { auth, db } from '../../firebase-config.js?v=20260808.V1_10_1';
+import { auth, db } from '../../firebase-config.js?v=20260809.V1_10_2';
 import {
   addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, query,
   serverTimestamp, setDoc, Timestamp, updateDoc, where, limit, writeBatch
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
-import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260808.V1_10_1';
-import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260808.V1_10_1';
-import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260808.V1_10_1';
-import { PeriodReadService } from '../../services/period-read-service.js?v=20260808.V1_10_1';
-import { TaskReadService } from '../../services/task-read-service.js?v=20260808.V1_10_1';
-import { Permissions } from '../../core/permissions.js?v=20260808.V1_10_1';
-import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260808.V1_10_1';
-import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260808.V1_10_1';
+import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260809.V1_10_2';
+import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260809.V1_10_2';
+import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260809.V1_10_2';
+import { PeriodReadService } from '../../services/period-read-service.js?v=20260809.V1_10_2';
+import { TaskReadService } from '../../services/task-read-service.js?v=20260809.V1_10_2';
+import { Permissions } from '../../core/permissions.js?v=20260809.V1_10_2';
+import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260809.V1_10_2';
+import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260809.V1_10_2';
 import {
   KPI2B as KPI2C, COMMON_CRITERIA, calculateTaskScore, calculateKpiSummary,
   proposedRating, ratingName, round2, progressRateFromDates, convertAppendix04Rate
-} from '../../kpi-engine.js?v=20260808.V1_10_1';
+} from '../../kpi-engine.js?v=20260809.V1_10_2';
 
 export const KpiWorkflowState = {
   user: null,
@@ -2693,7 +2693,7 @@ function exportReportCsv(tasks, summaryData, departmentId = profileDepartmentId(
   const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`Bao_cao_KPI_${normalizeDepartment(departmentId)}_${KpiWorkflowState.period?.id||'ky'}_${KpiWorkflowState.profile?.fullName||'ca_nhan'}.csv`;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
 }
 
-async function audit(action, detail){try{await addDoc(collection(db,'kpiAuditLogs'),{appVersion:'1.10.1',periodId:KpiWorkflowState.period?.id||'',action,detail,scopeUserId:KpiWorkflowState.user.uid,scopeDepartmentId:activeScopeDepartmentId()||KpiWorkflowState.profile.departmentId||'',performedByUserId:KpiWorkflowState.user.uid,performedByName:KpiWorkflowState.profile.fullName||'',performedByRole:KpiWorkflowState.profile.role||'',performedAt:serverTimestamp()});}catch(error){console.warn('Không ghi được KPI audit log',error);}}
+async function audit(action, detail){try{await addDoc(collection(db,'kpiAuditLogs'),{appVersion:'1.10.2',periodId:KpiWorkflowState.period?.id||'',action,detail,scopeUserId:KpiWorkflowState.user.uid,scopeDepartmentId:activeScopeDepartmentId()||KpiWorkflowState.profile.departmentId||'',performedByUserId:KpiWorkflowState.user.uid,performedByName:KpiWorkflowState.profile.fullName||'',performedByRole:KpiWorkflowState.profile.role||'',performedAt:serverTimestamp()});}catch(error){console.warn('Không ghi được KPI audit log',error);}}
 
 window.KPI2C = {
   getActivePeriodSnapshot: () => KpiWorkflowState.period ? { id:KpiWorkflowState.period.id,name:KpiWorkflowState.period.name,startDate:KpiWorkflowState.period.startDate,endDate:KpiWorkflowState.period.endDate,status:KpiWorkflowState.period.status } : null,
