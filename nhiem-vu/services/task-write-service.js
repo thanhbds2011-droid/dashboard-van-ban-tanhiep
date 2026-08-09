@@ -1,12 +1,13 @@
 /** Tạo, phân công, tiếp nhận, cập nhật tiến độ và hoàn thành nhiệm vụ. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260808.V1_10_1";
-import { UserContext } from "../core/user-context.js?v=20260808.V1_10_1";
-import { Permissions } from "../core/permissions.js?v=20260808.V1_10_1";
-import { TaskLogService } from "./task-log-service.js?v=20260808.V1_10_1";
-import { TaskWorkItemService } from "./task-work-item-service.js?v=20260808.V1_10_1";
-import { PeriodReadService } from "./period-read-service.js?v=20260808.V1_10_1";
+import { FirebaseService } from "../core/firebase-service.js?v=20260809.V1_10_2";
+import { UserContext } from "../core/user-context.js?v=20260809.V1_10_2";
+import { Permissions } from "../core/permissions.js?v=20260809.V1_10_2";
+import { TaskLogService } from "./task-log-service.js?v=20260809.V1_10_2";
+import { TaskWorkItemService } from "./task-work-item-service.js?v=20260809.V1_10_2";
+import { PeriodReadService } from "./period-read-service.js?v=20260809.V1_10_2";
+import { TaskNotificationService } from "./task-notification-service.js?v=20260809.V1_10_2";
 
-const TASK_WRITE_BUILD_VERSION = "20260808.V1_10_1";
+const TASK_WRITE_BUILD_VERSION = "20260809.V1_10_2";
 const MAX_CODE_SCAN = 1000;
 
 function dateKey(date) {
@@ -159,6 +160,7 @@ export const TaskWriteService = Object.freeze({
       throw new Error("Hãy nhập đơn vị sản lượng, ví dụ: kg rau.");
     }
 
+    const notificationLogReference = logRef();
     const result = await FirebaseService.runTransaction(
       FirebaseService.db,
       async transaction => {
@@ -170,7 +172,7 @@ export const TaskWriteService = Object.freeze({
         );
 
         const payload = {
-          appVersion: "1.10.1",
+          appVersion: "1.10.2",
           active: true,
           taskCode: code,
           title: data.title,
@@ -262,7 +264,7 @@ export const TaskWriteService = Object.freeze({
         };
 
         transaction.set(reference, payload);
-        transaction.set(logRef(), TaskLogService.buildTaskLog({
+        transaction.set(notificationLogReference, TaskLogService.buildTaskLog({
           taskId: reference.id,
           taskCode: code,
           periodId: activePeriod.id,
@@ -278,6 +280,26 @@ export const TaskWriteService = Object.freeze({
 
         return { id: reference.id, ...payload };
       }
+    );
+
+    // Gửi chủ động ngay sau khi transaction thành công. Bridge taskLogs vẫn được giữ
+    // như lớp dự phòng và dùng cùng eventId để Apps Script chống gửi trùng.
+    const createNotificationAction = directorCreatesDepartmentTask
+      ? "TASK_DEPARTMENT_ASSIGNED"
+      : "TASK_CREATED";
+    await TaskNotificationService.send(
+      createNotificationAction,
+      result.id,
+      {
+        sourceAction: "TASK_CREATED",
+        taskCode: result.taskCode || "",
+        periodId: result.periodId || "",
+        performedByUserId: user.uid,
+        performedByName: user.fullName || "",
+        performedByRole: user.role || "",
+        performedByDepartmentId: user.departmentId || ""
+      },
+      { eventId: `TASKLOG_${notificationLogReference.id}` }
     );
 
     return result;
@@ -352,8 +374,9 @@ export const TaskWriteService = Object.freeze({
       throw error;
     }
 
+    const notificationLogReference = logRef();
     try {
-      await FirebaseService.setDoc(logRef(), TaskLogService.buildTaskLog({
+      await FirebaseService.setDoc(notificationLogReference, TaskLogService.buildTaskLog({
         taskId: task.id,
         taskCode: task.taskCode,
         periodId: task.periodId || "",
@@ -369,6 +392,21 @@ export const TaskWriteService = Object.freeze({
     } catch (logError) {
       console.warn("Phòng/Khu đã tiếp nhận nhưng chưa ghi được nhật ký:", logError);
     }
+
+    await TaskNotificationService.send(
+      "TASK_DEPARTMENT_ACCEPTED",
+      task.id,
+      {
+        sourceAction: "TASK_DEPARTMENT_ACCEPTED",
+        taskCode: task.taskCode || "",
+        periodId: task.periodId || "",
+        performedByUserId: user.uid,
+        performedByName: user.fullName || "",
+        performedByRole: user.role || "",
+        performedByDepartmentId: user.departmentId || ""
+      },
+      { eventId: `TASKLOG_${notificationLogReference.id}` }
+    );
   },
 
   async assign(task, assignment) {
@@ -524,8 +562,9 @@ export const TaskWriteService = Object.freeze({
      * Nhật ký là lớp kiểm toán bổ sung. Không để lỗi ghi nhật ký
      * làm hỏng thao tác phân công đã cập nhật thành công.
      */
+    const notificationLogReference = logRef();
     try {
-      await FirebaseService.setDoc(logRef(), TaskLogService.buildTaskLog({
+      await FirebaseService.setDoc(notificationLogReference, TaskLogService.buildTaskLog({
         taskId: task.id,
         taskCode: task.taskCode,
         periodId: task.periodId || "",
@@ -543,6 +582,23 @@ export const TaskWriteService = Object.freeze({
       console.warn(
         "Nhiệm vụ đã được phân công nhưng chưa ghi được nhật ký TASK_INTERNAL_ASSIGNED:",
         logError
+      );
+    }
+
+    if (ownerUserId) {
+      await TaskNotificationService.send(
+        "TASK_INTERNAL_ASSIGNED",
+        task.id,
+        {
+          sourceAction: "TASK_INTERNAL_ASSIGNED",
+          taskCode: task.taskCode || "",
+          periodId: task.periodId || "",
+          performedByUserId: user.uid,
+          performedByName: user.fullName || "",
+          performedByRole: user.role || "",
+          performedByDepartmentId: user.departmentId || ""
+        },
+        { eventId: `TASKLOG_${notificationLogReference.id}` }
       );
     }
   },
@@ -569,8 +625,9 @@ export const TaskWriteService = Object.freeze({
 
     // Nhật ký là lớp kiểm toán bổ sung, không được làm hỏng thao tác tiếp nhận hợp lệ.
     // Sau khi task đã cập nhật, Rules vẫn kiểm tra ownerUserId, assignmentStatus và updatedByUserId.
+    const notificationLogReference = logRef();
     try {
-      await FirebaseService.setDoc(logRef(), TaskLogService.buildTaskLog({
+      await FirebaseService.setDoc(notificationLogReference, TaskLogService.buildTaskLog({
         taskId: task.id,
         taskCode: task.taskCode,
         periodId: task.periodId || "",
@@ -581,6 +638,21 @@ export const TaskWriteService = Object.freeze({
     } catch (logError) {
       console.warn("Nhiệm vụ đã được tiếp nhận nhưng chưa ghi được nhật ký TASK_ACCEPTED:", logError);
     }
+
+    await TaskNotificationService.send(
+      "TASK_PERSONAL_ACCEPTED",
+      task.id,
+      {
+        sourceAction: "TASK_ACCEPTED",
+        taskCode: task.taskCode || "",
+        periodId: task.periodId || "",
+        performedByUserId: user.uid,
+        performedByName: user.fullName || "",
+        performedByRole: user.role || "",
+        performedByDepartmentId: user.departmentId || ""
+      },
+      { eventId: `TASKLOG_${notificationLogReference.id}` }
+    );
   },
 
   async updateProgress(task, changes) {
@@ -613,18 +685,39 @@ export const TaskWriteService = Object.freeze({
       payload.completedByUserId = user.uid;
       payload.completedByName = user.fullName || "";
     }
+    const notificationAction = changes.status === "HOAN_THANH" ? "TASK_COMPLETED" : "TASK_UPDATED";
+    const notificationLogReference = logRef();
     const batch = FirebaseService.writeBatch(FirebaseService.db);
     batch.update(taskRef(task.id), payload);
-    batch.set(logRef(), TaskLogService.buildTaskLog({
+    batch.set(notificationLogReference, TaskLogService.buildTaskLog({
       taskId: task.id,
       taskCode: task.taskCode,
       periodId: task.periodId || "",
-      action: changes.status === "HOAN_THANH" ? "TASK_COMPLETED" : "PROGRESS_UPDATED",
+      action: notificationAction,
       before: snapshotTask(task),
       after: { ...snapshotTask(task), ...payload, updatedAt: null, completedAt: null },
       note: changes.progressNote || ""
     }));
     await batch.commit();
+
+    await TaskNotificationService.send(
+      notificationAction,
+      task.id,
+      {
+        sourceAction: notificationAction,
+        taskCode: task.taskCode || "",
+        periodId: task.periodId || "",
+        oldStatus: task.status || "",
+        newStatus: payload.status || "",
+        oldProgress: Number(task.progress || 0),
+        newProgress: Number(payload.progress || 0),
+        performedByUserId: user.uid,
+        performedByName: user.fullName || "",
+        performedByRole: user.role || "",
+        performedByDepartmentId: user.departmentId || ""
+      },
+      { eventId: `TASKLOG_${notificationLogReference.id}` }
+    );
   },
 
   async requestNoOccurrence(task, reason) {

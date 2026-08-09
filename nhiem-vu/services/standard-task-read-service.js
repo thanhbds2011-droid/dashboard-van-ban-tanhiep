@@ -1,7 +1,7 @@
 /** Đọc danh mục đầu việc theo đơn vị, vai trò và vai trò kiêm nhiệm. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260808.V1_10_1";
-import { UserContext } from "../core/user-context.js?v=20260808.V1_10_1";
-import { Permissions } from "../core/permissions.js?v=20260808.V1_10_1";
+import { FirebaseService } from "../core/firebase-service.js?v=20260809.V1_10_2";
+import { UserContext } from "../core/user-context.js?v=20260809.V1_10_2";
+import { Permissions } from "../core/permissions.js?v=20260809.V1_10_2";
 
 const CATALOG_CACHE_MS = 5 * 60 * 1000;
 const PROFESSIONAL_DEPARTMENT_IDS = Object.freeze(["BGD", "TCHC", "CTXH", "KHTC", "YT", "KI", "KII", "KIII"]);
@@ -111,6 +111,23 @@ function sourceReferences() {
       FirebaseService.where("departmentId", "in", PROFESSIONAL_DEPARTMENT_IDS),
       FirebaseService.limit(2000)
     )];
+  }
+
+  if (Permissions.isTchcDepartmentLeader()) {
+    // Trưởng/Phó TCHC có phạm vi xem toàn Trung tâm theo baseline V1.10.1.
+    // V1.10.2 tải đúng danh mục của từng đơn vị để bộ lọc Phòng/Khu có dữ liệu thật.
+    return [
+      FirebaseService.query(
+        reference,
+        FirebaseService.where("departmentId", "in", PROFESSIONAL_DEPARTMENT_IDS),
+        FirebaseService.limit(2000)
+      ),
+      FirebaseService.query(
+        reference,
+        FirebaseService.where("departmentId", "==", "CDTN"),
+        FirebaseService.limit(500)
+      )
+    ];
   }
 
   const queries = [];
@@ -228,7 +245,11 @@ export const StandardTaskReadService = Object.freeze({
   canRegisterItem,
   canViewItem,
   workspaceId(item, user = UserContext.requireUser()) {
-    return upper(item?.departmentId) === "CDTN" ? "CDTN" : upper(user.departmentId);
+    // V1.10.2: workspace phải theo đúng đơn vị của đầu việc. Trước đây mọi đầu việc
+    // chuyên môn có thể bị gom về Phòng/Khu của người đang đăng nhập khi tài khoản
+    // có phạm vi đọc rộng, khiến danh mục trên mobile rất dài và sai nhóm.
+    const itemDepartmentId = upper(item?.departmentId);
+    return itemDepartmentId || upper(user.departmentId);
   },
   summarize(items = []) {
     const regular = items.filter(item => upper(item.workType) === "THUONG_XUYEN").length;

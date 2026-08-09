@@ -1,8 +1,8 @@
 /** Các thao tác bảo trì có chủ đích, chỉ ADMIN mới gọi được. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260808.V1_10_1";
-import { UserContext } from "../core/user-context.js?v=20260808.V1_10_1";
-import { Permissions } from "../core/permissions.js?v=20260808.V1_10_1";
-import { TaskLogService } from "./task-log-service.js?v=20260808.V1_10_1";
+import { FirebaseService } from "../core/firebase-service.js?v=20260809.V1_10_2";
+import { UserContext } from "../core/user-context.js?v=20260809.V1_10_2";
+import { Permissions } from "../core/permissions.js?v=20260809.V1_10_2";
+import { TaskLogService } from "./task-log-service.js?v=20260809.V1_10_2";
 
 const unique = values => [...new Set((values || []).map(value => String(value || "").trim()).filter(Boolean))];
 

@@ -1,5 +1,5 @@
 /**
- * Quyền điều hành nhiệm vụ của Ban Giám đốc - V1.10.0.
+ * Quyền điều hành nhiệm vụ của Ban Giám đốc - V1.10.2.
  *
  * Nguyên tắc nghiệp vụ:
  * - Giám đốc và Phó Giám đốc cùng vai trò DIRECTOR.
@@ -9,10 +9,11 @@
  * - BGĐ được thu hồi, chuyển Phòng/Khu hoặc xóa mềm nhiệm vụ đã giao.
  * - Không dùng quyền này để xác nhận/chấm điểm KPI của người khác.
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260808.V1_10_1";
-import { UserContext } from "../core/user-context.js?v=20260808.V1_10_1";
-import { Permissions } from "../core/permissions.js?v=20260808.V1_10_1";
-import { TaskLogService } from "./task-log-service.js?v=20260808.V1_10_1";
+import { FirebaseService } from "../core/firebase-service.js?v=20260809.V1_10_2";
+import { UserContext } from "../core/user-context.js?v=20260809.V1_10_2";
+import { Permissions } from "../core/permissions.js?v=20260809.V1_10_2";
+import { TaskLogService } from "./task-log-service.js?v=20260809.V1_10_2";
+import { TaskNotificationService } from "./task-notification-service.js?v=20260809.V1_10_2";
 
 function clean(value) {
   return String(value ?? "").trim();
@@ -66,8 +67,9 @@ function taskSnapshot(task) {
 }
 
 async function writeLog(task, action, note, after) {
+  const reference = logRef();
   try {
-    await FirebaseService.setDoc(logRef(), TaskLogService.buildTaskLog({
+    await FirebaseService.setDoc(reference, TaskLogService.buildTaskLog({
       taskId: task.id,
       taskCode: task.taskCode || "",
       periodId: task.periodId || "",
@@ -76,9 +78,11 @@ async function writeLog(task, action, note, after) {
       after,
       note
     }));
+    return reference.id;
   } catch (error) {
     // Nhật ký là lớp kiểm toán bổ sung; không đảo ngược thao tác điều hành đã hợp lệ.
     console.warn(`Không ghi được nhật ký ${action}:`, error);
+    return reference.id;
   }
 }
 
@@ -171,7 +175,7 @@ export const DirectorTaskService = Object.freeze({
     };
 
     await FirebaseService.updateDoc(taskRef(task.id), payload);
-    await writeLog(task, "TASK_TEAM_DIRECT_ASSIGNED", "Ban Giám đốc giao trực tiếp qua Tổ/Nhóm.", {
+    const notificationLogId = await writeLog(task, "TASK_TEAM_DIRECT_ASSIGNED", "Ban Giám đốc giao trực tiếp qua Tổ/Nhóm.", {
       ...taskSnapshot(task),
       ...payload,
       departmentAcceptedAt: null,
@@ -179,6 +183,22 @@ export const DirectorTaskService = Object.freeze({
       directorControlledAt: null,
       updatedAt: null
     });
+
+    await TaskNotificationService.send(
+      "TASK_TEAM_DIRECT_ASSIGNED",
+      task.id,
+      {
+        sourceAction: "TASK_TEAM_DIRECT_ASSIGNED",
+        taskCode: task.taskCode || "",
+        periodId: task.periodId || "",
+        performedByUserId: actor.uid,
+        performedByName: actor.fullName || "",
+        performedByRole: actor.role || "",
+        performedByDepartmentId: actor.departmentId || ""
+      },
+      { eventId: `TASKLOG_${notificationLogId}` }
+    );
+
     return { ...task, ...payload };
   },
 
