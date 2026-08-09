@@ -1,8 +1,8 @@
-import { UserContext } from "../../core/user-context.js?v=20260808.V1_10_1";
-import { Permissions } from "../../core/permissions.js?v=20260808.V1_10_1";
-import { ToastService } from "../../core/toast-service.js?v=20260808.V1_10_1";
-import { DashboardReadService } from "../../services/dashboard-read-service.js?v=20260808.V1_10_1";
-import { TaskReadService } from "../../services/task-read-service.js?v=20260808.V1_10_1";
+import { UserContext } from "../../core/user-context.js?v=20260809.V1_10_2";
+import { Permissions } from "../../core/permissions.js?v=20260809.V1_10_2";
+import { ToastService } from "../../core/toast-service.js?v=20260809.V1_10_2";
+import { DashboardReadService } from "../../services/dashboard-read-service.js?v=20260809.V1_10_2";
+import { TaskReadService } from "../../services/task-read-service.js?v=20260809.V1_10_2";
 let currentData = null;
 let dashboardRenderSequence = 0;
 let dashboardDepartmentScope = "ALL";
@@ -101,21 +101,6 @@ function mountDashboard(outlet, user) {
         ${metric("Miễn đánh giá", 0, "Không tính KPI", "violet", "dashboardExempt")}
       </div>
       ${Permissions.canViewAllDepartments() ? '<section class="dashboard-department-overview"><div class="section-heading"><div><h3>Theo dõi theo Phòng/Khu</h3><p>Chọn Phòng/Khu ở phía trên hoặc xem nhanh số nhiệm vụ theo từng đơn vị.</p></div></div><div id="dashboardDepartmentBreakdown" class="dashboard-department-grid"></div></section>' : ''}
-      <section class="dashboard-grid">
-        <article class="dashboard-section"><div class="section-heading"><div><h3>Truy cập nhanh</h3><p>Truy cập nhanh các chức năng thường dùng.</p></div></div><div class="quick-grid">
-          ${quick("#/tasks", "📋", "Nhiệm vụ", '<span id="dashboardTaskQuick">0 nhiệm vụ trong phạm vi</span>')}
-          ${quick("#/standard-tasks", "📁", "Danh mục công việc", '<span id="dashboardStandardQuick">0 đầu việc đang hoạt động</span>')}
-          ${quick("#/kpi", "📊", "Kế hoạch KPI", '<span id="dashboardKpiQuick">Chưa có kỳ hoạt động</span>')}
-          ${quick("#/reports", "📄", "Báo cáo", "Xem và in báo cáo đánh giá")}
-          ${Permissions.isAdmin() ? quick("#/admin", "⚙️", "Quản trị", "Quản lý tài khoản, kỳ đánh giá và nhật ký") : ""}
-        </div></article>
-        <article class="dashboard-section"><div class="section-heading"><div><h3>Tình trạng dữ liệu</h3><p>Thông tin tổng hợp từ các phân hệ của hệ thống.</p></div></div><dl class="system-status-list">
-          ${status("Nhiệm vụ", '<span id="dashboardTaskStatus">0 nhiệm vụ</span>', "success")}
-          ${status("Danh mục công việc", '<span id="dashboardStandardStatus">0 đầu việc</span>', "success")}
-          ${status("Kỳ đánh giá", '<span id="dashboardPeriodStatus">0 kỳ</span>', "success")}
-          ${status("Quyền cập nhật", "Theo tài khoản được phân công", "success")}
-        </dl></article>
-      </section>
       <div id="dashboardWarning"></div>
     </section>`;
 
