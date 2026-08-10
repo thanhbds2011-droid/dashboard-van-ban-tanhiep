@@ -2,7 +2,7 @@
  * Lớp kiểm tra quyền dùng thống nhất cho giao diện.
  * Firestore Security Rules vẫn là lớp kiểm soát bắt buộc ở phía dữ liệu.
  */
-import { UserContext } from "./user-context.js?v=20260809.V1_10_2";
+import { UserContext } from "./user-context.js?v=20260810.V1_10_3";
 
 function clean(value) {
   return String(value ?? "").trim();
@@ -373,6 +373,33 @@ export const Permissions = Object.freeze({
     return this.canViewAllScopes()
       || this.isTchcCoordinator()
       || this.isTchcDepartmentLeader();
+  },
+
+  canManageExecutiveDirectives(user = UserContext.getUser()) {
+    return this.isAdmin(user)
+      || this.isDirector(user)
+      || this.isTchcCoordinator(user)
+      || this.isTchcDepartmentLeader(user);
+  },
+
+  canViewAllExecutiveDirectives(user = UserContext.getUser()) {
+    return this.canManageExecutiveDirectives(user);
+  },
+
+  canAccessExecutiveDirectives() {
+    return UserContext.isAuthenticated();
+  },
+
+  canUpdateOwnDepartmentExecutiveDirectives(user = UserContext.getUser()) {
+    return activeUser(user) && Boolean(upper(user?.departmentId));
+  },
+
+  canGenerateOwnExecutiveReports(user = UserContext.getUser()) {
+    return activeUser(user) && Boolean(upper(user?.departmentId));
+  },
+
+  canGenerateCenterExecutiveReports(user = UserContext.getUser()) {
+    return this.canManageExecutiveDirectives(user);
   },
 
   canViewOwnKpi() {
