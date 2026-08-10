@@ -3,7 +3,7 @@ import { Permissions } from "../../core/permissions.js?v=20260810.V1_10_6";
 import { ToastService } from "../../core/toast-service.js?v=20260810.V1_10_6";
 import { DepartmentReadService } from "../../services/department-read-service.js?v=20260810.V1_10_6";
 import { UserReadService } from "../../services/user-read-service.js?v=20260810.V1_10_6";
-import { ExecutiveDirectiveService } from "../../services/executive-directive-service.js?v=20260810.V1_10_6";
+import { ExecutiveDirectiveService } from "../../services/executive-directive-service.js?v=20260810.V1_10_7";
 
 let state = {
   directives: [],
