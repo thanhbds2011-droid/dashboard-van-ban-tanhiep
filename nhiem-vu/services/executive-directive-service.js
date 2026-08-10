@@ -1,5 +1,5 @@
 /**
- * Phân hệ Chỉ đạo điều hành V1.10.8 - Internal Assignment Workflow + Acceptance Hotfix.
+ * Phân hệ Chỉ đạo điều hành V1.10.9 - Production UX + Non-blocking Push.
  * Độc lập hoàn toàn với Nhiệm vụ/KPI.
  *
  * Collections:
@@ -11,7 +11,7 @@
 import { FirebaseService } from "../core/firebase-service.js?v=20260810.V1_10_6";
 import { UserContext } from "../core/user-context.js?v=20260810.V1_10_6";
 import { Permissions } from "../core/permissions.js?v=20260810.V1_10_6";
-import { ExecutiveNotificationService } from "./executive-notification-service.js?v=20260810.V1_10_8";
+import { ExecutiveNotificationService } from "./executive-notification-service.js?v=20260810.V1_10_9";
 
 const DIRECTIVES = "executiveDirectives";
 const UPDATES = "executiveDirectiveUpdates";
@@ -187,36 +187,35 @@ function transitionAllowed(previous, next) {
   if (to === "COMPLETED") return from === "IN_PROGRESS";
   return false;
 }
-async function notifyPushReliably(action, directiveId, eventData = {}, options = {}) {
+function dispatchPushInBackground(action, directiveId, eventData = {}, options = {}) {
   const normalizedAction = upper(action);
   const normalizedDirectiveId = clean(directiveId);
   const eventId = clean(options?.eventId);
 
-  console.info("[EXEC PUSH] Bắt đầu gửi:", {
+  console.info("[EXEC PUSH] Đã xếp hàng gửi nền:", {
     action: normalizedAction,
     directiveId: normalizedDirectiveId,
     eventId
   });
 
-  try {
-    const result = await ExecutiveNotificationService.send(
-      normalizedAction,
-      normalizedDirectiveId,
-      eventData,
-      options
-    );
-
+  // Không await ở critical path: dữ liệu nghiệp vụ đã commit thành công trước khi đến đây.
+  // keepalive trong ExecutiveNotificationService giúp request tiếp tục gửi khi UI chuyển trạng thái.
+  void ExecutiveNotificationService.send(
+    normalizedAction,
+    normalizedDirectiveId,
+    eventData,
+    { ...options, confirmDelivery: false }
+  ).then(result => {
     const status = upper(result?.status);
     if (["SENT", "SUBMITTED", "NO_SUBSCRIPTIONS"].includes(status)) {
-      console.info("[EXEC PUSH] Kết quả:", {
+      console.info("[EXEC PUSH] Đã chuyển sang backend:", {
         action: normalizedAction,
         directiveId: normalizedDirectiveId,
         eventId: clean(result?.eventId) || eventId,
-        status,
-        result
+        status
       });
     } else {
-      console.warn("[EXEC PUSH] Thông báo chưa gửi thành công:", {
+      console.warn("[EXEC PUSH] Backend chưa xác nhận nhận sự kiện:", {
         action: normalizedAction,
         directiveId: normalizedDirectiveId,
         eventId: clean(result?.eventId) || eventId,
@@ -224,18 +223,16 @@ async function notifyPushReliably(action, directiveId, eventData = {}, options =
         result
       });
     }
-
-    return result || { ok: false, status: "NO_RESULT", eventId };
-  } catch (error) {
-    const message = error?.message || String(error);
-    console.error("[EXEC PUSH] Không gửi được thông báo:", {
+  }).catch(error => {
+    console.error("[EXEC PUSH] Gửi nền gặp lỗi:", {
       action: normalizedAction,
       directiveId: normalizedDirectiveId,
       eventId,
-      error: message
+      error: error?.message || String(error)
     });
-    return { ok: false, status: "CLIENT_ERROR", eventId, error: message };
-  }
+  });
+
+  return { ok: true, status: "QUEUED", eventId };
 }
 
 export const ExecutiveDirectiveService = Object.freeze({
@@ -368,7 +365,7 @@ export const ExecutiveDirectiveService = Object.freeze({
       }
     }));
     await batch.commit();
-    await notifyPushReliably("DIRECTIVE_ASSIGNED", ref.id, {
+    dispatchPushInBackground("DIRECTIVE_ASSIGNED", ref.id, {
       leadDepartmentId,
       assignmentLevel: assignment.assignmentLevel,
       leadTeamId: assignment.leadTeamId,
@@ -429,7 +426,7 @@ export const ExecutiveDirectiveService = Object.freeze({
       { changedFields: changed }
     ));
     await batch.commit();
-    await notifyPushReliably("DIRECTIVE_UPDATED", id, {
+    dispatchPushInBackground("DIRECTIVE_UPDATED", id, {
       changedFields: changed,
       previousVisibleDepartmentIds: uniqueUpper(current.visibleDepartmentIds),
       previousLeadUserId: clean(current.leadUserId),
@@ -469,7 +466,7 @@ export const ExecutiveDirectiveService = Object.freeze({
       closed ? `Đóng nội dung chỉ đạo.${clean(reason) ? ` Lý do: ${clean(reason)}` : ""}` : "Mở lại nội dung chỉ đạo để tiếp tục theo dõi."
     ));
     await batch.commit();
-    await notifyPushReliably(closed ? "DIRECTIVE_CLOSED" : "DIRECTIVE_REOPENED", id, { reason: clean(reason) });
+    dispatchPushInBackground(closed ? "DIRECTIVE_CLOSED" : "DIRECTIVE_REOPENED", id, { reason: clean(reason) });
   },
 
   async softDelete(current = {}, reason = "") {
@@ -493,7 +490,7 @@ export const ExecutiveDirectiveService = Object.freeze({
     });
     batch.set(updateRef(), managerAuditPayload("DIRECTIVE_DELETED", id, `Xóa nội dung chỉ đạo khỏi danh sách sử dụng. Lý do: ${deleteReason}`));
     await batch.commit();
-    await notifyPushReliably("DIRECTIVE_DELETED", id, { reason: deleteReason });
+    dispatchPushInBackground("DIRECTIVE_DELETED", id, { reason: deleteReason });
   },
 
   async sendReminder(directive = {}, departmentId = "", note = "") {
@@ -533,7 +530,7 @@ export const ExecutiveDirectiveService = Object.freeze({
       createdByDepartmentId: user.departmentId,
       createdAt: FirebaseService.serverTimestamp()
     });
-    await notifyPushReliably("DIRECTIVE_REMINDER", id, {
+    dispatchPushInBackground("DIRECTIVE_REMINDER", id, {
       updateId: historyRef.id,
       departmentId: targetDepartmentId,
       assignedUserId,
@@ -656,13 +653,13 @@ export const ExecutiveDirectiveService = Object.freeze({
     }
 
     await batch.commit();
-    await notifyPushReliably("DIRECTIVE_ACCEPTED", id, {
+    dispatchPushInBackground("DIRECTIVE_ACCEPTED", id, {
       updateId: acceptRef.id,
       departmentId: targetDepartmentId
     }, { eventId: `DIRECTIVE_ACCEPTED_${acceptRef.id}` });
 
     if (directAssignmentRef) {
-      await notifyPushReliably("DIRECTIVE_INTERNAL_ASSIGNED", id, {
+      dispatchPushInBackground("DIRECTIVE_INTERNAL_ASSIGNED", id, {
         updateId: directAssignmentRef.id,
         departmentId: targetDepartmentId,
         assignedUserId: clean(directive.leadUserId),
@@ -754,7 +751,7 @@ export const ExecutiveDirectiveService = Object.freeze({
       transaction.set(currentStateRef, assignmentPayload, { merge: true });
     });
 
-    await notifyPushReliably("DIRECTIVE_INTERNAL_ASSIGNED", id, {
+    dispatchPushInBackground("DIRECTIVE_INTERNAL_ASSIGNED", id, {
       updateId: historyRef.id,
       departmentId: targetDepartmentId,
       assignedUserId: assigneeSnapshot.id,
@@ -824,7 +821,7 @@ export const ExecutiveDirectiveService = Object.freeze({
       }, { merge: true });
     });
 
-    await notifyPushReliably("DIRECTIVE_PERSON_ACCEPTED", id, {
+    dispatchPushInBackground("DIRECTIVE_PERSON_ACCEPTED", id, {
       updateId: historyRef.id,
       departmentId: targetDepartmentId,
       assignedUserId: user.uid,
@@ -925,7 +922,7 @@ export const ExecutiveDirectiveService = Object.freeze({
       transaction.set(currentStateRef, statePayload, { merge: true });
     });
 
-    await notifyPushReliably(status === "COMPLETED" ? "DIRECTIVE_COMPLETED" : "DIRECTIVE_PROGRESS_UPDATED", id, {
+    dispatchPushInBackground(status === "COMPLETED" ? "DIRECTIVE_COMPLETED" : "DIRECTIVE_PROGRESS_UPDATED", id, {
       updateId: historyRef.id,
       departmentId: targetDepartmentId,
       status

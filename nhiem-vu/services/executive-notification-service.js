@@ -1,9 +1,9 @@
 /**
- * Thông báo riêng cho Chỉ đạo điều hành V1.10.8.
+ * Thông báo riêng cho Chỉ đạo điều hành V1.10.9 - non-blocking dispatch.
  * Không dùng taskLogs, taskPushSubscriptions hoặc TaskNotificationService.
  */
 import { FirebaseService } from "../core/firebase-service.js?v=20260810.V1_10_6";
-import { EXECUTIVE_NOTIFICATION_WEB_APP_URL } from "../executive-notification-config.js?v=20260810.V1_10_8";
+import { EXECUTIVE_NOTIFICATION_WEB_APP_URL } from "../executive-notification-config.js?v=20260810.V1_10_9";
 
 const LOGS = "executiveNotificationLogs";
 function clean(value) { return String(value ?? "").trim(); }
@@ -20,7 +20,7 @@ function configured() {
   );
 }
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
-async function waitForLog(eventId, attempts = 5) {
+async function waitForLog(eventId, attempts = 4) {
   const current = FirebaseService.auth.currentUser;
   if (!current) return null;
   const ref = FirebaseService.doc(FirebaseService.db, LOGS, eventId);
@@ -75,7 +75,11 @@ export const ExecutiveNotificationService = Object.freeze({
         body: JSON.stringify(payload)
       });
 
-      // Backend V1.1.0 ghi log Firestore. Poll ngắn để xác nhận SENT/FAILED khi có quyền đọc.
+      // Luồng production bình thường không chờ log: nghiệp vụ Firestore đã hoàn tất trước khi dispatch Push.
+      // Chỉ các màn hình/chẩn đoán chủ động yêu cầu confirmDelivery mới poll executiveNotificationLogs.
+      if (options.confirmDelivery !== true) {
+        return { ok: true, status: "SUBMITTED", eventId: id };
+      }
       const log = await waitForLog(id);
       if (log) {
         if (log.status === "FAILED") console.warn("Push Chỉ đạo điều hành thất bại:", log.errorMessage || log);
