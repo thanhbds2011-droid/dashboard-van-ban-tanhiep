@@ -3,7 +3,7 @@ import { Permissions } from "../../core/permissions.js?v=20260810.V1_10_6";
 import { ToastService } from "../../core/toast-service.js?v=20260810.V1_10_6";
 import { DepartmentReadService } from "../../services/department-read-service.js?v=20260810.V1_10_6";
 import { UserReadService } from "../../services/user-read-service.js?v=20260810.V1_10_6";
-import { ExecutiveDirectiveService } from "../../services/executive-directive-service.js?v=20260810.V1_10_8";
+import { ExecutiveDirectiveService } from "../../services/executive-directive-service.js?v=20260810.V1_10_9";
 
 let state = {
   directives: [],
@@ -263,7 +263,10 @@ function bindCleanup() {
   if (cleanupBound) return;
   cleanupBound = true;
   document.addEventListener("v3:route-changed", event => {
-    if (event.detail?.route !== "#/directives") stopRealtime();
+    if (event.detail?.route !== "#/directives") {
+      stopRealtime();
+      document.querySelectorAll(".directive-modal-backdrop").forEach(node => closeDirectiveModal(node));
+    }
   });
 }
 function stopRealtime() {
@@ -397,21 +400,51 @@ function bindFilters(root) {
   root.querySelector("#directiveStatusFilter")?.addEventListener("change", event => { state.status = event.target.value || "ALL"; renderList(root); });
 }
 
+function directiveListPresentation(item, scope) {
+  const dep = scope === "ALL" ? item.leadDepartmentId : scope;
+  const status = statusFor(item, dep);
+  const role = scope !== "ALL" ? roleForDepartment(item, scope) : "";
+  const assignment = latestInternalAssignment(item, dep);
+  const personAccepted = latestPersonalAcceptance(item, dep);
+  const assignee = assignment
+    ? `${clean(assignment.assignedUserName) || "Đã phân công"}${personAccepted ? " · Đã nhận việc" : " · Chờ nhận việc"}`
+    : (latestAcceptance(item, dep) ? "Chưa phân công" : (upper(item.assignmentLevel) === "PERSON" ? clean(item.leadUserName) || "Giao trực tiếp" : "—"));
+  return { dep, status, role, assignee };
+}
+
+function mobileDirectiveCard(item, scope) {
+  const info = directiveListPresentation(item, scope);
+  return `<article class="directive-mobile-card">
+    <header>
+      <div class="directive-mobile-card-title">
+        <span>${esc(formatDate(item.directedDateKey))} · ${esc(SOURCE_LABELS[upper(item.sourceType)] || item.sourceType || "Chỉ đạo")}</span>
+        <button class="directive-title-link" type="button" data-open-directive="${esc(item.id)}">${esc(item.content)}</button>
+        <small>${esc(item.directedByName || "")}${info.role ? ` · ${esc(info.role)}` : ""}</small>
+      </div>
+      ${statusPill(info.status)}
+    </header>
+    <div class="directive-mobile-card-meta">
+      <div><span>Chủ trì</span><strong>${esc(departmentName(item.leadDepartmentId))}</strong></div>
+      <div><span>Người thực hiện</span><strong>${esc(info.assignee)}</strong></div>
+      <div><span>Thời hạn</span><strong>${esc(formatDate(item.dueDateKey))}</strong></div>
+      <div><span>Mức độ</span>${priorityPill(item.priority)}</div>
+    </div>
+    <footer><button class="secondary-button compact" type="button" data-open-directive="${esc(item.id)}">Xem chi tiết</button></footer>
+  </article>`;
+}
+
 function renderList(root) {
   const items = visibleDirectives();
   const user = UserContext.requireUser();
   const scope = Permissions.canViewAllExecutiveDirectives() ? upper(state.department || "ALL") : user.departmentId;
-  root.innerHTML = `${renderFilters()}<div class="directive-list-meta"><strong>${items.length} nội dung</strong><span>Trạng thái “Quá hạn” được hệ thống tự xác định theo thời hạn.</span></div><div class="directive-table-wrap"><table class="directive-table"><thead><tr><th>Ngày</th><th>Nội dung chỉ đạo</th><th>Chủ trì</th><th>Người thực hiện</th><th>Thời hạn</th><th>Trạng thái</th><th></th></tr></thead><tbody>${items.map(item => {
-    const dep = scope === "ALL" ? item.leadDepartmentId : scope;
-    const status = statusFor(item, dep);
-    const role = scope !== "ALL" ? roleForDepartment(item, scope) : "";
-    const assignment = latestInternalAssignment(item, dep);
-    const personAccepted = latestPersonalAcceptance(item, dep);
-    const assignee = assignment
-      ? `${clean(assignment.assignedUserName) || "Đã phân công"}${personAccepted ? " · Đã nhận việc" : " · Chờ nhận việc"}`
-      : (latestAcceptance(item, dep) ? "Chưa phân công" : (upper(item.assignmentLevel) === "PERSON" ? clean(item.leadUserName) || "Giao trực tiếp" : "—"));
-    return `<tr><td><strong>${esc(formatDate(item.directedDateKey))}</strong><small>${esc(SOURCE_LABELS[upper(item.sourceType)] || item.sourceType || "")}</small></td><td><button class="directive-title-link" type="button" data-open-directive="${esc(item.id)}">${esc(item.content)}</button><div class="directive-row-meta"><span>${esc(item.directedByName || "")}</span>${role ? `<span>${esc(role)}</span>` : ""}${priorityPill(item.priority)}</div></td><td>${esc(departmentName(item.leadDepartmentId))}</td><td>${esc(assignee)}</td><td>${esc(formatDate(item.dueDateKey))}</td><td>${statusPill(status)}</td><td><button class="secondary-button compact" type="button" data-open-directive="${esc(item.id)}">Chi tiết</button></td></tr>`;
-  }).join("") || `<tr><td colspan="7">${emptyState("Không có nội dung phù hợp bộ lọc.")}</td></tr>`}</tbody></table></div>`;
+  const desktopRows = items.map(item => {
+    const info = directiveListPresentation(item, scope);
+    return `<tr><td><strong>${esc(formatDate(item.directedDateKey))}</strong><small>${esc(SOURCE_LABELS[upper(item.sourceType)] || item.sourceType || "")}</small></td><td><button class="directive-title-link" type="button" data-open-directive="${esc(item.id)}">${esc(item.content)}</button><div class="directive-row-meta"><span>${esc(item.directedByName || "")}</span>${info.role ? `<span>${esc(info.role)}</span>` : ""}${priorityPill(item.priority)}</div></td><td>${esc(departmentName(item.leadDepartmentId))}</td><td>${esc(info.assignee)}</td><td>${esc(formatDate(item.dueDateKey))}</td><td>${statusPill(info.status)}</td><td><button class="secondary-button compact" type="button" data-open-directive="${esc(item.id)}">Chi tiết</button></td></tr>`;
+  }).join("");
+  const mobileCards = items.map(item => mobileDirectiveCard(item, scope)).join("");
+  root.innerHTML = `${renderFilters()}<div class="directive-list-meta"><strong>${items.length} nội dung</strong><span>Trạng thái “Quá hạn” được hệ thống tự xác định theo thời hạn.</span></div>
+    <div class="directive-desktop-list directive-table-wrap"><table class="directive-table"><thead><tr><th>Ngày</th><th>Nội dung chỉ đạo</th><th>Chủ trì</th><th>Người thực hiện</th><th>Thời hạn</th><th>Trạng thái</th><th></th></tr></thead><tbody>${desktopRows || `<tr><td colspan="7">${emptyState("Không có nội dung phù hợp bộ lọc.")}</td></tr>`}</tbody></table></div>
+    <div class="directive-mobile-list">${mobileCards || emptyState("Không có nội dung phù hợp bộ lọc.")}</div>`;
   bindFilters(root);
   root.querySelectorAll("[data-open-directive]").forEach(button => button.addEventListener("click", () => openDirectiveDetail(button.dataset.openDirective)));
 }
@@ -596,24 +629,38 @@ function openDirectiveForm(current = null) {
   const initialUser = clean(current?.leadUserId);
   const backdrop = modalBackdrop(`
     <section class="directive-modal-card directive-form-modal">
-      <header class="directive-modal-header"><div><span class="page-eyebrow">${editing ? "CHỈNH SỬA" : "THÊM MỚI"}</span><h2>${editing ? "Chỉnh sửa nội dung chỉ đạo" : "Ghi nhận nội dung chỉ đạo"}</h2><p>Chọn Phòng/Khu trước. Chỉ khi muốn BGĐ giao cụ thể cá nhân mới chọn tiếp Tổ/Nhóm và Người phụ trách chính.</p></div><button data-directive-close class="modal-close-button" type="button">×</button></header>
+      <header class="directive-modal-header"><div><span class="page-eyebrow">${editing ? "CHỈNH SỬA" : "THÊM MỚI"}</span><h2>${editing ? "Chỉnh sửa nội dung chỉ đạo" : "Ghi nhận nội dung chỉ đạo"}</h2><p>Ưu tiên giao cấp Phòng/Khu. Chỉ mở phần giao cụ thể cá nhân khi thật sự cần.</p></div><button data-directive-close class="modal-close-button" type="button" aria-label="Đóng">×</button></header>
       <div class="directive-modal-body"><div class="directive-form-grid">
         <label><span>Hình thức chỉ đạo *</span><select id="directiveSourceType">${Object.entries(SOURCE_LABELS).map(([value, label]) => `<option value="${value}" ${upper(current?.sourceType || "DIRECT") === value ? "selected" : ""}>${esc(label)}</option>`).join("")}</select></label>
         <label><span>Ngày chỉ đạo *</span><input id="directiveDate" type="date" value="${esc(current?.directedDateKey || localDateKey())}"></label>
         <label><span>Người chỉ đạo *</span><select id="directiveDirector">${directors.map(user => { const id = user.id || user.uid; return `<option value="${esc(id)}" ${id === directorValue ? "selected" : ""}>${esc(user.fullName || user.email)}</option>`; }).join("")}<option value="__OTHER__" ${directorValue === "__OTHER__" ? "selected" : ""}>Nhập tên khác</option></select></label>
         <label id="directiveOtherDirectorWrap" class="${directorValue === "__OTHER__" ? "" : "hidden"}"><span>Tên người chỉ đạo *</span><input id="directiveOtherDirector" maxlength="150" value="${esc(!selectedDirectorExists ? current?.directedByName || "" : "")}"></label>
-        <label class="field-full"><span>Tên cuộc họp/nguồn chỉ đạo</span><input id="directiveMeetingName" maxlength="250" value="${esc(current?.meetingName || "")}" placeholder="Ví dụ: Họp giao ban Trung tâm"></label>
-        <label class="field-full"><span>Số/ký hiệu văn bản hoặc ghi chú nguồn</span><input id="directiveReference" maxlength="250" value="${esc(current?.referenceText || "")}" placeholder="Không bắt buộc"></label>
         <label class="field-full"><span>Nội dung chỉ đạo *</span><textarea id="directiveContentInput" rows="5" maxlength="5000" placeholder="Nhập đầy đủ ý kiến chỉ đạo của Ban Giám đốc">${esc(current?.content || "")}</textarea></label>
         <label><span>Phòng/Khu chủ trì *</span><select id="directiveLeadDepartment"><option value="">— Chọn Phòng/Khu —</option>${departments.map(dep => { const id = upper(dep.id || dep.code); return `<option value="${esc(id)}" ${upper(current?.leadDepartmentId) === id ? "selected" : ""}>${esc(dep.name || id)}</option>`; }).join("")}</select></label>
         <label><span>Thời hạn</span><input id="directiveDueDate" type="date" value="${esc(current?.dueDateKey || "")}"></label>
-
-        <label id="directiveTeamWrap"><span>Tổ/Nhóm thuộc Phòng/Khu</span><select id="directiveLeadTeam"><option value="">— Giao cấp Phòng/Khu —</option></select><small>Không chọn Tổ/Nhóm = giao cho Phòng/Khu. Chọn Tổ/Nhóm = bắt buộc chọn một người phụ trách chính thuộc đúng Tổ/Nhóm đó.</small></label>
-        <label id="directiveLeadUserWrap" class="hidden"><span>Người phụ trách chính *</span><select id="directiveLeadUser"><option value="">— Chọn người phụ trách —</option></select><small>Chỉ hiện nhân sự thuộc đúng Phòng/Khu và Tổ/Nhóm đã chọn.</small></label>
+        <label><span>Mức độ</span><select id="directivePriority">${Object.entries(PRIORITY_LABELS).map(([value,label]) => `<option value="${value}" ${upper(current?.priority || "NORMAL") === value ? "selected" : ""}>${esc(label)}</option>`).join("")}</select></label>
         <div id="directiveAssignmentHint" class="field-full directive-assignment-hint"></div>
 
-        <fieldset class="field-full directive-support-field"><legend>Phòng/Khu phối hợp</legend><div class="directive-checkbox-grid">${departments.map(dep => { const id = upper(dep.id || dep.code); return `<label><input type="checkbox" value="${esc(id)}" data-support-department ${support.has(id) ? "checked" : ""}><span>${esc(dep.name || id)}</span></label>`; }).join("")}</div></fieldset>
-        <label><span>Mức độ</span><select id="directivePriority">${Object.entries(PRIORITY_LABELS).map(([value,label]) => `<option value="${value}" ${upper(current?.priority || "NORMAL") === value ? "selected" : ""}>${esc(label)}</option>`).join("")}</select></label>
+        <details class="field-full directive-optional-section" ${initialTeam ? "open" : ""}>
+          <summary><span>Giao cụ thể cá nhân</span><small>Không bắt buộc</small></summary>
+          <div class="directive-optional-grid">
+            <label id="directiveTeamWrap"><span>Tổ/Nhóm thuộc Phòng/Khu</span><select id="directiveLeadTeam"><option value="">— Giao cấp Phòng/Khu —</option></select><small>Chỉ chọn khi BGĐ muốn chỉ định trực tiếp người phụ trách.</small></label>
+            <label id="directiveLeadUserWrap" class="hidden"><span>Người phụ trách chính *</span><select id="directiveLeadUser"><option value="">— Chọn người phụ trách —</option></select><small>Chỉ hiện người thuộc đúng Phòng/Khu và Tổ/Nhóm đã chọn.</small></label>
+          </div>
+        </details>
+
+        <details id="directiveSupportDetails" class="field-full directive-optional-section" ${support.size ? "open" : ""}>
+          <summary><span id="directiveSupportSummary">Phòng/Khu phối hợp (${support.size} đã chọn)</span><small>Không bắt buộc</small></summary>
+          <fieldset class="directive-support-field"><legend class="sr-only">Phòng/Khu phối hợp</legend><div class="directive-checkbox-grid">${departments.map(dep => { const id = upper(dep.id || dep.code); return `<label><input type="checkbox" value="${esc(id)}" data-support-department ${support.has(id) ? "checked" : ""}><span>${esc(dep.name || id)}</span></label>`; }).join("")}</div></fieldset>
+        </details>
+
+        <details class="field-full directive-optional-section" ${(clean(current?.meetingName) || clean(current?.referenceText)) ? "open" : ""}>
+          <summary><span>Thông tin nguồn chỉ đạo</span><small>Không bắt buộc</small></summary>
+          <div class="directive-optional-grid directive-optional-grid-single">
+            <label><span>Tên cuộc họp/nguồn chỉ đạo</span><input id="directiveMeetingName" maxlength="250" value="${esc(current?.meetingName || "")}" placeholder="Ví dụ: Họp giao ban Trung tâm"></label>
+            <label><span>Số/ký hiệu văn bản hoặc ghi chú nguồn</span><input id="directiveReference" maxlength="250" value="${esc(current?.referenceText || "")}" placeholder="Không bắt buộc"></label>
+          </div>
+        </details>
       </div></div>
       <footer class="directive-modal-footer"><button data-directive-close class="secondary-button" type="button">Hủy</button><button id="btnSaveDirective" class="primary-button" type="button">${editing ? "Lưu thay đổi" : "Lưu và giao thực hiện"}</button></footer>
     </section>`);
@@ -624,6 +671,7 @@ function openDirectiveForm(current = null) {
   const userSelect = backdrop.querySelector("#directiveLeadUser");
   const userWrap = backdrop.querySelector("#directiveLeadUserWrap");
   const assignmentHint = backdrop.querySelector("#directiveAssignmentHint");
+  const supportSummary = backdrop.querySelector("#directiveSupportSummary");
 
   directorSelect?.addEventListener("change", () => otherWrap?.classList.toggle("hidden", directorSelect.value !== "__OTHER__"));
 
@@ -659,20 +707,28 @@ function openDirectiveForm(current = null) {
     if (preferredTeam && teams.some(team => team.id === preferredTeam)) teamSelect.value = preferredTeam;
     refreshUsers(preferredUser);
   };
+  const refreshSupportSummary = () => {
+    if (!supportSummary) return;
+    const count = backdrop.querySelectorAll("[data-support-department]:checked").length;
+    supportSummary.textContent = `Phòng/Khu phối hợp (${count} đã chọn)`;
+  };
   const refreshSupport = () => {
     backdrop.querySelectorAll("[data-support-department]").forEach(input => {
       input.disabled = input.value === leadSelect?.value;
       if (input.disabled) input.checked = false;
     });
+    refreshSupportSummary();
   };
   leadSelect?.addEventListener("change", () => { refreshSupport(); refreshTeams(); refreshAssignmentHint(); });
   teamSelect?.addEventListener("change", () => refreshUsers());
   userSelect?.addEventListener("change", refreshAssignmentHint);
+  backdrop.querySelectorAll("[data-support-department]").forEach(input => input.addEventListener("change", refreshSupportSummary));
   refreshSupport();
   refreshTeams(initialTeam, initialUser);
   refreshAssignmentHint();
 
   backdrop.querySelector("#btnSaveDirective")?.addEventListener("click", async event => {
+    const button = event.currentTarget;
     const selectedDirector = directorSelect?.value || "__OTHER__";
     const director = directors.find(user => (user.id || user.uid) === selectedDirector);
     const selectedTeam = normalizeTeamId(teamSelect?.value);
@@ -693,17 +749,17 @@ function openDirectiveForm(current = null) {
       priority: backdrop.querySelector("#directivePriority")?.value
     };
     try {
-      event.currentTarget.disabled = true;
-      event.currentTarget.textContent = "Đang lưu…";
+      button.disabled = true;
+      button.textContent = "Đang lưu…";
       if (editing) await ExecutiveDirectiveService.updateDirective(current, input);
       else await ExecutiveDirectiveService.createDirective(input);
-      backdrop.remove();
+      closeDirectiveModal(backdrop);
       await refreshAfterWrite();
       ToastService.success(editing ? "Đã cập nhật nội dung chỉ đạo." : "Đã ghi nhận và giao nội dung chỉ đạo.");
     } catch (error) {
       ToastService.error(error?.message || "Không lưu được nội dung chỉ đạo.");
-      event.currentTarget.disabled = false;
-      event.currentTarget.textContent = editing ? "Lưu thay đổi" : "Lưu và giao thực hiện";
+      button.disabled = false;
+      button.textContent = editing ? "Lưu thay đổi" : "Lưu và giao thực hiện";
     }
   });
 }
@@ -777,7 +833,7 @@ function openDirectiveDetail(id) {
       button.disabled = true;
       button.textContent = "Đang xác nhận…";
       await ExecutiveDirectiveService.acceptDirective(directive, user.departmentId);
-      backdrop.remove();
+      closeDirectiveModal(backdrop);
       await refreshAfterWrite();
       ToastService.success("Đã xác nhận tiếp nhận chỉ đạo.");
     } catch (error) {
@@ -786,14 +842,14 @@ function openDirectiveDetail(id) {
       button.textContent = "✓ Xác nhận tiếp nhận";
     }
   });
-  backdrop.querySelector("#btnDirectiveAssignInternal")?.addEventListener("click", () => { backdrop.remove(); openInternalAssignmentForm(directive); });
+  backdrop.querySelector("#btnDirectiveAssignInternal")?.addEventListener("click", () => { closeDirectiveModal(backdrop); openInternalAssignmentForm(directive); });
   backdrop.querySelector("#btnDirectivePersonalAccept")?.addEventListener("click", async event => {
     const button = event.currentTarget;
     try {
       button.disabled = true;
       button.textContent = "Đang nhận việc…";
       await ExecutiveDirectiveService.acceptPersonalAssignment(directive, user.departmentId);
-      backdrop.remove();
+      closeDirectiveModal(backdrop);
       await refreshAfterWrite();
       ToastService.success("Đã xác nhận nhận việc.");
     } catch (error) {
@@ -802,7 +858,7 @@ function openDirectiveDetail(id) {
       button.textContent = "✓ Xác nhận nhận việc";
     }
   });
-  backdrop.querySelector("#btnDirectiveProgress")?.addEventListener("click", () => { backdrop.remove(); openProgressForm(directive); });
+  backdrop.querySelector("#btnDirectiveProgress")?.addEventListener("click", () => { closeDirectiveModal(backdrop); openProgressForm(directive); });
   backdrop.querySelector("#btnDirectiveReminder")?.addEventListener("click", async event => {
     const button = event.currentTarget;
     const note = window.prompt(`Nhập nội dung đôn đốc ${departmentName(scopeDepartment)}:`, "Đề nghị khẩn trương triển khai và cập nhật tiến độ thực hiện.");
@@ -812,7 +868,7 @@ function openDirectiveDetail(id) {
       button.disabled = true;
       button.textContent = "Đang gửi…";
       await ExecutiveDirectiveService.sendReminder(directive, scopeDepartment, note);
-      backdrop.remove();
+      closeDirectiveModal(backdrop);
       await refreshAfterWrite();
       ToastService.success("Đã gửi đôn đốc và ghi vào lịch sử chỉ đạo.");
     } catch (error) {
@@ -821,7 +877,7 @@ function openDirectiveDetail(id) {
       button.textContent = "🔔 Đôn đốc";
     }
   });
-  backdrop.querySelector("#btnDirectiveEdit")?.addEventListener("click", () => { backdrop.remove(); openDirectiveForm(directive); });
+  backdrop.querySelector("#btnDirectiveEdit")?.addEventListener("click", () => { closeDirectiveModal(backdrop); openDirectiveForm(directive); });
   backdrop.querySelector("#btnDirectiveLifecycle")?.addEventListener("click", async event => {
     const button = event.currentTarget;
     const closing = upper(directive.lifecycleStatus) !== "CLOSED";
@@ -830,7 +886,7 @@ function openDirectiveDetail(id) {
     try {
       button.disabled = true;
       await ExecutiveDirectiveService.setLifecycle(directive, closing, reason || "");
-      backdrop.remove(); await refreshAfterWrite(); ToastService.success(closing ? "Đã đóng nội dung chỉ đạo." : "Đã mở lại nội dung chỉ đạo.");
+      closeDirectiveModal(backdrop); await refreshAfterWrite(); ToastService.success(closing ? "Đã đóng nội dung chỉ đạo." : "Đã mở lại nội dung chỉ đạo.");
     } catch (error) { ToastService.error(error?.message || "Không cập nhật được trạng thái chỉ đạo."); button.disabled = false; }
   });
   backdrop.querySelector("#btnDirectiveDelete")?.addEventListener("click", async event => {
@@ -842,7 +898,7 @@ function openDirectiveDetail(id) {
     try {
       button.disabled = true;
       await ExecutiveDirectiveService.softDelete(directive, reason);
-      backdrop.remove(); await refreshAfterWrite(); ToastService.success("Đã xóa nội dung chỉ đạo khỏi danh sách sử dụng.");
+      closeDirectiveModal(backdrop); await refreshAfterWrite(); ToastService.success("Đã xóa nội dung chỉ đạo khỏi danh sách sử dụng.");
     } catch (error) { ToastService.error(error?.message || "Không xóa được nội dung chỉ đạo."); button.disabled = false; }
   });
 }
@@ -915,7 +971,7 @@ function openInternalAssignmentForm(directive) {
       button.disabled = true;
       button.textContent = "Đang lưu…";
       await ExecutiveDirectiveService.assignInternal(directive, dep, uid);
-      backdrop.remove();
+      closeDirectiveModal(backdrop);
       await refreshAfterWrite();
       ToastService.success("Đã phân công người thực hiện.");
     } catch (error) {
@@ -1002,16 +1058,20 @@ function openProgressForm(directive) {
         evidenceLinks,
         note: backdrop.querySelector("#progressNote")?.value
       });
-      backdrop.remove(); await refreshAfterWrite(); ToastService.success(status === "COMPLETED" ? "Đã cập nhật Hoàn thành." : "Đã lưu cập nhật thực hiện.");
+      closeDirectiveModal(backdrop); await refreshAfterWrite(); ToastService.success(status === "COMPLETED" ? "Đã cập nhật Hoàn thành." : "Đã lưu cập nhật thực hiện.");
     } catch (error) { ToastService.error(error?.message || "Không lưu được cập nhật thực hiện."); button.disabled = false; }
   });
 }
 
 async function refreshAfterWrite() {
-  const [directives, updates] = await Promise.all([ExecutiveDirectiveService.listDirectives(), ExecutiveDirectiveService.listUpdates()]);
-  state.directives = directives;
-  state.updates = updates;
-  renderCurrentTab();
+  // onSnapshot() đang là nguồn đồng bộ chính; không query lại toàn bộ sau mỗi thao tác.
+  await Promise.resolve();
+}
+
+function closeDirectiveModal(node) {
+  if (!node?.isConnected) return;
+  node.remove();
+  if (!document.querySelector(".directive-modal-backdrop")) document.body.classList.remove("modal-open");
 }
 
 function modalBackdrop(html) {
@@ -1019,7 +1079,8 @@ function modalBackdrop(html) {
   node.className = "directive-modal-backdrop";
   node.innerHTML = html;
   document.body.appendChild(node);
-  const close = () => node.remove();
+  document.body.classList.add("modal-open");
+  const close = () => closeDirectiveModal(node);
   node.querySelectorAll("[data-directive-close]").forEach(button => button.addEventListener("click", close));
   node.addEventListener("click", event => { if (event.target === node) close(); });
   return node;
