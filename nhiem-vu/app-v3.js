@@ -1,25 +1,26 @@
 /** Ứng dụng quản lý nhiệm vụ và đánh giá KPI. */
-import { Router } from "./core/router.js?v=20260810.V1_10_3";
-import { APP_VERSION_LABEL, BUILD_VERSION } from "./core/app-version.js?v=20260810.V1_10_4";
-import { AuthService } from "./core/auth-service.js?v=20260810.V1_10_3";
-import { Permissions } from "./core/permissions.js?v=20260810.V1_10_3";
-import { ToastService } from "./core/toast-service.js?v=20260810.V1_10_3";
-import { FirebaseService } from "./core/firebase-service.js?v=20260810.V1_10_3";
-import { ExecutivePushSubscriptionService } from "./services/executive-push-subscription-service.js?v=20260810.V1_10_4";
+import { Router } from "./core/router.js?v=20260810.V1_10_6";
+import { APP_VERSION_LABEL, BUILD_VERSION } from "./core/app-version.js?v=20260810.V1_10_6";
+import { AuthService } from "./core/auth-service.js?v=20260810.V1_10_6";
+import { Permissions } from "./core/permissions.js?v=20260810.V1_10_6";
+import { ToastService } from "./core/toast-service.js?v=20260810.V1_10_6";
+import { FirebaseService } from "./core/firebase-service.js?v=20260810.V1_10_6";
+import { ExecutivePushSubscriptionService } from "./services/executive-push-subscription-service.js?v=20260810.V1_10_6";
+import { ExecutiveInAppAlertService } from "./services/executive-in-app-alert-service.js?v=20260810.V1_10_6";
 
 let currentPushUser = null;
 let saveCurrentPushSnapshot = null;
 let stopInAppTaskAlerts = null;
 
-import { renderDashboardView } from "./modules/dashboard/dashboard-view.js?v=20260810.V1_10_3";
-import { renderExecutiveDirectivesView } from "./modules/executive-directives/executive-directives-view.js?v=20260810.V1_10_4";
-import { renderTasksView } from "./modules/tasks/tasks-view.js?v=20260810.V1_10_3";
-import { renderStandardTasksView } from "./modules/standard-tasks/standard-tasks-view.js?v=20260810.V1_10_3";
-import { renderPeriodsView } from "./modules/periods/periods-view.js?v=20260810.V1_10_3";
-import { renderPlansView } from "./modules/plans/plans-view.js?v=20260810.V1_10_3";
-import { renderEvaluationsView } from "./modules/evaluations/evaluations-view.js?v=20260810.V1_10_3";
-import { renderReportsView } from "./modules/reports/reports-view.js?v=20260810.V1_10_3";
-import { renderAdminView } from "./modules/admin/admin-view.js?v=20260810.V1_10_3";
+import { renderDashboardView } from "./modules/dashboard/dashboard-view.js?v=20260810.V1_10_6";
+import { renderExecutiveDirectivesView } from "./modules/executive-directives/executive-directives-view.js?v=20260810.V1_10_6";
+import { renderTasksView } from "./modules/tasks/tasks-view.js?v=20260810.V1_10_6";
+import { renderStandardTasksView } from "./modules/standard-tasks/standard-tasks-view.js?v=20260810.V1_10_6";
+import { renderPeriodsView } from "./modules/periods/periods-view.js?v=20260810.V1_10_6";
+import { renderPlansView } from "./modules/plans/plans-view.js?v=20260810.V1_10_6";
+import { renderEvaluationsView } from "./modules/evaluations/evaluations-view.js?v=20260810.V1_10_6";
+import { renderReportsView } from "./modules/reports/reports-view.js?v=20260810.V1_10_6";
+import { renderAdminView } from "./modules/admin/admin-view.js?v=20260810.V1_10_6";
 
 async function bootstrap() {
   const outlet = document.getElementById("appOutlet");
@@ -43,6 +44,7 @@ async function bootstrap() {
   bindInAppTaskAssignmentAlerts(user);
   ExecutivePushSubscriptionService.start(user)
     .catch(error => console.warn("Chưa đồng bộ được Push Chỉ đạo điều hành:", error));
+  ExecutiveInAppAlertService.start(user);
 
   const router = new Router({
     outlet,
@@ -107,6 +109,7 @@ function bindLogout() {
       try { stopInAppTaskAlerts?.(); } catch (_) { /* listener đã dừng */ }
       stopInAppTaskAlerts = null;
       await ExecutivePushSubscriptionService.stop({ deactivate: true });
+      ExecutiveInAppAlertService.stop();
       await window.TaskPush?.logout?.();
       await AuthService.logout();
     } catch (error) {
@@ -258,7 +261,7 @@ function bindPushSettings(user) {
       if (stateBox) {
         stateBox.className = `push-settings-state ${ready ? "is-ready" : "is-warning"}`;
         stateBox.textContent = ready
-          ? "Thiết bị đã sẵn sàng nhận thông báo nhiệm vụ."
+          ? "Thiết bị đã sẵn sàng nhận thông báo."
           : "Thiết bị chưa hoàn tất đăng ký thông báo; hãy mở quyền hoặc đồng bộ lại.";
       }
     } catch (error) {
@@ -302,6 +305,7 @@ function bindPushSettings(user) {
   permissionButton?.addEventListener("click", async () => {
     permissionButton.disabled = true;
     try {
+      await ExecutivePushSubscriptionService.requestPermission().catch(() => false);
       await window.TaskPush?.requestPermission?.();
       await refresh({ resync: true });
     } finally {

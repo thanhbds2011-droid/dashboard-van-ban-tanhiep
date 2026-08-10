@@ -2,21 +2,21 @@
  * Lớp nâng cấp V1.10.2.
  * Chỉ bổ sung/chỉnh đúng các yêu cầu đã chốt, không thay đổi luồng ổn định khác.
  */
-import { FirebaseService } from "./core/firebase-service.js?v=20260810.V1_10_3";
-import { UserContext } from "./core/user-context.js?v=20260810.V1_10_3";
-import { Permissions } from "./core/permissions.js?v=20260810.V1_10_3";
-import { TaskRegistrationService } from "./services/task-registration-service.js?v=20260810.V1_10_3";
-import { DepartmentReadService } from "./services/department-read-service.js?v=20260810.V1_10_3";
-import { DirectorTaskService } from "./services/director-task-service.js?v=20260810.V1_10_3";
-import { TaskNotificationBridge } from "./services/task-notification-bridge.js?v=20260810.V1_10_3";
+import { FirebaseService } from "./core/firebase-service.js?v=20260810.V1_10_6";
+import { UserContext } from "./core/user-context.js?v=20260810.V1_10_6";
+import { Permissions } from "./core/permissions.js?v=20260810.V1_10_6";
+import { TaskRegistrationService } from "./services/task-registration-service.js?v=20260810.V1_10_6";
+import { DepartmentReadService } from "./services/department-read-service.js?v=20260810.V1_10_6";
+import { DirectorTaskService } from "./services/director-task-service.js?v=20260810.V1_10_6";
+import { TaskNotificationBridge } from "./services/task-notification-bridge.js?v=20260810.V1_10_6";
 import {
   openTchcCouncilManager,
   openDepartmentCouncilManager,
   openMyCouncilAdjustments,
   openCouncilReport
-} from "./modules/kpi/council-adjustment-ui.js?v=20260810.V1_10_3";
+} from "./modules/kpi/council-adjustment-ui.js?v=20260810.V1_10_6";
 
-const BUILD = "20260810.V1_10_3";
+const BUILD = "20260810.V1_10_6";
 let observer = null;
 let scheduled = false;
 
