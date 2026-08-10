@@ -3,7 +3,7 @@ import { Permissions } from "../../core/permissions.js?v=20260810.V1_10_3";
 import { ToastService } from "../../core/toast-service.js?v=20260810.V1_10_3";
 import { DepartmentReadService } from "../../services/department-read-service.js?v=20260810.V1_10_3";
 import { UserReadService } from "../../services/user-read-service.js?v=20260810.V1_10_3";
-import { ExecutiveDirectiveService } from "../../services/executive-directive-service.js?v=20260810.V1_10_3";
+import { ExecutiveDirectiveService } from "../../services/executive-directive-service.js?v=20260810.V1_10_4";
 
 let state = {
   directives: [],
@@ -31,6 +31,7 @@ const SOURCE_LABELS = Object.freeze({
 const PRIORITY_LABELS = Object.freeze({ NORMAL: "Bình thường", URGENT: "Khẩn", VERY_URGENT: "Rất khẩn" });
 const STATUS_LABELS = Object.freeze({
   NOT_STARTED: "Chưa thực hiện",
+  ACCEPTED: "Đã tiếp nhận",
   IN_PROGRESS: "Đang thực hiện",
   COMPLETED: "Hoàn thành",
   PAUSED: "Tạm dừng"
@@ -100,19 +101,25 @@ function directiveUpdates(directiveId, departmentId = "", endDateKey = "9999-12-
       return (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0);
     });
 }
+function latestAcceptance(directive, departmentId = "", endDateKey = "9999-12-31") {
+  const dep = upper(departmentId || directive.leadDepartmentId);
+  return directiveUpdates(directive.id, dep, endDateKey).find(item => upper(item.updateType) === "ACCEPTED") || null;
+}
 function latestProgress(directive, departmentId = "", endDateKey = "9999-12-31") {
   const dep = upper(departmentId || directive.leadDepartmentId);
   return directiveUpdates(directive.id, dep, endDateKey).find(item => upper(item.updateType) === "PROGRESS") || null;
 }
 function statusFor(directive, departmentId = "", endDateKey = localDateKey()) {
   const latest = latestProgress(directive, departmentId, endDateKey);
+  const accepted = latestAcceptance(directive, departmentId, endDateKey);
   const base = upper(latest?.status || "NOT_STARTED");
-  if (base === "COMPLETED") return { code: "COMPLETED", label: STATUS_LABELS.COMPLETED, tone: "completed", latest };
-  if (base === "PAUSED" || upper(directive.lifecycleStatus) === "CLOSED") return { code: "PAUSED", label: STATUS_LABELS.PAUSED, tone: "paused", latest };
+  if (base === "COMPLETED") return { code: "COMPLETED", label: STATUS_LABELS.COMPLETED, tone: "completed", latest, accepted };
+  if (base === "PAUSED" || upper(directive.lifecycleStatus) === "CLOSED") return { code: "PAUSED", label: STATUS_LABELS.PAUSED, tone: "paused", latest, accepted };
   const due = clean(directive.dueDateKey);
-  if (due && due < endDateKey) return { code: "OVERDUE", label: "Quá hạn", tone: "overdue", latest };
-  if (base === "IN_PROGRESS") return { code: "IN_PROGRESS", label: STATUS_LABELS.IN_PROGRESS, tone: "progress", latest };
-  return { code: "NOT_STARTED", label: STATUS_LABELS.NOT_STARTED, tone: "new", latest };
+  if (due && due < endDateKey) return { code: "OVERDUE", label: "Quá hạn", tone: "overdue", latest, accepted };
+  if (base === "IN_PROGRESS") return { code: "IN_PROGRESS", label: STATUS_LABELS.IN_PROGRESS, tone: "progress", latest, accepted };
+  if (accepted) return { code: "ACCEPTED", label: STATUS_LABELS.ACCEPTED, tone: "accepted", latest, accepted };
+  return { code: "NOT_STARTED", label: STATUS_LABELS.NOT_STARTED, tone: "new", latest, accepted };
 }
 function roleForDepartment(directive, departmentId) {
   const dep = upper(departmentId);
@@ -189,13 +196,28 @@ function stopRealtime() {
   state.stopRealtime = null;
 }
 function startRealtime(outlet, sequence) {
-  state.stopRealtime = ExecutiveDirectiveService.subscribeDirectives(items => {
-    if (sequence !== renderSequence || window.location.hash !== "#/directives" || !outlet.isConnected) return;
-    state.directives = items;
+  const rerender = () => {
+    if (sequence !== renderSequence || window.location.hash !== "#/directives" || !outlet.isConnected) return false;
     renderCurrentTab();
     const live = document.getElementById("directiveRealtimeState");
-    if (live) live.textContent = "Đang đồng bộ trực tiếp";
-  }, error => console.warn("Không thể đồng bộ Chỉ đạo điều hành:", error));
+    if (live) live.textContent = "Đang đồng bộ trực tiếp · tự động";
+    return true;
+  };
+  const stops = [
+    ExecutiveDirectiveService.subscribeDirectives(items => {
+      if (sequence !== renderSequence || window.location.hash !== "#/directives" || !outlet.isConnected) return;
+      state.directives = items;
+      rerender();
+    }, error => console.warn("Không thể đồng bộ nội dung chỉ đạo:", error)),
+    ExecutiveDirectiveService.subscribeUpdates(items => {
+      if (sequence !== renderSequence || window.location.hash !== "#/directives" || !outlet.isConnected) return;
+      state.updates = items;
+      rerender();
+    }, error => console.warn("Không thể đồng bộ tiến độ Chỉ đạo điều hành:", error))
+  ];
+  state.stopRealtime = () => stops.forEach(stop => {
+    try { stop?.(); } catch (_) { /* no-op */ }
+  });
 }
 
 function mountShell(outlet) {
@@ -248,7 +270,7 @@ function renderCurrentTab() {
 
 function summarize(scopeDepartment = "ALL") {
   const relevant = state.directives.filter(item => item.isDeleted !== true && (scopeDepartment === "ALL" || (item.visibleDepartmentIds || []).map(upper).includes(scopeDepartment)));
-  const counts = { total: relevant.length, NOT_STARTED: 0, IN_PROGRESS: 0, COMPLETED: 0, PAUSED: 0, OVERDUE: 0 };
+  const counts = { total: relevant.length, NOT_STARTED: 0, ACCEPTED: 0, IN_PROGRESS: 0, COMPLETED: 0, PAUSED: 0, OVERDUE: 0 };
   relevant.forEach(item => {
     const dep = scopeDepartment === "ALL" ? item.leadDepartmentId : scopeDepartment;
     const status = statusFor(item, dep).code;
@@ -266,7 +288,7 @@ function renderOverview(root) {
     <section class="directive-overview">
       <div class="directive-metrics">
         ${metric("Tổng nội dung", summary.total, scope === "ALL" ? "Toàn Trung tâm" : departmentName(scope), "blue")}
-        ${metric("Đang thực hiện", summary.IN_PROGRESS, "Đang xử lý", "amber")}
+        ${metric("Đã tiếp nhận / đang làm", summary.ACCEPTED + summary.IN_PROGRESS, "Đang xử lý", "amber")}
         ${metric("Quá hạn", summary.OVERDUE, "Cần theo dõi", "red")}
         ${metric("Hoàn thành", summary.COMPLETED, "Đã cập nhật kết quả", "green")}
       </div>
@@ -291,7 +313,7 @@ function renderFilters() {
   const departmentOptions = canAll
     ? `<option value="ALL">Toàn Trung tâm</option>${targetDepartments().map(item => `<option value="${esc(upper(item.id || item.code))}" ${upper(item.id || item.code) === upper(state.department) ? "selected" : ""}>${esc(item.name || item.id)}</option>`).join("")}`
     : `<option value="${esc(user.departmentId)}">${esc(departmentName(user.departmentId))}</option>`;
-  return `<div class="directive-filters"><label><span>Tìm kiếm</span><input id="directiveSearch" type="search" value="${esc(state.search)}" placeholder="Nội dung, người chỉ đạo…"></label><label><span>Phòng/Khu</span><select id="directiveDepartmentFilter" ${canAll ? "" : "disabled"}>${departmentOptions}</select></label><label><span>Trạng thái</span><select id="directiveStatusFilter"><option value="ALL">Tất cả</option>${["NOT_STARTED","IN_PROGRESS","OVERDUE","COMPLETED","PAUSED"].map(code => `<option value="${code}" ${state.status === code ? "selected" : ""}>${esc(code === "OVERDUE" ? "Quá hạn" : STATUS_LABELS[code])}</option>`).join("")}</select></label></div>`;
+  return `<div class="directive-filters"><label><span>Tìm kiếm</span><input id="directiveSearch" type="search" value="${esc(state.search)}" placeholder="Nội dung, người chỉ đạo…"></label><label><span>Phòng/Khu</span><select id="directiveDepartmentFilter" ${canAll ? "" : "disabled"}>${departmentOptions}</select></label><label><span>Trạng thái</span><select id="directiveStatusFilter"><option value="ALL">Tất cả</option>${["NOT_STARTED","ACCEPTED","IN_PROGRESS","OVERDUE","COMPLETED","PAUSED"].map(code => `<option value="${code}" ${state.status === code ? "selected" : ""}>${esc(code === "OVERDUE" ? "Quá hạn" : STATUS_LABELS[code])}</option>`).join("")}</select></label></div>`;
 }
 
 function bindFilters(root) {
@@ -322,7 +344,7 @@ function renderTracking(root) {
   const rows = targetDepartments().map(dep => {
     const id = upper(dep.id || dep.code);
     const summary = summarize(id);
-    return `<button type="button" class="directive-department-card" data-track-department="${esc(id)}"><strong>${esc(dep.name || id)}</strong><span>${summary.total} nội dung</span><small>${summary.IN_PROGRESS} đang thực hiện · ${summary.OVERDUE} quá hạn · ${summary.COMPLETED} hoàn thành</small><div class="directive-mini-meter"><i style="width:${summary.total ? Math.round(summary.COMPLETED / summary.total * 100) : 0}%"></i></div></button>`;
+    return `<button type="button" class="directive-department-card" data-track-department="${esc(id)}"><strong>${esc(dep.name || id)}</strong><span>${summary.total} nội dung</span><small>${summary.ACCEPTED} đã tiếp nhận · ${summary.IN_PROGRESS} đang thực hiện · ${summary.OVERDUE} quá hạn · ${summary.COMPLETED} hoàn thành</small><div class="directive-mini-meter"><i style="width:${summary.total ? Math.round(summary.COMPLETED / summary.total * 100) : 0}%"></i></div></button>`;
   }).join("");
   const overdue = state.directives.filter(item => item.isDeleted !== true && statusFor(item, item.leadDepartmentId).code === "OVERDUE");
   root.innerHTML = `<section class="directive-tracking"><div class="section-heading"><div><h3>Theo dõi theo Phòng/Khu</h3><p>Phòng Tổ chức - Hành chính và Ban Giám đốc theo dõi toàn Trung tâm.</p></div></div><div class="directive-department-grid">${rows}</div><section class="directive-panel"><div class="section-heading"><div><h3>Nội dung quá hạn</h3><p>Các nội dung chủ trì chưa hoàn thành và đã qua thời hạn.</p></div></div><div class="directive-recent-list">${overdue.length ? overdue.map(item => recentCard(item, "ALL")).join("") : emptyState("Hiện không có nội dung quá hạn.")}</div></section></section>`;
@@ -554,6 +576,7 @@ function openDirectiveDetail(id) {
   const manager = Permissions.canManageExecutiveDirectives();
   const visibleDepartments = (directive.visibleDepartmentIds || []).map(upper);
   const ownRelevant = visibleDepartments.includes(user.departmentId);
+  const ownAccepted = ownRelevant && Boolean(latestAcceptance(directive, user.departmentId));
   const history = manager ? directiveUpdates(directive.id) : directiveUpdates(directive.id, user.departmentId);
   const scopeDepartment = manager ? directive.leadDepartmentId : user.departmentId;
   const status = statusFor(directive, scopeDepartment);
@@ -565,8 +588,21 @@ function openDirectiveDetail(id) {
         <section class="directive-detail-section"><h3>Thông tin chỉ đạo</h3><dl class="directive-detail-grid"><div><dt>Người chỉ đạo</dt><dd>${esc(directive.directedByName || "—")}</dd></div><div><dt>Ngày chỉ đạo</dt><dd>${esc(formatDate(directive.directedDateKey))}</dd></div><div><dt>Cuộc họp/nguồn</dt><dd>${esc(directive.meetingName || directive.referenceText || "—")}</dd></div><div><dt>Mức độ</dt><dd>${esc(PRIORITY_LABELS[upper(directive.priority)] || "Bình thường")}</dd></div><div class="field-full"><dt>Đơn vị phối hợp</dt><dd>${(directive.supportDepartmentIds || []).length ? directive.supportDepartmentIds.map(departmentName).map(esc).join(", ") : "Không có"}</dd></div><div class="field-full"><dt>Người nhập hệ thống</dt><dd>${esc(directive.createdByName || "—")} · ${esc(departmentName(directive.createdByDepartmentId))}</dd></div></dl></section>
         <section class="directive-detail-section"><div class="section-heading"><div><h3>Kết quả và lịch sử cập nhật</h3><p>${manager ? "Hiển thị lịch sử toàn bộ Phòng/Khu." : `Hiển thị cập nhật của ${esc(departmentName(user.departmentId))}.`}</p></div></div><div class="directive-history">${history.length ? history.map(historyItem).join("") : emptyState("Chưa có cập nhật tiến độ.")}</div></section>
       </div>
-      <footer class="directive-modal-footer directive-detail-actions">${ownRelevant || manager ? '<button id="btnDirectiveProgress" class="primary-button" type="button">Cập nhật kết quả</button>' : ""}${manager ? '<button id="btnDirectiveEdit" class="secondary-button" type="button">Chỉnh sửa</button><button id="btnDirectiveLifecycle" class="secondary-button" type="button">' + (upper(directive.lifecycleStatus) === "CLOSED" ? "Mở lại" : "Đóng chỉ đạo") + '</button><button id="btnDirectiveDelete" class="danger-button" type="button">Xóa</button>' : ""}<button data-directive-close class="secondary-button" type="button">Đóng</button></footer>
+      <footer class="directive-modal-footer directive-detail-actions">${ownRelevant && !ownAccepted ? '<button id="btnDirectiveAccept" class="primary-button" type="button">✓ Xác nhận tiếp nhận</button>' : ""}${ownRelevant || manager ? '<button id="btnDirectiveProgress" class="secondary-button" type="button">Cập nhật kết quả</button>' : ""}${manager ? '<button id="btnDirectiveEdit" class="secondary-button" type="button">Chỉnh sửa</button><button id="btnDirectiveLifecycle" class="secondary-button" type="button">' + (upper(directive.lifecycleStatus) === "CLOSED" ? "Mở lại" : "Đóng chỉ đạo") + '</button><button id="btnDirectiveDelete" class="danger-button" type="button">Xóa</button>' : ""}<button data-directive-close class="secondary-button" type="button">Đóng</button></footer>
     </section>`);
+  backdrop.querySelector("#btnDirectiveAccept")?.addEventListener("click", async event => {
+    try {
+      event.currentTarget.disabled = true;
+      event.currentTarget.textContent = "Đang xác nhận…";
+      await ExecutiveDirectiveService.acceptDirective(directive, user.departmentId);
+      backdrop.remove();
+      ToastService.success("Đã xác nhận tiếp nhận chỉ đạo.");
+    } catch (error) {
+      ToastService.error(error?.message || "Không xác nhận tiếp nhận được.");
+      event.currentTarget.disabled = false;
+      event.currentTarget.textContent = "✓ Xác nhận tiếp nhận";
+    }
+  });
   backdrop.querySelector("#btnDirectiveProgress")?.addEventListener("click", () => { backdrop.remove(); openProgressForm(directive); });
   backdrop.querySelector("#btnDirectiveEdit")?.addEventListener("click", () => { backdrop.remove(); openDirectiveForm(directive); });
   backdrop.querySelector("#btnDirectiveLifecycle")?.addEventListener("click", async event => {
@@ -596,7 +632,7 @@ function historyItem(item) {
   const system = upper(item.departmentId) === "__SYSTEM__";
   const status = upper(item.status);
   const links = (item.evidenceLinks || []).map(url => safeLink(url)).filter(Boolean);
-  return `<article class="directive-history-item"><div class="directive-history-dot"></div><div><header><strong>${esc(system ? "Quản trị chỉ đạo" : departmentName(item.departmentId))}</strong><span>${esc(formatDate(item.actionDateKey))} · ${esc(item.createdByName || "")}</span></header>${status ? statusPill({ label: STATUS_LABELS[status] || status, tone: status === "COMPLETED" ? "completed" : status === "IN_PROGRESS" ? "progress" : status === "PAUSED" ? "paused" : "new" }) : ""}${item.progressSummary ? `<p><b>Tiến độ:</b> ${esc(item.progressSummary)}</p>` : ""}${item.resultSummary ? `<p><b>Kết quả:</b> ${esc(item.resultSummary)}</p>` : ""}${item.note ? `<p>${esc(item.note)}</p>` : ""}${links.length ? `<div class="directive-evidence-links">${links.join("")}</div>` : ""}</div></article>`;
+  return `<article class="directive-history-item"><div class="directive-history-dot"></div><div><header><strong>${esc(system ? "Quản trị chỉ đạo" : departmentName(item.departmentId))}</strong><span>${esc(formatDate(item.actionDateKey))} · ${esc(item.createdByName || "")}</span></header>${status ? statusPill({ label: STATUS_LABELS[status] || status, tone: status === "COMPLETED" ? "completed" : status === "IN_PROGRESS" ? "progress" : status === "ACCEPTED" ? "accepted" : status === "PAUSED" ? "paused" : "new" }) : ""}${item.progressSummary ? `<p><b>Tiến độ:</b> ${esc(item.progressSummary)}</p>` : ""}${item.resultSummary ? `<p><b>Kết quả:</b> ${esc(item.resultSummary)}</p>` : ""}${item.note ? `<p>${esc(item.note)}</p>` : ""}${links.length ? `<div class="directive-evidence-links">${links.join("")}</div>` : ""}</div></article>`;
 }
 function safeLink(url) {
   const text = clean(url);
