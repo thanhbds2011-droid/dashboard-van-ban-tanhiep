@@ -1,17 +1,18 @@
 /** Ứng dụng quản lý nhiệm vụ và đánh giá KPI. */
 import { Router } from "./core/router.js?v=20260810.V1_10_3";
-import { APP_VERSION_LABEL, BUILD_VERSION } from "./core/app-version.js?v=20260810.V1_10_3";
+import { APP_VERSION_LABEL, BUILD_VERSION } from "./core/app-version.js?v=20260810.V1_10_4";
 import { AuthService } from "./core/auth-service.js?v=20260810.V1_10_3";
 import { Permissions } from "./core/permissions.js?v=20260810.V1_10_3";
 import { ToastService } from "./core/toast-service.js?v=20260810.V1_10_3";
 import { FirebaseService } from "./core/firebase-service.js?v=20260810.V1_10_3";
+import { ExecutivePushSubscriptionService } from "./services/executive-push-subscription-service.js?v=20260810.V1_10_4";
 
 let currentPushUser = null;
 let saveCurrentPushSnapshot = null;
 let stopInAppTaskAlerts = null;
 
 import { renderDashboardView } from "./modules/dashboard/dashboard-view.js?v=20260810.V1_10_3";
-import { renderExecutiveDirectivesView } from "./modules/executive-directives/executive-directives-view.js?v=20260810.V1_10_3";
+import { renderExecutiveDirectivesView } from "./modules/executive-directives/executive-directives-view.js?v=20260810.V1_10_4";
 import { renderTasksView } from "./modules/tasks/tasks-view.js?v=20260810.V1_10_3";
 import { renderStandardTasksView } from "./modules/standard-tasks/standard-tasks-view.js?v=20260810.V1_10_3";
 import { renderPeriodsView } from "./modules/periods/periods-view.js?v=20260810.V1_10_3";
@@ -40,6 +41,8 @@ async function bootstrap() {
   bindPushSubscriptionSync(user);
   bindPushSettings(user);
   bindInAppTaskAssignmentAlerts(user);
+  ExecutivePushSubscriptionService.start(user)
+    .catch(error => console.warn("Chưa đồng bộ được Push Chỉ đạo điều hành:", error));
 
   const router = new Router({
     outlet,
@@ -103,6 +106,7 @@ function bindLogout() {
       }
       try { stopInAppTaskAlerts?.(); } catch (_) { /* listener đã dừng */ }
       stopInAppTaskAlerts = null;
+      await ExecutivePushSubscriptionService.stop({ deactivate: true });
       await window.TaskPush?.logout?.();
       await AuthService.logout();
     } catch (error) {
@@ -210,8 +214,10 @@ function bindPushSettings(user) {
       if (resync) await window.TaskPush?.identify?.(user.uid, user);
       const snapshot = await window.TaskPush?.getSubscriptionSnapshot?.();
       if (resync && saveCurrentPushSnapshot) await saveCurrentPushSnapshot(snapshot);
+      if (resync) await ExecutivePushSubscriptionService.syncNow().catch(() => false);
 
       let firestoreState = "Chưa có mã thiết bị";
+      let executiveState = "Chưa có mã thiết bị";
       if (snapshot?.subscriptionId) {
         const ref = FirebaseService.doc(
           FirebaseService.db,
@@ -225,6 +231,19 @@ function bindPushSettings(user) {
         firestoreState = stored?.exists?.()
           ? (stored.data()?.active === true ? "Đã đồng bộ · đang hoạt động" : "Đã đồng bộ · đang tắt")
           : "Chưa liên kết với tài khoản";
+
+        const executiveRef = FirebaseService.doc(
+          FirebaseService.db,
+          "executivePushSubscriptions",
+          `${user.uid}_${snapshot.subscriptionId}`
+        );
+        const executiveStored = await FirebaseService.getDoc(executiveRef).catch(error => {
+          console.warn("Không đọc được trạng thái Push Chỉ đạo điều hành:", error);
+          return null;
+        });
+        executiveState = executiveStored?.exists?.()
+          ? (executiveStored.data()?.active === true ? "Đã đồng bộ · đang hoạt động" : "Đã đồng bộ · đang tắt")
+          : "Chưa liên kết";
       }
 
       text("pushSettingPermission", permissionLabel(snapshot?.permission));
@@ -232,6 +251,7 @@ function bindPushSettings(user) {
       text("pushSettingSubscription", snapshot?.subscriptionId || "Chưa có");
       text("pushSettingUid", user.fullName || user.email || "Tài khoản hiện tại");
       text("pushSettingFirestore", firestoreState);
+      text("pushSettingExecutive", executiveState);
       text("pushSettingUpdatedAt", new Intl.DateTimeFormat("vi-VN", { dateStyle: "short", timeStyle: "medium" }).format(new Date()));
 
       const ready = snapshot?.permission === "granted" && snapshot?.optedIn === true && Boolean(snapshot?.subscriptionId);
