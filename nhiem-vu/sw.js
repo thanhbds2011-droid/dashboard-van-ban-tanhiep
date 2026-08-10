@@ -1,4 +1,4 @@
-const BUILD_VERSION = "20260810.V1_10_6";
+const BUILD_VERSION = "20260810.V1_10_7";
 const CACHE_NAME = "nhiem-vu-" + BUILD_VERSION.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 const SHELL = [
   "./",
