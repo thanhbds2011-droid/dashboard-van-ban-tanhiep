@@ -1,9 +1,9 @@
-import { FirebaseService } from "../core/firebase-service.js?v=20260809.V1_10_2";
-import { UserContext } from "../core/user-context.js?v=20260809.V1_10_2";
-import { Permissions } from "../core/permissions.js?v=20260809.V1_10_2";
-import { TaskLogService } from "./task-log-service.js?v=20260809.V1_10_2";
-import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260809.V1_10_2";
-import { PeriodReadService } from "./period-read-service.js?v=20260809.V1_10_2";
+import { FirebaseService } from "../core/firebase-service.js?v=20260810.V1_10_3";
+import { UserContext } from "../core/user-context.js?v=20260810.V1_10_3";
+import { Permissions } from "../core/permissions.js?v=20260810.V1_10_3";
+import { TaskLogService } from "./task-log-service.js?v=20260810.V1_10_3";
+import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260810.V1_10_3";
+import { PeriodReadService } from "./period-read-service.js?v=20260810.V1_10_3";
 
 const clean = value => String(value ?? "").trim();
 const upper = value => clean(value).toUpperCase();

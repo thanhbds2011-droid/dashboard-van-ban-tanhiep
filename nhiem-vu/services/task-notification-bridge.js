@@ -7,9 +7,9 @@
  * - Khi bridge khởi động muộn, chỉ xem xét các log vừa phát sinh gần đây thay vì
  *   đánh dấu toàn bộ là đã gửi; nhờ vậy giảm khả năng mất thông báo sau reload.
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260809.V1_10_2";
-import { UserContext } from "../core/user-context.js?v=20260809.V1_10_2";
-import { TaskNotificationService } from "./task-notification-service.js?v=20260809.V1_10_2";
+import { FirebaseService } from "../core/firebase-service.js?v=20260810.V1_10_3";
+import { UserContext } from "../core/user-context.js?v=20260810.V1_10_3";
+import { TaskNotificationService } from "./task-notification-service.js?v=20260810.V1_10_3";
 
 const DIRECT_ACTIONS = Object.freeze({
   TASK_CREATED: "TASK_CREATED",
