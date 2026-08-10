@@ -1,10 +1,10 @@
 /** Cập nhật tiến độ, kết quả và minh chứng nhiệm vụ. */
-import { UserContext } from "../../core/user-context.js?v=20260809.V1_10_2";
-import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260809.V1_10_2";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260809.V1_10_2";
-import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260809.V1_10_2";
-import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260809.V1_10_2";
-import { validateProgressInput, cleanText } from "./task-form-validator.js?v=20260809.V1_10_2";
+import { UserContext } from "../../core/user-context.js?v=20260810.V1_10_3";
+import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260810.V1_10_3";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260810.V1_10_3";
+import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260810.V1_10_3";
+import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260810.V1_10_3";
+import { validateProgressInput, cleanText } from "./task-form-validator.js?v=20260810.V1_10_3";
 
 function mayUpdate(task) {
   const user = UserContext.requireUser();

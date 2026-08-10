@@ -1,15 +1,15 @@
 /** Chi tiết, phân công và các lượt công việc phát sinh của nhiệm vụ. */
-import { UserContext } from "../../core/user-context.js?v=20260809.V1_10_2";
-import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260809.V1_10_2";
-import { Permissions } from "../../core/permissions.js?v=20260809.V1_10_2";
-import { effectiveDepartmentAssignmentStatus, isTerminalTask } from "../../core/task-display-order.js?v=20260809.V1_10_2";
-import { UserReadService } from "../../services/user-read-service.js?v=20260809.V1_10_2";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260809.V1_10_2";
-import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260809.V1_10_2";
-import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260809.V1_10_2";
-import { openTaskProgressModal } from "./task-progress-modal.js?v=20260809.V1_10_2";
-import { mountTaskAdjustmentPanel } from "./task-adjustment-panel.js?v=20260809.V1_10_2";
-import { TaskLogService } from "../../services/task-log-service.js?v=20260809.V1_10_2";
+import { UserContext } from "../../core/user-context.js?v=20260810.V1_10_3";
+import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260810.V1_10_3";
+import { Permissions } from "../../core/permissions.js?v=20260810.V1_10_3";
+import { effectiveDepartmentAssignmentStatus, isTerminalTask } from "../../core/task-display-order.js?v=20260810.V1_10_3";
+import { UserReadService } from "../../services/user-read-service.js?v=20260810.V1_10_3";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260810.V1_10_3";
+import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260810.V1_10_3";
+import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260810.V1_10_3";
+import { openTaskProgressModal } from "./task-progress-modal.js?v=20260810.V1_10_3";
+import { mountTaskAdjustmentPanel } from "./task-adjustment-panel.js?v=20260810.V1_10_3";
+import { TaskLogService } from "../../services/task-log-service.js?v=20260810.V1_10_3";
 
 const TEAM_LABELS = Object.freeze({
   BAO_VE: "Tổ Bảo vệ",
