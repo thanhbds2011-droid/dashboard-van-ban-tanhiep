@@ -1,1 +1,665 @@
+import { UserContext } from "../../core/user-context.js?v=20260810.V1_10_3";
+import { Permissions } from "../../core/permissions.js?v=20260810.V1_10_3";
+import { ToastService } from "../../core/toast-service.js?v=20260810.V1_10_3";
+import { DepartmentReadService } from "../../services/department-read-service.js?v=20260810.V1_10_3";
+import { UserReadService } from "../../services/user-read-service.js?v=20260810.V1_10_3";
+import { ExecutiveDirectiveService } from "../../services/executive-directive-service.js?v=20260810.V1_10_3";
 
+let state = {
+  directives: [],
+  updates: [],
+  departments: [],
+  users: [],
+  tab: "overview",
+  search: "",
+  status: "ALL",
+  department: "ALL",
+  stopRealtime: null,
+  report: null
+};
+let renderSequence = 0;
+let cleanupBound = false;
+
+const SOURCE_LABELS = Object.freeze({
+  MEETING_WEEKLY: "Họp giao ban",
+  MEETING_OTHER: "Cuộc họp khác",
+  DIRECT: "Chỉ đạo trực tiếp",
+  PHONE: "Điện thoại",
+  DOCUMENT: "Văn bản",
+  OTHER: "Khác"
+});
+const PRIORITY_LABELS = Object.freeze({ NORMAL: "Bình thường", URGENT: "Khẩn", VERY_URGENT: "Rất khẩn" });
+const STATUS_LABELS = Object.freeze({
+  NOT_STARTED: "Chưa thực hiện",
+  IN_PROGRESS: "Đang thực hiện",
+  COMPLETED: "Hoàn thành",
+  PAUSED: "Tạm dừng"
+});
+
+function clean(value) { return String(value ?? "").trim(); }
+function upper(value) { return clean(value).toUpperCase(); }
+function esc(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;").replaceAll("'", "&#039;");
+}
+function localDateKey(date = new Date()) {
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 10);
+}
+function parseDateKey(value) {
+  const [y, m, d] = clean(value).split("-").map(Number);
+  return y && m && d ? new Date(y, m - 1, d, 12, 0, 0, 0) : null;
+}
+function addDays(dateKey, days) {
+  const date = parseDateKey(dateKey);
+  if (!date) return "";
+  date.setDate(date.getDate() + Number(days || 0));
+  return localDateKey(date);
+}
+function mondayOf(dateKey) {
+  const date = parseDateKey(dateKey) || new Date();
+  const day = date.getDay();
+  const delta = day === 0 ? -6 : 1 - day;
+  date.setDate(date.getDate() + delta);
+  return localDateKey(date);
+}
+function defaultReportWeekStart() {
+  const today = localDateKey();
+  const date = parseDateKey(today);
+  const currentMonday = mondayOf(today);
+  return date?.getDay() === 1 ? addDays(currentMonday, -7) : currentMonday;
+}
+function formatDate(value) {
+  const date = parseDateKey(value);
+  return date ? new Intl.DateTimeFormat("vi-VN").format(date) : "—";
+}
+function normalizeText(value) {
+  return clean(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d").replace(/Đ/g, "D").toLowerCase();
+}
+function departmentName(id) {
+  const key = upper(id);
+  const item = state.departments.find(d => upper(d.id || d.code) === key);
+  return item?.name || item?.departmentName || key || "Chưa xác định";
+}
+function targetDepartments() {
+  return state.departments.filter(item => !["BGD", "CDTN"].includes(upper(item.id || item.code)));
+}
+function directorUsers() {
+  return state.users.filter(user => upper(user.role) === "DIRECTOR" && user.active !== false);
+}
+function directiveUpdates(directiveId, departmentId = "", endDateKey = "9999-12-31") {
+  const dep = upper(departmentId);
+  return state.updates
+    .filter(item => item.directiveId === directiveId)
+    .filter(item => !dep || upper(item.departmentId) === dep)
+    .filter(item => clean(item.actionDateKey || "0000-00-00") <= endDateKey)
+    .sort((a, b) => {
+      const dateCompare = clean(b.actionDateKey).localeCompare(clean(a.actionDateKey));
+      if (dateCompare) return dateCompare;
+      return (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0);
+    });
+}
+function latestProgress(directive, departmentId = "", endDateKey = "9999-12-31") {
+  const dep = upper(departmentId || directive.leadDepartmentId);
+  return directiveUpdates(directive.id, dep, endDateKey).find(item => upper(item.updateType) === "PROGRESS") || null;
+}
+function statusFor(directive, departmentId = "", endDateKey = localDateKey()) {
+  const latest = latestProgress(directive, departmentId, endDateKey);
+  const base = upper(latest?.status || "NOT_STARTED");
+  if (base === "COMPLETED") return { code: "COMPLETED", label: STATUS_LABELS.COMPLETED, tone: "completed", latest };
+  if (base === "PAUSED" || upper(directive.lifecycleStatus) === "CLOSED") return { code: "PAUSED", label: STATUS_LABELS.PAUSED, tone: "paused", latest };
+  const due = clean(directive.dueDateKey);
+  if (due && due < endDateKey) return { code: "OVERDUE", label: "Quá hạn", tone: "overdue", latest };
+  if (base === "IN_PROGRESS") return { code: "IN_PROGRESS", label: STATUS_LABELS.IN_PROGRESS, tone: "progress", latest };
+  return { code: "NOT_STARTED", label: STATUS_LABELS.NOT_STARTED, tone: "new", latest };
+}
+function roleForDepartment(directive, departmentId) {
+  const dep = upper(departmentId);
+  if (upper(directive.leadDepartmentId) === dep) return "Chủ trì";
+  return (directive.supportDepartmentIds || []).map(upper).includes(dep) ? "Phối hợp" : "";
+}
+function statusPill(info) { return `<span class="directive-status is-${esc(info.tone)}">${esc(info.label)}</span>`; }
+function priorityPill(priority) {
+  const key = upper(priority || "NORMAL");
+  return `<span class="directive-priority is-${key.toLowerCase()}">${esc(PRIORITY_LABELS[key] || key)}</span>`;
+}
+function reportScopeDepartment() {
+  const user = UserContext.requireUser();
+  return Permissions.canGenerateCenterExecutiveReports() ? upper(state.department || "ALL") : user.departmentId;
+}
+function visibleDirectives() {
+  const user = UserContext.requireUser();
+  const search = normalizeText(state.search);
+  const scopeDepartment = Permissions.canViewAllExecutiveDirectives() ? upper(state.department || "ALL") : user.departmentId;
+  return state.directives.filter(item => {
+    if (item.isDeleted === true) return false;
+    if (scopeDepartment !== "ALL" && !(item.visibleDepartmentIds || []).map(upper).includes(scopeDepartment)) return false;
+    if (search) {
+      const haystack = normalizeText([item.code, item.content, item.directedByName, item.meetingName, departmentName(item.leadDepartmentId)].join(" "));
+      if (!haystack.includes(search)) return false;
+    }
+    if (state.status !== "ALL") {
+      const target = scopeDepartment === "ALL" ? item.leadDepartmentId : scopeDepartment;
+      if (statusFor(item, target).code !== state.status) return false;
+    }
+    return true;
+  });
+}
+function metric(label, value, note, tone) {
+  return `<article class="directive-metric is-${tone}"><span>${esc(label)}</span><strong>${Number(value || 0)}</strong><small>${esc(note)}</small></article>`;
+}
+function tabButton(id, label, icon, hidden = false) {
+  if (hidden) return "";
+  return `<button type="button" class="directive-tab ${state.tab === id ? "is-active" : ""}" data-directive-tab="${id}">${icon}<span>${esc(label)}</span></button>`;
+}
+
+export async function renderExecutiveDirectivesView(outlet) {
+  const sequence = ++renderSequence;
+  const user = UserContext.requireUser();
+  stopRealtime();
+  bindCleanup();
+  outlet.innerHTML = loadingCard("Đang tải Chỉ đạo điều hành…");
+  try {
+    const [directives, updates, departments, users] = await Promise.all([
+      ExecutiveDirectiveService.listDirectives(),
+      ExecutiveDirectiveService.listUpdates(),
+      DepartmentReadService.listActive(),
+      UserReadService.listActive().catch(() => [])
+    ]);
+    if (sequence !== renderSequence || window.location.hash !== "#/directives") return;
+    state = { ...state, directives, updates, departments, users, department: Permissions.canViewAllExecutiveDirectives() ? state.department : user.departmentId };
+    mountShell(outlet);
+    renderCurrentTab();
+    startRealtime(outlet, sequence);
+  } catch (error) {
+    outlet.innerHTML = errorCard("Không thể tải Chỉ đạo điều hành", error);
+  }
+}
+
+function bindCleanup() {
+  if (cleanupBound) return;
+  cleanupBound = true;
+  document.addEventListener("v3:route-changed", event => {
+    if (event.detail?.route !== "#/directives") stopRealtime();
+  });
+}
+function stopRealtime() {
+  try { state.stopRealtime?.(); } catch (_) { /* no-op */ }
+  state.stopRealtime = null;
+}
+function startRealtime(outlet, sequence) {
+  state.stopRealtime = ExecutiveDirectiveService.subscribeDirectives(items => {
+    if (sequence !== renderSequence || window.location.hash !== "#/directives" || !outlet.isConnected) return;
+    state.directives = items;
+    renderCurrentTab();
+    const live = document.getElementById("directiveRealtimeState");
+    if (live) live.textContent = "Đang đồng bộ trực tiếp";
+  }, error => console.warn("Không thể đồng bộ Chỉ đạo điều hành:", error));
+}
+
+function mountShell(outlet) {
+  const manager = Permissions.canManageExecutiveDirectives();
+  outlet.innerHTML = `
+    <section class="directive-shell page-card">
+      <header class="directive-page-header">
+        <div><span class="page-eyebrow">CHỈ ĐẠO ĐIỀU HÀNH</span><h2>Chỉ đạo của Ban Giám đốc</h2><p>Ghi nhận, theo dõi và tổng hợp kết quả thực hiện chỉ đạo. Phân hệ này độc lập với Nhiệm vụ và KPI.</p><small id="directiveRealtimeState">Đang kết nối đồng bộ trực tiếp…</small></div>
+        <div class="directive-header-actions">${manager ? '<button id="btnCreateDirective" class="primary-button" type="button">＋ Thêm nội dung chỉ đạo</button>' : ""}<button id="btnDirectiveRefresh" class="secondary-button" type="button">↻ Cập nhật</button></div>
+      </header>
+      <nav class="directive-tabs" aria-label="Chỉ đạo điều hành">
+        ${tabButton("overview", "Tổng quan", "◫")}
+        ${tabButton("list", "Chỉ đạo", "📌")}
+        ${tabButton("tracking", "Theo dõi", "◎", !Permissions.canViewAllExecutiveDirectives())}
+        ${tabButton("report", "Báo cáo tuần", "📄")}
+      </nav>
+      <div id="directiveContent"></div>
+    </section>`;
+  outlet.querySelectorAll("[data-directive-tab]").forEach(button => button.addEventListener("click", () => {
+    state.tab = button.dataset.directiveTab;
+    mountShell(outlet);
+    renderCurrentTab();
+  }));
+  document.getElementById("btnCreateDirective")?.addEventListener("click", () => openDirectiveForm());
+  document.getElementById("btnDirectiveRefresh")?.addEventListener("click", refreshAll);
+}
+
+async function refreshAll() {
+  const button = document.getElementById("btnDirectiveRefresh");
+  if (button) button.disabled = true;
+  try {
+    const [directives, updates] = await Promise.all([ExecutiveDirectiveService.listDirectives(), ExecutiveDirectiveService.listUpdates()]);
+    state.directives = directives;
+    state.updates = updates;
+    renderCurrentTab();
+    ToastService.success("Đã cập nhật Chỉ đạo điều hành.");
+  } catch (error) {
+    ToastService.error(error?.message || "Không thể cập nhật dữ liệu.");
+  } finally { if (button) button.disabled = false; }
+}
+
+function renderCurrentTab() {
+  const root = document.getElementById("directiveContent");
+  if (!root) return;
+  if (state.tab === "list") return renderList(root);
+  if (state.tab === "tracking") return renderTracking(root);
+  if (state.tab === "report") return renderReportTab(root);
+  renderOverview(root);
+}
+
+function summarize(scopeDepartment = "ALL") {
+  const relevant = state.directives.filter(item => item.isDeleted !== true && (scopeDepartment === "ALL" || (item.visibleDepartmentIds || []).map(upper).includes(scopeDepartment)));
+  const counts = { total: relevant.length, NOT_STARTED: 0, IN_PROGRESS: 0, COMPLETED: 0, PAUSED: 0, OVERDUE: 0 };
+  relevant.forEach(item => {
+    const dep = scopeDepartment === "ALL" ? item.leadDepartmentId : scopeDepartment;
+    const status = statusFor(item, dep).code;
+    counts[status] = (counts[status] || 0) + 1;
+  });
+  return counts;
+}
+
+function renderOverview(root) {
+  const user = UserContext.requireUser();
+  const scope = Permissions.canViewAllExecutiveDirectives() ? "ALL" : user.departmentId;
+  const summary = summarize(scope);
+  const recent = state.directives.filter(item => item.isDeleted !== true && (scope === "ALL" || (item.visibleDepartmentIds || []).map(upper).includes(scope))).slice(0, 6);
+  root.innerHTML = `
+    <section class="directive-overview">
+      <div class="directive-metrics">
+        ${metric("Tổng nội dung", summary.total, scope === "ALL" ? "Toàn Trung tâm" : departmentName(scope), "blue")}
+        ${metric("Đang thực hiện", summary.IN_PROGRESS, "Đang xử lý", "amber")}
+        ${metric("Quá hạn", summary.OVERDUE, "Cần theo dõi", "red")}
+        ${metric("Hoàn thành", summary.COMPLETED, "Đã cập nhật kết quả", "green")}
+      </div>
+      <section class="directive-panel">
+        <div class="section-heading"><div><h3>Nội dung gần đây</h3><p>${scope === "ALL" ? "Các chỉ đạo mới nhất của Ban Giám đốc." : `Các chỉ đạo liên quan ${esc(departmentName(scope))}.`}</p></div><button class="secondary-button" type="button" id="btnGoDirectiveList">Xem tất cả</button></div>
+        <div class="directive-recent-list">${recent.length ? recent.map(item => recentCard(item, scope)).join("") : emptyState("Chưa có nội dung chỉ đạo trong phạm vi này.")}</div>
+      </section>
+    </section>`;
+  document.getElementById("btnGoDirectiveList")?.addEventListener("click", () => { state.tab = "list"; mountShell(document.getElementById("appOutlet")); renderCurrentTab(); });
+  root.querySelectorAll("[data-open-directive]").forEach(button => button.addEventListener("click", () => openDirectiveDetail(button.dataset.openDirective)));
+}
+
+function recentCard(item, scope) {
+  const dep = scope === "ALL" ? item.leadDepartmentId : scope;
+  const info = statusFor(item, dep);
+  return `<button class="directive-recent-card" type="button" data-open-directive="${esc(item.id)}"><div><span>${esc(formatDate(item.directedDateKey))} · ${esc(SOURCE_LABELS[upper(item.sourceType)] || item.sourceType || "Chỉ đạo")}</span><strong>${esc(item.content)}</strong><small>${esc(departmentName(item.leadDepartmentId))}${scope !== "ALL" ? ` · ${esc(roleForDepartment(item, scope))}` : ""}</small></div>${statusPill(info)}</button>`;
+}
+
+function renderFilters() {
+  const user = UserContext.requireUser();
+  const canAll = Permissions.canViewAllExecutiveDirectives();
+  const departmentOptions = canAll
+    ? `<option value="ALL">Toàn Trung tâm</option>${targetDepartments().map(item => `<option value="${esc(upper(item.id || item.code))}" ${upper(item.id || item.code) === upper(state.department) ? "selected" : ""}>${esc(item.name || item.id)}</option>`).join("")}`
+    : `<option value="${esc(user.departmentId)}">${esc(departmentName(user.departmentId))}</option>`;
+  return `<div class="directive-filters"><label><span>Tìm kiếm</span><input id="directiveSearch" type="search" value="${esc(state.search)}" placeholder="Nội dung, người chỉ đạo…"></label><label><span>Phòng/Khu</span><select id="directiveDepartmentFilter" ${canAll ? "" : "disabled"}>${departmentOptions}</select></label><label><span>Trạng thái</span><select id="directiveStatusFilter"><option value="ALL">Tất cả</option>${["NOT_STARTED","IN_PROGRESS","OVERDUE","COMPLETED","PAUSED"].map(code => `<option value="${code}" ${state.status === code ? "selected" : ""}>${esc(code === "OVERDUE" ? "Quá hạn" : STATUS_LABELS[code])}</option>`).join("")}</select></label></div>`;
+}
+
+function bindFilters(root) {
+  root.querySelector("#directiveSearch")?.addEventListener("input", event => { state.search = event.target.value; renderList(root); });
+  root.querySelector("#directiveDepartmentFilter")?.addEventListener("change", event => { state.department = event.target.value || "ALL"; renderList(root); });
+  root.querySelector("#directiveStatusFilter")?.addEventListener("change", event => { state.status = event.target.value || "ALL"; renderList(root); });
+}
+
+function renderList(root) {
+  const items = visibleDirectives();
+  const user = UserContext.requireUser();
+  const scope = Permissions.canViewAllExecutiveDirectives() ? upper(state.department || "ALL") : user.departmentId;
+  root.innerHTML = `${renderFilters()}<div class="directive-list-meta"><strong>${items.length} nội dung</strong><span>Trạng thái “Quá hạn” được hệ thống tự xác định theo thời hạn.</span></div><div class="directive-table-wrap"><table class="directive-table"><thead><tr><th>Ngày</th><th>Nội dung chỉ đạo</th><th>Chủ trì</th><th>Thời hạn</th><th>Trạng thái</th><th></th></tr></thead><tbody>${items.map(item => {
+    const dep = scope === "ALL" ? item.leadDepartmentId : scope;
+    const status = statusFor(item, dep);
+    const role = scope !== "ALL" ? roleForDepartment(item, scope) : "";
+    return `<tr><td><strong>${esc(formatDate(item.directedDateKey))}</strong><small>${esc(SOURCE_LABELS[upper(item.sourceType)] || item.sourceType || "")}</small></td><td><button class="directive-title-link" type="button" data-open-directive="${esc(item.id)}">${esc(item.content)}</button><div class="directive-row-meta"><span>${esc(item.directedByName || "")}</span>${role ? `<span>${esc(role)}</span>` : ""}${priorityPill(item.priority)}</div></td><td>${esc(departmentName(item.leadDepartmentId))}</td><td>${esc(formatDate(item.dueDateKey))}</td><td>${statusPill(status)}</td><td><button class="secondary-button compact" type="button" data-open-directive="${esc(item.id)}">Chi tiết</button></td></tr>`;
+  }).join("") || `<tr><td colspan="6">${emptyState("Không có nội dung phù hợp bộ lọc.")}</td></tr>`}</tbody></table></div>`;
+  bindFilters(root);
+  root.querySelectorAll("[data-open-directive]").forEach(button => button.addEventListener("click", () => openDirectiveDetail(button.dataset.openDirective)));
+}
+
+function renderTracking(root) {
+  if (!Permissions.canViewAllExecutiveDirectives()) {
+    root.innerHTML = emptyState("Tài khoản không có quyền theo dõi toàn Trung tâm.");
+    return;
+  }
+  const rows = targetDepartments().map(dep => {
+    const id = upper(dep.id || dep.code);
+    const summary = summarize(id);
+    return `<button type="button" class="directive-department-card" data-track-department="${esc(id)}"><strong>${esc(dep.name || id)}</strong><span>${summary.total} nội dung</span><small>${summary.IN_PROGRESS} đang thực hiện · ${summary.OVERDUE} quá hạn · ${summary.COMPLETED} hoàn thành</small><div class="directive-mini-meter"><i style="width:${summary.total ? Math.round(summary.COMPLETED / summary.total * 100) : 0}%"></i></div></button>`;
+  }).join("");
+  const overdue = state.directives.filter(item => item.isDeleted !== true && statusFor(item, item.leadDepartmentId).code === "OVERDUE");
+  root.innerHTML = `<section class="directive-tracking"><div class="section-heading"><div><h3>Theo dõi theo Phòng/Khu</h3><p>Phòng Tổ chức - Hành chính và Ban Giám đốc theo dõi toàn Trung tâm.</p></div></div><div class="directive-department-grid">${rows}</div><section class="directive-panel"><div class="section-heading"><div><h3>Nội dung quá hạn</h3><p>Các nội dung chủ trì chưa hoàn thành và đã qua thời hạn.</p></div></div><div class="directive-recent-list">${overdue.length ? overdue.map(item => recentCard(item, "ALL")).join("") : emptyState("Hiện không có nội dung quá hạn.")}</div></section></section>`;
+  root.querySelectorAll("[data-track-department]").forEach(button => button.addEventListener("click", () => {
+    state.department = button.dataset.trackDepartment;
+    state.status = "ALL";
+    state.tab = "list";
+    mountShell(document.getElementById("appOutlet"));
+    renderCurrentTab();
+  }));
+  root.querySelectorAll("[data-open-directive]").forEach(button => button.addEventListener("click", () => openDirectiveDetail(button.dataset.openDirective)));
+}
+
+function renderReportTab(root) {
+  const user = UserContext.requireUser();
+  const canCenter = Permissions.canGenerateCenterExecutiveReports();
+  const start = state.report?.weekStart || defaultReportWeekStart();
+  const scope = canCenter ? (state.report?.departmentId || state.department || "ALL") : user.departmentId;
+  root.innerHTML = `<section class="directive-report-builder"><div class="directive-report-controls"><label><span>Tuần bắt đầu từ thứ Hai</span><input id="directiveReportWeek" type="date" value="${esc(start)}"></label><label><span>Phạm vi báo cáo</span><select id="directiveReportDepartment" ${canCenter ? "" : "disabled"}>${canCenter ? `<option value="ALL" ${scope === "ALL" ? "selected" : ""}>Toàn Trung tâm</option>${targetDepartments().map(dep => { const id = upper(dep.id || dep.code); return `<option value="${esc(id)}" ${id === upper(scope) ? "selected" : ""}>${esc(dep.name || id)}</option>`; }).join("")}` : `<option value="${esc(user.departmentId)}">${esc(departmentName(user.departmentId))}</option>`}</select></label><button id="btnBuildDirectiveReport" class="primary-button" type="button">Tổng hợp báo cáo</button><button id="btnLoadSavedDirectiveReport" class="secondary-button" type="button">Mở bản đã lưu</button></div><div id="directiveReportResult">${state.report ? renderReport(state.report) : '<div class="directive-report-placeholder">Chọn tuần và bấm <strong>Tổng hợp báo cáo</strong>.</div>'}</div></section>`;
+  document.getElementById("btnBuildDirectiveReport")?.addEventListener("click", async () => {
+    const inputDate = clean(document.getElementById("directiveReportWeek")?.value || start);
+    const weekStart = mondayOf(inputDate);
+    const departmentId = upper(document.getElementById("directiveReportDepartment")?.value || scope);
+    state.report = buildWeeklyReport(weekStart, departmentId);
+    renderReportTab(root);
+  });
+  document.getElementById("btnLoadSavedDirectiveReport")?.addEventListener("click", async event => {
+    const inputDate = clean(document.getElementById("directiveReportWeek")?.value || start);
+    const weekStart = mondayOf(inputDate);
+    const departmentId = upper(document.getElementById("directiveReportDepartment")?.value || scope);
+    try {
+      event.currentTarget.disabled = true;
+      const saved = await ExecutiveDirectiveService.loadWeeklyReport(weekStart, departmentId);
+      if (!saved) return ToastService.error("Chưa có bản báo cáo đã lưu cho tuần và phạm vi này.");
+      state.report = {
+        weekStart: saved.weekStart, weekEnd: saved.weekEnd, departmentId: saved.departmentId,
+        title: saved.title, summary: saved.summary || {}, sections: saved.sections || { completed: [], ongoing: [], overdue: [] },
+        savedAt: saved.updatedAt || saved.generatedAt || null
+      };
+      renderReportTab(root);
+      ToastService.success("Đã mở bản báo cáo tuần đã lưu.");
+    } catch (error) { ToastService.error(error?.message || "Không mở được bản báo cáo đã lưu."); }
+    finally { event.currentTarget.disabled = false; }
+  });
+  bindReportActions(root);
+}
+
+function buildWeeklyReport(weekStart, departmentId) {
+  const weekEnd = addDays(weekStart, 6);
+  const target = upper(departmentId || "ALL");
+  const directives = state.directives.filter(item => {
+    if (clean(item.directedDateKey) > weekEnd) return false;
+    if (item.isDeleted === true && clean(item.deletedDateKey) && clean(item.deletedDateKey) <= weekEnd) return false;
+    if (target !== "ALL" && !(item.visibleDepartmentIds || []).map(upper).includes(target)) return false;
+    return true;
+  });
+  const sections = { completed: [], ongoing: [], overdue: [] };
+  directives.forEach(item => {
+    const dep = target === "ALL" ? upper(item.leadDepartmentId) : target;
+    let info = statusFor(item, dep, weekEnd);
+    const latest = info.latest;
+    if (info.code !== "COMPLETED" && info.code !== "PAUSED" && clean(item.dueDateKey) && clean(item.dueDateKey) <= weekEnd) {
+      info = { ...info, code: "OVERDUE", label: "Quá hạn", tone: "overdue" };
+    }
+    const completedDate = clean(latest?.completedDateKey);
+    const row = {
+      id: item.id,
+      directedDateKey: item.directedDateKey || "",
+      content: item.content || "",
+      directedByName: item.directedByName || "",
+      leadDepartmentId: item.leadDepartmentId || "",
+      reportDepartmentId: dep,
+      role: target === "ALL" ? "Chủ trì" : roleForDepartment(item, dep),
+      dueDateKey: item.dueDateKey || "",
+      status: info.code,
+      statusLabel: info.label,
+      resultSummary: latest?.resultSummary || latest?.progressSummary || "Chưa cập nhật kết quả",
+      note: latest?.note || ""
+    };
+    if (info.code === "COMPLETED" && completedDate >= weekStart && completedDate <= weekEnd) {
+      sections.completed.push(row);
+      return;
+    }
+    if (info.code === "OVERDUE") {
+      sections.overdue.push(row);
+      return;
+    }
+    if (info.code !== "COMPLETED") {
+      sections.ongoing.push(row);
+      return;
+    }
+    // Hoàn thành trước tuần: không đưa lại vào báo cáo tuần mới.
+  });
+  const total = sections.completed.length + sections.ongoing.length + sections.overdue.length;
+  return {
+    weekStart,
+    weekEnd,
+    departmentId: target,
+    title: target === "ALL" ? "Báo cáo kết quả thực hiện chỉ đạo của Ban Giám đốc" : `Báo cáo kết quả thực hiện chỉ đạo - ${departmentName(target)}`,
+    summary: { total, completed: sections.completed.length, ongoing: sections.ongoing.length, overdue: sections.overdue.length },
+    sections
+  };
+}
+
+function reportRows(rows) {
+  if (!rows.length) return '<tr><td colspan="7" class="directive-report-empty">Không có nội dung.</td></tr>';
+  return rows.map((row, index) => `<tr><td>${index + 1}</td><td>${esc(formatDate(row.directedDateKey))}</td><td>${esc(row.content)}</td><td>${esc(departmentName(row.reportDepartmentId))}${row.role ? `<br><small>${esc(row.role)}</small>` : ""}</td><td>${esc(formatDate(row.dueDateKey))}</td><td>${esc(row.resultSummary)}</td><td>${esc(row.statusLabel)}</td></tr>`).join("");
+}
+function reportSection(title, rows) {
+  return `<section class="directive-report-section"><h4>${esc(title)}</h4><table><thead><tr><th>STT</th><th>Ngày chỉ đạo</th><th>Nội dung</th><th>Phòng/Khu</th><th>Thời hạn</th><th>Kết quả/tiến độ</th><th>Trạng thái</th></tr></thead><tbody>${reportRows(rows)}</tbody></table></section>`;
+}
+function renderReport(report) {
+  return `<article id="directivePrintableReport" class="directive-report-document"><header><h3>${esc(report.title)}</h3><p>Tuần từ ngày <strong>${esc(formatDate(report.weekStart))}</strong> đến ngày <strong>${esc(formatDate(report.weekEnd))}</strong></p></header><div class="directive-report-summary"><span>Tổng: <strong>${report.summary.total}</strong></span><span>Hoàn thành: <strong>${report.summary.completed}</strong></span><span>Đang tiếp tục: <strong>${report.summary.ongoing}</strong></span><span>Quá hạn: <strong>${report.summary.overdue}</strong></span></div>${reportSection("I. KẾT QUẢ HOÀN THÀNH TRONG TUẦN", report.sections.completed)}${reportSection("II. NỘI DUNG ĐANG TIẾP TỤC THỰC HIỆN", report.sections.ongoing)}${reportSection("III. NỘI DUNG CHẬM/QUÁ HẠN", report.sections.overdue)}<footer><em>Báo cáo được tổng hợp từ phân hệ Chỉ đạo điều hành.</em></footer></article><div class="directive-report-actions"><button id="btnSaveDirectiveReport" class="primary-button" type="button">Lưu bản báo cáo tuần</button><button id="btnExportDirectiveWord" class="secondary-button" type="button">Xuất Word</button><button id="btnPrintDirectiveReport" class="secondary-button" type="button">In / Lưu PDF</button></div>`;
+}
+function bindReportActions(root) {
+  if (!state.report) return;
+  root.querySelector("#btnSaveDirectiveReport")?.addEventListener("click", async event => {
+    try {
+      event.currentTarget.disabled = true;
+      await ExecutiveDirectiveService.saveWeeklyReport(state.report);
+      ToastService.success("Đã lưu bản báo cáo tuần.");
+    } catch (error) { ToastService.error(error?.message || "Không lưu được báo cáo tuần."); }
+    finally { event.currentTarget.disabled = false; }
+  });
+  root.querySelector("#btnExportDirectiveWord")?.addEventListener("click", () => exportReportWord(state.report));
+  root.querySelector("#btnPrintDirectiveReport")?.addEventListener("click", () => printReport(state.report));
+}
+
+function reportHtmlDocument(report) {
+  const body = renderReport(report).replace(/<div class="directive-report-actions">[\s\S]*?<\/div>$/, "");
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(report.title)}</title><style>body{font-family:"Times New Roman",serif;font-size:13pt;color:#111;margin:28px}h3{text-align:center;text-transform:uppercase}h4{margin:22px 0 8px}table{width:100%;border-collapse:collapse;font-size:11pt}th,td{border:1px solid #333;padding:6px;vertical-align:top}th{text-align:center}.directive-report-summary{display:flex;gap:18px;flex-wrap:wrap;margin:16px 0}.directive-report-section{break-inside:avoid}footer{margin-top:18px}</style></head><body>${body}</body></html>`;
+}
+function exportReportWord(report) {
+  const blob = new Blob(["\ufeff", reportHtmlDocument(report)], { type: "application/msword;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `Bao-cao-chi-dao-${report.departmentId}-${report.weekStart}.doc`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+function printReport(report) {
+  const popup = window.open("", "_blank");
+  if (!popup) return ToastService.error("Trình duyệt đang chặn cửa sổ in. Hãy cho phép pop-up rồi thử lại.");
+  try { popup.opener = null; } catch (_) { /* no-op */ }
+  popup.document.open();
+  popup.document.write(reportHtmlDocument(report));
+  popup.document.close();
+  popup.focus();
+  window.setTimeout(() => popup.print(), 250);
+}
+
+function openDirectiveForm(current = null) {
+  if (!Permissions.canManageExecutiveDirectives()) return;
+  const editing = Boolean(current?.id);
+  const departments = targetDepartments();
+  const directors = directorUsers();
+  const selectedDirectorId = clean(current?.directedByUserId);
+  const selectedDirectorExists = directors.some(item => item.id === selectedDirectorId || item.uid === selectedDirectorId);
+  const directorValue = selectedDirectorExists ? selectedDirectorId : (editing && !selectedDirectorId ? "__OTHER__" : (directors[0]?.id || directors[0]?.uid || "__OTHER__"));
+  const support = new Set((current?.supportDepartmentIds || []).map(upper));
+  const backdrop = modalBackdrop(`
+    <section class="directive-modal-card directive-form-modal">
+      <header class="directive-modal-header"><div><span class="page-eyebrow">${editing ? "CHỈNH SỬA" : "THÊM MỚI"}</span><h2>${editing ? "Chỉnh sửa nội dung chỉ đạo" : "Ghi nhận nội dung chỉ đạo"}</h2><p>Người chỉ đạo và người thao tác trên phần mềm được lưu tách biệt.</p></div><button data-directive-close class="modal-close-button" type="button">×</button></header>
+      <div class="directive-modal-body"><div class="directive-form-grid">
+        <label><span>Hình thức chỉ đạo *</span><select id="directiveSourceType">${Object.entries(SOURCE_LABELS).map(([value, label]) => `<option value="${value}" ${upper(current?.sourceType || "DIRECT") === value ? "selected" : ""}>${esc(label)}</option>`).join("")}</select></label>
+        <label><span>Ngày chỉ đạo *</span><input id="directiveDate" type="date" value="${esc(current?.directedDateKey || localDateKey())}"></label>
+        <label><span>Người chỉ đạo *</span><select id="directiveDirector">${directors.map(user => { const id = user.id || user.uid; return `<option value="${esc(id)}" ${id === directorValue ? "selected" : ""}>${esc(user.fullName || user.email)}</option>`; }).join("")}<option value="__OTHER__" ${directorValue === "__OTHER__" ? "selected" : ""}>Nhập tên khác</option></select></label>
+        <label id="directiveOtherDirectorWrap" class="${directorValue === "__OTHER__" ? "" : "hidden"}"><span>Tên người chỉ đạo *</span><input id="directiveOtherDirector" maxlength="150" value="${esc(!selectedDirectorExists ? current?.directedByName || "" : "")}"></label>
+        <label class="field-full"><span>Tên cuộc họp/nguồn chỉ đạo</span><input id="directiveMeetingName" maxlength="250" value="${esc(current?.meetingName || "")}" placeholder="Ví dụ: Họp giao ban Trung tâm"></label>
+        <label class="field-full"><span>Số/ký hiệu văn bản hoặc ghi chú nguồn</span><input id="directiveReference" maxlength="250" value="${esc(current?.referenceText || "")}" placeholder="Không bắt buộc"></label>
+        <label class="field-full"><span>Nội dung chỉ đạo *</span><textarea id="directiveContentInput" rows="5" maxlength="5000" placeholder="Nhập đầy đủ ý kiến chỉ đạo của Ban Giám đốc">${esc(current?.content || "")}</textarea></label>
+        <label><span>Phòng/Khu chủ trì *</span><select id="directiveLeadDepartment"><option value="">— Chọn Phòng/Khu —</option>${departments.map(dep => { const id = upper(dep.id || dep.code); return `<option value="${esc(id)}" ${upper(current?.leadDepartmentId) === id ? "selected" : ""}>${esc(dep.name || id)}</option>`; }).join("")}</select></label>
+        <label><span>Thời hạn</span><input id="directiveDueDate" type="date" value="${esc(current?.dueDateKey || "")}"></label>
+        <fieldset class="field-full directive-support-field"><legend>Phòng/Khu phối hợp</legend><div class="directive-checkbox-grid">${departments.map(dep => { const id = upper(dep.id || dep.code); return `<label><input type="checkbox" value="${esc(id)}" data-support-department ${support.has(id) ? "checked" : ""}><span>${esc(dep.name || id)}</span></label>`; }).join("")}</div></fieldset>
+        <label><span>Mức độ</span><select id="directivePriority">${Object.entries(PRIORITY_LABELS).map(([value,label]) => `<option value="${value}" ${upper(current?.priority || "NORMAL") === value ? "selected" : ""}>${esc(label)}</option>`).join("")}</select></label>
+      </div></div>
+      <footer class="directive-modal-footer"><button data-directive-close class="secondary-button" type="button">Hủy</button><button id="btnSaveDirective" class="primary-button" type="button">${editing ? "Lưu thay đổi" : "Lưu và giao thực hiện"}</button></footer>
+    </section>`);
+  const directorSelect = backdrop.querySelector("#directiveDirector");
+  const otherWrap = backdrop.querySelector("#directiveOtherDirectorWrap");
+  directorSelect?.addEventListener("change", () => otherWrap?.classList.toggle("hidden", directorSelect.value !== "__OTHER__"));
+  const leadSelect = backdrop.querySelector("#directiveLeadDepartment");
+  leadSelect?.addEventListener("change", () => {
+    backdrop.querySelectorAll("[data-support-department]").forEach(input => {
+      input.disabled = input.value === leadSelect.value;
+      if (input.disabled) input.checked = false;
+    });
+  });
+  leadSelect?.dispatchEvent(new Event("change"));
+  backdrop.querySelector("#btnSaveDirective")?.addEventListener("click", async event => {
+    const selectedDirector = directorSelect?.value || "__OTHER__";
+    const director = directors.find(user => (user.id || user.uid) === selectedDirector);
+    const input = {
+      sourceType: backdrop.querySelector("#directiveSourceType")?.value,
+      directedDateKey: backdrop.querySelector("#directiveDate")?.value,
+      directedByUserId: director ? (director.id || director.uid) : "",
+      directedByName: director ? (director.fullName || director.email) : backdrop.querySelector("#directiveOtherDirector")?.value,
+      meetingName: backdrop.querySelector("#directiveMeetingName")?.value,
+      referenceText: backdrop.querySelector("#directiveReference")?.value,
+      content: backdrop.querySelector("#directiveContentInput")?.value,
+      leadDepartmentId: leadSelect?.value,
+      supportDepartmentIds: [...backdrop.querySelectorAll("[data-support-department]:checked")].map(inputEl => inputEl.value),
+      dueDateKey: backdrop.querySelector("#directiveDueDate")?.value,
+      priority: backdrop.querySelector("#directivePriority")?.value
+    };
+    try {
+      event.currentTarget.disabled = true;
+      event.currentTarget.textContent = "Đang lưu…";
+      if (editing) await ExecutiveDirectiveService.updateDirective(current, input);
+      else await ExecutiveDirectiveService.createDirective(input);
+      backdrop.remove();
+      await refreshAfterWrite();
+      ToastService.success(editing ? "Đã cập nhật nội dung chỉ đạo." : "Đã ghi nhận và giao nội dung chỉ đạo.");
+    } catch (error) {
+      ToastService.error(error?.message || "Không lưu được nội dung chỉ đạo.");
+      event.currentTarget.disabled = false;
+      event.currentTarget.textContent = editing ? "Lưu thay đổi" : "Lưu và giao thực hiện";
+    }
+  });
+}
+
+function openDirectiveDetail(id) {
+  const directive = state.directives.find(item => item.id === id);
+  if (!directive) return ToastService.error("Không tìm thấy nội dung chỉ đạo.");
+  const user = UserContext.requireUser();
+  const manager = Permissions.canManageExecutiveDirectives();
+  const visibleDepartments = (directive.visibleDepartmentIds || []).map(upper);
+  const ownRelevant = visibleDepartments.includes(user.departmentId);
+  const history = manager ? directiveUpdates(directive.id) : directiveUpdates(directive.id, user.departmentId);
+  const scopeDepartment = manager ? directive.leadDepartmentId : user.departmentId;
+  const status = statusFor(directive, scopeDepartment);
+  const backdrop = modalBackdrop(`
+    <section class="directive-modal-card directive-detail-modal">
+      <header class="directive-modal-header"><div><span class="page-eyebrow">CHI TIẾT CHỈ ĐẠO</span><h2>${esc(directive.content)}</h2><p>${esc(formatDate(directive.directedDateKey))} · ${esc(directive.directedByName || "")}</p></div><button data-directive-close class="modal-close-button" type="button">×</button></header>
+      <div class="directive-modal-body">
+        <div class="directive-detail-summary"><div><span>Trạng thái</span>${statusPill(status)}</div><div><span>Hình thức</span><strong>${esc(SOURCE_LABELS[upper(directive.sourceType)] || directive.sourceType || "—")}</strong></div><div><span>Chủ trì</span><strong>${esc(departmentName(directive.leadDepartmentId))}</strong></div><div><span>Thời hạn</span><strong>${esc(formatDate(directive.dueDateKey))}</strong></div></div>
+        <section class="directive-detail-section"><h3>Thông tin chỉ đạo</h3><dl class="directive-detail-grid"><div><dt>Người chỉ đạo</dt><dd>${esc(directive.directedByName || "—")}</dd></div><div><dt>Ngày chỉ đạo</dt><dd>${esc(formatDate(directive.directedDateKey))}</dd></div><div><dt>Cuộc họp/nguồn</dt><dd>${esc(directive.meetingName || directive.referenceText || "—")}</dd></div><div><dt>Mức độ</dt><dd>${esc(PRIORITY_LABELS[upper(directive.priority)] || "Bình thường")}</dd></div><div class="field-full"><dt>Đơn vị phối hợp</dt><dd>${(directive.supportDepartmentIds || []).length ? directive.supportDepartmentIds.map(departmentName).map(esc).join(", ") : "Không có"}</dd></div><div class="field-full"><dt>Người nhập hệ thống</dt><dd>${esc(directive.createdByName || "—")} · ${esc(departmentName(directive.createdByDepartmentId))}</dd></div></dl></section>
+        <section class="directive-detail-section"><div class="section-heading"><div><h3>Kết quả và lịch sử cập nhật</h3><p>${manager ? "Hiển thị lịch sử toàn bộ Phòng/Khu." : `Hiển thị cập nhật của ${esc(departmentName(user.departmentId))}.`}</p></div></div><div class="directive-history">${history.length ? history.map(historyItem).join("") : emptyState("Chưa có cập nhật tiến độ.")}</div></section>
+      </div>
+      <footer class="directive-modal-footer directive-detail-actions">${ownRelevant || manager ? '<button id="btnDirectiveProgress" class="primary-button" type="button">Cập nhật kết quả</button>' : ""}${manager ? '<button id="btnDirectiveEdit" class="secondary-button" type="button">Chỉnh sửa</button><button id="btnDirectiveLifecycle" class="secondary-button" type="button">' + (upper(directive.lifecycleStatus) === "CLOSED" ? "Mở lại" : "Đóng chỉ đạo") + '</button><button id="btnDirectiveDelete" class="danger-button" type="button">Xóa</button>' : ""}<button data-directive-close class="secondary-button" type="button">Đóng</button></footer>
+    </section>`);
+  backdrop.querySelector("#btnDirectiveProgress")?.addEventListener("click", () => { backdrop.remove(); openProgressForm(directive); });
+  backdrop.querySelector("#btnDirectiveEdit")?.addEventListener("click", () => { backdrop.remove(); openDirectiveForm(directive); });
+  backdrop.querySelector("#btnDirectiveLifecycle")?.addEventListener("click", async event => {
+    const closing = upper(directive.lifecycleStatus) !== "CLOSED";
+    const reason = closing ? window.prompt("Nhập lý do đóng chỉ đạo (có thể để trống):", "") : "";
+    if (closing && reason === null) return;
+    try {
+      event.currentTarget.disabled = true;
+      await ExecutiveDirectiveService.setLifecycle(directive, closing, reason || "");
+      backdrop.remove(); await refreshAfterWrite(); ToastService.success(closing ? "Đã đóng nội dung chỉ đạo." : "Đã mở lại nội dung chỉ đạo.");
+    } catch (error) { ToastService.error(error?.message || "Không cập nhật được trạng thái chỉ đạo."); event.currentTarget.disabled = false; }
+  });
+  backdrop.querySelector("#btnDirectiveDelete")?.addEventListener("click", async event => {
+    const reason = window.prompt("Nhập lý do xóa nội dung chỉ đạo:", "");
+    if (reason === null) return;
+    if (!clean(reason)) return ToastService.error("Cần nhập lý do xóa.");
+    if (!window.confirm("Xóa nội dung này khỏi danh sách sử dụng? Hệ thống vẫn giữ lịch sử để đối chiếu.")) return;
+    try {
+      event.currentTarget.disabled = true;
+      await ExecutiveDirectiveService.softDelete(directive, reason);
+      backdrop.remove(); await refreshAfterWrite(); ToastService.success("Đã xóa nội dung chỉ đạo khỏi danh sách sử dụng.");
+    } catch (error) { ToastService.error(error?.message || "Không xóa được nội dung chỉ đạo."); event.currentTarget.disabled = false; }
+  });
+}
+
+function historyItem(item) {
+  const system = upper(item.departmentId) === "__SYSTEM__";
+  const status = upper(item.status);
+  const links = (item.evidenceLinks || []).map(url => safeLink(url)).filter(Boolean);
+  return `<article class="directive-history-item"><div class="directive-history-dot"></div><div><header><strong>${esc(system ? "Quản trị chỉ đạo" : departmentName(item.departmentId))}</strong><span>${esc(formatDate(item.actionDateKey))} · ${esc(item.createdByName || "")}</span></header>${status ? statusPill({ label: STATUS_LABELS[status] || status, tone: status === "COMPLETED" ? "completed" : status === "IN_PROGRESS" ? "progress" : status === "PAUSED" ? "paused" : "new" }) : ""}${item.progressSummary ? `<p><b>Tiến độ:</b> ${esc(item.progressSummary)}</p>` : ""}${item.resultSummary ? `<p><b>Kết quả:</b> ${esc(item.resultSummary)}</p>` : ""}${item.note ? `<p>${esc(item.note)}</p>` : ""}${links.length ? `<div class="directive-evidence-links">${links.join("")}</div>` : ""}</div></article>`;
+}
+function safeLink(url) {
+  const text = clean(url);
+  if (!/^https?:\/\//i.test(text)) return "";
+  return `<a href="${esc(text)}" target="_blank" rel="noopener noreferrer">Minh chứng ↗</a>`;
+}
+
+function openProgressForm(directive) {
+  const user = UserContext.requireUser();
+  const manager = Permissions.canManageExecutiveDirectives();
+  const visible = (directive.visibleDepartmentIds || []).map(upper);
+  const targetOptions = manager ? visible.map(id => `<option value="${esc(id)}">${esc(departmentName(id))} · ${esc(roleForDepartment(directive, id))}</option>`).join("") : `<option value="${esc(user.departmentId)}">${esc(departmentName(user.departmentId))}</option>`;
+  const defaultDepartment = manager ? upper(directive.leadDepartmentId) : user.departmentId;
+  const latest = latestProgress(directive, defaultDepartment);
+  const backdrop = modalBackdrop(`
+    <section class="directive-modal-card directive-progress-modal"><header class="directive-modal-header"><div><span class="page-eyebrow">CẬP NHẬT KẾT QUẢ</span><h2>${esc(directive.content)}</h2><p>Mỗi lần lưu tạo một dòng lịch sử mới, không ghi đè cập nhật cũ.</p></div><button data-directive-close class="modal-close-button" type="button">×</button></header><div class="directive-modal-body"><div class="directive-form-grid"><label><span>Phòng/Khu cập nhật *</span><select id="progressDepartment" ${manager ? "" : "disabled"}>${targetOptions}</select></label><label><span>Trạng thái *</span><select id="progressStatus"><option value="NOT_STARTED">Chưa thực hiện</option><option value="IN_PROGRESS">Đang thực hiện</option><option value="COMPLETED">Hoàn thành</option><option value="PAUSED">Tạm dừng</option></select></label><label class="field-full"><span>Tiến độ thực hiện</span><textarea id="progressSummary" rows="3" maxlength="3000" placeholder="Nêu ngắn gọn nội dung đang thực hiện">${esc(latest?.progressSummary || "")}</textarea></label><label class="field-full"><span>Kết quả</span><textarea id="progressResult" rows="4" maxlength="4000" placeholder="Nêu kết quả đã thực hiện">${esc(latest?.resultSummary || "")}</textarea></label><label class="field-full"><span>Liên kết minh chứng</span><textarea id="progressEvidence" rows="3" placeholder="Mỗi dòng một liên kết http:// hoặc https://">${esc((latest?.evidenceLinks || []).join("\n"))}</textarea></label><label class="field-full"><span>Ghi chú</span><textarea id="progressNote" rows="2" maxlength="2000">${esc(latest?.note || "")}</textarea></label></div></div><footer class="directive-modal-footer"><button data-directive-close class="secondary-button" type="button">Hủy</button><button id="btnSaveProgress" class="primary-button" type="button">Lưu cập nhật</button></footer></section>`);
+  const departmentSelect = backdrop.querySelector("#progressDepartment");
+  if (departmentSelect) departmentSelect.value = defaultDepartment;
+  const statusSelect = backdrop.querySelector("#progressStatus");
+  if (statusSelect) statusSelect.value = upper(latest?.status || "IN_PROGRESS");
+  departmentSelect?.addEventListener("change", () => {
+    const item = latestProgress(directive, departmentSelect.value);
+    if (statusSelect) statusSelect.value = upper(item?.status || "IN_PROGRESS");
+    const progress = backdrop.querySelector("#progressSummary"); if (progress) progress.value = item?.progressSummary || "";
+    const result = backdrop.querySelector("#progressResult"); if (result) result.value = item?.resultSummary || "";
+    const evidence = backdrop.querySelector("#progressEvidence"); if (evidence) evidence.value = (item?.evidenceLinks || []).join("\n");
+    const note = backdrop.querySelector("#progressNote"); if (note) note.value = item?.note || "";
+  });
+  backdrop.querySelector("#btnSaveProgress")?.addEventListener("click", async event => {
+    const evidenceLinks = clean(backdrop.querySelector("#progressEvidence")?.value).split(/\r?\n/).map(clean).filter(Boolean);
+    const invalid = evidenceLinks.find(url => !/^https?:\/\//i.test(url));
+    if (invalid) return ToastService.error("Liên kết minh chứng phải bắt đầu bằng http:// hoặc https://.");
+    try {
+      event.currentTarget.disabled = true;
+      await ExecutiveDirectiveService.addProgressUpdate(directive, departmentSelect?.value || user.departmentId, {
+        status: statusSelect?.value,
+        progressSummary: backdrop.querySelector("#progressSummary")?.value,
+        resultSummary: backdrop.querySelector("#progressResult")?.value,
+        evidenceLinks,
+        note: backdrop.querySelector("#progressNote")?.value
+      });
+      backdrop.remove(); await refreshAfterWrite(); ToastService.success("Đã lưu cập nhật kết quả.");
+    } catch (error) { ToastService.error(error?.message || "Không lưu được cập nhật kết quả."); event.currentTarget.disabled = false; }
+  });
+}
+
+async function refreshAfterWrite() {
+  const [directives, updates] = await Promise.all([ExecutiveDirectiveService.listDirectives(), ExecutiveDirectiveService.listUpdates()]);
+  state.directives = directives;
+  state.updates = updates;
+  renderCurrentTab();
+}
+
+function modalBackdrop(html) {
+  const node = document.createElement("div");
+  node.className = "directive-modal-backdrop";
+  node.innerHTML = html;
+  document.body.appendChild(node);
+  const close = () => node.remove();
+  node.querySelectorAll("[data-directive-close]").forEach(button => button.addEventListener("click", close));
+  node.addEventListener("click", event => { if (event.target === node) close(); });
+  return node;
+}
+function loadingCard(message) { return `<section class="page-card"><div class="empty-state"><div class="empty-icon">⏳</div><strong>${esc(message)}</strong></div></section>`; }
+function errorCard(title, error) { return `<section class="page-card error-card"><h2>${esc(title)}</h2><p>${esc(error?.message || "Lỗi không xác định")}</p></section>`; }
+function emptyState(message) { return `<div class="directive-empty"><span>📌</span><strong>${esc(message)}</strong></div>`; }
