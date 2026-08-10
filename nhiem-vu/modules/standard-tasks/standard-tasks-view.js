@@ -1,10 +1,10 @@
-import { UserContext } from "../../core/user-context.js?v=20260810.V1_10_3";
-import { Permissions } from "../../core/permissions.js?v=20260810.V1_10_3";
-import { ToastService } from "../../core/toast-service.js?v=20260810.V1_10_3";
-import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260810.V1_10_3";
-import { PeriodReadService } from "../../services/period-read-service.js?v=20260810.V1_10_3";
-import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260810.V1_10_3";
-import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260810.V1_10_3";
+import { UserContext } from "../../core/user-context.js?v=20260810.V1_10_6";
+import { Permissions } from "../../core/permissions.js?v=20260810.V1_10_6";
+import { ToastService } from "../../core/toast-service.js?v=20260810.V1_10_6";
+import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260810.V1_10_6";
+import { PeriodReadService } from "../../services/period-read-service.js?v=20260810.V1_10_6";
+import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260810.V1_10_6";
+import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260810.V1_10_6";
 
 let currentCatalogAccess = {
   canManage: false,
