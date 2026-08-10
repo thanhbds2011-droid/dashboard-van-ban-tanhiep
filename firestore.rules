@@ -1,9 +1,20 @@
 rules_version = '2';
 
+/*
+ * Production Rules V1.10.6 - 2026-08-10
+ *
+ * Mục tiêu của bản này:
+ * 1) Giữ nguyên các luồng V1.9.4 đang hoạt động.
+ * 2) Cho phép Trưởng/Phó phòng và nhân viên được ủy quyền hợp lệ cập nhật danh mục chuẩn.
+ * 3) BGĐ có quyền điều hành nhiệm vụ (thu hồi/chuyển/xóa mềm) nhưng không chấm điểm người khác.
+ * 4) Hỗ trợ hủy an toàn nhiệm vụ tự đăng ký.
+ * 5) Hỗ trợ điều chỉnh sau Hội đồng theo 3 tầng TCHC -> Trưởng Phòng/Khu -> cá nhân.
+ * 6) Mọi ghi điểm sau Hội đồng phải đi qua request cụ thể đang ở trạng thái EMPLOYEE_SUBMITTED.
+ */
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    /* ===== HÀM DÙNG CHUNG ===== */
+    /* ==================== TÀI KHOẢN / HỒ SƠ ==================== */
     function signedIn() {
       return request.auth != null;
     }
@@ -85,22 +96,117 @@ service cloud.firestore {
       return activeUser() && isDeputyProfile(currentUser());
     }
 
-    function canViewAllDepartments() {
-      return isAdmin() || isDirector() || isTchcCoordinator();
-    }
-
     function sameDepartment(departmentId) {
       return activeUser() && currentUser().departmentId == departmentId;
     }
 
-    function isOwner(userId) {
-      return signedIn() && request.auth.uid == userId;
+    function isDepartmentManagerFor(departmentId) {
+      /* Trưởng và Phó Phòng/Khu cùng được xử lý yêu cầu sau Hội đồng trong đơn vị mình. */
+      return isDepartmentLeader() && sameDepartment(departmentId);
+    }
+
+    function canViewAllDepartments() {
+      /* V1.10.1: frontend đã xác định Trưởng/Phó TCHC cùng phạm vi xem toàn Trung tâm. */
+      return isAdmin()
+        || isDirector()
+        || isTchcCoordinator()
+        || (isDepartmentLeader() && sameDepartment("TCHC"));
+    }
+
+
+
+    /* ==================== CHỈ ĐẠO ĐIỀU HÀNH ==================== */
+    function canManageExecutiveDirectives() {
+      return isAdmin()
+        || isDirector()
+        || isTchcCoordinator()
+        || (isDepartmentLeader() && sameDepartment("TCHC"));
+    }
+
+    function executiveDirectiveVisible(data) {
+      /*
+       * V1.10.5:
+       * Query phía frontend đã ràng buộc:
+       * where("visibleDepartmentIds", "array-contains", user.departmentId)
+       *
+       * Giữ điều kiện đọc ở dạng trực tiếp để Firestore có thể đối chiếu
+       * tập kết quả tiềm năng của query với Security Rules.
+       */
+      return activeUser()
+        && (
+          canManageExecutiveDirectives()
+          || currentUser().departmentId in data.visibleDepartmentIds
+        );
+    }
+
+    function executiveDirectivePath(directiveId) {
+      return /databases/$(database)/documents/executiveDirectives/$(directiveId);
+    }
+
+    function executiveAcceptanceId(directiveId, departmentId) {
+      return "ACCEPTED_" + directiveId + "_" + departmentId;
+    }
+
+    function executiveAcceptancePath(directiveId, departmentId) {
+      return /databases/$(database)/documents/executiveDirectiveUpdates/$(executiveAcceptanceId(directiveId, departmentId));
+    }
+
+    function executiveStateId(directiveId, departmentId) {
+      return directiveId + "__" + departmentId;
+    }
+
+    function executiveStatePath(directiveId, departmentId) {
+      return /databases/$(database)/documents/executiveDirectiveStates/$(executiveStateId(directiveId, departmentId));
+    }
+
+    function isExecutiveDepartmentOperator(departmentId) {
+      return activeUser()
+        && sameDepartment(departmentId)
+        && (
+          isDepartmentLeader()
+          || (departmentId == "TCHC" && isTchcCoordinator())
+        );
+    }
+
+    function canAcceptExecutiveDepartment(directiveId, departmentId) {
+      return activeUser()
+        && exists(executiveDirectivePath(directiveId))
+        && departmentId in get(executiveDirectivePath(directiveId)).data.visibleDepartmentIds
+        && (
+          canManageExecutiveDirectives()
+          || isExecutiveDepartmentOperator(departmentId)
+        );
+    }
+
+    function canProgressExecutiveDepartment(directiveId, departmentId) {
+      return activeUser()
+        && exists(executiveDirectivePath(directiveId))
+        && departmentId in get(executiveDirectivePath(directiveId)).data.visibleDepartmentIds
+        && (
+          canManageExecutiveDirectives()
+          || isExecutiveDepartmentOperator(departmentId)
+          || (
+            departmentId == get(executiveDirectivePath(directiveId)).data.leadDepartmentId
+            && hasField(get(executiveDirectivePath(directiveId)).data, "assignmentLevel")
+            && get(executiveDirectivePath(directiveId)).data.assignmentLevel == "PERSON"
+            && hasField(get(executiveDirectivePath(directiveId)).data, "leadUserId")
+            && get(executiveDirectivePath(directiveId)).data.leadUserId == request.auth.uid
+          )
+        );
+    }
+
+    function executiveStateTransitionAllowed(beforeStatus, afterStatus) {
+      return (afterStatus == "IN_PROGRESS" && beforeStatus in ["ACCEPTED", "IN_PROGRESS", "PAUSED"])
+        || (afterStatus == "PAUSED" && beforeStatus in ["IN_PROGRESS", "PAUSED"])
+        || (afterStatus == "COMPLETED" && beforeStatus == "IN_PROGRESS");
+    }
+
+    function canWriteExecutiveDepartmentUpdate(directiveId, departmentId) {
+      return canProgressExecutiveDepartment(directiveId, departmentId);
     }
 
     function authenticatedEmail() {
-      return signedIn() && request.auth.token.email != null
-        ? request.auth.token.email
-        : "";
+      return signedIn() && request.auth.token.email != null ? request.auth.token.email : "";
     }
 
     function accessAccountPath() {
@@ -118,22 +224,87 @@ service cloud.firestore {
       return get(accessAccountPath()).data;
     }
 
-    /* ===== ỦY QUYỀN ===== */
-    function delegationId(departmentId) {
+    function selfProfileSyncMatchesAccess(userId) {
+      return signedIn()
+        && request.auth.uid == userId
+        && hasActiveAccessAccount()
+        && request.resource.data.email == authenticatedEmail()
+        && request.resource.data.role == accessAccount().role
+        && request.resource.data.departmentId == accessAccount().departmentId
+        && request.resource.data.active == true
+        && (!hasField(accessAccount(), "position") || request.resource.data.position == accessAccount().position)
+        && (!hasField(accessAccount(), "leaderLevel") || request.resource.data.leaderLevel == accessAccount().leaderLevel)
+        && (!hasField(accessAccount(), "isDepartmentHead") || request.resource.data.isDepartmentHead == accessAccount().isDepartmentHead)
+        && (!hasField(accessAccount(), "additionalRoles") || request.resource.data.additionalRoles == accessAccount().additionalRoles)
+        && (!hasField(accessAccount(), "taskNotificationCoordinator") || request.resource.data.taskNotificationCoordinator == accessAccount().taskNotificationCoordinator)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "email", "fullName", "departmentId", "role", "position", "leaderLevel",
+          "isDepartmentHead", "teamId", "employeeCode", "additionalRoles",
+          "taskNotificationCoordinator", "active", "updatedAt"
+        ]);
+    }
+
+    function hasAdditionalRole(roleName) {
+      return activeUser()
+        && hasField(currentUser(), "additionalRoles")
+        && currentUser().additionalRoles is list
+        && roleName in currentUser().additionalRoles;
+    }
+
+    function isCdtnExecutive() {
+      return hasAdditionalRole("CDTN_BI_THU")
+        || hasAdditionalRole("CDTN_PHO_BI_THU")
+        || hasAdditionalRole("CDTN_UY_VIEN_BCH");
+    }
+
+    function isCdtnMember() {
+      return isCdtnExecutive() || hasAdditionalRole("CDTN_DOAN_VIEN");
+    }
+
+    function isCdtnLeadership() {
+      return hasAdditionalRole("CDTN_BI_THU") || hasAdditionalRole("CDTN_PHO_BI_THU");
+    }
+
+    function isCdtnCatalogManager() {
+      /* Bí thư, Phó Bí thư và Ủy viên BCH đều được nhập danh mục Chi đoàn. */
+      return isCdtnExecutive();
+    }
+
+    function isTchcHead() {
+      return isAdmin() || (isDepartmentHead() && sameDepartment("TCHC"));
+    }
+
+    /* ==================== ỦY QUYỀN ==================== */
+    function approvalDelegationId(departmentId) {
       return departmentId + "_ACTIVE";
     }
 
-    function delegationPath(departmentId) {
-      return /databases/$(database)/documents/approvalDelegations/$(delegationId(departmentId));
+    function approvalDelegationPath(departmentId) {
+      return /databases/$(database)/documents/approvalDelegations/$(approvalDelegationId(departmentId));
     }
 
-    function delegationPermission(data, permissionName) {
-      return (
-          !hasField(data, "permissions")
-          || data.permissions.size() == 0
-        )
-        ? permissionName == "APPROVE_REGISTRATIONS"
-        : permissionName in data.permissions;
+    function standardEditorDelegationId(departmentId) {
+      return departmentId + "_STANDARD_TASK_EDITOR";
+    }
+
+    function standardEditorDelegationPath(departmentId) {
+      return /databases/$(database)/documents/approvalDelegations/$(standardEditorDelegationId(departmentId));
+    }
+
+    function cdtnApprovalDelegationPath() {
+      return /databases/$(database)/documents/approvalDelegations/CDTN_APPROVAL_ACTIVE;
+    }
+
+    function hasActiveCdtnApprovalDelegation(permissionName) {
+      return activeUser()
+        && exists(cdtnApprovalDelegationPath())
+        && get(cdtnApprovalDelegationPath()).data.active == true
+        && get(cdtnApprovalDelegationPath()).data.delegateUserId == request.auth.uid
+        && get(cdtnApprovalDelegationPath()).data.departmentId == "CDTN"
+        && delegationTimeValid(get(cdtnApprovalDelegationPath()).data)
+        && hasField(get(cdtnApprovalDelegationPath()).data, "permissions")
+        && get(cdtnApprovalDelegationPath()).data.permissions is list
+        && permissionName in get(cdtnApprovalDelegationPath()).data.permissions;
     }
 
     function delegationTimeValid(data) {
@@ -141,59 +312,137 @@ service cloud.firestore {
         && (!hasField(data, "endAt") || data.endAt >= request.time);
     }
 
-    function hasActiveDelegation(departmentId, permissionName) {
+    function approvalDelegationHasPermission(data, permissionName) {
+      return (
+          !hasField(data, "permissions")
+          || !(data.permissions is list)
+          || data.permissions.size() == 0
+        )
+        ? permissionName == "APPROVE_REGISTRATIONS"
+        : permissionName in data.permissions;
+    }
+
+    function hasActiveApprovalDelegation(departmentId, permissionName) {
       return isDepartmentDeputy()
         && sameDepartment(departmentId)
-        && exists(delegationPath(departmentId))
-        && get(delegationPath(departmentId)).data.active == true
-        && get(delegationPath(departmentId)).data.delegateUserId == request.auth.uid
-        && get(delegationPath(departmentId)).data.departmentId == departmentId
-        && delegationTimeValid(get(delegationPath(departmentId)).data)
-        && delegationPermission(get(delegationPath(departmentId)).data, permissionName);
+        && exists(approvalDelegationPath(departmentId))
+        && get(approvalDelegationPath(departmentId)).data.active == true
+        && get(approvalDelegationPath(departmentId)).data.delegateUserId == request.auth.uid
+        && get(approvalDelegationPath(departmentId)).data.departmentId == departmentId
+        && delegationTimeValid(get(approvalDelegationPath(departmentId)).data)
+        && approvalDelegationHasPermission(get(approvalDelegationPath(departmentId)).data, permissionName);
+    }
+
+    function hasStandardTaskEditorDelegation(departmentId) {
+      return activeUser()
+        && sameDepartment(departmentId)
+        && exists(standardEditorDelegationPath(departmentId))
+        && get(standardEditorDelegationPath(departmentId)).data.active == true
+        && get(standardEditorDelegationPath(departmentId)).data.delegateUserId == request.auth.uid
+        && get(standardEditorDelegationPath(departmentId)).data.departmentId == departmentId
+        && delegationTimeValid(get(standardEditorDelegationPath(departmentId)).data)
+        && hasField(get(standardEditorDelegationPath(departmentId)).data, "permissions")
+        && get(standardEditorDelegationPath(departmentId)).data.permissions is list
+        && "MANAGE_STANDARD_TASKS" in get(standardEditorDelegationPath(departmentId)).data.permissions;
     }
 
     function canApproveDepartmentRegistrations(departmentId) {
       return isAdmin()
+        || (departmentId == "CDTN" && (isCdtnLeadership() || hasActiveCdtnApprovalDelegation("APPROVE_REGISTRATIONS")))
         || (isDepartmentHead() && sameDepartment(departmentId))
-        || hasActiveDelegation(departmentId, "APPROVE_REGISTRATIONS");
+        || hasActiveApprovalDelegation(departmentId, "APPROVE_REGISTRATIONS");
     }
 
     function canConfirmDepartmentEvaluations(departmentId) {
       return isAdmin()
+        || (departmentId == "CDTN" && (isCdtnLeadership() || hasActiveCdtnApprovalDelegation("CONFIRM_EVALUATIONS")))
         || (isDepartmentHead() && sameDepartment(departmentId))
-        || hasActiveDelegation(departmentId, "CONFIRM_EVALUATIONS");
+        || hasActiveApprovalDelegation(departmentId, "CONFIRM_EVALUATIONS");
+    }
+
+    function canConfirmTaskScore(data) {
+      return isAdmin()
+        || (
+          data.primaryDepartmentId == "CDTN"
+          && (isCdtnLeadership() || hasActiveCdtnApprovalDelegation("CONFIRM_EVALUATIONS"))
+        )
+        || (isDepartmentHead() && sameDepartment(data.primaryDepartmentId))
+        || (
+          hasActiveApprovalDelegation(data.primaryDepartmentId, "CONFIRM_EVALUATIONS")
+          && (!hasField(data, "ownerUserId") || data.ownerUserId != request.auth.uid)
+        );
+    }
+
+    function canConfirmEvaluationRecord(data) {
+      return isAdmin()
+        || (
+          data.departmentId == "CDTN"
+          && (isCdtnLeadership() || hasActiveCdtnApprovalDelegation("CONFIRM_EVALUATIONS"))
+        )
+        || (isDepartmentHead() && sameDepartment(data.departmentId))
+        || (
+          hasActiveApprovalDelegation(data.departmentId, "CONFIRM_EVALUATIONS")
+          && data.ownerUserId != request.auth.uid
+        );
+    }
+
+    function canConfirmCommonAssessment(data) {
+      return isAdmin()
+        || (isDepartmentHead() && sameDepartment(data.departmentId))
+        || (
+          hasActiveApprovalDelegation(data.departmentId, "CONFIRM_EVALUATIONS")
+          && data.userId != request.auth.uid
+        );
     }
 
     function canViewDepartmentReportData(departmentId) {
       return canViewAllDepartments()
+        || (departmentId == "CDTN" && (isCdtnExecutive() || hasActiveCdtnApprovalDelegation("VIEW_DEPARTMENT_REPORT")))
         || (isDepartmentHead() && sameDepartment(departmentId))
-        || hasActiveDelegation(departmentId, "VIEW_DEPARTMENT_REPORT");
+        || hasActiveApprovalDelegation(departmentId, "VIEW_DEPARTMENT_REPORT");
     }
 
     function canLockDepartmentPlan(departmentId) {
       return isAdmin()
         || (isDepartmentHead() && sameDepartment(departmentId))
-        || hasActiveDelegation(departmentId, "LOCK_PLAN");
+        || hasActiveApprovalDelegation(departmentId, "LOCK_PLAN");
     }
 
-    function kpiPlanPath(periodId, departmentId) {
-      return /databases/$(database)/documents/kpiPlans/$(periodId + "_" + departmentId);
+    /* ==================== DANH MỤC ĐẦU VIỆC CHUẨN ==================== */
+    function canCreateStandardTask(departmentId) {
+      return activeUser()
+        && (
+          isAdmin()
+          || (isDirector() && departmentId == "BGD")
+          || (isDepartmentLeader() && sameDepartment(departmentId))
+          || (isTchcCoordinator() && departmentId == "TCHC")
+          || hasStandardTaskEditorDelegation(departmentId)
+          || (departmentId == "CDTN" && isCdtnExecutive())
+        );
     }
 
-    function registrationPlanOpen(data) {
-      return !exists(kpiPlanPath(data.periodId, data.departmentId))
-        || !hasField(get(kpiPlanPath(data.periodId, data.departmentId)).data, "locked")
-        || get(kpiPlanPath(data.periodId, data.departmentId)).data.locked != true;
+    function canUpdateStandardTask(data) {
+      return canCreateStandardTask(data.departmentId)
+        && (
+          isAdmin()
+          || (isDirector() && data.departmentId == "BGD")
+          || (isDepartmentHead() && sameDepartment(data.departmentId))
+          || (isTchcCoordinator() && data.departmentId == "TCHC")
+          || (isDepartmentDeputy() && sameDepartment(data.departmentId) && data.createdByUserId == request.auth.uid)
+          || (hasStandardTaskEditorDelegation(data.departmentId) && data.createdByUserId == request.auth.uid)
+          || (data.departmentId == "CDTN" && isCdtnLeadership())
+          || (data.departmentId == "CDTN" && isCdtnExecutive() && data.createdByUserId == request.auth.uid)
+        );
     }
 
-    /* ===== NHIỆM VỤ ===== */
+    /* ==================== NHIỆM VỤ ==================== */
     function taskBelongsToCurrentDepartment(data) {
       return activeUser()
         && (
-          (data.primaryDepartmentId != null && data.primaryDepartmentId == currentUser().departmentId)
-          || (data.visibleDepartmentIds != null && currentUser().departmentId in data.visibleDepartmentIds)
-          || (data.supportDepartmentIds != null && currentUser().departmentId in data.supportDepartmentIds)
-          || (data.relatedDepartmentIds != null && currentUser().departmentId in data.relatedDepartmentIds)
+          (hasField(data, "primaryDepartmentId") && data.primaryDepartmentId == currentUser().departmentId)
+          || (hasField(data, "visibleDepartmentIds") && data.visibleDepartmentIds is list && currentUser().departmentId in data.visibleDepartmentIds)
+          || (hasField(data, "supportDepartmentIds") && data.supportDepartmentIds is list && currentUser().departmentId in data.supportDepartmentIds)
+          || (hasField(data, "relatedDepartmentIds") && data.relatedDepartmentIds is list && currentUser().departmentId in data.relatedDepartmentIds)
         );
     }
 
@@ -202,9 +451,17 @@ service cloud.firestore {
         && (
           canViewAllDepartments()
           || taskBelongsToCurrentDepartment(data)
-          || (data.ownerUserId != null && data.ownerUserId == request.auth.uid)
-          || (data.visibleUserIds != null && request.auth.uid in data.visibleUserIds)
-          || (data.createdByUserId != null && data.createdByUserId == request.auth.uid)
+          || (hasField(data, "ownerUserId") && data.ownerUserId == request.auth.uid)
+          || (hasField(data, "visibleUserIds") && data.visibleUserIds is list && request.auth.uid in data.visibleUserIds)
+          || (hasField(data, "createdByUserId") && data.createdByUserId == request.auth.uid)
+          || (
+            isCdtnExecutive()
+            && (
+              (hasField(data, "primaryDepartmentId") && data.primaryDepartmentId == "CDTN")
+              || (hasField(data, "organizationId") && data.organizationId == "CDTN")
+              || (hasField(data, "standardTaskDepartmentId") && data.standardTaskDepartmentId == "CDTN")
+            )
+          )
         );
     }
 
@@ -215,16 +472,58 @@ service cloud.firestore {
           isAdmin()
           || isDirector()
           || isDepartmentLeader()
-          || (request.resource.data.ownerUserId != null && request.resource.data.ownerUserId == request.auth.uid)
+          || (hasField(request.resource.data, "ownerUserId") && request.resource.data.ownerUserId == request.auth.uid)
         );
+    }
+
+    function taskScopeDepartmentId(data) {
+      return hasField(data, "primaryDepartmentId") && data.primaryDepartmentId != ""
+        ? data.primaryDepartmentId
+        : (hasField(data, "departmentId") ? data.departmentId : "");
     }
 
     function canManageTask(data) {
       return activeUser()
         && (
-          canViewAllDepartments()
-          || (isDepartmentLeader() && taskBelongsToCurrentDepartment(data))
+          isAdmin()
+          || isTchcCoordinator()
+          || (isDepartmentLeader() && sameDepartment(taskScopeDepartmentId(data)))
         );
+    }
+
+    /*
+     * BGĐ có quyền điều hành cao nhất đối với luồng giao việc, nhưng không được dùng
+     * quyền này để sửa tiến độ, minh chứng hoặc điểm của người khác.
+     */
+    function directorOperationalUpdateOnly() {
+      return isDirector()
+        && (
+          (hasField(resource.data, "createdByRole") && resource.data.createdByRole in ["DIRECTOR", "ADMIN"])
+          || (hasField(resource.data, "entryMode") && resource.data.entryMode == "DIRECT_ASSIGNED")
+          || (hasField(resource.data, "assignmentMode") && resource.data.assignmentMode == "TEAM_DIRECT")
+        )
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "active", "status", "assignmentStatus", "assignmentMode", "departmentAssignmentStatus",
+          "primaryDepartmentId", "supportDepartmentIds", "relatedDepartmentIds", "visibleDepartmentIds", "visibleUserIds",
+          "departmentAcceptedAt", "departmentAcceptedByUserId", "departmentAcceptedByName", "departmentAcceptedByPosition",
+          "ownerUserId", "ownerName", "ownerPosition", "teamId",
+          "assignedByUserId", "assignedByName", "assignedByPosition", "assignedAt",
+          "internalAssignedByUserId", "internalAssignedByName", "internalAssignedByPosition", "internalAssignedAt",
+          "adjustmentApproverUserId", "adjustmentApproverName",
+          "acceptedAt", "acceptedByUserId", "acceptedByName",
+          "directorControlType", "directorControlReason",
+          "directorControlledAt", "directorControlledByUserId", "directorControlledByName",
+          "reassignedFromDepartmentId", "reassignedAt", "reassignedByUserId", "reassignedByName",
+          "recalledAt", "recalledByUserId", "recalledByName",
+          "includedInA", "scoringEnabled", "scoringStatus",
+          "deletedReason", "deletedAt", "deletedByUserId", "deletedByName",
+          "updatedAt", "updatedByUserId", "updatedByName"
+        ])
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          "progress", "progressNote", "result", "resultSummary", "difficulties", "proposal",
+          "evidenceType", "evidenceUrl", "evidenceLink", "evidenceText", "evidenceFileName", "evidenceStoragePath",
+          "confirmedActualScore", "scoreLocked", "preCouncilConfirmedActualScore"
+        ]);
     }
 
     function ownerCanUpdateTask() {
@@ -234,46 +533,255 @@ service cloud.firestore {
           "assignmentStatus", "status", "progress", "progressNote", "result", "resultSummary",
           "difficulties", "proposal", "evidenceType", "evidenceUrl", "evidenceLink", "evidenceText",
           "evidenceFileName", "evidenceStoragePath", "acceptedAt", "acceptedByUserId", "acceptedByName",
-          "completedAt", "completedByUserId", "completedByName", "updatedAt", "updatedByUserId", "updatedByName"
+          "completedAt", "completedByUserId", "completedByName", "updatedAt", "updatedByUserId", "updatedByName",
+          "noOccurrenceStatus", "noOccurrenceReason", "noOccurrenceRequestedAt", "noOccurrenceRequestedByUserId",
+          "noOccurrenceRequestedByName", "noOccurrenceConfirmedAt", "noOccurrenceConfirmedByUserId",
+          "noOccurrenceConfirmedByName", "noOccurrenceRejectionReason"
+        ]);
+    }
+
+    function taskPath(taskId) {
+      return /databases/$(database)/documents/tasks/$(taskId);
+    }
+
+    function taskChildVisible(taskId) {
+      return activeUser()
+        && taskId != ""
+        && exists(taskPath(taskId))
+        && taskVisibleToCurrentUser(get(taskPath(taskId)).data);
+    }
+
+    function adjustmentPath(adjustmentId) {
+      return /databases/$(database)/documents/kpiAdjustments/$(adjustmentId);
+    }
+
+    function ownerRequestsTaskAdjustmentOnly(taskId) {
+      return activeUser()
+        && resource.data.ownerUserId == request.auth.uid
+        && (!hasField(resource.data, "scoreLocked") || resource.data.scoreLocked != true)
+        && (!hasField(resource.data, "scoringStatus") || !(resource.data.scoringStatus in ["CONFIRMED", "ADJUSTMENT_EXEMPT", "NO_OCCURRENCE_CONFIRMED"]))
+        && request.resource.data.adjustmentStatus == "REQUESTED"
+        && request.resource.data.pendingAdjustmentId != ""
+        && request.resource.data.adjustmentRequestedByUserId == request.auth.uid
+        && existsAfter(adjustmentPath(request.resource.data.pendingAdjustmentId))
+        && getAfter(adjustmentPath(request.resource.data.pendingAdjustmentId)).data.recordType == "TASK_ADJUSTMENT"
+        && getAfter(adjustmentPath(request.resource.data.pendingAdjustmentId)).data.taskId == taskId
+        && getAfter(adjustmentPath(request.resource.data.pendingAdjustmentId)).data.userId == request.auth.uid
+        && getAfter(adjustmentPath(request.resource.data.pendingAdjustmentId)).data.status == "PENDING"
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "adjustmentStatus", "adjustmentType", "adjustmentLabel", "adjustmentReason",
+          "adjustmentEvidenceText", "adjustmentEvidenceUrl", "adjustmentEvidenceFileName", "adjustmentEvidenceStoragePath",
+          "pendingAdjustmentId", "adjustmentRequestedAt", "adjustmentRequestedByUserId", "adjustmentRequestedByName",
+          "updatedAt", "updatedByUserId", "updatedByName"
+        ]);
+    }
+
+    function ownerCreatesTaskAdjustment(data, adjustmentId) {
+      return activeUser()
+        && data.recordType == "TASK_ADJUSTMENT"
+        && data.userId == request.auth.uid
+        && data.createdByUserId == request.auth.uid
+        && data.updatedByUserId == request.auth.uid
+        && data.taskId != ""
+        && exists(taskPath(data.taskId))
+        && get(taskPath(data.taskId)).data.ownerUserId == request.auth.uid
+        && get(taskPath(data.taskId)).data.primaryDepartmentId == data.departmentId
+        && (!hasField(get(taskPath(data.taskId)).data, "scoreLocked") || get(taskPath(data.taskId)).data.scoreLocked != true)
+        && (!hasField(get(taskPath(data.taskId)).data, "scoringStatus") || !(get(taskPath(data.taskId)).data.scoringStatus in ["CONFIRMED", "ADJUSTMENT_EXEMPT", "NO_OCCURRENCE_CONFIRMED"]))
+        && data.status == "PENDING"
+        && getAfter(taskPath(data.taskId)).data.pendingAdjustmentId == adjustmentId
+        && getAfter(taskPath(data.taskId)).data.adjustmentStatus == "REQUESTED"
+        && getAfter(taskPath(data.taskId)).data.adjustmentRequestedByUserId == request.auth.uid;
+    }
+
+    function adjustmentApproverUpdateOnly(data, adjustmentId) {
+      return activeUser()
+        && hasField(data, "approverUserId")
+        && data.approverUserId == request.auth.uid
+        && data.status == "PENDING"
+        && data.taskId != ""
+        && exists(taskPath(data.taskId))
+        && get(taskPath(data.taskId)).data.pendingAdjustmentId == adjustmentId
+        && get(taskPath(data.taskId)).data.adjustmentApproverUserId == request.auth.uid
+        && request.resource.data.status in ["APPROVED", "REJECTED"]
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "status", "approvedDecisionType", "approvedDecisionLabel", "approvedAt", "approvedByUserId", "approvedByName",
+          "rejectionReason", "rejectedAt", "rejectedByUserId", "rejectedByName",
+          "updatedAt", "updatedByUserId", "updatedByName"
+        ]);
+    }
+
+    function adjustmentApproverTaskUpdateOnly(data, taskId) {
+      return activeUser()
+        && hasField(data, "adjustmentApproverUserId")
+        && data.adjustmentApproverUserId == request.auth.uid
+        && hasField(data, "pendingAdjustmentId")
+        && data.pendingAdjustmentId != ""
+        && exists(adjustmentPath(data.pendingAdjustmentId))
+        && get(adjustmentPath(data.pendingAdjustmentId)).data.recordType == "TASK_ADJUSTMENT"
+        && get(adjustmentPath(data.pendingAdjustmentId)).data.taskId == taskId
+        && get(adjustmentPath(data.pendingAdjustmentId)).data.approverUserId == request.auth.uid
+        && get(adjustmentPath(data.pendingAdjustmentId)).data.status == "PENDING"
+        && request.resource.data.pendingAdjustmentId == ""
+        && request.resource.data.lastAdjustmentId == data.pendingAdjustmentId
+        && request.resource.data.adjustmentStatus in ["APPROVED", "REJECTED"]
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "originalPlanSnapshot", "adjustmentStatus", "adjustmentType", "adjustmentLabel", "adjustmentReason",
+          "adjustmentEvidenceText", "adjustmentEvidenceUrl", "adjustmentEvidenceFileName", "adjustmentEvidenceStoragePath",
+          "pendingAdjustmentId", "lastAdjustmentId", "lastAdjustmentApprovedAt", "lastAdjustmentApprovedByUserId",
+          "lastAdjustmentApprovedByName", "lastAdjustmentRejectedAt", "lastAdjustmentRejectedByUserId",
+          "lastAdjustmentRejectedByName", "lastAdjustmentRejectionReason",
+          "includedInA", "scoringEnabled", "scoringStatus", "recognized", "selfExecutionScore", "selfActualScore",
+          "confirmedExecutionScore", "confirmedActualScore", "adjustedWorkload", "description", "deadlineDateKey", "deadline",
+          "updatedAt", "updatedByUserId", "updatedByName"
+        ]);
+    }
+
+    function ownerCanCancelSelfRegisteredTask() {
+      return activeUser()
+        && resource.data.ownerUserId == request.auth.uid
+        && (
+          (hasField(resource.data, "entryMode") && resource.data.entryMode == "SELF_REGISTERED_APPROVED")
+          || (hasField(resource.data, "selfRegistered") && resource.data.selfRegistered == true)
+        )
+        && (!hasField(resource.data, "progress") || resource.data.progress == 0)
+        && (!hasField(resource.data, "completedAt") || resource.data.completedAt == null)
+        && (!hasField(resource.data, "scoreLocked") || resource.data.scoreLocked != true)
+        && (!hasField(resource.data, "evidenceUrl") || resource.data.evidenceUrl == "")
+        && (!hasField(resource.data, "evidenceLink") || resource.data.evidenceLink == "")
+        && (!hasField(resource.data, "evidenceText") || resource.data.evidenceText == "")
+        && (!hasField(resource.data, "evidenceFileName") || resource.data.evidenceFileName == "")
+        && request.resource.data.active == false
+        && request.resource.data.status == "HUY"
+        && request.resource.data.planApprovalStatus == "CANCELLED"
+        && request.resource.data.includedInA == false
+        && request.resource.data.scoringEnabled == false
+        && request.resource.data.scoringStatus == "CANCELLED"
+        && request.resource.data.deletedByUserId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "active", "status", "planApprovalStatus", "includedInA", "scoringEnabled", "scoringStatus",
+          "deletedReason", "deletedAt", "deletedByUserId", "deletedByName",
+          "updatedAt", "updatedByUserId", "updatedByName"
         ]);
     }
 
     function changesTaskPlanApproval() {
       return request.resource.data.diff(resource.data).affectedKeys().hasAny([
-        "planApprovalStatus", "includedInA", "isCoreTask", "planApprovedByUserId",
-        "planApprovedByName", "planApprovedAt", "planRejectedReason", "planRejectedByUserId",
-        "planRejectedByName", "planRejectedAt"
+        "planApprovalStatus", "includedInA", "planApprovedByUserId", "planApprovedByName", "planApprovedAt",
+        "planRejectedReason", "planRejectedByUserId", "planRejectedByName", "planRejectedAt"
       ]);
     }
 
     function changesTaskScoreConfirmation() {
       return request.resource.data.diff(resource.data).affectedKeys().hasAny([
-        "scoringStatus", "scoreLocked", "confirmedActualScore"
+        "scoringStatus", "scoreLocked", "confirmedActualScore", "preCouncilConfirmedActualScore"
       ]);
     }
 
-    function directorCanConfirmTask(data) {
+    function directorSelfScoreUpdateOnly(data) {
       return isDirector()
-        && data.ownerUserId != null
-        && exists(/databases/$(database)/documents/users/$(data.ownerUserId))
-        && get(/databases/$(database)/documents/users/$(data.ownerUserId)).data.role == "DEPARTMENT_LEADER"
-        && (
-          !hasField(data, "reviewerEmail")
-          || data.reviewerEmail == ""
-          || data.reviewerEmail == authenticatedEmail()
-        );
+        && hasField(data, "ownerUserId")
+        && data.ownerUserId == request.auth.uid
+        && data.primaryDepartmentId == "BGD"
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "scoringStatus", "scoreLocked", "confirmedActualScore",
+          "updatedAt", "updatedByUserId", "updatedByName"
+        ]);
     }
 
-    function canManageTaskUpdate(data) {
-      return canManageTask(data)
-        && (!changesTaskPlanApproval() || canApproveDepartmentRegistrations(data.primaryDepartmentId))
-        && (
-          !changesTaskScoreConfirmation()
-          || canConfirmDepartmentEvaluations(data.primaryDepartmentId)
-          || directorCanConfirmTask(data)
-        );
+    /* ==================== HỘI ĐỒNG - HÀM KIỂM TRA ==================== */
+    function councilRoundPath(periodId) {
+      return /databases/$(database)/documents/councilReviewRounds/$(periodId);
     }
 
+    function councilDepartmentPath(periodId, departmentId) {
+      return /databases/$(database)/documents/councilReviewRounds/$(periodId)/departments/$(departmentId);
+    }
+
+    function councilRequestPath(periodId, departmentId, requestId) {
+      return /databases/$(database)/documents/councilReviewRounds/$(periodId)/departments/$(departmentId)/requests/$(requestId);
+    }
+
+    function councilRoundOpen(periodId, departmentId) {
+      return exists(councilRoundPath(periodId))
+        && get(councilRoundPath(periodId)).data.status == "OPEN"
+        && exists(councilDepartmentPath(periodId, departmentId))
+        && get(councilDepartmentPath(periodId, departmentId)).data.enabled == true;
+    }
+
+    function validCouncilTaskRequest(data, taskId) {
+      return isDepartmentManagerFor(data.primaryDepartmentId)
+        && councilRoundOpen(data.periodId, data.primaryDepartmentId)
+        && hasField(request.resource.data, "councilAdjustmentRequestId")
+        && request.resource.data.councilAdjustmentRequestId != ""
+        && exists(councilRequestPath(data.periodId, data.primaryDepartmentId, request.resource.data.councilAdjustmentRequestId))
+        && get(councilRequestPath(data.periodId, data.primaryDepartmentId, request.resource.data.councilAdjustmentRequestId)).data.status == "EMPLOYEE_SUBMITTED"
+        && get(councilRequestPath(data.periodId, data.primaryDepartmentId, request.resource.data.councilAdjustmentRequestId)).data.targetType == "TASK"
+        && get(councilRequestPath(data.periodId, data.primaryDepartmentId, request.resource.data.councilAdjustmentRequestId)).data.taskId == taskId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "preCouncilConfirmedActualScore", "confirmedActualScore", "scoringStatus", "scoreLocked",
+          "councilAdjusted", "councilAdjustmentType", "councilAdjustmentRequestId",
+          "councilSupplementalEvidence", "councilFinalizedAt", "councilFinalizedByUserId",
+          "councilFinalizedByName", "councilManagerNote", "updatedAt", "updatedByUserId", "updatedByName"
+        ]);
+    }
+
+    function validCouncilEvaluationRequest(data) {
+      return isDepartmentManagerFor(data.departmentId)
+        && councilRoundOpen(data.periodId, data.departmentId)
+        && hasField(request.resource.data, "councilAdjustmentRequestId")
+        && request.resource.data.councilAdjustmentRequestId != ""
+        && exists(councilRequestPath(data.periodId, data.departmentId, request.resource.data.councilAdjustmentRequestId))
+        && get(councilRequestPath(data.periodId, data.departmentId, request.resource.data.councilAdjustmentRequestId)).data.status == "EMPLOYEE_SUBMITTED"
+        && get(councilRequestPath(data.periodId, data.departmentId, request.resource.data.councilAdjustmentRequestId)).data.targetType == "TASK"
+        && get(councilRequestPath(data.periodId, data.departmentId, request.resource.data.councilAdjustmentRequestId)).data.taskId == data.taskId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "preCouncilConfirmedActualScore", "confirmedActualScore", "status", "scoreLocked",
+          "councilAdjusted", "councilAdjustmentType", "councilAdjustmentRequestId",
+          "councilFinalizedAt", "councilFinalizedByUserId", "councilFinalizedByName",
+          "councilManagerNote", "updatedAt"
+        ]);
+    }
+
+    function validCouncilCommonRequest(data) {
+      return isDepartmentManagerFor(data.departmentId)
+        && councilRoundOpen(data.periodId, data.departmentId)
+        && hasField(request.resource.data, "councilAdjustmentRequestId")
+        && request.resource.data.councilAdjustmentRequestId != ""
+        && exists(councilRequestPath(data.periodId, data.departmentId, request.resource.data.councilAdjustmentRequestId))
+        && get(councilRequestPath(data.periodId, data.departmentId, request.resource.data.councilAdjustmentRequestId)).data.status == "EMPLOYEE_SUBMITTED"
+        && get(councilRequestPath(data.periodId, data.departmentId, request.resource.data.councilAdjustmentRequestId)).data.targetType == "COMMON_CRITERION"
+        && get(councilRequestPath(data.periodId, data.departmentId, request.resource.data.councilAdjustmentRequestId)).data.userId == data.userId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "preCouncilItems", "preCouncilConfirmedTotal", "items", "confirmedTotal", "status",
+          "councilAdjusted", "councilAdjustmentRequestId", "councilFinalizedAt",
+          "councilFinalizedByUserId", "councilFinalizedByName", "updatedAt"
+        ]);
+    }
+
+    function canManageTaskUpdate(data, taskId) {
+      return (
+          canManageTask(data)
+          && (!changesTaskPlanApproval() || canApproveDepartmentRegistrations(data.primaryDepartmentId))
+          && (!changesTaskScoreConfirmation() || canConfirmTaskScore(data))
+        )
+        || directorOperationalUpdateOnly()
+        || directorSelfScoreUpdateOnly(data)
+        || validCouncilTaskRequest(data, taskId);
+    }
+
+    /* ==================== KẾ HOẠCH ==================== */
+    function kpiPlanPath(periodId, departmentId) {
+      return /databases/$(database)/documents/kpiPlans/$(periodId + "_" + departmentId);
+    }
+
+    function registrationPlanOpen(data) {
+      return !exists(kpiPlanPath(data.periodId, data.departmentId))
+        || !hasField(get(kpiPlanPath(data.periodId, data.departmentId)).data, "locked")
+        || get(kpiPlanPath(data.periodId, data.departmentId)).data.locked != true;
+    }
+
+    /* ==================== COLLECTIONS ==================== */
     match /accessAccounts/{email} {
       allow get: if signedIn() && (authenticatedEmail() == email || isAdmin());
       allow list: if isAdmin();
@@ -295,6 +803,7 @@ service cloud.firestore {
         && (!hasField(accessAccount(), "isDepartmentHead") || request.resource.data.isDepartmentHead == accessAccount().isDepartmentHead);
 
       allow update: if isAdmin()
+        || selfProfileSyncMatchesAccess(userId)
         || (
           activeUser()
           && request.auth.uid == userId
@@ -311,64 +820,142 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+    match /cdtnMembers/{memberId} {
+      allow read: if activeUser();
+      allow create, update, delete: if isAdmin() || isCdtnLeadership();
+    }
+
     match /standardTasks/{standardTaskId} {
       allow read: if activeUser();
-      allow create, update: if isAdmin() || isTchcCoordinator();
+      allow create: if canCreateStandardTask(request.resource.data.departmentId)
+        && request.resource.data.createdByUserId == request.auth.uid
+        && request.resource.data.code == standardTaskId;
+      allow update: if request.resource.data.departmentId == resource.data.departmentId
+        && request.resource.data.code == resource.data.code
+        && canUpdateStandardTask(resource.data);
+      allow delete: if isAdmin()
+        || (isDirector() && resource.data.departmentId == "BGD")
+        || (isDepartmentHead() && sameDepartment(resource.data.departmentId))
+        || (resource.data.departmentId == "CDTN" && isCdtnLeadership());
+    }
+
+    match /standardTaskSequences/{departmentId} {
+      allow read: if activeUser();
+      allow create, update: if canCreateStandardTask(departmentId)
+        && request.resource.data.departmentId == departmentId;
+      allow delete: if isAdmin();
+    }
+
+    match /taskCodeReservations/{reservationId} {
+      allow read: if activeUser();
+      allow create: if activeUser()
+        && request.resource.data.reservedByUserId == request.auth.uid
+        && (isAdmin() || isDirector() || isDepartmentLeader());
+      allow update: if isAdmin()
+        || (activeUser() && resource.data.reservedByUserId == request.auth.uid);
       allow delete: if isAdmin();
     }
 
     match /tasks/{taskId} {
       allow read: if taskVisibleToCurrentUser(resource.data);
       allow create: if canCreateTask();
-      allow update: if canManageTaskUpdate(resource.data) || ownerCanUpdateTask();
+      allow update: if canManageTaskUpdate(resource.data, taskId) || ownerCanUpdateTask() || ownerRequestsTaskAdjustmentOnly(taskId) || adjustmentApproverTaskUpdateOnly(resource.data, taskId) || ownerCanCancelSelfRegisteredTask();
       allow delete: if isAdmin();
     }
 
     match /taskLogs/{logId} {
+      /*
+       * V1.10.5:
+       * Không dùng taskChildVisible() trong collection query taskLogs.
+       * Listener thông báo chỉ query log do chính UID hiện tại thực hiện;
+       * giữ lại đúng phạm vi đọc cũ để tránh phép get() chéo sang tasks
+       * làm query bị từ chối.
+       */
       allow read: if activeUser()
         && (
           canViewAllDepartments()
-          || (resource.data.performedByDepartmentId != null && resource.data.performedByDepartmentId == currentUser().departmentId)
-          || (resource.data.performedByUserId != null && resource.data.performedByUserId == request.auth.uid)
+          || (resource.data.performedByDepartmentId != null
+              && resource.data.performedByDepartmentId == currentUser().departmentId)
+          || (resource.data.performedByUserId != null
+              && resource.data.performedByUserId == request.auth.uid)
         );
-      allow create: if activeUser() && request.resource.data.performedByUserId == request.auth.uid;
+      allow create: if activeUser()
+        && request.resource.data.performedByUserId == request.auth.uid;
       allow update, delete: if false;
+    }
+
+    match /taskWorkItems/{workItemId} {
+      allow read: if activeUser()
+        && (
+          taskChildVisible(resource.data.taskId)
+          || canViewAllDepartments()
+          || resource.data.createdByUserId == request.auth.uid
+          || resource.data.ownerUserId == request.auth.uid
+          || sameDepartment(resource.data.departmentId)
+        );
+      allow create: if activeUser()
+        && request.resource.data.createdByUserId == request.auth.uid
+        && (
+          request.resource.data.ownerUserId == request.auth.uid
+          || (isDepartmentLeader() && sameDepartment(request.resource.data.departmentId))
+          || isAdmin()
+        );
+      allow update: if isAdmin()
+        || (activeUser() && resource.data.ownerUserId == request.auth.uid)
+        || (isDepartmentLeader() && sameDepartment(resource.data.departmentId));
+      allow delete: if isAdmin()
+        || (activeUser() && resource.data.ownerUserId == request.auth.uid)
+        || (isDepartmentHead() && sameDepartment(resource.data.departmentId));
     }
 
     match /evaluationPeriods/{periodId} {
       allow read: if activeUser();
-      allow create, update, delete: if isAdmin();
+      allow create, update: if isTchcHead();
+      allow delete: if isAdmin();
     }
 
-    /* ===== ĐĂNG KÝ KẾ HOẠCH ===== */
+    /* ==================== ĐĂNG KÝ KẾ HOẠCH ==================== */
     function registrationVisible(data) {
       return activeUser()
         && (
           canViewAllDepartments()
           || data.userId == request.auth.uid
           || (isDepartmentHead() && sameDepartment(data.departmentId))
-          || hasActiveDelegation(data.departmentId, "APPROVE_REGISTRATIONS")
-          || hasActiveDelegation(data.departmentId, "VIEW_DEPARTMENT_REPORT")
+          || hasActiveApprovalDelegation(data.departmentId, "APPROVE_REGISTRATIONS")
+          || hasActiveApprovalDelegation(data.departmentId, "VIEW_DEPARTMENT_REPORT")
+          || (data.departmentId == "CDTN" && (isCdtnExecutive() || hasActiveCdtnApprovalDelegation("VIEW_DEPARTMENT_REPORT")))
         );
     }
 
-    function ownerRegistrationUpdateOnly() {
-      return activeUser()
+    function directorAutoApprovesOwnRegistration() {
+      return isDirector()
         && resource.data.userId == request.auth.uid
-        && resource.data.taskId == null
+        && resource.data.departmentId == "BGD"
+        && resource.data.status == "PENDING"
+        && hasField(resource.data, "autoApproved")
+        && resource.data.autoApproved == true
+        && request.resource.data.status == "APPROVED"
+        && request.resource.data.approvedByUserId == request.auth.uid
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          "active", "status", "cancelReason", "cancelledAt", "cancelledByUserId", "updatedAt"
+          "status", "taskId", "taskCode", "periodId", "approvedAt", "approvedByUserId", "approvedByName", "updatedAt"
         ]);
     }
 
-    function directorCanReviewRegistration(data) {
-      return isDirector()
-        && data.userRole == "DEPARTMENT_LEADER"
-        && (
-          !hasField(data, "reviewerEmail")
-          || data.reviewerEmail == ""
-          || data.reviewerEmail == authenticatedEmail()
-        );
+    function ownerRegistrationUpdateOnly() {
+      /* Chỉ dùng cho hủy an toàn đăng ký đã duyệt; đăng ký chờ duyệt/trả lại được xóa document. */
+      return activeUser()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == resource.data.userId
+        && resource.data.status == "APPROVED"
+        && hasField(resource.data, "taskId")
+        && resource.data.taskId != null
+        && resource.data.taskId != ""
+        && request.resource.data.active == false
+        && request.resource.data.status == "CANCELLED"
+        && request.resource.data.cancelledByUserId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "active", "status", "cancelReason", "cancelledAt", "cancelledByUserId", "cancelledByName", "updatedAt"
+        ]);
     }
 
     match /taskRegistrations/{registrationId} {
@@ -377,117 +964,151 @@ service cloud.firestore {
       allow create: if activeUser()
         && request.resource.data.userId == request.auth.uid
         && request.resource.data.createdByUserId == request.auth.uid
-        && request.resource.data.departmentId == currentUser().departmentId
+        && (
+          request.resource.data.departmentId == currentUser().departmentId
+          || (request.resource.data.departmentId == "CDTN" && isCdtnMember())
+        )
         && registrationPlanOpen(request.resource.data);
 
       allow update: if canApproveDepartmentRegistrations(resource.data.departmentId)
-        || directorCanReviewRegistration(resource.data)
+        || directorAutoApprovesOwnRegistration()
         || ownerRegistrationUpdateOnly();
 
       allow delete: if isAdmin()
         || (
           activeUser()
           && resource.data.userId == request.auth.uid
-          && resource.data.taskId == null
+          && (!hasField(resource.data, "taskId") || resource.data.taskId == "" || resource.data.taskId == null)
           && resource.data.status in ["PENDING", "REJECTED"]
         )
         || (
           isDepartmentLeader()
           && sameDepartment(resource.data.departmentId)
-          && resource.data.taskId == null
+          && (!hasField(resource.data, "taskId") || resource.data.taskId == "" || resource.data.taskId == null)
           && resource.data.status == "REJECTED"
         );
     }
 
-    /* ===== ỦY QUYỀN DUYỆT ===== */
-    function validDelegationTarget(data) {
+    /* ==================== DOCUMENT ỦY QUYỀN ==================== */
+    function targetUserActiveSameDepartment(data) {
       return data.delegateUserId != request.auth.uid
         && exists(/databases/$(database)/documents/users/$(data.delegateUserId))
         && get(/databases/$(database)/documents/users/$(data.delegateUserId)).data.active == true
-        && get(/databases/$(database)/documents/users/$(data.delegateUserId)).data.departmentId == data.departmentId
-        && isDeputyProfile(get(/databases/$(database)/documents/users/$(data.delegateUserId)).data);
+        && get(/databases/$(database)/documents/users/$(data.delegateUserId)).data.departmentId == data.departmentId;
     }
 
-    function validDelegationPermissions(data) {
-      return hasField(data, "permissions")
+    function validApprovalDelegationDocument(documentId, data) {
+      return documentId == approvalDelegationId(data.departmentId)
+        && targetUserActiveSameDepartment(data)
+        && isDeputyProfile(get(/databases/$(database)/documents/users/$(data.delegateUserId)).data)
+        && hasField(data, "permissions")
         && data.permissions is list
         && data.permissions.size() > 0
         && data.permissions.toSet().hasOnly([
           "APPROVE_REGISTRATIONS", "CONFIRM_EVALUATIONS", "LOCK_PLAN", "VIEW_DEPARTMENT_REPORT"
-        ]);
+        ])
+        && data.startAt is timestamp
+        && data.endAt is timestamp
+        && data.startAt <= data.endAt;
+    }
+
+    function validStandardEditorDelegationDocument(documentId, data) {
+      return documentId == standardEditorDelegationId(data.departmentId)
+        && data.delegationType == "STANDARD_TASK_EDITOR"
+        && targetUserActiveSameDepartment(data)
+        && get(/databases/$(database)/documents/users/$(data.delegateUserId)).data.role == "STAFF"
+        && hasField(data, "permissions")
+        && data.permissions is list
+        && "MANAGE_STANDARD_TASKS" in data.permissions
+        && data.startAt is timestamp
+        && data.endAt is timestamp
+        && data.startAt <= data.endAt;
+    }
+
+    function validCdtnApprovalDelegationDocument(documentId, data) {
+      return documentId == "CDTN_APPROVAL_ACTIVE"
+        && data.delegationType == "CDTN_APPROVAL"
+        && data.departmentId == "CDTN"
+        && data.delegateUserId != request.auth.uid
+        && exists(/databases/$(database)/documents/cdtnMembers/$(data.delegateUserId))
+        && get(/databases/$(database)/documents/cdtnMembers/$(data.delegateUserId)).data.active == true
+        && hasField(data, "permissions")
+        && data.permissions is list
+        && data.permissions.toSet().hasOnly(["APPROVE_REGISTRATIONS", "CONFIRM_EVALUATIONS", "VIEW_DEPARTMENT_REPORT"])
+        && data.startAt is timestamp
+        && data.endAt is timestamp
+        && data.startAt <= data.endAt;
     }
 
     match /approvalDelegations/{delegationDocumentId} {
-      allow get: if activeUser()
-        && (
-          canViewAllDepartments()
-          || (
-            delegationDocumentId == delegationId(currentUser().departmentId)
-            && (isDepartmentHead() || isDepartmentDeputy())
-          )
-        );
-
-      allow list: if activeUser()
+      allow read: if activeUser()
         && (
           canViewAllDepartments()
           || resource.data.delegateUserId == request.auth.uid
           || resource.data.delegatorUserId == request.auth.uid
-          || (isDepartmentHead() && sameDepartment(resource.data.departmentId))
+          || (isDepartmentLeader() && sameDepartment(resource.data.departmentId))
+          || (resource.data.departmentId == "CDTN" && isCdtnExecutive())
         );
 
-      allow create: if (
+      allow create: if activeUser()
+        && (
           isAdmin()
           || (isDepartmentHead() && sameDepartment(request.resource.data.departmentId))
+          || (request.resource.data.delegationType == "CDTN_APPROVAL" && isCdtnLeadership())
+          || (
+            request.resource.data.delegationType == "STANDARD_TASK_EDITOR"
+            && isDepartmentDeputy()
+            && sameDepartment(request.resource.data.departmentId)
+          )
         )
-        && delegationDocumentId == delegationId(request.resource.data.departmentId)
         && (isAdmin() || request.resource.data.delegatorUserId == request.auth.uid)
-        && validDelegationTarget(request.resource.data)
-        && validDelegationPermissions(request.resource.data)
-        && request.resource.data.startAt is timestamp
-        && request.resource.data.endAt is timestamp
-        && request.resource.data.startAt <= request.resource.data.endAt;
+        && (
+          validApprovalDelegationDocument(delegationDocumentId, request.resource.data)
+          || validStandardEditorDelegationDocument(delegationDocumentId, request.resource.data)
+          || validCdtnApprovalDelegationDocument(delegationDocumentId, request.resource.data)
+        );
 
-      allow update: if (
+      allow update: if activeUser()
+        && request.resource.data.departmentId == resource.data.departmentId
+        && (
           isAdmin()
           || (isDepartmentHead() && sameDepartment(resource.data.departmentId))
+          || (resource.data.delegationType == "CDTN_APPROVAL" && isCdtnLeadership())
+          || (
+            resource.data.delegationType == "STANDARD_TASK_EDITOR"
+            && isDepartmentDeputy()
+            && sameDepartment(resource.data.departmentId)
+          )
         )
-        && request.resource.data.departmentId == resource.data.departmentId
-        && delegationDocumentId == delegationId(resource.data.departmentId)
         && (
           request.resource.data.active == false
-          || (
-            validDelegationTarget(request.resource.data)
-            && validDelegationPermissions(request.resource.data)
-            && request.resource.data.startAt is timestamp
-            && request.resource.data.endAt is timestamp
-            && request.resource.data.startAt <= request.resource.data.endAt
-          )
+          || validApprovalDelegationDocument(delegationDocumentId, request.resource.data)
+          || validStandardEditorDelegationDocument(delegationDocumentId, request.resource.data)
+          || validCdtnApprovalDelegationDocument(delegationDocumentId, request.resource.data)
         );
 
       allow delete: if isAdmin();
     }
 
-    /* ===== KẾ HOẠCH KPI PHÒNG/KHU ===== */
+    /* ==================== KẾ HOẠCH KPI ==================== */
     match /kpiPlans/{planId} {
       allow read: if activeUser();
-
       allow create: if canLockDepartmentPlan(request.resource.data.departmentId);
-
       allow update: if request.resource.data.departmentId == resource.data.departmentId
         && canLockDepartmentPlan(resource.data.departmentId);
-
       allow delete: if isAdmin();
     }
 
-    /* ===== TỰ ĐÁNH GIÁ NHIỆM VỤ ===== */
+    /* ==================== ĐÁNH GIÁ NHIỆM VỤ ==================== */
     function evaluationVisible(data) {
       return activeUser()
         && (
           canViewAllDepartments()
           || data.ownerUserId == request.auth.uid
           || (isDepartmentHead() && sameDepartment(data.departmentId))
-          || hasActiveDelegation(data.departmentId, "CONFIRM_EVALUATIONS")
-          || hasActiveDelegation(data.departmentId, "VIEW_DEPARTMENT_REPORT")
+          || hasActiveApprovalDelegation(data.departmentId, "CONFIRM_EVALUATIONS")
+          || hasActiveApprovalDelegation(data.departmentId, "VIEW_DEPARTMENT_REPORT")
+          || (data.departmentId == "CDTN" && (isCdtnExecutive() || hasActiveCdtnApprovalDelegation("VIEW_DEPARTMENT_REPORT")))
         );
     }
 
@@ -512,14 +1133,10 @@ service cloud.firestore {
         ]);
     }
 
-    function directorCanConfirmEvaluation(data) {
+    function directorSelfEvaluationUpdate(data) {
       return isDirector()
-        && data.ownerRole == "DEPARTMENT_LEADER"
-        && (
-          !hasField(data, "reviewerEmail")
-          || data.reviewerEmail == ""
-          || data.reviewerEmail == authenticatedEmail()
-        );
+        && data.ownerUserId == request.auth.uid
+        && data.departmentId == "BGD";
     }
 
     match /taskEvaluations/{evaluationId} {
@@ -527,7 +1144,10 @@ service cloud.firestore {
 
       allow create: if activeUser()
         && request.resource.data.ownerUserId == request.auth.uid
-        && request.resource.data.departmentId == currentUser().departmentId
+        && (
+          request.resource.data.departmentId == currentUser().departmentId
+          || (request.resource.data.departmentId == "CDTN" && isCdtnMember())
+        )
         && request.resource.data.status == "PENDING_REVIEW"
         && request.resource.data.confirmedProgressRate == null
         && request.resource.data.confirmedResultRate == null
@@ -535,27 +1155,26 @@ service cloud.firestore {
 
       allow update: if isAdmin()
         || ownerEvaluationUpdateOnly()
+        || validCouncilEvaluationRequest(resource.data)
+        || directorSelfEvaluationUpdate(resource.data)
         || (
           resource.data.status != "CONFIRMED"
           && (!hasField(resource.data, "scoreLocked") || resource.data.scoreLocked != true)
-          && (
-            canConfirmDepartmentEvaluations(resource.data.departmentId)
-            || directorCanConfirmEvaluation(resource.data)
-          )
+          && canConfirmEvaluationRecord(resource.data)
         );
 
       allow delete: if isAdmin();
     }
 
-    /* ===== TIÊU CHÍ CHUNG ===== */
+    /* ==================== TIÊU CHÍ CHUNG ==================== */
     function commonAssessmentVisible(data) {
       return activeUser()
         && (
           canViewAllDepartments()
           || data.userId == request.auth.uid
           || (isDepartmentHead() && sameDepartment(data.departmentId))
-          || hasActiveDelegation(data.departmentId, "CONFIRM_EVALUATIONS")
-          || hasActiveDelegation(data.departmentId, "VIEW_DEPARTMENT_REPORT")
+          || hasActiveApprovalDelegation(data.departmentId, "CONFIRM_EVALUATIONS")
+          || hasActiveApprovalDelegation(data.departmentId, "VIEW_DEPARTMENT_REPORT")
         );
     }
 
@@ -571,6 +1190,10 @@ service cloud.firestore {
         && request.resource.data.confirmedTotal == null;
     }
 
+    function directorSelfCommonUpdate(data) {
+      return isDirector() && data.userId == request.auth.uid && data.departmentId == "BGD";
+    }
+
     match /commonCriteriaAssessments/{assessmentId} {
       allow read: if commonAssessmentVisible(resource.data);
 
@@ -582,7 +1205,9 @@ service cloud.firestore {
 
       allow update: if isAdmin()
         || ownerCommonUpdateOnly()
-        || canConfirmDepartmentEvaluations(resource.data.departmentId);
+        || validCouncilCommonRequest(resource.data)
+        || directorSelfCommonUpdate(resource.data)
+        || canConfirmCommonAssessment(resource.data);
 
       allow delete: if isAdmin();
     }
@@ -591,17 +1216,22 @@ service cloud.firestore {
       allow read: if activeUser()
         && (
           canViewAllDepartments()
-          || resource.data.userId == request.auth.uid
+          || (hasField(resource.data, "userId") && resource.data.userId == request.auth.uid)
+          || (hasField(resource.data, "approverUserId") && resource.data.approverUserId == request.auth.uid)
           || (isDepartmentHead() && sameDepartment(resource.data.departmentId))
-          || hasActiveDelegation(resource.data.departmentId, "VIEW_DEPARTMENT_REPORT")
+          || hasActiveApprovalDelegation(resource.data.departmentId, "VIEW_DEPARTMENT_REPORT")
+          || (resource.data.departmentId == "CDTN" && isCdtnExecutive())
         );
-
-      allow create: if isAdmin()
-        || (isDepartmentHead() && sameDepartment(request.resource.data.departmentId));
-
-      allow update: if isAdmin()
-        || (isDepartmentHead() && sameDepartment(resource.data.departmentId));
-
+      allow create: if ownerCreatesTaskAdjustment(request.resource.data, adjustmentId)
+        || isAdmin()
+        || (isDepartmentHead() && sameDepartment(request.resource.data.departmentId))
+        || (isDirector() && request.resource.data.departmentId == "BGD")
+        || (request.resource.data.departmentId == "CDTN" && isCdtnLeadership());
+      allow update: if adjustmentApproverUpdateOnly(resource.data, adjustmentId)
+        || isAdmin()
+        || (isDepartmentHead() && sameDepartment(resource.data.departmentId))
+        || (isDirector() && resource.data.departmentId == "BGD")
+        || (resource.data.departmentId == "CDTN" && isCdtnLeadership());
       allow delete: if isAdmin();
     }
 
@@ -611,27 +1241,15 @@ service cloud.firestore {
           canViewAllDepartments()
           || resource.data.userId == request.auth.uid
           || (isDepartmentHead() && sameDepartment(resource.data.departmentId))
-          || hasActiveDelegation(resource.data.departmentId, "CONFIRM_EVALUATIONS")
-          || hasActiveDelegation(resource.data.departmentId, "VIEW_DEPARTMENT_REPORT")
+          || hasActiveApprovalDelegation(resource.data.departmentId, "CONFIRM_EVALUATIONS")
+          || hasActiveApprovalDelegation(resource.data.departmentId, "VIEW_DEPARTMENT_REPORT")
         );
-
       allow create: if isAdmin()
-        || (
-          activeUser()
-          && request.resource.data.userId == request.auth.uid
-          && request.resource.data.departmentId == currentUser().departmentId
-        )
+        || (activeUser() && request.resource.data.userId == request.auth.uid && request.resource.data.departmentId == currentUser().departmentId)
         || (isDepartmentHead() && sameDepartment(request.resource.data.departmentId));
-
       allow update: if isAdmin()
-        || (
-          activeUser()
-          && resource.data.userId == request.auth.uid
-          && request.resource.data.userId == resource.data.userId
-          && request.resource.data.departmentId == resource.data.departmentId
-        )
+        || (activeUser() && resource.data.userId == request.auth.uid && request.resource.data.userId == resource.data.userId && request.resource.data.departmentId == resource.data.departmentId)
         || (isDepartmentHead() && sameDepartment(resource.data.departmentId));
-
       allow delete: if isAdmin();
     }
 
@@ -647,11 +1265,260 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    /* ==================== ĐIỀU CHỈNH SAU HỘI ĐỒNG ==================== */
+    match /councilReviewRounds/{periodId} {
+      allow read: if activeUser();
+      allow create, update: if isTchcHead();
+      allow delete: if isAdmin();
+
+      match /departments/{departmentId} {
+        allow read: if activeUser()
+          && (canViewAllDepartments() || sameDepartment(departmentId));
+        allow create, update: if isTchcHead();
+        allow delete: if isAdmin();
+
+        match /requests/{requestId} {
+          allow read: if activeUser()
+            && (
+              canViewAllDepartments()
+              || resource.data.userId == request.auth.uid
+              || isDepartmentManagerFor(departmentId)
+            );
+
+          allow create: if isDepartmentManagerFor(departmentId)
+            && councilRoundOpen(periodId, departmentId)
+            && request.resource.data.departmentId == departmentId
+            && request.resource.data.periodId == periodId
+            && request.resource.data.createdByUserId == request.auth.uid
+            && exists(/databases/$(database)/documents/users/$(request.resource.data.userId))
+            && get(/databases/$(database)/documents/users/$(request.resource.data.userId)).data.departmentId == departmentId
+            && request.resource.data.status == "OPEN"
+            && request.resource.data.requestType in ["SCORE", "EVIDENCE", "SCORE_AND_EVIDENCE"]
+            && request.resource.data.targetType in ["TASK", "COMMON_CRITERION"];
+
+          allow update: if (
+              isDepartmentManagerFor(departmentId)
+              && councilRoundOpen(periodId, departmentId)
+            )
+            || (
+              activeUser()
+              && resource.data.userId == request.auth.uid
+              && councilRoundOpen(periodId, departmentId)
+              && resource.data.status in ["OPEN", "RETURNED"]
+              && request.resource.data.status == "EMPLOYEE_SUBMITTED"
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                "employeeProposedScore", "employeeComment", "supplementalEvidence", "status",
+                "submittedAt", "submittedByUserId", "submittedByName", "updatedAt"
+              ])
+            );
+
+          allow delete: if isAdmin();
+        }
+      }
+    }
+
+
+
+    /* ==================== PHÂN HỆ CHỈ ĐẠO ĐIỀU HÀNH ==================== */
+    match /executiveDirectives/{directiveId} {
+      allow read: if executiveDirectiveVisible(resource.data);
+
+      allow create: if canManageExecutiveDirectives()
+        && request.resource.data.createdByUserId == request.auth.uid
+        && request.resource.data.updatedByUserId == request.auth.uid
+        && request.resource.data.isDeleted == false
+        && request.resource.data.leadDepartmentId is string
+        && request.resource.data.leadDepartmentId != ""
+        && request.resource.data.visibleDepartmentIds is list
+        && request.resource.data.leadDepartmentId in request.resource.data.visibleDepartmentIds
+        && request.resource.data.assignmentLevel in ["DEPARTMENT", "PERSON"]
+        && (
+          request.resource.data.assignmentLevel == "DEPARTMENT"
+            ? (request.resource.data.leadTeamId == "" && request.resource.data.leadUserId == "")
+            : (
+                request.resource.data.leadTeamId is string
+                && request.resource.data.leadTeamId != ""
+                && request.resource.data.leadUserId is string
+                && request.resource.data.leadUserId != ""
+                && exists(/databases/$(database)/documents/users/$(request.resource.data.leadUserId))
+                && get(/databases/$(database)/documents/users/$(request.resource.data.leadUserId)).data.active == true
+                && get(/databases/$(database)/documents/users/$(request.resource.data.leadUserId)).data.departmentId == request.resource.data.leadDepartmentId
+                && get(/databases/$(database)/documents/users/$(request.resource.data.leadUserId)).data.teamId == request.resource.data.leadTeamId
+              )
+        );
+
+      allow update: if canManageExecutiveDirectives()
+        && request.resource.data.createdByUserId == resource.data.createdByUserId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedByUserId == request.auth.uid;
+
+      /* Xóa trên giao diện là xóa mềm; không xóa cứng document. */
+      allow delete: if false;
+    }
+
+    match /executiveDirectiveUpdates/{updateId} {
+      allow read: if activeUser()
+        && (
+          canManageExecutiveDirectives()
+          || resource.data.departmentId == currentUser().departmentId
+        );
+
+      allow create: if activeUser()
+        && request.resource.data.createdByUserId == request.auth.uid
+        && request.resource.data.directiveId is string
+        && request.resource.data.directiveId != ""
+        && request.resource.data.departmentId is string
+        && request.resource.data.departmentId != ""
+        && (
+          request.resource.data.departmentId == "__SYSTEM__"
+            ? canManageExecutiveDirectives()
+            : (
+                request.resource.data.updateType == "ACCEPTED"
+                  ? (
+                      updateId == executiveAcceptanceId(request.resource.data.directiveId, request.resource.data.departmentId)
+                      && request.resource.data.status == "ACCEPTED"
+                      && canAcceptExecutiveDepartment(request.resource.data.directiveId, request.resource.data.departmentId)
+                      && getAfter(executiveStatePath(request.resource.data.directiveId, request.resource.data.departmentId)).data.status == "ACCEPTED"
+                    )
+                  : (
+                      request.resource.data.updateType == "PROGRESS"
+                      && request.resource.data.status in ["IN_PROGRESS", "PAUSED", "COMPLETED"]
+                      && canProgressExecutiveDepartment(request.resource.data.directiveId, request.resource.data.departmentId)
+                      && exists(executiveAcceptancePath(request.resource.data.directiveId, request.resource.data.departmentId))
+                      && getAfter(executiveStatePath(request.resource.data.directiveId, request.resource.data.departmentId)).data.status == request.resource.data.status
+                    )
+              )
+        );
+
+      /* Lịch sử chỉ được thêm mới, không sửa/xóa. */
+      allow update, delete: if false;
+    }
+
+    match /executiveDirectiveStates/{stateDocumentId} {
+      allow read: if activeUser()
+        && (
+          canManageExecutiveDirectives()
+          || resource.data.departmentId == currentUser().departmentId
+        );
+
+      allow create: if activeUser()
+        && request.resource.data.directiveId is string
+        && request.resource.data.departmentId is string
+        && stateDocumentId == executiveStateId(request.resource.data.directiveId, request.resource.data.departmentId)
+        && request.resource.data.updatedByUserId == request.auth.uid
+        && (
+          (
+            request.resource.data.status == "ACCEPTED"
+            && canAcceptExecutiveDepartment(request.resource.data.directiveId, request.resource.data.departmentId)
+            && existsAfter(executiveAcceptancePath(request.resource.data.directiveId, request.resource.data.departmentId))
+          )
+          || (
+            /* Bootstrap an toàn dữ liệu V1.10.4/V1.10.5 đã tiếp nhận nhưng chưa có state document. */
+            request.resource.data.status == "IN_PROGRESS"
+            && canProgressExecutiveDepartment(request.resource.data.directiveId, request.resource.data.departmentId)
+            && exists(executiveAcceptancePath(request.resource.data.directiveId, request.resource.data.departmentId))
+          )
+        );
+
+      allow update: if activeUser()
+        && request.resource.data.directiveId == resource.data.directiveId
+        && request.resource.data.departmentId == resource.data.departmentId
+        && stateDocumentId == executiveStateId(resource.data.directiveId, resource.data.departmentId)
+        && request.resource.data.updatedByUserId == request.auth.uid
+        && canProgressExecutiveDepartment(resource.data.directiveId, resource.data.departmentId)
+        && exists(executiveAcceptancePath(resource.data.directiveId, resource.data.departmentId))
+        && executiveStateTransitionAllowed(resource.data.status, request.resource.data.status);
+
+      allow delete: if false;
+    }
+
+    match /executiveWeeklyReports/{reportId} {
+      allow read: if activeUser()
+        && (
+          canManageExecutiveDirectives()
+          || (
+            resource.data.scopeType == "DEPARTMENT"
+            && resource.data.departmentId == currentUser().departmentId
+          )
+        );
+
+      allow create: if activeUser()
+        && request.resource.data.generatedByUserId == request.auth.uid
+        && (
+          canManageExecutiveDirectives()
+          || (
+            request.resource.data.scopeType == "DEPARTMENT"
+            && request.resource.data.departmentId == currentUser().departmentId
+          )
+        );
+
+      allow update: if activeUser()
+        && request.resource.data.generatedByUserId == request.auth.uid
+        && request.resource.data.scopeType == resource.data.scopeType
+        && request.resource.data.departmentId == resource.data.departmentId
+        && request.resource.data.weekStart == resource.data.weekStart
+        && (
+          canManageExecutiveDirectives()
+          || (
+            resource.data.scopeType == "DEPARTMENT"
+            && resource.data.departmentId == currentUser().departmentId
+          )
+        );
+
+      allow delete: if false;
+    }
+
+
+    /* ==================== PUSH CHỈ ĐẠO ĐIỀU HÀNH ==================== */
+    match /executivePushSubscriptions/{subscriptionId} {
+      allow read: if activeUser() && resource.data.userId == request.auth.uid;
+
+      allow create: if activeUser()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.module == "EXECUTIVE_DIRECTIVES";
+
+      allow update: if activeUser()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.subscriptionId == resource.data.subscriptionId
+        && request.resource.data.module == "EXECUTIVE_DIRECTIVES";
+
+      allow delete: if activeUser() && resource.data.userId == request.auth.uid;
+    }
+
+    /* Log thông báo chỉ do backend ghi. */
+    match /executiveNotificationLogs/{eventId} {
+      allow read: if activeUser()
+        && (
+          canManageExecutiveDirectives()
+          || resource.data.actorUid == request.auth.uid
+          || (hasField(resource.data, "recipientUids") && resource.data.recipientUids is list && request.auth.uid in resource.data.recipientUids)
+        );
+      /* Chỉ backend service account ghi log. */
+      allow create, update, delete: if false;
+    }
+
+    /* ==================== PUSH NHIỆM VỤ HIỆN HỮU - GIỮ NGUYÊN ==================== */
     match /taskPushSubscriptions/{subscriptionId} {
       allow read: if activeUser()
         && (resource.data.userId == request.auth.uid || canViewAllDepartments());
-      allow create: if activeUser() && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if activeUser() && resource.data.userId == request.auth.uid;
+
+      allow create: if activeUser()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.externalId == request.auth.uid;
+
+      allow update: if activeUser()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.externalId == request.auth.uid
+        && (!hasField(resource.data, "uid") || request.resource.data.uid == resource.data.uid)
+        && (!hasField(resource.data, "externalId") || request.resource.data.externalId == resource.data.externalId);
+
+      allow delete: if activeUser() && resource.data.userId == request.auth.uid;
     }
 
     match /{document=**} {

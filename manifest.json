@@ -21,5 +21,22 @@
       "type": "image/png",
       "purpose": "any maskable"
     }
-  ]
+  ],
+  "release": "V1.10.6",
+  "build": "20260810.V1_10_6",
+  "executive_directives": {
+    "independent_from_tasks_kpi": true,
+    "state_collection": "executiveDirectiveStates",
+    "push_subscriptions": "executivePushSubscriptions",
+    "push_logs": "executiveNotificationLogs",
+    "workflow": [
+      "ACCEPTED",
+      "IN_PROGRESS",
+      "COMPLETED"
+    ],
+    "assignment_levels": [
+      "DEPARTMENT",
+      "PERSON"
+    ]
+  }
 }

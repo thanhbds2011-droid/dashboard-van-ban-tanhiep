@@ -1,0 +1,117 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "commonCriteriaAssessments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "periodId", "order": "ASCENDING" },
+        { "fieldPath": "userId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "commonCriteriaAssessments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "periodId", "order": "ASCENDING" },
+        { "fieldPath": "departmentId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "taskEvaluations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "periodId", "order": "ASCENDING" },
+        { "fieldPath": "ownerUserId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "taskEvaluations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "periodId", "order": "ASCENDING" },
+        { "fieldPath": "departmentId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "taskEvaluations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "periodId", "order": "ASCENDING" },
+        { "fieldPath": "organizationId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "taskRegistrations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "periodId", "order": "ASCENDING" },
+        { "fieldPath": "organizationId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "taskRegistrations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "periodId", "order": "ASCENDING" },
+        { "fieldPath": "userId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "taskRegistrations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "periodId", "order": "ASCENDING" },
+        { "fieldPath": "departmentId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "tasks",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "periodId", "order": "ASCENDING" },
+        { "fieldPath": "ownerUserId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "tasks",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "periodId", "order": "ASCENDING" },
+        { "fieldPath": "relatedDepartmentIds", "arrayConfig": "CONTAINS" }
+      ]
+    },
+    {
+      "collectionGroup": "tasks",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "periodId", "order": "ASCENDING" },
+        { "fieldPath": "primaryDepartmentId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "tasks",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "periodId", "order": "ASCENDING" },
+        { "fieldPath": "organizationId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "tasks",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "periodId", "order": "ASCENDING" },
+        { "fieldPath": "supportDepartmentIds", "arrayConfig": "CONTAINS" }
+      ]
+    },
+    {
+      "collectionGroup": "tasks",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "periodId", "order": "ASCENDING" },
+        { "fieldPath": "visibleDepartmentIds", "arrayConfig": "CONTAINS" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
