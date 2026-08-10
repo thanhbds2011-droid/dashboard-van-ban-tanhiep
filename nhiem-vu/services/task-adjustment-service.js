@@ -2,10 +2,10 @@
  * Quy trình đề nghị và phê duyệt điều chỉnh nhiệm vụ.
  * Không chuyển điểm giữa nhân sự; mọi thay đổi được lưu trong kpiAdjustments và taskLogs.
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260810.V1_10_3";
-import { UserContext } from "../core/user-context.js?v=20260810.V1_10_3";
-import { TaskLogService } from "./task-log-service.js?v=20260810.V1_10_3";
-import { TaskNotificationService } from "./task-notification-service.js?v=20260810.V1_10_3";
+import { FirebaseService } from "../core/firebase-service.js?v=20260810.V1_10_6";
+import { UserContext } from "../core/user-context.js?v=20260810.V1_10_6";
+import { TaskLogService } from "./task-log-service.js?v=20260810.V1_10_6";
+import { TaskNotificationService } from "./task-notification-service.js?v=20260810.V1_10_6";
 
 const COLLECTION = "kpiAdjustments";
 const TYPES = Object.freeze({

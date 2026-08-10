@@ -6,8 +6,8 @@
  * - eventId phải ổn định khi sự kiện đã có taskLog để Apps Script chống gửi trùng.
  * - mode no-cors được giữ để tương thích Google Apps Script Web App production.
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260810.V1_10_3";
-import { NOTIFICATION_WEB_APP_URL } from "../notification-config.js?v=20260810.V1_10_3";
+import { FirebaseService } from "../core/firebase-service.js?v=20260810.V1_10_6";
+import { NOTIFICATION_WEB_APP_URL } from "../notification-config.js?v=20260810.V1_10_6";
 
 function clean(value) {
   return String(value ?? "").trim();

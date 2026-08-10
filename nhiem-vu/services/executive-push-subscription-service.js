@@ -5,7 +5,7 @@
  *
  * Không đọc/ghi taskPushSubscriptions và không gọi TaskNotificationService.
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260810.V1_10_3";
+import { FirebaseService } from "../core/firebase-service.js?v=20260810.V1_10_6";
 
 let currentUser = null;
 let oneSignalInstance = null;
@@ -98,6 +98,30 @@ export const ExecutivePushSubscriptionService = Object.freeze({
   async syncNow() {
     if (!currentUser?.uid || !oneSignalInstance) return false;
     return saveSnapshot(subscriptionSnapshot(oneSignalInstance));
+  },
+
+
+  async requestPermission() {
+    if (!currentUser?.uid) return false;
+    if (!oneSignalInstance) await this.start(currentUser);
+    const OneSignal = oneSignalInstance;
+    if (!OneSignal) return false;
+    try {
+      if (OneSignal.Notifications?.requestPermission) {
+        await OneSignal.Notifications.requestPermission();
+      }
+      if (browserPermission() === "granted" && OneSignal.User?.PushSubscription?.optedIn !== true) {
+        await OneSignal.User?.PushSubscription?.optIn?.();
+      }
+      return saveSnapshot(subscriptionSnapshot(OneSignal));
+    } catch (error) {
+      console.warn("Không bật được Push Chỉ đạo điều hành:", error);
+      return false;
+    }
+  },
+
+  getSnapshot() {
+    return subscriptionSnapshot(oneSignalInstance);
   },
 
   async stop({ deactivate = false } = {}) {

@@ -1,13 +1,13 @@
 /** Tạo, phân công, tiếp nhận, cập nhật tiến độ và hoàn thành nhiệm vụ. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260810.V1_10_3";
-import { UserContext } from "../core/user-context.js?v=20260810.V1_10_3";
-import { Permissions } from "../core/permissions.js?v=20260810.V1_10_3";
-import { TaskLogService } from "./task-log-service.js?v=20260810.V1_10_3";
-import { TaskWorkItemService } from "./task-work-item-service.js?v=20260810.V1_10_3";
-import { PeriodReadService } from "./period-read-service.js?v=20260810.V1_10_3";
-import { TaskNotificationService } from "./task-notification-service.js?v=20260810.V1_10_3";
+import { FirebaseService } from "../core/firebase-service.js?v=20260810.V1_10_6";
+import { UserContext } from "../core/user-context.js?v=20260810.V1_10_6";
+import { Permissions } from "../core/permissions.js?v=20260810.V1_10_6";
+import { TaskLogService } from "./task-log-service.js?v=20260810.V1_10_6";
+import { TaskWorkItemService } from "./task-work-item-service.js?v=20260810.V1_10_6";
+import { PeriodReadService } from "./period-read-service.js?v=20260810.V1_10_6";
+import { TaskNotificationService } from "./task-notification-service.js?v=20260810.V1_10_6";
 
-const TASK_WRITE_BUILD_VERSION = "20260810.V1_10_3";
+const TASK_WRITE_BUILD_VERSION = "20260810.V1_10_6";
 const MAX_CODE_SCAN = 1000;
 
 function dateKey(date) {

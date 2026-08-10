@@ -5,11 +5,11 @@
  * - Bí thư, Phó Bí thư và Ủy viên BCH được tạo đầu việc trong phạm vi Chi đoàn.
  * - Quyền tạo, sửa và xóa được tách riêng; Firestore Rules là lớp bảo vệ cuối cùng.
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260810.V1_10_3";
-import { UserContext } from "../core/user-context.js?v=20260810.V1_10_3";
-import { Permissions } from "../core/permissions.js?v=20260810.V1_10_3";
+import { FirebaseService } from "../core/firebase-service.js?v=20260810.V1_10_6";
+import { UserContext } from "../core/user-context.js?v=20260810.V1_10_6";
+import { Permissions } from "../core/permissions.js?v=20260810.V1_10_6";
 
-const SYNC_VERSION = "20260810.V1_10_3";
+const SYNC_VERSION = "20260810.V1_10_6";
 const STANDARD_TASK_COLLECTION = "standardTasks";
 const SEQUENCE_COLLECTION = "standardTaskSequences";
 const PROFESSIONAL_DEPARTMENTS = Object.freeze(["BGD", "TCHC", "CTXH", "KHTC", "YT", "KI", "KII", "KIII"]);

@@ -1,14 +1,15 @@
 /**
- * Gửi sự kiện thông báo của phân hệ Chỉ đạo điều hành tới Apps Script riêng.
- * Hoàn toàn độc lập với TaskNotificationService và các collection Nhiệm vụ/KPI.
+ * Thông báo riêng cho Chỉ đạo điều hành V1.10.6.
+ * Không dùng taskLogs, taskPushSubscriptions hoặc TaskNotificationService.
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260810.V1_10_3";
-import { EXECUTIVE_NOTIFICATION_WEB_APP_URL } from "../executive-notification-config.js?v=20260810.V1_10_4";
+import { FirebaseService } from "../core/firebase-service.js?v=20260810.V1_10_6";
+import { EXECUTIVE_NOTIFICATION_WEB_APP_URL } from "../executive-notification-config.js?v=20260810.V1_10_6";
 
+const LOGS = "executiveNotificationLogs";
 function clean(value) { return String(value ?? "").trim(); }
-function eventId(action, directiveId, provided = "") {
+function buildEventId(action, directiveId, provided = "") {
   const fixed = clean(provided);
-  if (fixed) return fixed.slice(0, 500);
+  if (fixed) return fixed.replace(/[^A-Za-z0-9_.:-]/g, "_").slice(0, 180);
   return `EXEC_${clean(action).toUpperCase()}_${clean(directiveId)}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 }
 function configured() {
@@ -18,6 +19,23 @@ function configured() {
     !EXECUTIVE_NOTIFICATION_WEB_APP_URL.includes("DAN_LINK_WEB_APP")
   );
 }
+function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+async function waitForLog(eventId, attempts = 5) {
+  const current = FirebaseService.auth.currentUser;
+  if (!current) return null;
+  const ref = FirebaseService.doc(FirebaseService.db, LOGS, eventId);
+  for (let i = 0; i < attempts; i += 1) {
+    if (i) await sleep(450 + i * 150);
+    try {
+      const snapshot = await FirebaseService.getDoc(ref);
+      if (snapshot.exists()) return { id: snapshot.id, ...snapshot.data() };
+    } catch (error) {
+      // Người dùng không có quyền đọc log hoặc log chưa tồn tại: không làm hỏng nghiệp vụ chính.
+      if (String(error?.code || "").includes("permission-denied")) return null;
+    }
+  }
+  return null;
+}
 
 export const ExecutiveNotificationService = Object.freeze({
   isConfigured: configured,
@@ -25,11 +43,16 @@ export const ExecutiveNotificationService = Object.freeze({
   async send(action, directiveId, eventData = {}, options = {}) {
     const normalizedAction = clean(action).toUpperCase();
     const normalizedDirectiveId = clean(directiveId);
-    if (!normalizedAction || !normalizedDirectiveId || !configured()) return false;
+    const id = buildEventId(normalizedAction, normalizedDirectiveId, options.eventId);
+    if (!normalizedAction || !normalizedDirectiveId) return { ok: false, status: "INVALID_EVENT", eventId: id };
+    if (!configured()) {
+      console.warn("Push Chỉ đạo điều hành chưa cấu hình Web App URL.");
+      return { ok: false, status: "NOT_CONFIGURED", eventId: id };
+    }
 
     try {
       const current = FirebaseService.auth.currentUser;
-      if (!current) return false;
+      if (!current) return { ok: false, status: "NO_AUTH", eventId: id };
       const idToken = await current.getIdToken();
       const payload = {
         module: "EXECUTIVE_DIRECTIVES",
@@ -37,10 +60,11 @@ export const ExecutiveNotificationService = Object.freeze({
         directiveId: normalizedDirectiveId,
         idToken,
         eventData: eventData && typeof eventData === "object" && !Array.isArray(eventData) ? eventData : {},
-        eventId: eventId(normalizedAction, normalizedDirectiveId, options.eventId),
+        eventId: id,
         sentAt: new Date().toISOString()
       };
 
+      // Apps Script Web App không bảo đảm CORS cho browser. no-cors giúp request vẫn tới backend.
       await fetch(EXECUTIVE_NOTIFICATION_WEB_APP_URL, {
         method: "POST",
         mode: "no-cors",
@@ -50,10 +74,17 @@ export const ExecutiveNotificationService = Object.freeze({
         headers: { "Content-Type": "text/plain;charset=UTF-8" },
         body: JSON.stringify(payload)
       });
-      return true;
+
+      // Backend V1.1.0 ghi log Firestore. Poll ngắn để xác nhận SENT/FAILED khi có quyền đọc.
+      const log = await waitForLog(id);
+      if (log) {
+        if (log.status === "FAILED") console.warn("Push Chỉ đạo điều hành thất bại:", log.errorMessage || log);
+        return { ok: log.status === "SENT", eventId: id, ...log };
+      }
+      return { ok: true, status: "SUBMITTED", eventId: id };
     } catch (error) {
       console.warn("Không gửi được thông báo Chỉ đạo điều hành:", error);
-      return false;
+      return { ok: false, status: "CLIENT_ERROR", eventId: id, error: error?.message || String(error) };
     }
   }
 });
