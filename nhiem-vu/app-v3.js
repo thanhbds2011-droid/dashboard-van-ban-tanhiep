@@ -1,6 +1,6 @@
 /** Ứng dụng quản lý nhiệm vụ và đánh giá KPI. */
 import { Router } from "./core/router.js?v=20260810.V1_10_6";
-import { APP_VERSION_LABEL, BUILD_VERSION } from "./core/app-version.js?v=20260810.V1_10_8";
+import { APP_VERSION_LABEL, BUILD_VERSION } from "./core/app-version.js?v=20260810.V1_10_9";
 import { AuthService } from "./core/auth-service.js?v=20260810.V1_10_6";
 import { Permissions } from "./core/permissions.js?v=20260810.V1_10_6";
 import { ToastService } from "./core/toast-service.js?v=20260810.V1_10_6";
@@ -13,7 +13,7 @@ let saveCurrentPushSnapshot = null;
 let stopInAppTaskAlerts = null;
 
 import { renderDashboardView } from "./modules/dashboard/dashboard-view.js?v=20260810.V1_10_6";
-import { renderExecutiveDirectivesView } from "./modules/executive-directives/executive-directives-view.js?v=20260810.V1_10_8";
+import { renderExecutiveDirectivesView } from "./modules/executive-directives/executive-directives-view.js?v=20260810.V1_10_9";
 import { renderTasksView } from "./modules/tasks/tasks-view.js?v=20260810.V1_10_6";
 import { renderStandardTasksView } from "./modules/standard-tasks/standard-tasks-view.js?v=20260810.V1_10_6";
 import { renderPeriodsView } from "./modules/periods/periods-view.js?v=20260810.V1_10_6";
@@ -38,6 +38,7 @@ async function bootstrap() {
   applyRoleBasedNavigation();
   bindLogout();
   bindMobileNavigation();
+  bindRouteBranding();
   initializePushNotifications(user);
   bindPushSubscriptionSync(user);
   bindPushSettings(user);
@@ -62,6 +63,21 @@ async function bootstrap() {
   });
   router.start();
   ToastService.success("Ứng dụng đã sẵn sàng.", 1800);
+}
+
+function applyRouteBrand(route = window.location.hash || "#/dashboard") {
+  const executive = route === "#/directives";
+  const title = document.getElementById("appBrandTitle");
+  const subtitle = document.getElementById("appBrandSubtitle");
+  if (title) title.textContent = executive ? "Chỉ đạo điều hành" : "Nhiệm vụ và đánh giá KPI";
+  if (subtitle) subtitle.textContent = "Trung tâm Bảo trợ xã hội Tân Hiệp";
+  document.body.classList.toggle("is-executive-route", executive);
+  document.title = executive ? "Chỉ đạo điều hành - Tân Hiệp" : "Nhiệm vụ và đánh giá KPI";
+}
+
+function bindRouteBranding() {
+  applyRouteBrand();
+  document.addEventListener("v3:route-changed", event => applyRouteBrand(event.detail?.route));
 }
 
 function setLoadingStatus(text) {
