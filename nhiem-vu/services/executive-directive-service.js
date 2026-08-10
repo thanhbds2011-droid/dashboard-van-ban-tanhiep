@@ -1,5 +1,5 @@
 /**
- * Phân hệ Chỉ đạo điều hành V1.10.6.
+ * Phân hệ Chỉ đạo điều hành V1.10.7 - Push Reliability Hotfix.
  * Độc lập hoàn toàn với Nhiệm vụ/KPI.
  *
  * Collections:
@@ -181,15 +181,55 @@ function transitionAllowed(previous, next) {
   if (to === "COMPLETED") return from === "IN_PROGRESS";
   return false;
 }
-function notifyLater(action, directiveId, eventData = {}, options = {}) {
-  Promise.resolve()
-    .then(() => ExecutiveNotificationService.send(action, directiveId, eventData, options))
-    .then(result => {
-      if (result?.status && !["SENT", "NO_SUBSCRIPTIONS"].includes(result.status)) {
-        console.warn("Thông báo Chỉ đạo điều hành chưa được xác nhận:", result);
-      }
-    })
-    .catch(error => console.warn("Không gửi được thông báo Chỉ đạo điều hành:", error));
+async function notifyPushReliably(action, directiveId, eventData = {}, options = {}) {
+  const normalizedAction = upper(action);
+  const normalizedDirectiveId = clean(directiveId);
+  const eventId = clean(options?.eventId);
+
+  console.info("[EXEC PUSH] Bắt đầu gửi:", {
+    action: normalizedAction,
+    directiveId: normalizedDirectiveId,
+    eventId
+  });
+
+  try {
+    const result = await ExecutiveNotificationService.send(
+      normalizedAction,
+      normalizedDirectiveId,
+      eventData,
+      options
+    );
+
+    const status = upper(result?.status);
+    if (["SENT", "SUBMITTED", "NO_SUBSCRIPTIONS"].includes(status)) {
+      console.info("[EXEC PUSH] Kết quả:", {
+        action: normalizedAction,
+        directiveId: normalizedDirectiveId,
+        eventId: clean(result?.eventId) || eventId,
+        status,
+        result
+      });
+    } else {
+      console.warn("[EXEC PUSH] Thông báo chưa gửi thành công:", {
+        action: normalizedAction,
+        directiveId: normalizedDirectiveId,
+        eventId: clean(result?.eventId) || eventId,
+        status: status || "NO_RESULT",
+        result
+      });
+    }
+
+    return result || { ok: false, status: "NO_RESULT", eventId };
+  } catch (error) {
+    const message = error?.message || String(error);
+    console.error("[EXEC PUSH] Không gửi được thông báo:", {
+      action: normalizedAction,
+      directiveId: normalizedDirectiveId,
+      eventId,
+      error: message
+    });
+    return { ok: false, status: "CLIENT_ERROR", eventId, error: message };
+  }
 }
 
 export const ExecutiveDirectiveService = Object.freeze({
@@ -322,7 +362,7 @@ export const ExecutiveDirectiveService = Object.freeze({
       }
     }));
     await batch.commit();
-    notifyLater("DIRECTIVE_ASSIGNED", ref.id, {
+    await notifyPushReliably("DIRECTIVE_ASSIGNED", ref.id, {
       leadDepartmentId,
       assignmentLevel: assignment.assignmentLevel,
       leadTeamId: assignment.leadTeamId,
@@ -383,7 +423,7 @@ export const ExecutiveDirectiveService = Object.freeze({
       { changedFields: changed }
     ));
     await batch.commit();
-    notifyLater("DIRECTIVE_UPDATED", id, {
+    await notifyPushReliably("DIRECTIVE_UPDATED", id, {
       changedFields: changed,
       previousVisibleDepartmentIds: uniqueUpper(current.visibleDepartmentIds),
       previousLeadUserId: clean(current.leadUserId),
@@ -423,7 +463,7 @@ export const ExecutiveDirectiveService = Object.freeze({
       closed ? `Đóng nội dung chỉ đạo.${clean(reason) ? ` Lý do: ${clean(reason)}` : ""}` : "Mở lại nội dung chỉ đạo để tiếp tục theo dõi."
     ));
     await batch.commit();
-    notifyLater(closed ? "DIRECTIVE_CLOSED" : "DIRECTIVE_REOPENED", id, { reason: clean(reason) });
+    await notifyPushReliably(closed ? "DIRECTIVE_CLOSED" : "DIRECTIVE_REOPENED", id, { reason: clean(reason) });
   },
 
   async softDelete(current = {}, reason = "") {
@@ -447,7 +487,7 @@ export const ExecutiveDirectiveService = Object.freeze({
     });
     batch.set(updateRef(), managerAuditPayload("DIRECTIVE_DELETED", id, `Xóa nội dung chỉ đạo khỏi danh sách sử dụng. Lý do: ${deleteReason}`));
     await batch.commit();
-    notifyLater("DIRECTIVE_DELETED", id, { reason: deleteReason });
+    await notifyPushReliably("DIRECTIVE_DELETED", id, { reason: deleteReason });
   },
 
   async acceptDirective(directive = {}, departmentId = "") {
@@ -516,7 +556,7 @@ export const ExecutiveDirectiveService = Object.freeze({
         updatedAt: FirebaseService.serverTimestamp()
       });
     });
-    notifyLater("DIRECTIVE_ACCEPTED", id, {
+    await notifyPushReliably("DIRECTIVE_ACCEPTED", id, {
       updateId: acceptRef.id,
       departmentId: targetDepartmentId
     }, { eventId: `DIRECTIVE_ACCEPTED_${acceptRef.id}` });
@@ -603,7 +643,7 @@ export const ExecutiveDirectiveService = Object.freeze({
       transaction.set(currentStateRef, statePayload, { merge: true });
     });
 
-    notifyLater(status === "COMPLETED" ? "DIRECTIVE_COMPLETED" : "DIRECTIVE_PROGRESS_UPDATED", id, {
+    await notifyPushReliably(status === "COMPLETED" ? "DIRECTIVE_COMPLETED" : "DIRECTIVE_PROGRESS_UPDATED", id, {
       updateId: historyRef.id,
       departmentId: targetDepartmentId,
       status
