@@ -1,9 +1,9 @@
 /**
- * Thông báo riêng cho Chỉ đạo điều hành V1.10.6.
+ * Thông báo riêng cho Chỉ đạo điều hành V1.10.8.
  * Không dùng taskLogs, taskPushSubscriptions hoặc TaskNotificationService.
  */
 import { FirebaseService } from "../core/firebase-service.js?v=20260810.V1_10_6";
-import { EXECUTIVE_NOTIFICATION_WEB_APP_URL } from "../executive-notification-config.js?v=20260810.V1_10_6";
+import { EXECUTIVE_NOTIFICATION_WEB_APP_URL } from "../executive-notification-config.js?v=20260810.V1_10_8";
 
 const LOGS = "executiveNotificationLogs";
 function clean(value) { return String(value ?? "").trim(); }
