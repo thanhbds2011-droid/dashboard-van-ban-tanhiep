@@ -1,23 +1,24 @@
 /** Ứng dụng quản lý nhiệm vụ và đánh giá KPI. */
-import { Router } from "./core/router.js?v=20260809.V1_10_2";
-import { APP_VERSION_LABEL, BUILD_VERSION } from "./core/app-version.js?v=20260809.V1_10_2";
-import { AuthService } from "./core/auth-service.js?v=20260809.V1_10_2";
-import { Permissions } from "./core/permissions.js?v=20260809.V1_10_2";
-import { ToastService } from "./core/toast-service.js?v=20260809.V1_10_2";
-import { FirebaseService } from "./core/firebase-service.js?v=20260809.V1_10_2";
+import { Router } from "./core/router.js?v=20260810.V1_10_3";
+import { APP_VERSION_LABEL, BUILD_VERSION } from "./core/app-version.js?v=20260810.V1_10_3";
+import { AuthService } from "./core/auth-service.js?v=20260810.V1_10_3";
+import { Permissions } from "./core/permissions.js?v=20260810.V1_10_3";
+import { ToastService } from "./core/toast-service.js?v=20260810.V1_10_3";
+import { FirebaseService } from "./core/firebase-service.js?v=20260810.V1_10_3";
 
 let currentPushUser = null;
 let saveCurrentPushSnapshot = null;
 let stopInAppTaskAlerts = null;
 
-import { renderDashboardView } from "./modules/dashboard/dashboard-view.js?v=20260809.V1_10_2";
-import { renderTasksView } from "./modules/tasks/tasks-view.js?v=20260809.V1_10_2";
-import { renderStandardTasksView } from "./modules/standard-tasks/standard-tasks-view.js?v=20260809.V1_10_2";
-import { renderPeriodsView } from "./modules/periods/periods-view.js?v=20260809.V1_10_2";
-import { renderPlansView } from "./modules/plans/plans-view.js?v=20260809.V1_10_2";
-import { renderEvaluationsView } from "./modules/evaluations/evaluations-view.js?v=20260809.V1_10_2";
-import { renderReportsView } from "./modules/reports/reports-view.js?v=20260809.V1_10_2";
-import { renderAdminView } from "./modules/admin/admin-view.js?v=20260809.V1_10_2";
+import { renderDashboardView } from "./modules/dashboard/dashboard-view.js?v=20260810.V1_10_3";
+import { renderExecutiveDirectivesView } from "./modules/executive-directives/executive-directives-view.js?v=20260810.V1_10_3";
+import { renderTasksView } from "./modules/tasks/tasks-view.js?v=20260810.V1_10_3";
+import { renderStandardTasksView } from "./modules/standard-tasks/standard-tasks-view.js?v=20260810.V1_10_3";
+import { renderPeriodsView } from "./modules/periods/periods-view.js?v=20260810.V1_10_3";
+import { renderPlansView } from "./modules/plans/plans-view.js?v=20260810.V1_10_3";
+import { renderEvaluationsView } from "./modules/evaluations/evaluations-view.js?v=20260810.V1_10_3";
+import { renderReportsView } from "./modules/reports/reports-view.js?v=20260810.V1_10_3";
+import { renderAdminView } from "./modules/admin/admin-view.js?v=20260810.V1_10_3";
 
 async function bootstrap() {
   const outlet = document.getElementById("appOutlet");
@@ -44,6 +45,7 @@ async function bootstrap() {
     outlet,
     routes: {
       "#/dashboard": renderDashboardView,
+      "#/directives": renderExecutiveDirectivesView,
       "#/tasks": renderTasksView,
       "#/standard-tasks": renderStandardTasksView,
       "#/kpi": renderPlansView,

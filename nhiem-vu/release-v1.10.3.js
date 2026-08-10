@@ -1,5 +1,5 @@
 /**
- * Lớp nâng cấp V1.10.2.
+ * Lớp nâng cấp V1.10.3.
  * Chỉ bổ sung/chỉnh đúng các yêu cầu đã chốt, không thay đổi luồng ổn định khác.
  */
 import { FirebaseService } from "./core/firebase-service.js?v=20260810.V1_10_3";
@@ -37,7 +37,7 @@ function scheduleEnhance() {
   scheduled = true;
   requestAnimationFrame(() => {
     scheduled = false;
-    try { enhance(); } catch (error) { console.warn("V1.10.2 enhancement skipped:", error); }
+    try { enhance(); } catch (error) { console.warn("V1.10.3 enhancement skipped:", error); }
   });
 }
 
@@ -152,7 +152,7 @@ async function refreshPushButton(snapshot = null) {
 
 function bindNotificationMenu() {
   const menuButton = document.getElementById("btnMobilePushSettings");
-  if (!menuButton || menuButton.dataset.pushSettingsBound === "V1.10.2") return;
+  if (!menuButton || menuButton.dataset.pushSettingsBound === "V1.10.3") return;
   if (menuButton.dataset.bound === BUILD) return;
   menuButton.dataset.bound = BUILD;
   menuButton.addEventListener("click", () => {
@@ -365,7 +365,7 @@ function enhance() {
 }
 
 function bootstrap() {
-  console.info("Nhiệm vụ & KPI release enhancement V1.10.2", BUILD);
+  console.info("Nhiệm vụ & KPI release enhancement V1.10.3", BUILD);
   observer?.disconnect();
   observer = new MutationObserver(scheduleEnhance);
   observer.observe(document.body, { childList: true, subtree: true });
