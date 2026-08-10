@@ -5,6 +5,7 @@
 import { FirebaseService } from "../core/firebase-service.js?v=20260810.V1_10_3";
 import { UserContext } from "../core/user-context.js?v=20260810.V1_10_3";
 import { Permissions } from "../core/permissions.js?v=20260810.V1_10_3";
+import { ExecutiveNotificationService } from "./executive-notification-service.js?v=20260810.V1_10_4";
 
 const DIRECTIVES = "executiveDirectives";
 const UPDATES = "executiveDirectiveUpdates";
@@ -40,6 +41,13 @@ function directiveRef(id) {
 }
 function updateRef() {
   return FirebaseService.doc(FirebaseService.collection(FirebaseService.db, UPDATES));
+}
+function acceptanceRef(directiveId, departmentId) {
+  return FirebaseService.doc(
+    FirebaseService.db,
+    UPDATES,
+    `ACCEPTED_${clean(directiveId)}_${upper(departmentId)}`
+  );
 }
 function reportId(weekStart, departmentId = "ALL") {
   return `${upper(departmentId || "ALL")}_${normalizeDateKey(weekStart)}`;
@@ -86,6 +94,13 @@ function managerAuditPayload(type, directiveId, message, extras = {}) {
     createdAt: FirebaseService.serverTimestamp(),
     ...extras
   };
+}
+
+
+function notifyLater(action, directiveId, eventData = {}, options = {}) {
+  Promise.resolve()
+    .then(() => ExecutiveNotificationService.send(action, directiveId, eventData, options))
+    .catch(error => console.warn("Không gửi được thông báo Chỉ đạo điều hành:", error));
 }
 
 export const ExecutiveDirectiveService = Object.freeze({
@@ -135,6 +150,21 @@ export const ExecutiveDirectiveService = Object.freeze({
           FirebaseService.limit(MAX_LIST)
         );
     return sortUpdates(mapSnapshot(await FirebaseService.getDocs(q)));
+  },
+
+  subscribeUpdates(onNext, onError = console.warn) {
+    const user = assertActiveUser();
+    const collectionRef = FirebaseService.collection(FirebaseService.db, UPDATES);
+    const q = Permissions.canViewAllExecutiveDirectives()
+      ? FirebaseService.query(collectionRef, FirebaseService.limit(MAX_LIST))
+      : FirebaseService.query(
+          collectionRef,
+          FirebaseService.where("departmentId", "==", user.departmentId),
+          FirebaseService.limit(MAX_LIST)
+        );
+    return FirebaseService.onSnapshot(q, snapshot => {
+      onNext(sortUpdates(mapSnapshot(snapshot)));
+    }, onError);
   },
 
   async createDirective(input = {}) {
@@ -188,6 +218,13 @@ export const ExecutiveDirectiveService = Object.freeze({
       snapshot: { directedDateKey, directedByName, leadDepartmentId, supportDepartmentIds, dueDateKey: payload.dueDateKey, priority: payload.priority }
     }));
     await batch.commit();
+    notifyLater("DIRECTIVE_ASSIGNED", ref.id, {
+      leadDepartmentId,
+      supportDepartmentIds,
+      visibleDepartmentIds,
+      directedByName,
+      dueDateKey: payload.dueDateKey
+    }, { eventId: `DIRECTIVE_CREATED_${ref.id}` });
     return { id: ref.id, ...payload };
   },
 
@@ -235,6 +272,11 @@ export const ExecutiveDirectiveService = Object.freeze({
       { changedFields: changed }
     ));
     await batch.commit();
+    notifyLater("DIRECTIVE_UPDATED", id, {
+      changedFields: changed,
+      previousVisibleDepartmentIds: uniqueUpper(current.visibleDepartmentIds),
+      visibleDepartmentIds
+    });
   },
 
   async setLifecycle(current = {}, closed, reason = "") {
@@ -265,6 +307,9 @@ export const ExecutiveDirectiveService = Object.freeze({
       closed ? `Đóng nội dung chỉ đạo.${clean(reason) ? ` Lý do: ${clean(reason)}` : ""}` : "Mở lại nội dung chỉ đạo để tiếp tục theo dõi."
     ));
     await batch.commit();
+    notifyLater(closed ? "DIRECTIVE_CLOSED" : "DIRECTIVE_REOPENED", id, {
+      reason: clean(reason)
+    });
   },
 
   async softDelete(current = {}, reason = "") {
@@ -288,6 +333,48 @@ export const ExecutiveDirectiveService = Object.freeze({
     });
     batch.set(updateRef(), managerAuditPayload("DIRECTIVE_DELETED", id, `Xóa nội dung chỉ đạo khỏi danh sách sử dụng. Lý do: ${deleteReason}`));
     await batch.commit();
+    notifyLater("DIRECTIVE_DELETED", id, { reason: deleteReason });
+  },
+
+  async acceptDirective(directive = {}, departmentId = "") {
+    const user = assertActiveUser();
+    const id = clean(directive.id);
+    const targetDepartmentId = upper(departmentId || user.departmentId);
+    if (!id || !targetDepartmentId) throw new Error("Không xác định được Phòng/Khu tiếp nhận.");
+    const visible = uniqueUpper(directive.visibleDepartmentIds);
+    const manager = Permissions.canManageExecutiveDirectives();
+    if (!manager && (targetDepartmentId !== user.departmentId || !visible.includes(user.departmentId))) {
+      throw new Error("Tài khoản chỉ được tiếp nhận nội dung liên quan Phòng/Khu của mình.");
+    }
+    if (!visible.includes(targetDepartmentId)) {
+      throw new Error("Phòng/Khu này không thuộc phạm vi nội dung chỉ đạo.");
+    }
+
+    const ref = acceptanceRef(id, targetDepartmentId);
+    const dateKey = actionDateKey();
+    await FirebaseService.setDoc(ref, {
+      directiveId: id,
+      departmentId: targetDepartmentId,
+      updateType: "ACCEPTED",
+      status: "ACCEPTED",
+      progressSummary: "",
+      resultSummary: "",
+      evidenceLinks: [],
+      note: "Đã xác nhận tiếp nhận nội dung chỉ đạo.",
+      actionDateKey: dateKey,
+      acceptedDateKey: dateKey,
+      createdByUserId: user.uid,
+      createdByName: user.fullName || user.email,
+      createdByRole: user.role,
+      createdByDepartmentId: user.departmentId,
+      enteredOnBehalfOfDepartment: manager && targetDepartmentId !== user.departmentId,
+      createdAt: FirebaseService.serverTimestamp()
+    });
+    notifyLater("DIRECTIVE_ACCEPTED", id, {
+      updateId: ref.id,
+      departmentId: targetDepartmentId
+    }, { eventId: `DIRECTIVE_ACCEPTED_${ref.id}` });
+    return ref.id;
   },
 
   async addProgressUpdate(directive = {}, departmentId = "", input = {}) {
@@ -326,6 +413,11 @@ export const ExecutiveDirectiveService = Object.freeze({
       enteredOnBehalfOfDepartment: manager && targetDepartmentId !== user.departmentId,
       createdAt: FirebaseService.serverTimestamp()
     });
+    notifyLater(status === "COMPLETED" ? "DIRECTIVE_COMPLETED" : "DIRECTIVE_PROGRESS_UPDATED", id, {
+      updateId: ref.id,
+      departmentId: targetDepartmentId,
+      status
+    }, { eventId: `DIRECTIVE_PROGRESS_${ref.id}` });
     return ref.id;
   },
 
