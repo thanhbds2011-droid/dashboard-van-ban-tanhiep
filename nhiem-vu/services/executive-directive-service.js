@@ -1,5 +1,5 @@
 /**
- * Phân hệ Chỉ đạo điều hành V1.11.0 - Production UX + Non-blocking Push.
+ * Phân hệ Chỉ đạo điều hành V1.11.1 - Authentication & Oral Directive Capture Hardening.
  * Độc lập hoàn toàn với Nhiệm vụ/KPI.
  *
  * Collections:
@@ -10,8 +10,8 @@
  */
 import { FirebaseService } from "../core/firebase-service.js?v=20260810.V1_10_6";
 import { UserContext } from "../core/user-context.js?v=20260810.V1_10_6";
-import { Permissions } from "../core/permissions.js?v=20260810.V1_10_6";
-import { ExecutiveNotificationService } from "./executive-notification-service.js?v=20260811.V1_11_0";
+import { Permissions } from "../core/permissions.js?v=20260811.V1_11_1";
+import { ExecutiveNotificationService } from "./executive-notification-service.js?v=20260811.V1_11_1";
 
 const DIRECTIVES = "executiveDirectives";
 const UPDATES = "executiveDirectiveUpdates";
@@ -246,13 +246,22 @@ export const ExecutiveDirectiveService = Object.freeze({
   async listUpdates() {
     const user = assertActiveUser();
     const collectionRef = FirebaseService.collection(FirebaseService.db, UPDATES);
-    const q = Permissions.canViewAllExecutiveDirectives()
-      ? FirebaseService.query(collectionRef, FirebaseService.limit(MAX_LIST))
-      : FirebaseService.query(
-          collectionRef,
-          FirebaseService.where("departmentId", "==", user.departmentId),
-          FirebaseService.limit(MAX_LIST)
-        );
+    let q;
+    if (Permissions.canViewAllExecutiveDirectives()) {
+      q = FirebaseService.query(collectionRef, FirebaseService.limit(MAX_LIST));
+    } else if (upper(user.role) === "DEPARTMENT_LEADER" || (upper(user.role) === "TCHC_COORDINATOR" && upper(user.departmentId) === "TCHC")) {
+      q = FirebaseService.query(
+        collectionRef,
+        FirebaseService.where("departmentId", "==", user.departmentId),
+        FirebaseService.limit(MAX_LIST)
+      );
+    } else {
+      q = FirebaseService.query(
+        collectionRef,
+        FirebaseService.where("assignedUserId", "==", user.uid),
+        FirebaseService.limit(MAX_LIST)
+      );
+    }
     return sortUpdates(mapSnapshot(await FirebaseService.getDocs(q)));
   },
 
@@ -261,11 +270,17 @@ export const ExecutiveDirectiveService = Object.freeze({
     const collectionRef = FirebaseService.collection(FirebaseService.db, UPDATES);
     const q = Permissions.canViewAllExecutiveDirectives()
       ? FirebaseService.query(collectionRef, FirebaseService.limit(MAX_LIST))
-      : FirebaseService.query(
-          collectionRef,
-          FirebaseService.where("departmentId", "==", user.departmentId),
-          FirebaseService.limit(MAX_LIST)
-        );
+      : (upper(user.role) === "DEPARTMENT_LEADER" || (upper(user.role) === "TCHC_COORDINATOR" && upper(user.departmentId) === "TCHC"))
+        ? FirebaseService.query(
+            collectionRef,
+            FirebaseService.where("departmentId", "==", user.departmentId),
+            FirebaseService.limit(MAX_LIST)
+          )
+        : FirebaseService.query(
+            collectionRef,
+            FirebaseService.where("assignedUserId", "==", user.uid),
+            FirebaseService.limit(MAX_LIST)
+          );
     return FirebaseService.onSnapshot(q, snapshot => onNext(sortUpdates(mapSnapshot(snapshot))), onError);
   },
 
@@ -350,6 +365,156 @@ export const ExecutiveDirectiveService = Object.freeze({
       directedByName,
       dueDateKey: payload.dueDateKey
     }, { eventId: `DIRECTIVE_CREATED_${ref.id}` });
+    return { id: ref.id, ...payload };
+  },
+
+  async createOralDirective(input = {}) {
+    const user = assertActiveUser();
+    if (!Permissions.canRecordOralExecutiveDirective(user)) {
+      throw new Error("Chỉ Trưởng/Phó Phòng/Khu mới được ghi nhận chỉ đạo miệng cho đơn vị mình.");
+    }
+
+    const leadDepartmentId = upper(user.departmentId);
+    const directedDateKey = normalizeDateKey(input.directedDateKey);
+    const content = clean(input.content);
+    const directedByName = clean(input.directedByName);
+    if (!leadDepartmentId) throw new Error("Tài khoản chưa có Phòng/Khu.");
+    if (!directedDateKey) throw new Error("Ngày chỉ đạo không hợp lệ.");
+    if (!directedByName) throw new Error("Chưa xác định thành viên Ban Giám đốc đã chỉ đạo.");
+    if (!content) throw new Error("Chưa nhập nội dung chỉ đạo.");
+
+    const ref = FirebaseService.doc(FirebaseService.collection(FirebaseService.db, DIRECTIVES));
+    const oralHistoryRef = updateRef();
+    const acceptRef = acceptanceRef(ref.id, leadDepartmentId);
+    const currentStateRef = stateRef(ref.id, leadDepartmentId);
+    const dateKey = actionDateKey();
+    const payload = {
+      code: clean(input.code),
+      sourceType: upper(input.sourceType || "DIRECT"),
+      entryMode: "LEADER_ORAL_CAPTURE",
+      oralCapture: true,
+      meetingName: clean(input.meetingName),
+      referenceText: clean(input.referenceText),
+      directedDateKey,
+      directedByUserId: clean(input.directedByUserId),
+      directedByName,
+      content,
+      leadDepartmentId,
+      assignmentLevel: "DEPARTMENT",
+      leadTeamId: "",
+      leadTeamName: "",
+      leadUserId: "",
+      leadUserName: "",
+      leadUserPosition: "",
+      assignedUserId: "",
+      assignedUserName: "",
+      assignedUserPosition: "",
+      supportDepartmentIds: [],
+      visibleDepartmentIds: [leadDepartmentId],
+      dueDateKey: normalizeDateKey(input.dueDateKey),
+      priority: upper(input.priority || "NORMAL"),
+      lifecycleStatus: "ACTIVE",
+      closeReason: "",
+      closedDateKey: "",
+      closedByUserId: "",
+      isDeleted: false,
+      deletedDateKey: "",
+      deletedReason: "",
+      recordedByUserId: user.uid,
+      recordedByName: user.fullName || user.email,
+      recordedByRole: user.role,
+      recordedByDepartmentId: leadDepartmentId,
+      recordedAt: FirebaseService.serverTimestamp(),
+      createdByUserId: user.uid,
+      createdByName: user.fullName || user.email,
+      createdByRole: user.role,
+      createdByDepartmentId: leadDepartmentId,
+      createdAt: FirebaseService.serverTimestamp(),
+      updatedAt: FirebaseService.serverTimestamp(),
+      updatedByUserId: user.uid,
+      updatedByName: user.fullName || user.email
+    };
+
+    const batch = FirebaseService.writeBatch(FirebaseService.db);
+    batch.set(ref, payload);
+    batch.set(oralHistoryRef, {
+      directiveId: ref.id,
+      departmentId: leadDepartmentId,
+      updateType: "ORAL_RECORDED",
+      status: "ACCEPTED",
+      progressSummary: "",
+      resultSummary: "",
+      evidenceLinks: [],
+      note: `${user.fullName || user.email} ghi nhận chỉ đạo của ${directedByName} và tiếp nhận cho ${leadDepartmentId}.`,
+      actionDateKey: dateKey,
+      directedByUserId: clean(input.directedByUserId),
+      directedByName,
+      sourceType: payload.sourceType,
+      createdByUserId: user.uid,
+      createdByName: user.fullName || user.email,
+      createdByRole: user.role,
+      createdByDepartmentId: leadDepartmentId,
+      createdAt: FirebaseService.serverTimestamp()
+    });
+    batch.set(acceptRef, {
+      directiveId: ref.id,
+      departmentId: leadDepartmentId,
+      updateType: "ACCEPTED",
+      status: "ACCEPTED",
+      progressSummary: "",
+      resultSummary: "",
+      evidenceLinks: [],
+      note: "Trưởng/Phó Phòng/Khu ghi nhận chỉ đạo miệng và đồng thời xác nhận tiếp nhận.",
+      actionDateKey: dateKey,
+      acceptedDateKey: dateKey,
+      createdByUserId: user.uid,
+      createdByName: user.fullName || user.email,
+      createdByRole: user.role,
+      createdByDepartmentId: leadDepartmentId,
+      oralCapture: true,
+      createdAt: FirebaseService.serverTimestamp()
+    });
+    batch.set(currentStateRef, {
+      directiveId: ref.id,
+      departmentId: leadDepartmentId,
+      status: "ACCEPTED",
+      acceptedDateKey: dateKey,
+      acceptedByUserId: user.uid,
+      acceptedByName: user.fullName || user.email,
+      assignedUserId: "",
+      assignedUserName: "",
+      assignedUserPosition: "",
+      assignedTeamId: "",
+      assignedTeamName: "",
+      internalAssignmentStatus: "UNASSIGNED",
+      assignedDateKey: "",
+      assignedByUserId: "",
+      assignedByName: "",
+      assignmentSource: "",
+      assignmentUpdateId: "",
+      personAcceptedDateKey: "",
+      personAcceptedByUserId: "",
+      personAcceptedByName: "",
+      personAcceptanceUpdateId: "",
+      lastProgressUpdateId: "",
+      startedDateKey: "",
+      completedDateKey: "",
+      oralCapture: true,
+      updatedByUserId: user.uid,
+      updatedAt: FirebaseService.serverTimestamp()
+    });
+    await batch.commit();
+
+    dispatchPushInBackground("DIRECTIVE_ORAL_RECORDED", ref.id, {
+      updateId: oralHistoryRef.id,
+      departmentId: leadDepartmentId,
+      directedByUserId: clean(input.directedByUserId),
+      directedByName,
+      recordedByName: user.fullName || user.email,
+      sourceType: payload.sourceType,
+      dueDateKey: payload.dueDateKey
+    }, { eventId: `DIRECTIVE_ORAL_RECORDED_${oralHistoryRef.id}` });
+
     return { id: ref.id, ...payload };
   },
 
