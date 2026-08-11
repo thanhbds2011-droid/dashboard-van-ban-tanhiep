@@ -1,8 +1,8 @@
 /** Ứng dụng quản lý nhiệm vụ và đánh giá KPI. */
 import { Router } from "./core/router.js?v=20260810.V1_10_6";
-import { APP_VERSION_LABEL, BUILD_VERSION } from "./core/app-version.js?v=20260811.V1_11_0";
-import { AuthService } from "./core/auth-service.js?v=20260810.V1_10_6";
-import { Permissions } from "./core/permissions.js?v=20260810.V1_10_6";
+import { APP_VERSION_LABEL, BUILD_VERSION } from "./core/app-version.js?v=20260811.V1_11_1";
+import { AuthService } from "./core/auth-service.js?v=20260811.V1_11_1";
+import { Permissions } from "./core/permissions.js?v=20260811.V1_11_1";
 import { ToastService } from "./core/toast-service.js?v=20260810.V1_10_6";
 import { FirebaseService } from "./core/firebase-service.js?v=20260810.V1_10_6";
 import { ExecutivePushSubscriptionService } from "./services/executive-push-subscription-service.js?v=20260810.V1_10_6";
@@ -13,7 +13,7 @@ let saveCurrentPushSnapshot = null;
 let stopInAppTaskAlerts = null;
 
 import { renderDashboardView } from "./modules/dashboard/dashboard-view.js?v=20260810.V1_10_6";
-import { renderExecutiveDirectivesView } from "./modules/executive-directives/executive-directives-view.js?v=20260811.V1_11_0";
+import { renderExecutiveDirectivesView } from "./modules/executive-directives/executive-directives-view.js?v=20260811.V1_11_1";
 import { renderTasksView } from "./modules/tasks/tasks-view.js?v=20260810.V1_10_6";
 import { renderStandardTasksView } from "./modules/standard-tasks/standard-tasks-view.js?v=20260810.V1_10_6";
 import { renderPeriodsView } from "./modules/periods/periods-view.js?v=20260810.V1_10_6";
@@ -27,7 +27,9 @@ async function bootstrap() {
   if (!outlet) throw new Error("Không tìm thấy vùng hiển thị appOutlet.");
 
   setLoadingStatus("Đang xác thực tài khoản…");
-  const user = await AuthService.initializeUserContext();
+  const user = await AuthService.initializeUserContext({
+    onProgress: ({ message }) => setLoadingStatus(message || "Đang tải tài khoản…")
+  });
   if (!user) return;
 
   renderCurrentUser(user);
@@ -406,18 +408,25 @@ function escapeHtml(value) {
 
 bootstrap().catch(error => {
   console.error("Lỗi khởi động ứng dụng:", error);
+  const diagnostic = AuthService.getLastDiagnostic?.() || {};
+  const errorCode = String(error?.code || diagnostic.errorCode || "AUTH_BOOTSTRAP_FAILED");
   const userInfo = document.getElementById("currentUserInfo");
-  if (userInfo) userInfo.innerHTML = `<strong>Không tải được tài khoản</strong><span>Vui lòng xem thông báo bên dưới</span>`;
+  if (userInfo) userInfo.innerHTML = `<strong>Không tải được tài khoản</strong><span>${escapeHtml(errorCode)}</span>`;
   const outlet = document.getElementById("appOutlet");
   if (outlet) outlet.innerHTML = `
     <section class="page-card error-card auth-error-card">
       <h2>Không thể tải tài khoản</h2>
       <p>${escapeHtml(error?.message || "Lỗi không xác định.")}</p>
+      <div class="auth-diagnostic-box">
+        <strong>Mã chẩn đoán: ${escapeHtml(errorCode)}</strong>
+        <span>Bước cuối: ${escapeHtml(diagnostic.lastStage || "không xác định")}</span>
+        ${diagnostic.email ? `<span>Email: ${escapeHtml(diagnostic.email)}</span>` : ""}
+      </div>
       <div class="page-actions">
         <button id="btnRetryBootstrap" type="button" class="primary-button">↻ Thử lại</button>
         <button id="btnForceLogout" type="button" class="secondary-button">Đăng xuất và đăng nhập lại</button>
       </div>
-      <p class="helper-text">Nếu lỗi lặp lại, vui lòng liên hệ quản trị viên để kiểm tra tài khoản và quyền truy cập.</p>
+      <p class="helper-text">Nếu lỗi lặp lại, gửi ảnh màn hình có mã chẩn đoán cho quản trị viên. Không cần chờ ở màn hình tải vô thời hạn.</p>
     </section>`;
   document.getElementById("btnRetryBootstrap")?.addEventListener("click", () => window.location.reload());
   document.getElementById("btnForceLogout")?.addEventListener("click", async () => {

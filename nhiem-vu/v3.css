@@ -952,3 +952,5 @@ button,input,select,textarea{font-size:16px}
 
 /* PWA V1.9.1 */
 .hidden{display:none!important}.system-banner{position:sticky;top:0;z-index:1200;margin:0 auto;padding:12px 18px;display:flex;align-items:center;justify-content:center;gap:16px;font-weight:700}.offline-banner{background:#fff3cd;color:#664d03}.update-banner{background:#e8f4ff;color:#083b5c}.update-banner>div{display:flex;gap:8px}.install-help-card{max-width:560px}.is-offline [data-write-action],.is-offline button[type="submit"]{opacity:.65}.registration-row-registered{border-left:4px solid #1f7a4d}@media(max-width:720px){.system-banner{flex-direction:column;align-items:stretch}.update-banner>div{display:grid;grid-template-columns:1fr 1fr}.header-button span{display:none}}
+
+.auth-diagnostic-box{display:grid;gap:4px;margin:14px 0;padding:12px 14px;border:1px solid #d9e5ed;border-radius:12px;background:#f7fafc;color:#476477;font-size:13px}.auth-diagnostic-box strong{color:#173f59}.auth-diagnostic-box span{overflow-wrap:anywhere}
