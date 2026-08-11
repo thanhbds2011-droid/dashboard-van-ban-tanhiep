@@ -3,7 +3,7 @@
  * Không dùng taskLogs, taskPushSubscriptions hoặc TaskNotificationService.
  */
 import { FirebaseService } from "../core/firebase-service.js?v=20260810.V1_10_6";
-import { EXECUTIVE_NOTIFICATION_WEB_APP_URL } from "../executive-notification-config.js?v=20260811.V1_11_1";
+import { EXECUTIVE_NOTIFICATION_WEB_APP_URL } from "../executive-notification-config.js?v=20260811.V1_11_1_HF1";
 
 const LOGS = "executiveNotificationLogs";
 function clean(value) { return String(value ?? "").trim(); }
