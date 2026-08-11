@@ -1,9 +1,9 @@
 import { UserContext } from "../../core/user-context.js?v=20260810.V1_10_6";
-import { Permissions } from "../../core/permissions.js?v=20260811.V1_11_1";
+import { Permissions } from "../../core/permissions.js?v=20260811.V1_11_1_HF1";
 import { ToastService } from "../../core/toast-service.js?v=20260810.V1_10_6";
 import { DepartmentReadService } from "../../services/department-read-service.js?v=20260810.V1_10_6";
 import { UserReadService } from "../../services/user-read-service.js?v=20260810.V1_10_6";
-import { ExecutiveDirectiveService } from "../../services/executive-directive-service.js?v=20260811.V1_11_1";
+import { ExecutiveDirectiveService } from "../../services/executive-directive-service.js?v=20260811.V1_11_1_HF1";
 
 let state = {
   directives: [],
@@ -928,7 +928,7 @@ function openProgressForm(directive) {
         && latestPersonalAcceptance(directive, user.departmentId)
         && isAssignedToCurrentUser(directive, user.departmentId, user)
         && canProgressDepartmentUi(directive, user.departmentId)
-      ? [upper(user.departmentId)] : []);
+      ? [upper(user.departmentId)] : [];
   if (!eligible.length) {
     ToastService.error("Phòng/Khu phải tiếp nhận, phân công người thực hiện và người được giao phải xác nhận nhận việc trước.");
     return;
