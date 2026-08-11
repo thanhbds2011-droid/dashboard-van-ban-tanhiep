@@ -89,3 +89,12 @@
   body.is-executive-route .v3-main{padding-bottom:env(safe-area-inset-bottom)}
 }
 
+
+/* V1.11.2 - Mobile dashboard: 4 chỉ số hiển thị 2 x 2, gọn trên điện thoại. */
+@media(max-width:640px){
+  .directive-metrics{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px}
+  .directive-metric{padding:12px 12px;min-height:108px}
+  .directive-metric span{font-size:.82rem;line-height:1.25}
+  .directive-metric strong{font-size:1.8rem;line-height:1.05}
+  .directive-metric small{font-size:.78rem;line-height:1.25}
+}
