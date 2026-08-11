@@ -1,0 +1,18 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+const root = path.resolve(new URL("..", import.meta.url).pathname);
+const service = fs.readFileSync(path.join(root, "services/executive-directive-service.js"), "utf8");
+const view = fs.readFileSync(path.join(root, "modules/executive-directives/executive-directives-view.js"), "utf8");
+const rules = fs.readFileSync(path.join(root, "../../firestore.rules"), "utf8");
+assert.match(service, /assignedUserId/);
+assert.doesNotMatch(service, /function resolveAssignment\(input, leadDepartmentId\)/);
+assert.match(service, /return isDepartmentOperator\(user, target\);/);
+assert.match(service, /where\("assignedUserId", "==", user.uid\)/);
+assert.match(view, /Ban Giám đốc chỉ giao đến Phòng\/Khu/);
+assert.doesNotMatch(view, /Giao cụ thể cá nhân/);
+assert.doesNotMatch(view, /managerCanProgress = manager/);
+assert.match(rules, /request.resource.data.assignmentLevel == "DEPARTMENT"/);
+assert.match(rules, /data.assignedUserId == request.auth.uid/);
+assert.match(rules, /canGenerateExecutiveDepartmentReport/);
+console.log("V1.11.0 role/workflow tests: PASS");
