@@ -1,9 +1,9 @@
 import { UserContext } from "../../core/user-context.js?v=20260810.V1_10_6";
-import { Permissions } from "../../core/permissions.js?v=20260811.V1_11_2";
+import { Permissions } from "../../core/permissions.js?v=20260811.V1_11_3";
 import { ToastService } from "../../core/toast-service.js?v=20260810.V1_10_6";
 import { DepartmentReadService } from "../../services/department-read-service.js?v=20260810.V1_10_6";
 import { UserReadService } from "../../services/user-read-service.js?v=20260810.V1_10_6";
-import { ExecutiveDirectiveService } from "../../services/executive-directive-service.js?v=20260811.V1_11_2";
+import { ExecutiveDirectiveService } from "../../services/executive-directive-service.js?v=20260811.V1_11_3";
 
 let state = {
   directives: [],
@@ -279,8 +279,8 @@ function mountShell(outlet) {
   outlet.innerHTML = `
     <section class="directive-shell page-card">
       <header class="directive-page-header">
-        <div><span class="page-eyebrow">CHỈ ĐẠO ĐIỀU HÀNH</span><h2>Chỉ đạo của Ban Giám đốc</h2><p>Giao việc, tiếp nhận, theo dõi và đôn đốc thực hiện. Phân hệ này độc lập với Nhiệm vụ và KPI.</p><small id="directiveRealtimeState">Đang kết nối đồng bộ trực tiếp…</small></div>
-        <div class="directive-header-actions">${manager ? '<button id="btnCreateDirective" class="primary-button" type="button">＋ Thêm nội dung chỉ đạo</button>' : ""}${oralRecorder ? '<button id="btnRecordOralDirective" class="primary-button" type="button">🗣 Ghi nhận chỉ đạo BGĐ</button>' : ""}<button id="btnDirectiveRefresh" class="secondary-button" type="button">↻ Cập nhật</button></div>
+        <div class="directive-header-copy"><h2>Chỉ đạo của Ban Giám đốc</h2><p>Giao việc, tiếp nhận, theo dõi và đôn đốc thực hiện.</p><small id="directiveRealtimeState">Đang kết nối đồng bộ trực tiếp…</small></div>
+        <div class="directive-header-actions">${manager ? '<button id="btnCreateDirective" class="primary-button directive-main-action" type="button">＋ Thêm chỉ đạo</button>' : ""}${oralRecorder ? '<button id="btnRecordOralDirective" class="primary-button directive-main-action" type="button">🗣 Ghi nhận BGĐ</button>' : ""}<button id="btnDirectiveRefresh" class="secondary-button directive-sync-button" type="button" aria-label="Cập nhật dữ liệu" title="Cập nhật dữ liệu">↻</button></div>
       </header>
       <nav class="directive-tabs" aria-label="Chỉ đạo điều hành">
         ${tabButton("overview", "Tổng quan", "◫")}
@@ -371,13 +371,37 @@ function renderFilters() {
   return `<div class="directive-filters"><label><span>Tìm kiếm</span><input id="directiveSearch" type="search" value="${esc(state.search)}" placeholder="Nội dung, người chỉ đạo…"></label><label><span>Phòng/Khu</span><select id="directiveDepartmentFilter" ${canAll ? "" : "disabled"}>${departmentOptions}</select></label><label><span>Trạng thái</span><select id="directiveStatusFilter"><option value="ALL">Tất cả</option>${["NOT_STARTED","ACCEPTED","IN_PROGRESS","OVERDUE","COMPLETED","PAUSED"].map(code => `<option value="${code}" ${state.status === code ? "selected" : ""}>${esc(code === "OVERDUE" ? "Quá hạn" : STATUS_LABELS[code])}</option>`).join("")}</select></label></div>`;
 }
 
-function bindFilters(root) {
-  root.querySelector("#directiveSearch")?.addEventListener("input", event => { state.search = event.target.value; renderList(root); });
-  root.querySelector("#directiveDepartmentFilter")?.addEventListener("change", event => { state.department = event.target.value || "ALL"; renderList(root); });
-  root.querySelector("#directiveStatusFilter")?.addEventListener("change", event => { state.status = event.target.value || "ALL"; renderList(root); });
+function bindDirectiveOpenButtons(container) {
+  container?.querySelectorAll("[data-open-directive]").forEach(button => {
+    button.addEventListener("click", () => openDirectiveDetail(button.dataset.openDirective));
+  });
 }
 
-function renderList(root) {
+function bindFilters(root) {
+  const searchInput = root.querySelector("#directiveSearch");
+  let searchTimer = 0;
+
+  searchInput?.addEventListener("input", event => {
+    state.search = event.target.value;
+    window.clearTimeout(searchTimer);
+    searchTimer = window.setTimeout(() => renderListResults(root), 120);
+  });
+
+  root.querySelector("#directiveDepartmentFilter")?.addEventListener("change", event => {
+    state.department = event.target.value || "ALL";
+    renderListResults(root);
+  });
+
+  root.querySelector("#directiveStatusFilter")?.addEventListener("change", event => {
+    state.status = event.target.value || "ALL";
+    renderListResults(root);
+  });
+}
+
+function renderListResults(root) {
+  const resultRoot = root.querySelector("#directiveListResults");
+  if (!resultRoot) return;
+
   const items = visibleDirectives();
   const user = UserContext.requireUser();
   const scope = Permissions.canViewAllExecutiveDirectives() ? upper(state.department || "ALL") : user.departmentId;
@@ -392,17 +416,32 @@ function renderList(root) {
       : (latestAcceptance(item, dep) ? "Chưa phân công" : "—");
     return { dep, status, role, assignee };
   };
+
   const desktopRows = items.map(item => {
     const x = describe(item);
     return `<tr><td><strong>${esc(formatDate(item.directedDateKey))}</strong><small>${esc(SOURCE_LABELS[upper(item.sourceType)] || item.sourceType || "")}</small></td><td><button class="directive-title-link" type="button" data-open-directive="${esc(item.id)}">${esc(item.content)}</button><div class="directive-row-meta"><span>${esc(item.directedByName || "")}</span>${x.role ? `<span>${esc(x.role)}</span>` : ""}${priorityPill(item.priority)}</div></td><td>${esc(departmentName(item.leadDepartmentId))}</td><td>${esc(x.assignee)}</td><td>${esc(formatDate(item.dueDateKey))}</td><td>${statusPill(x.status)}</td><td><button class="secondary-button compact" type="button" data-open-directive="${esc(item.id)}">Chi tiết</button></td></tr>`;
   }).join("") || `<tr><td colspan="7">${emptyState("Không có nội dung phù hợp bộ lọc.")}</td></tr>`;
+
   const mobileCards = items.map(item => {
     const x = describe(item);
-    return `<article class="directive-mobile-card"><header><div class="directive-mobile-card-title"><span>${esc(formatDate(item.directedDateKey))} · ${esc(SOURCE_LABELS[upper(item.sourceType)] || item.sourceType || "")}</span><button class="directive-title-link" type="button" data-open-directive="${esc(item.id)}">${esc(item.content)}</button><small>${esc(item.directedByName || "")}${upper(item.entryMode) === "LEADER_ORAL_CAPTURE" ? " · Ghi nhận chỉ đạo miệng" : ""}</small></div>${statusPill(x.status)}</header><div class="directive-mobile-card-meta"><div><span>Chủ trì</span><strong>${esc(departmentName(item.leadDepartmentId))}</strong></div><div><span>Người thực hiện</span><strong>${esc(x.assignee)}</strong></div><div><span>Thời hạn</span><strong>${esc(formatDate(item.dueDateKey))}</strong></div><div><span>Mức độ</span><strong>${esc(PRIORITY_LABELS[upper(item.priority)] || "Bình thường")}</strong></div></div><footer><button class="secondary-button compact" type="button" data-open-directive="${esc(item.id)}">Xem chi tiết</button></footer></article>`;
+    return `<article class="directive-mobile-card"><header><div class="directive-mobile-card-title"><span>${esc(formatDate(item.directedDateKey))} · ${esc(SOURCE_LABELS[upper(item.sourceType)] || item.sourceType || "")}</span><button class="directive-title-link" type="button" data-open-directive="${esc(item.id)}">${esc(item.content)}</button><small>${esc(item.directedByName || "")}${upper(item.entryMode) === "LEADER_ORAL_CAPTURE" ? " · Ghi nhận BGĐ" : ""}</small></div>${statusPill(x.status)}</header><div class="directive-mobile-card-meta"><div><span>Chủ trì</span><strong>${esc(departmentName(item.leadDepartmentId))}</strong></div><div><span>Người thực hiện</span><strong>${esc(x.assignee)}</strong></div><div><span>Thời hạn</span><strong>${esc(formatDate(item.dueDateKey))}</strong></div><div><span>Mức độ</span><strong>${esc(PRIORITY_LABELS[upper(item.priority)] || "Bình thường")}</strong></div></div><footer><button class="secondary-button compact" type="button" data-open-directive="${esc(item.id)}">Xem chi tiết</button></footer></article>`;
   }).join("") || emptyState("Không có nội dung phù hợp bộ lọc.");
-  root.innerHTML = `${renderFilters()}<div class="directive-list-meta"><strong>${items.length} nội dung</strong><span>Trạng thái “Quá hạn” được hệ thống tự xác định theo thời hạn.</span></div><div class="directive-desktop-list directive-table-wrap"><table class="directive-table"><thead><tr><th>Ngày</th><th>Nội dung chỉ đạo</th><th>Chủ trì</th><th>Người thực hiện</th><th>Thời hạn</th><th>Trạng thái</th><th></th></tr></thead><tbody>${desktopRows}</tbody></table></div><div class="directive-mobile-list">${mobileCards}</div>`;
+
+  resultRoot.innerHTML = `<div class="directive-list-meta"><strong>${items.length} nội dung</strong><span>Quá hạn được tự động xác định theo thời hạn.</span></div><div class="directive-desktop-list directive-table-wrap"><table class="directive-table"><thead><tr><th>Ngày</th><th>Nội dung chỉ đạo</th><th>Chủ trì</th><th>Người thực hiện</th><th>Thời hạn</th><th>Trạng thái</th><th></th></tr></thead><tbody>${desktopRows}</tbody></table></div><div class="directive-mobile-list">${mobileCards}</div>`;
+  bindDirectiveOpenButtons(resultRoot);
+}
+
+function renderList(root) {
+  // Nếu bộ lọc đã tồn tại (ví dụ realtime cập nhật khi người dùng đang gõ),
+  // chỉ render vùng kết quả để không phá focus/caret của ô tìm kiếm.
+  if (root.querySelector("#directiveSearch") && root.querySelector("#directiveListResults")) {
+    renderListResults(root);
+    return;
+  }
+
+  root.innerHTML = `${renderFilters()}<div id="directiveListResults"></div>`;
   bindFilters(root);
-  root.querySelectorAll("[data-open-directive]").forEach(button => button.addEventListener("click", () => openDirectiveDetail(button.dataset.openDirective)));
+  renderListResults(root);
 }
 
 function renderTracking(root) {
@@ -585,7 +624,7 @@ function openDirectiveForm(current = null) {
   const support = new Set((current?.supportDepartmentIds || []).map(upper));
   const backdrop = modalBackdrop(`
     <section class="directive-modal-card directive-form-modal">
-      <header class="directive-modal-header"><div><span class="page-eyebrow">${editing ? "CHỈNH SỬA" : "THÊM MỚI"}</span><h2>${editing ? "Chỉnh sửa nội dung chỉ đạo" : "Ghi nhận nội dung chỉ đạo"}</h2><p>Ban Giám đốc chỉ giao đến Phòng/Khu. Trưởng/Phó Phòng/Khu tiếp nhận và phân công người thực hiện.</p></div><button data-directive-close class="modal-close-button" type="button">×</button></header>
+      <header class="directive-modal-header"><div><h2>${editing ? "Chỉnh sửa nội dung chỉ đạo" : "Thêm nội dung chỉ đạo"}</h2><p>Ghi nhận nội dung và Phòng/Khu thực hiện.</p></div><button data-directive-close class="modal-close-button" type="button">×</button></header>
       <div class="directive-modal-body"><div class="directive-form-grid">
         <label><span>Hình thức chỉ đạo *</span><select id="directiveSourceType">${Object.entries(SOURCE_LABELS).map(([value, label]) => `<option value="${value}" ${upper(current?.sourceType || "DIRECT") === value ? "selected" : ""}>${esc(label)}</option>`).join("")}</select></label>
         <label><span>Ngày chỉ đạo *</span><input id="directiveDate" type="date" value="${esc(current?.directedDateKey || localDateKey())}"></label>
@@ -596,7 +635,6 @@ function openDirectiveForm(current = null) {
         <label class="field-full"><span>Nội dung chỉ đạo *</span><textarea id="directiveContentInput" rows="5" maxlength="5000" placeholder="Nhập đầy đủ ý kiến chỉ đạo của Ban Giám đốc">${esc(current?.content || "")}</textarea></label>
         <label><span>Phòng/Khu chủ trì *</span><select id="directiveLeadDepartment"><option value="">— Chọn Phòng/Khu —</option>${departments.map(dep => { const id = upper(dep.id || dep.code); return `<option value="${esc(id)}" ${upper(current?.leadDepartmentId) === id ? "selected" : ""}>${esc(dep.name || id)}</option>`; }).join("")}</select></label>
         <label><span>Thời hạn</span><input id="directiveDueDate" type="date" value="${esc(current?.dueDateKey || "")}"></label>
-        <div id="directiveAssignmentHint" class="field-full directive-assignment-hint"><strong>Luồng giao việc:</strong> BGĐ → Phòng/Khu → Trưởng/Phó tiếp nhận → phân công → cá nhân nhận việc → thực hiện.</div>
         <fieldset class="field-full directive-support-field"><legend>Phòng/Khu phối hợp <small>(tùy chọn)</small></legend><div class="directive-checkbox-grid">${departments.map(dep => { const id = upper(dep.id || dep.code); return `<label><input type="checkbox" value="${esc(id)}" data-support-department ${support.has(id) ? "checked" : ""}><span>${esc(dep.name || id)}</span></label>`; }).join("")}</div></fieldset>
         <label><span>Mức độ</span><select id="directivePriority">${Object.entries(PRIORITY_LABELS).map(([value,label]) => `<option value="${value}" ${upper(current?.priority || "NORMAL") === value ? "selected" : ""}>${esc(label)}</option>`).join("")}</select></label>
       </div></div>
@@ -666,7 +704,7 @@ function openOralDirectiveForm() {
   const defaultDirectorId = directors[0]?.id || directors[0]?.uid || "";
   const backdrop = modalBackdrop(`
     <section class="directive-modal-card directive-form-modal">
-      <header class="directive-modal-header"><div><span class="page-eyebrow">GHI NHẬN CHỈ ĐẠO BGĐ</span><h2>Ghi nhận chỉ đạo miệng</h2><p>Dùng khi Ban Giám đốc đã chỉ đạo tại giao ban, cuộc họp, trao đổi trực tiếp hoặc điện thoại nhưng chưa nhập trên ứng dụng. Nội dung được tự động ghi nhận cho <strong>${esc(departmentName(user.departmentId))}</strong> và coi là đơn vị đã tiếp nhận.</p></div><button data-directive-close class="modal-close-button" type="button">×</button></header>
+      <header class="directive-modal-header"><div><h2>Ghi nhận chỉ đạo BGĐ</h2><p>Ghi nhận nội dung Ban Giám đốc đã chỉ đạo tại giao ban, cuộc họp, trao đổi trực tiếp hoặc điện thoại cho <strong>${esc(departmentName(user.departmentId))}</strong>.</p></div><button data-directive-close class="modal-close-button" type="button">×</button></header>
       <div class="directive-modal-body"><div class="directive-form-grid">
         <label class="field-full"><span>Người chỉ đạo *</span><select id="oralDirectiveDirector">${directors.map(item => { const id = item.id || item.uid; return `<option value="${esc(id)}" ${id === defaultDirectorId ? "selected" : ""}>${esc(directorLabel(item))}</option>`; }).join("")}</select></label>
         <label><span>Ngày chỉ đạo *</span><input id="oralDirectiveDate" type="date" value="${esc(localDateKey())}"></label>
@@ -677,7 +715,6 @@ function openOralDirectiveForm() {
         <label><span>Thời hạn</span><input id="oralDirectiveDueDate" type="date"></label>
         <label><span>Mức độ</span><select id="oralDirectivePriority">${Object.entries(PRIORITY_LABELS).map(([value,label]) => `<option value="${value}">${esc(label)}</option>`).join("")}</select></label>
         <label class="field-full"><span>Ghi chú nguồn</span><input id="oralDirectiveReference" maxlength="250" placeholder="Không bắt buộc"></label>
-        <div class="field-full directive-assignment-hint"><strong>Sau khi lưu:</strong> BGĐ/TCHC nhận Push → nội dung ở trạng thái Đã tiếp nhận → Trưởng/Phó phân công người thực hiện → nhân viên xác nhận nhận việc.</div>
       </div></div>
       <footer class="directive-modal-footer"><button data-directive-close class="secondary-button" type="button">Hủy</button><button id="btnSaveOralDirective" class="primary-button" type="button">Ghi nhận và tiếp nhận</button></footer>
     </section>`);
@@ -771,7 +808,7 @@ function openDirectiveDetail(id) {
       <header class="directive-modal-header"><div><span class="page-eyebrow">CHI TIẾT CHỈ ĐẠO</span><h2>${esc(directive.content)}</h2><p>${esc(formatDate(directive.directedDateKey))} · ${esc(directive.directedByName || "")}</p></div><button data-directive-close class="modal-close-button" type="button">×</button></header>
       <div class="directive-modal-body">
         <div class="directive-detail-summary"><div><span>Trạng thái</span>${statusPill(status)}</div><div><span>Hình thức</span><strong>${esc(SOURCE_LABELS[upper(directive.sourceType)] || directive.sourceType || "—")}</strong></div><div><span>Chủ trì</span><strong>${esc(departmentName(directive.leadDepartmentId))}</strong></div><div><span>Người thực hiện</span><strong>${esc(assignmentState)}</strong></div><div><span>Thời hạn</span><strong>${esc(formatDate(directive.dueDateKey))}</strong></div></div>
-        <section class="directive-detail-section"><h3>Thông tin chỉ đạo</h3><dl class="directive-detail-grid"><div><dt>Người chỉ đạo</dt><dd>${esc(directive.directedByName || "—")}</dd></div><div><dt>Ngày chỉ đạo</dt><dd>${esc(formatDate(directive.directedDateKey))}</dd></div><div><dt>Cuộc họp/nguồn</dt><dd>${esc(directive.meetingName || directive.referenceText || "—")}</dd></div><div><dt>Mức độ</dt><dd>${esc(PRIORITY_LABELS[upper(directive.priority)] || "Bình thường")}</dd></div><div><dt>Cấp giao</dt><dd>Phòng/Khu</dd></div><div><dt>Người thực hiện</dt><dd>${esc(effectiveAssignee)}</dd></div><div class="field-full"><dt>Đơn vị phối hợp</dt><dd>${(directive.supportDepartmentIds || []).length ? directive.supportDepartmentIds.map(departmentName).map(esc).join(", ") : "Không có"}</dd></div><div class="field-full"><dt>Người nhập hệ thống</dt><dd>${esc(directive.createdByName || "—")} · ${esc(departmentName(directive.createdByDepartmentId))}</dd></div>${upper(directive.entryMode) === "LEADER_ORAL_CAPTURE" ? `<div class="field-full"><dt>Ghi nhận chỉ đạo miệng</dt><dd><strong>${esc(directive.recordedByName || directive.createdByName || "—")}</strong> · ${esc(departmentName(directive.recordedByDepartmentId || directive.createdByDepartmentId))}. Nội dung này được ghi nhận từ chỉ đạo của BGĐ, không phải bản ghi do BGĐ trực tiếp nhập.</dd></div>` : ""}</dl></section>
+        <section class="directive-detail-section"><h3>Thông tin chỉ đạo</h3><dl class="directive-detail-grid"><div><dt>Người chỉ đạo</dt><dd>${esc(directive.directedByName || "—")}</dd></div><div><dt>Ngày chỉ đạo</dt><dd>${esc(formatDate(directive.directedDateKey))}</dd></div><div><dt>Cuộc họp/nguồn</dt><dd>${esc(directive.meetingName || directive.referenceText || "—")}</dd></div><div><dt>Mức độ</dt><dd>${esc(PRIORITY_LABELS[upper(directive.priority)] || "Bình thường")}</dd></div><div><dt>Cấp giao</dt><dd>Phòng/Khu</dd></div><div><dt>Người thực hiện</dt><dd>${esc(effectiveAssignee)}</dd></div><div class="field-full"><dt>Đơn vị phối hợp</dt><dd>${(directive.supportDepartmentIds || []).length ? directive.supportDepartmentIds.map(departmentName).map(esc).join(", ") : "Không có"}</dd></div><div class="field-full"><dt>Người nhập hệ thống</dt><dd>${esc(directive.createdByName || "—")} · ${esc(departmentName(directive.createdByDepartmentId))}</dd></div>${upper(directive.entryMode) === "LEADER_ORAL_CAPTURE" ? `<div class="field-full"><dt>Ghi nhận từ chỉ đạo BGĐ</dt><dd><strong>${esc(directive.recordedByName || directive.createdByName || "—")}</strong> · ${esc(departmentName(directive.recordedByDepartmentId || directive.createdByDepartmentId))}. Nội dung này được ghi nhận từ chỉ đạo của BGĐ, không phải bản ghi do BGĐ trực tiếp nhập.</dd></div>` : ""}</dl></section>
         ${workflowNotice}
         <section class="directive-detail-section"><div class="section-heading"><div><h3>Kết quả và lịch sử cập nhật</h3><p>${manager ? "Hiển thị lịch sử toàn bộ Phòng/Khu." : `Hiển thị cập nhật của ${esc(departmentName(user.departmentId))}.`}</p></div></div><div class="directive-history">${history.length ? history.map(historyItem).join("") : emptyState("Chưa có cập nhật tiến độ.")}</div></section>
       </div>
