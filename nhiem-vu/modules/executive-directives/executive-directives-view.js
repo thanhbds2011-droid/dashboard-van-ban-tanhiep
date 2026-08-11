@@ -1,9 +1,9 @@
 import { UserContext } from "../../core/user-context.js?v=20260810.V1_10_6";
-import { Permissions } from "../../core/permissions.js?v=20260811.V1_11_1_HF1";
+import { Permissions } from "../../core/permissions.js?v=20260811.V1_11_2";
 import { ToastService } from "../../core/toast-service.js?v=20260810.V1_10_6";
 import { DepartmentReadService } from "../../services/department-read-service.js?v=20260810.V1_10_6";
 import { UserReadService } from "../../services/user-read-service.js?v=20260810.V1_10_6";
-import { ExecutiveDirectiveService } from "../../services/executive-directive-service.js?v=20260811.V1_11_1_HF1";
+import { ExecutiveDirectiveService } from "../../services/executive-directive-service.js?v=20260811.V1_11_2";
 
 let state = {
   directives: [],
@@ -87,7 +87,16 @@ function targetDepartments() {
   return state.departments.filter(item => !["BGD", "CDTN"].includes(upper(item.id || item.code)));
 }
 function directorUsers() {
-  return state.users.filter(user => upper(user.role) === "DIRECTOR" && user.active !== false);
+  return state.users
+    .filter(user => user.active !== false)
+    .filter(user => upper(user.role) === "DIRECTOR" && upper(user.departmentId) === "BGD")
+    .sort((a, b) => clean(a.fullName || a.email).localeCompare(clean(b.fullName || b.email), "vi"));
+}
+
+function directorLabel(user) {
+  const name = clean(user?.fullName || user?.email || "");
+  const position = clean(user?.position || "");
+  return position ? `${name} - ${position}` : name;
 }
 const TEAM_LABELS = Object.freeze({
   BAO_VE: "Tổ Bảo vệ",
@@ -647,14 +656,19 @@ function openOralDirectiveForm() {
     ToastService.error("Chỉ Trưởng/Phó Phòng/Khu mới được ghi nhận chỉ đạo của BGĐ cho đơn vị mình.");
     return;
   }
+
   const directors = directorUsers();
-  const defaultDirectorId = directors[0]?.id || directors[0]?.uid || "__OTHER__";
+  if (!directors.length) {
+    ToastService.error("Chưa có thành viên Ban Giám đốc đang hoạt động trong danh mục người dùng (role DIRECTOR, departmentId BGD). Vui lòng cập nhật danh mục trước khi ghi nhận chỉ đạo.");
+    return;
+  }
+
+  const defaultDirectorId = directors[0]?.id || directors[0]?.uid || "";
   const backdrop = modalBackdrop(`
     <section class="directive-modal-card directive-form-modal">
       <header class="directive-modal-header"><div><span class="page-eyebrow">GHI NHẬN CHỈ ĐẠO BGĐ</span><h2>Ghi nhận chỉ đạo miệng</h2><p>Dùng khi Ban Giám đốc đã chỉ đạo tại giao ban, cuộc họp, trao đổi trực tiếp hoặc điện thoại nhưng chưa nhập trên ứng dụng. Nội dung được tự động ghi nhận cho <strong>${esc(departmentName(user.departmentId))}</strong> và coi là đơn vị đã tiếp nhận.</p></div><button data-directive-close class="modal-close-button" type="button">×</button></header>
       <div class="directive-modal-body"><div class="directive-form-grid">
-        <label><span>Người chỉ đạo *</span><select id="oralDirectiveDirector">${directors.map(item => { const id = item.id || item.uid; return `<option value="${esc(id)}">${esc(item.fullName || item.email || id)}</option>`; }).join("")}<option value="__OTHER__" ${defaultDirectorId === "__OTHER__" ? "selected" : ""}>Nhập tên khác</option></select></label>
-        <label id="oralOtherDirectorWrap" class="${defaultDirectorId === "__OTHER__" ? "" : "hidden"}"><span>Tên người chỉ đạo *</span><input id="oralOtherDirector" maxlength="150" placeholder="Họ tên thành viên Ban Giám đốc"></label>
+        <label class="field-full"><span>Người chỉ đạo *</span><select id="oralDirectiveDirector">${directors.map(item => { const id = item.id || item.uid; return `<option value="${esc(id)}" ${id === defaultDirectorId ? "selected" : ""}>${esc(directorLabel(item))}</option>`; }).join("")}</select></label>
         <label><span>Ngày chỉ đạo *</span><input id="oralDirectiveDate" type="date" value="${esc(localDateKey())}"></label>
         <label><span>Nguồn chỉ đạo *</span><select id="oralDirectiveSource">${Object.entries(SOURCE_LABELS).filter(([value]) => value !== "DOCUMENT").map(([value,label]) => `<option value="${value}" ${value === "MEETING_WEEKLY" ? "selected" : ""}>${esc(label)}</option>`).join("")}</select></label>
         <label class="field-full"><span>Cuộc họp/bối cảnh</span><input id="oralDirectiveMeeting" maxlength="250" placeholder="Ví dụ: Họp giao ban Trung tâm sáng thứ Hai"></label>
@@ -669,17 +683,14 @@ function openOralDirectiveForm() {
     </section>`);
 
   const directorSelect = backdrop.querySelector("#oralDirectiveDirector");
-  const otherWrap = backdrop.querySelector("#oralOtherDirectorWrap");
-  directorSelect?.addEventListener("change", () => otherWrap?.classList.toggle("hidden", directorSelect.value !== "__OTHER__"));
 
   backdrop.querySelector("#btnSaveOralDirective")?.addEventListener("click", async event => {
     const button = event.currentTarget;
-    const selectedDirector = directorSelect?.value || "__OTHER__";
-    const directedByName = selectedDirector === "__OTHER__"
-      ? clean(backdrop.querySelector("#oralOtherDirector")?.value)
-      : clean(directors.find(item => (item.id || item.uid) === selectedDirector)?.fullName || directors.find(item => (item.id || item.uid) === selectedDirector)?.email);
+    const selectedDirector = directorSelect?.value || "";
+    const selectedDirectorUser = directors.find(item => (item.id || item.uid) === selectedDirector);
+    const directedByName = clean(selectedDirectorUser?.fullName || selectedDirectorUser?.email);
     const input = {
-      directedByUserId: selectedDirector === "__OTHER__" ? "" : selectedDirector,
+      directedByUserId: selectedDirector,
       directedByName,
       directedDateKey: backdrop.querySelector("#oralDirectiveDate")?.value,
       sourceType: backdrop.querySelector("#oralDirectiveSource")?.value,
@@ -689,7 +700,8 @@ function openOralDirectiveForm() {
       dueDateKey: backdrop.querySelector("#oralDirectiveDueDate")?.value,
       priority: backdrop.querySelector("#oralDirectivePriority")?.value
     };
-    if (!input.directedByName) return ToastService.error("Chưa xác định người chỉ đạo.");
+
+    if (!selectedDirector || !directedByName) return ToastService.error("Chưa xác định thành viên Ban Giám đốc đã chỉ đạo.");
     if (!clean(input.content)) return ToastService.error("Chưa nhập nội dung chỉ đạo.");
     try {
       button.disabled = true;
