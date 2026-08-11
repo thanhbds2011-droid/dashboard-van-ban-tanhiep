@@ -386,6 +386,14 @@ export const Permissions = Object.freeze({
     return this.canManageExecutiveDirectives(user);
   },
 
+  canRecordOralExecutiveDirective(user = UserContext.getUser()) {
+    const departmentId = upper(user?.departmentId);
+    return activeUser(user)
+      && this.isDepartmentLeader(user)
+      && Boolean(departmentId)
+      && !["BGD", "CDTN"].includes(departmentId);
+  },
+
   canAccessExecutiveDirectives() {
     return UserContext.isAuthenticated();
   },
@@ -395,7 +403,8 @@ export const Permissions = Object.freeze({
   },
 
   canGenerateOwnExecutiveReports(user = UserContext.getUser()) {
-    return activeUser(user) && Boolean(upper(user?.departmentId));
+    return activeUser(user)
+      && (this.canManageExecutiveDirectives(user) || this.isDepartmentLeader(user));
   },
 
   canGenerateCenterExecutiveReports(user = UserContext.getUser()) {
