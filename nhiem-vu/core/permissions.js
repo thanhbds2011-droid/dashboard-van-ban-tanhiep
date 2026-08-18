@@ -200,7 +200,7 @@ export const Permissions = Object.freeze({
 
   canManageEvaluationPeriods() {
     const user = UserContext.getUser();
-    return this.isDepartmentHead(user) && upper(user?.departmentId) === "TCHC";
+    return this.isAdmin(user) || (this.isDepartmentHead(user) && upper(user?.departmentId) === "TCHC");
   },
 
   canRegisterStandardTasks() {
@@ -301,7 +301,7 @@ export const Permissions = Object.freeze({
   },
 
   canConfirmEvaluations(hasDelegation = false) {
-    return this.isAdmin() || this.isDirector() || this.isDepartmentHead() || (this.isDepartmentDeputy() && hasDelegation === true);
+    return this.isAdmin() || this.isDepartmentHead() || (this.isDepartmentDeputy() && hasDelegation === true);
   },
 
   canViewDepartmentReport() {
