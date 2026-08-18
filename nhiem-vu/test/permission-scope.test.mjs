@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { UserContext } from "../core/user-context.js?v=20260806.V1_9_4";
-import { Permissions } from "../core/permissions.js?v=20260806.V1_9_4";
+import { UserContext } from "../core/user-context.js?v=20260810.V1_10_6";
+import { Permissions } from "../core/permissions.js?v=20260818.V1_11_4";
 
 function setUser(overrides = {}) {
   return UserContext.setUser({
@@ -28,7 +28,10 @@ test("ADMIN, Ban Giám đốc và đầu mối TCHC xem toàn Trung tâm", () =>
   assert.equal(Permissions.canViewAllDepartments(), true);
 });
 
-test("Trưởng và Phó phòng TCHC xem toàn Trung tâm nhưng chỉ Trưởng phòng quản lý kỳ", () => {
+test("ADMIN/Trưởng TCHC quản lý kỳ; Phó TCHC không tự có quyền", () => {
+  setUser({ role: "ADMIN", departmentId: "TCHC", position: "Quản trị" });
+  assert.equal(Permissions.canManageEvaluationPeriods(), true);
+
   setUser({ role: "DEPARTMENT_LEADER", departmentId: "TCHC", position: "Trưởng phòng" });
   assert.equal(Permissions.canViewAllDepartments(), true);
   assert.equal(Permissions.canManageEvaluationPeriods(), true);
@@ -51,7 +54,7 @@ test("Firestore Rules có cùng phạm vi đọc toàn Trung tâm với giao di�
   const rules = await readFile(rulesUrl, "utf8");
   assert.match(
     rules,
-    /isDepartmentLeader\(\)\s*&&\s*currentUser\(\)\.departmentId\s*==\s*"TCHC"/
+    /isDepartmentLeader\(\)\s*&&\s*sameDepartment\("TCHC"\)/
   );
 });
 
