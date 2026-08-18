@@ -3,12 +3,13 @@ import {
   addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, query,
   serverTimestamp, setDoc, Timestamp, updateDoc, where, limit, writeBatch
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
-import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260810.V1_10_6';
+import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260818.V1_11_4';
 import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260810.V1_10_6';
-import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260810.V1_10_6';
+import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260818.V1_11_4';
 import { PeriodReadService } from '../../services/period-read-service.js?v=20260810.V1_10_6';
 import { TaskReadService } from '../../services/task-read-service.js?v=20260810.V1_10_6';
-import { Permissions } from '../../core/permissions.js?v=20260810.V1_10_6';
+import { Permissions } from '../../core/permissions.js?v=20260818.V1_11_4';
+import { APP_VERSION } from '../../core/app-version.js?v=20260818.V1_11_4';
 import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260810.V1_10_6';
 import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260810.V1_10_6';
 import {
@@ -738,7 +739,7 @@ async function loadAll() {
       KpiWorkflowState.delegations = [];
       KpiWorkflowState.kpiProfile = null;
       render();
-      message(Permissions.canManageEvaluationPeriods() ? 'Chưa có kỳ đánh giá đang hoạt động. Trưởng phòng TCHC có thể tạo hoặc kích hoạt kỳ đánh giá.' : 'Chưa có kỳ đánh giá đang hoạt động.');
+      message(Permissions.canManageEvaluationPeriods() ? 'Chưa có kỳ đánh giá đang hoạt động. ADMIN hoặc Trưởng phòng TCHC có thể tạo hoặc kích hoạt kỳ đánh giá.' : 'Chưa có kỳ đánh giá đang hoạt động.');
       return;
     }
 
@@ -2693,7 +2694,7 @@ function exportReportCsv(tasks, summaryData, departmentId = profileDepartmentId(
   const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`Bao_cao_KPI_${normalizeDepartment(departmentId)}_${KpiWorkflowState.period?.id||'ky'}_${KpiWorkflowState.profile?.fullName||'ca_nhan'}.csv`;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
 }
 
-async function audit(action, detail){try{await addDoc(collection(db,'kpiAuditLogs'),{appVersion:'1.10.2',periodId:KpiWorkflowState.period?.id||'',action,detail,scopeUserId:KpiWorkflowState.user.uid,scopeDepartmentId:activeScopeDepartmentId()||KpiWorkflowState.profile.departmentId||'',performedByUserId:KpiWorkflowState.user.uid,performedByName:KpiWorkflowState.profile.fullName||'',performedByRole:KpiWorkflowState.profile.role||'',performedAt:serverTimestamp()});}catch(error){console.warn('Không ghi được KPI audit log',error);}}
+async function audit(action, detail){try{await addDoc(collection(db,'kpiAuditLogs'),{appVersion:APP_VERSION,periodId:KpiWorkflowState.period?.id||'',action,detail,scopeUserId:KpiWorkflowState.user.uid,scopeDepartmentId:activeScopeDepartmentId()||KpiWorkflowState.profile.departmentId||'',performedByUserId:KpiWorkflowState.user.uid,performedByName:KpiWorkflowState.profile.fullName||'',performedByRole:KpiWorkflowState.profile.role||'',performedAt:serverTimestamp()});}catch(error){console.warn('Không ghi được KPI audit log',error);}}
 
 window.KPI2C = {
   getActivePeriodSnapshot: () => KpiWorkflowState.period ? { id:KpiWorkflowState.period.id,name:KpiWorkflowState.period.name,startDate:KpiWorkflowState.period.startDate,endDate:KpiWorkflowState.period.endDate,status:KpiWorkflowState.period.status } : null,
