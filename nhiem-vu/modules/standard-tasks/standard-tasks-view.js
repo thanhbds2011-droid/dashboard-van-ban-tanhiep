@@ -1,9 +1,9 @@
 import { UserContext } from "../../core/user-context.js?v=20260810.V1_10_6";
-import { Permissions } from "../../core/permissions.js?v=20260810.V1_10_6";
+import { Permissions } from "../../core/permissions.js?v=20260818.V1_11_4";
 import { ToastService } from "../../core/toast-service.js?v=20260810.V1_10_6";
 import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260810.V1_10_6";
 import { PeriodReadService } from "../../services/period-read-service.js?v=20260810.V1_10_6";
-import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260810.V1_10_6";
+import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260818.V1_11_4";
 import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260810.V1_10_6";
 
 let currentCatalogAccess = {
@@ -536,7 +536,7 @@ async function openTaskEditor(item) {
       ${departmentField}
       <label class="kpi-field"><span>Mã đầu việc</span><div class="standard-task-code-box"><input id="catalogTaskCode" value="${escapeHtml(previewCode)}" readonly autocomplete="off" spellcheck="false" aria-readonly="true"><small>Tự động tăng dần; không nhập thủ công.</small></div></label>
       <label class="kpi-field"><span>Tính chất</span><select id="catalogTaskWorkType"><option value="THUONG_XUYEN" ${currentWorkType === "THUONG_XUYEN" ? "selected" : ""}>Thường xuyên</option><option value="DOT_XUAT" ${currentWorkType === "DOT_XUAT" ? "selected" : ""}>Đột xuất</option></select></label>
-      <label class="kpi-field full"><span>Tên đầu việc</span><input id="catalogTaskName" value="${escapeHtml(item?.name || "")}" placeholder="Nhập tên đầu việc"></label>
+      <label class="kpi-field full"><span>Tên đầu việc</span><input id="catalogTaskName" maxlength="1000" value="${escapeHtml(item?.name || "")}" placeholder="Nhập tên đầu việc"><small class="field-help">Tối đa 1.000 ký tự; nội dung được lưu đầy đủ trên Firestore.</small></label>
       <label class="kpi-field full"><span>Kết quả đầu ra/Yêu cầu hoàn thành</span><textarea id="catalogTaskOutput" rows="3" placeholder="Nêu sản phẩm hoặc kết quả phải đạt">${escapeHtml(item?.outputRequirement || "")}</textarea></label>
       <label class="kpi-field full"><span>Chu kỳ/Tần suất</span><input id="catalogTaskFrequency" value="${escapeHtml(item?.frequency || "")}" placeholder="Ví dụ: Theo tháng, theo hồ sơ, khi phát sinh"></label>
       <div class="standard-form-section-title full"><span>2</span><div><strong>Cách theo dõi và căn cứ đánh giá</strong><small>Chọn theo sản phẩm cuối cùng hoặc theo nhiều lượt phát sinh trong kỳ.</small></div></div>
