@@ -9,7 +9,8 @@ import { FirebaseService } from "../core/firebase-service.js?v=20260810.V1_10_6"
 import { UserContext } from "../core/user-context.js?v=20260810.V1_10_6";
 import { Permissions } from "../core/permissions.js?v=20260810.V1_10_6";
 
-const SYNC_VERSION = "20260810.V1_10_6";
+const SYNC_VERSION = "20260818.V1_11_4";
+const MAX_STANDARD_TASK_NAME_LENGTH = 1000;
 const STANDARD_TASK_COLLECTION = "standardTasks";
 const SEQUENCE_COLLECTION = "standardTaskSequences";
 const PROFESSIONAL_DEPARTMENTS = Object.freeze(["BGD", "TCHC", "CTXH", "KHTC", "YT", "KI", "KII", "KIII"]);
@@ -533,6 +534,9 @@ export const StandardTaskWriteService = Object.freeze({
     const name = clean(data.name);
     const difficultyCoefficient = Number(data.difficultyCoefficient || 1);
     if (!name) throw new Error("Tên đầu việc là bắt buộc.");
+    if (name.length > MAX_STANDARD_TASK_NAME_LENGTH) {
+      throw new Error(`Tên đầu việc không được vượt quá ${MAX_STANDARD_TASK_NAME_LENGTH} ký tự.`);
+    }
     if (!clean(data.outputRequirement)) throw new Error("Hãy nhập kết quả đầu ra hoặc yêu cầu hoàn thành.");
     if (!clean(data.frequency)) throw new Error("Hãy nhập chu kỳ hoặc tần suất thực hiện.");
     if (!clean(data.mandatoryEvidence)) throw new Error("Hãy nhập loại minh chứng bắt buộc.");

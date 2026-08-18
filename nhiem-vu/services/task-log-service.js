@@ -1,11 +1,12 @@
 /** Ghi và đọc nhật ký nhiệm vụ bất biến. */
 import { FirebaseService } from "../core/firebase-service.js?v=20260810.V1_10_6";
 import { UserContext } from "../core/user-context.js?v=20260810.V1_10_6";
+import { APP_VERSION } from "../core/app-version.js?v=20260818.V1_11_4";
 
 export function buildTaskLog({ taskId, taskCode, periodId = "", action, before = null, after = null, note = "" }) {
   const user = UserContext.requireUser();
   return {
-    appVersion: "1.10.2",
+    appVersion: APP_VERSION,
     schemaVersion: 2,
     taskId,
     taskCode: taskCode || "",
