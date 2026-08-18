@@ -1,8 +1,8 @@
 /** Ứng dụng quản lý nhiệm vụ và đánh giá KPI. */
 import { Router } from "./core/router.js?v=20260810.V1_10_6";
-import { APP_VERSION_LABEL, BUILD_VERSION } from "./core/app-version.js?v=20260811.V1_11_3";
+import { APP_VERSION_LABEL, BUILD_VERSION } from "./core/app-version.js?v=20260818.V1_11_4";
 import { AuthService } from "./core/auth-service.js?v=20260811.V1_11_3";
-import { Permissions } from "./core/permissions.js?v=20260811.V1_11_3";
+import { Permissions } from "./core/permissions.js?v=20260818.V1_11_4";
 import { ToastService } from "./core/toast-service.js?v=20260810.V1_10_6";
 import { FirebaseService } from "./core/firebase-service.js?v=20260810.V1_10_6";
 import { ExecutivePushSubscriptionService } from "./services/executive-push-subscription-service.js?v=20260810.V1_10_6";
@@ -15,11 +15,11 @@ let stopInAppTaskAlerts = null;
 import { renderDashboardView } from "./modules/dashboard/dashboard-view.js?v=20260810.V1_10_6";
 import { renderExecutiveDirectivesView } from "./modules/executive-directives/executive-directives-view.js?v=20260811.V1_11_3";
 import { renderTasksView } from "./modules/tasks/tasks-view.js?v=20260810.V1_10_6";
-import { renderStandardTasksView } from "./modules/standard-tasks/standard-tasks-view.js?v=20260810.V1_10_6";
-import { renderPeriodsView } from "./modules/periods/periods-view.js?v=20260810.V1_10_6";
-import { renderPlansView } from "./modules/plans/plans-view.js?v=20260810.V1_10_6";
-import { renderEvaluationsView } from "./modules/evaluations/evaluations-view.js?v=20260810.V1_10_6";
-import { renderReportsView } from "./modules/reports/reports-view.js?v=20260810.V1_10_6";
+import { renderStandardTasksView } from "./modules/standard-tasks/standard-tasks-view.js?v=20260818.V1_11_4";
+import { renderPeriodsView } from "./modules/periods/periods-view.js?v=20260818.V1_11_4";
+import { renderPlansView } from "./modules/plans/plans-view.js?v=20260818.V1_11_4";
+import { renderEvaluationsView } from "./modules/evaluations/evaluations-view.js?v=20260818.V1_11_4";
+import { renderReportsView } from "./modules/reports/reports-view.js?v=20260818.V1_11_4";
 import { renderAdminView } from "./modules/admin/admin-view.js?v=20260810.V1_10_6";
 
 async function bootstrap() {
