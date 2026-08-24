@@ -1,26 +1,46 @@
 /** Ứng dụng quản lý nhiệm vụ và đánh giá KPI. */
-import { Router } from "./core/router.js?v=20260824.V1_13_0";
-import { APP_VERSION_LABEL, BUILD_VERSION } from "./core/app-version.js?v=20260824.V1_13_0";
-import { AuthService } from "./core/auth-service.js?v=20260824.V1_13_0";
-import { Permissions } from "./core/permissions.js?v=20260824.V1_13_0";
-import { ToastService } from "./core/toast-service.js?v=20260824.V1_13_0";
-import { FirebaseService } from "./core/firebase-service.js?v=20260824.V1_13_0";
-import { ExecutivePushSubscriptionService } from "./services/executive-push-subscription-service.js?v=20260824.V1_13_0";
-import { ExecutiveInAppAlertService } from "./services/executive-in-app-alert-service.js?v=20260824.V1_13_0";
+import { Router } from "./core/router.js?v=20260824.V1_14_0";
+import { APP_VERSION_LABEL, BUILD_VERSION } from "./core/app-version.js?v=20260824.V1_14_0";
+import { AuthService } from "./core/auth-service.js?v=20260824.V1_14_0";
+import { Permissions } from "./core/permissions.js?v=20260824.V1_14_0";
+import { ToastService } from "./core/toast-service.js?v=20260824.V1_14_0";
+import { FirebaseService } from "./core/firebase-service.js?v=20260824.V1_14_0";
+import { PeriodReadService } from "./services/period-read-service.js?v=20260824.V1_14_0";
+import { ExecutivePushSubscriptionService } from "./services/executive-push-subscription-service.js?v=20260824.V1_14_0";
+import { ExecutiveInAppAlertService } from "./services/executive-in-app-alert-service.js?v=20260824.V1_14_0";
 
 let currentPushUser = null;
 let saveCurrentPushSnapshot = null;
 let stopInAppTaskAlerts = null;
 
-import { renderDashboardView } from "./modules/dashboard/dashboard-view.js?v=20260824.V1_13_0";
-import { renderExecutiveDirectivesView } from "./modules/executive-directives/executive-directives-view.js?v=20260824.V1_13_0";
-import { renderTasksView } from "./modules/tasks/tasks-view.js?v=20260824.V1_13_0";
-import { renderStandardTasksView } from "./modules/standard-tasks/standard-tasks-view.js?v=20260824.V1_13_0";
-import { renderPeriodsView } from "./modules/periods/periods-view.js?v=20260824.V1_13_0";
-import { renderPlansView } from "./modules/plans/plans-view.js?v=20260824.V1_13_0";
-import { renderEvaluationsView } from "./modules/evaluations/evaluations-view.js?v=20260824.V1_13_0";
-import { renderReportsView } from "./modules/reports/reports-view.js?v=20260824.V1_13_0";
-import { renderAdminView } from "./modules/admin/admin-view.js?v=20260824.V1_13_0";
+const routeModuleCache = new Map();
+
+function lazyRoute(modulePath, exportName) {
+  return async (outlet, context) => {
+    let loader = routeModuleCache.get(modulePath);
+    if (!loader) {
+      loader = import(modulePath).catch(error => {
+        routeModuleCache.delete(modulePath);
+        throw error;
+      });
+      routeModuleCache.set(modulePath, loader);
+    }
+    const module = await loader;
+    const handler = module?.[exportName];
+    if (typeof handler !== "function") throw new Error(`Không tìm thấy màn hình ${exportName}.`);
+    return handler(outlet, context);
+  };
+}
+
+const renderDashboardView = lazyRoute("./modules/dashboard/dashboard-view.js?v=20260824.V1_14_0", "renderDashboardView");
+const renderExecutiveDirectivesView = lazyRoute("./modules/executive-directives/executive-directives-view.js?v=20260824.V1_14_0", "renderExecutiveDirectivesView");
+const renderTasksView = lazyRoute("./modules/tasks/tasks-view.js?v=20260824.V1_14_0", "renderTasksView");
+const renderStandardTasksView = lazyRoute("./modules/standard-tasks/standard-tasks-view.js?v=20260824.V1_14_0", "renderStandardTasksView");
+const renderPeriodsView = lazyRoute("./modules/periods/periods-view.js?v=20260824.V1_14_0", "renderPeriodsView");
+const renderPlansView = lazyRoute("./modules/plans/plans-view.js?v=20260824.V1_14_0", "renderPlansView");
+const renderEvaluationsView = lazyRoute("./modules/evaluations/evaluations-view.js?v=20260824.V1_14_0", "renderEvaluationsView");
+const renderReportsView = lazyRoute("./modules/reports/reports-view.js?v=20260824.V1_14_0", "renderReportsView");
+const renderAdminView = lazyRoute("./modules/admin/admin-view.js?v=20260824.V1_14_0", "renderAdminView");
 
 async function bootstrap() {
   const outlet = document.getElementById("appOutlet");
@@ -44,7 +64,7 @@ async function bootstrap() {
   initializePushNotifications(user);
   bindPushSubscriptionSync(user);
   bindPushSettings(user);
-  bindInAppTaskAssignmentAlerts(user);
+  void bindInAppTaskAssignmentAlerts(user);
   ExecutivePushSubscriptionService.start(user)
     .catch(error => console.warn("Chưa đồng bộ được Push Chỉ đạo điều hành:", error));
   ExecutiveInAppAlertService.start(user);
@@ -164,9 +184,21 @@ function bindMobileNavigation() {
 
 function bindPushSubscriptionSync(user) {
   currentPushUser = user;
-  const save = async snapshot => {
+  const save = async (snapshot, options = {}) => {
     const subscriptionId = String(snapshot?.subscriptionId || "").trim();
     if (!subscriptionId) return;
+    const active = snapshot.optedIn === true && snapshot.permission === "granted";
+    const fingerprint = [
+      user.uid, subscriptionId, user.departmentId || "", user.role || "",
+      active ? "1" : "0", snapshot.permission || "default", snapshot.oneSignalId || ""
+    ].join("|");
+    const storageKey = `taskPushSync:${user.uid}:${subscriptionId}`;
+    if (options.force !== true) {
+      try {
+        const cached = JSON.parse(localStorage.getItem(storageKey) || "null");
+        if (cached?.fingerprint === fingerprint && Date.now() - Number(cached.at || 0) < 12 * 60 * 60 * 1000) return;
+      } catch (_) { /* localStorage không khả dụng thì đồng bộ bình thường */ }
+    }
     const subscriptionDocumentId = `${user.uid}_${subscriptionId}`;
     const ref = FirebaseService.doc(FirebaseService.db, "taskPushSubscriptions", subscriptionDocumentId);
     await FirebaseService.setDoc(ref, {
@@ -176,17 +208,18 @@ function bindPushSubscriptionSync(user) {
       departmentId: user.departmentId || "",
       role: user.role || "",
       module: "TASKS",
-      active: snapshot.optedIn === true && snapshot.permission === "granted",
+      active,
       notificationPermission: snapshot.permission || "default",
       oneSignalId: snapshot.oneSignalId || "",
       externalId: user.uid,
       platform: "WEB_PUSH",
       updatedAt: FirebaseService.serverTimestamp()
     }, { merge: true });
+    try { localStorage.setItem(storageKey, JSON.stringify({ fingerprint, at: Date.now() })); } catch (_) { /* no-op */ }
   };
-  saveCurrentPushSnapshot = save;
+  saveCurrentPushSnapshot = snapshot => save(snapshot, { force: true });
   window.addEventListener("taskpush:subscription-change", event => {
-    save(event.detail).catch(error => console.warn("Chưa lưu được thiết bị nhận thông báo:", error));
+    save(event.detail, { force: true }).catch(error => console.warn("Chưa lưu được thiết bị nhận thông báo:", error));
   });
   window.setTimeout(async () => {
     try {
@@ -332,42 +365,61 @@ function bindPushSettings(user) {
   });
 }
 
-function bindInAppTaskAssignmentAlerts(user) {
+async function bindInAppTaskAssignmentAlerts(user) {
   try { stopInAppTaskAlerts?.(); } catch (_) { /* listener cũ đã dừng */ }
   stopInAppTaskAlerts = null;
   if (!user?.uid) return;
 
-  const reference = FirebaseService.query(
-    FirebaseService.collection(FirebaseService.db, "tasks"),
-    FirebaseService.where("ownerUserId", "==", user.uid)
-  );
-  const knownTaskIds = new Set();
-  let initialized = false;
+  try {
+    /*
+     * V1.14.0 FREE-TIER:
+     * - Chỉ nghe nhiệm vụ của kỳ đang hoạt động, không quét lịch sử của người dùng.
+     * - Jitter thời điểm mở listener để 140 máy không cùng tạo một đợt kết nối Firestore.
+     * - Push vẫn là kênh thông báo chính khi tab không mở; listener này chỉ phục vụ toast trong app.
+     */
+    const period = await PeriodReadService.getActive({ force: false });
+    if (!period?.id || FirebaseService.auth.currentUser?.uid !== user.uid) return;
 
-  stopInAppTaskAlerts = FirebaseService.onSnapshot(reference, snapshot => {
-    if (!initialized) {
-      snapshot.docs.forEach(doc => knownTaskIds.add(doc.id));
-      initialized = true;
-      return;
-    }
+    const jitterMs = 2500 + Math.floor(Math.random() * 7500);
+    await new Promise(resolve => window.setTimeout(resolve, jitterMs));
+    if (FirebaseService.auth.currentUser?.uid !== user.uid) return;
 
-    snapshot.docChanges().forEach(change => {
-      if (change.type !== "added") return;
-      const task = { id: change.doc.id, ...change.doc.data() };
-      if (knownTaskIds.has(task.id)) return;
-      knownTaskIds.add(task.id);
-      if (task.active === false) return;
-      if (String(task.assignmentStatus || "").toUpperCase() === "DA_TIEP_NHAN") return;
-      const code = String(task.taskCode || "").trim();
-      const title = String(task.title || "Nhiệm vụ mới").trim();
-      ToastService.success(
-        `Bạn vừa được giao ${code ? `${code} – ` : ""}${title}.`,
-        6500
-      );
+    const reference = FirebaseService.query(
+      FirebaseService.collection(FirebaseService.db, "tasks"),
+      FirebaseService.where("periodId", "==", period.id),
+      FirebaseService.where("ownerUserId", "==", user.uid),
+      FirebaseService.limit(300)
+    );
+    const knownTaskIds = new Set();
+    let initialized = false;
+
+    stopInAppTaskAlerts = FirebaseService.onSnapshot(reference, snapshot => {
+      if (!initialized) {
+        snapshot.docs.forEach(doc => knownTaskIds.add(doc.id));
+        initialized = true;
+        return;
+      }
+
+      snapshot.docChanges().forEach(change => {
+        if (change.type !== "added") return;
+        const task = { id: change.doc.id, ...change.doc.data() };
+        if (knownTaskIds.has(task.id)) return;
+        knownTaskIds.add(task.id);
+        if (task.active === false) return;
+        if (String(task.assignmentStatus || "").toUpperCase() === "DA_TIEP_NHAN") return;
+        const code = String(task.taskCode || "").trim();
+        const title = String(task.title || "Nhiệm vụ mới").trim();
+        ToastService.success(
+          `Bạn vừa được giao ${code ? `${code} – ` : ""}${title}.`,
+          6500
+        );
+      });
+    }, error => {
+      console.warn("Không theo dõi được nhiệm vụ mới của tài khoản hiện tại:", error);
     });
-  }, error => {
-    console.warn("Không theo dõi được nhiệm vụ mới của tài khoản hiện tại:", error);
-  });
+  } catch (error) {
+    console.warn("Chưa khởi tạo được thông báo nhiệm vụ trong ứng dụng:", error);
+  }
 }
 
 function initializePushNotifications(user) {

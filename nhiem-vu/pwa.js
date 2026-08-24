@@ -1,9 +1,12 @@
-import { BUILD_VERSION } from "./core/app-version.js?v=20260824.V1_13_0";
+import { BUILD_VERSION } from "./core/app-version.js?v=20260824.V1_14_0";
 
 let deferredInstallPrompt = null;
 let refreshing = false;
 let registration = null;
 let lastHiddenAt = 0;
+let lastUpdateCheckAt = 0;
+let updateCheckPromise = null;
+const UPDATE_CHECK_MIN_MS = 30 * 60 * 1000;
 
 function isStandalone() { return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true; }
 function isIos() { return /iphone|ipad|ipod/i.test(navigator.userAgent || ""); }
@@ -29,8 +32,16 @@ function renderInstallHelp() {
     ? "Trên iPhone/iPad: mở trang bằng <strong>Safari</strong> → bấm <strong>Chia sẻ</strong> → <strong>Thêm vào Màn hình chính</strong> → bật <strong>Mở dưới dạng ứng dụng web</strong> nếu có."
     : "Trên Chrome/Edge máy tính: dùng <strong>Cài đặt ứng dụng / Install app</strong>. Không dùng Tạo lối tắt.";
 }
-async function checkForUpdate() {
-  try { await registration?.update?.(); } catch (_) { /* offline */ }
+async function checkForUpdate(options = {}) {
+  const force = options.force === true;
+  const now = Date.now();
+  if (!force && lastUpdateCheckAt && now - lastUpdateCheckAt < UPDATE_CHECK_MIN_MS) return;
+  if (updateCheckPromise) return updateCheckPromise;
+  lastUpdateCheckAt = now;
+  updateCheckPromise = Promise.resolve(registration?.update?.()).catch(() => { /* offline */ }).finally(() => {
+    updateCheckPromise = null;
+  });
+  return updateCheckPromise;
 }
 async function registerPwa() {
   if (!("serviceWorker" in navigator)) return;
@@ -48,8 +59,8 @@ async function registerPwa() {
       refreshing = true;
       window.location.reload();
     });
-    await checkForUpdate();
-    window.setInterval(checkForUpdate, 30 * 60 * 1000);
+    await checkForUpdate({ force: true });
+    window.setInterval(checkForUpdate, UPDATE_CHECK_MIN_MS);
   } catch (error) {
     console.warn("Không đăng ký được chế độ ứng dụng:", error);
   }
