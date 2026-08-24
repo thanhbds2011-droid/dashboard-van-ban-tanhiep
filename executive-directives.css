@@ -1,0 +1,194 @@
+/* Phân hệ Chỉ đạo điều hành - độc lập Nhiệm vụ/KPI. */
+.directive-shell{display:grid;gap:18px}.directive-page-header,.directive-header-actions,.directive-tabs,.directive-filters,.directive-list-meta,.directive-report-controls,.directive-report-actions,.directive-modal-footer,.directive-detail-actions,.section-heading{display:flex;align-items:center;gap:12px}.directive-page-header,.section-heading{justify-content:space-between;align-items:flex-start}.directive-page-header h2{margin:4px 0 6px}.directive-page-header p{margin:0;max-width:820px}.directive-page-header small{display:block;margin-top:6px;color:#64748b}.directive-header-actions{flex-wrap:wrap;justify-content:flex-end}.directive-tabs{gap:8px;flex-wrap:wrap;border-bottom:1px solid #e2e8f0;padding-bottom:10px}.directive-tab{border:1px solid #dbe4ee;background:#fff;border-radius:10px;padding:9px 13px;display:inline-flex;align-items:center;gap:7px;font:inherit;cursor:pointer}.directive-tab.is-active{background:#eef6ff;border-color:#9dc6ef;font-weight:700}.directive-overview,.directive-tracking{display:grid;gap:18px}.directive-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.directive-metric{border:1px solid #e2e8f0;border-radius:14px;padding:16px;background:#fff;display:grid;gap:5px}.directive-metric span{font-size:.9rem;color:#475569}.directive-metric strong{font-size:1.9rem;line-height:1}.directive-metric small{color:#64748b}.directive-metric.is-red{border-left:4px solid #dc2626}.directive-metric.is-green{border-left:4px solid #16a34a}.directive-metric.is-amber{border-left:4px solid #d97706}.directive-metric.is-blue{border-left:4px solid #2563eb}.directive-panel{border:1px solid #e2e8f0;border-radius:14px;padding:16px;background:#fff}.directive-recent-list{display:grid;gap:10px}.directive-recent-card{width:100%;border:1px solid #e2e8f0;background:#fff;border-radius:12px;padding:13px 14px;display:flex;justify-content:space-between;gap:16px;text-align:left;cursor:pointer}.directive-recent-card:hover{border-color:#93c5fd;background:#f8fbff}.directive-recent-card>div{display:grid;gap:4px;min-width:0}.directive-recent-card span,.directive-recent-card small{color:#64748b}.directive-recent-card strong{color:#0f172a}.directive-status,.directive-priority{display:inline-flex;align-items:center;width:max-content;border-radius:999px;padding:4px 9px;font-size:.82rem;font-weight:700;white-space:nowrap}.directive-status.is-completed{background:#dcfce7;color:#166534}.directive-status.is-overdue{background:#fee2e2;color:#991b1b}.directive-status.is-progress{background:#fef3c7;color:#92400e}.directive-status.is-accepted{background:#e0f2fe;color:#075985}.directive-status.is-new{background:#dbeafe;color:#1d4ed8}.directive-status.is-paused{background:#e2e8f0;color:#475569}.directive-priority{background:#f1f5f9;color:#475569}.directive-priority.is-urgent{background:#ffedd5;color:#9a3412}.directive-priority.is-very_urgent{background:#fee2e2;color:#991b1b}.directive-filters{display:grid;grid-template-columns:2fr 1fr 1fr;align-items:end}.directive-filters label,.directive-report-controls label,.directive-form-grid>label{display:grid;gap:6px}.directive-filters span,.directive-report-controls span,.directive-form-grid label>span,.directive-support-field legend{font-size:.86rem;font-weight:700;color:#334155}.directive-filters input,.directive-filters select,.directive-report-controls input,.directive-report-controls select,.directive-form-grid input,.directive-form-grid select,.directive-form-grid textarea{width:100%;border:1px solid #cbd5e1;border-radius:9px;padding:9px 10px;font:inherit;background:#fff}.directive-list-meta{justify-content:space-between;margin:14px 0 8px;color:#64748b}.directive-table-wrap{overflow:auto;border:1px solid #e2e8f0;border-radius:12px}.directive-table{width:100%;border-collapse:collapse;min-width:920px}.directive-table th,.directive-table td{padding:11px 10px;border-bottom:1px solid #e2e8f0;vertical-align:top;text-align:left}.directive-table th{background:#f8fafc;font-size:.84rem;color:#475569}.directive-table td:first-child{white-space:nowrap}.directive-table td:first-child small{display:block;color:#64748b;margin-top:3px}.directive-title-link{border:0;background:none;padding:0;color:#0f4c81;text-align:left;font:inherit;font-weight:700;cursor:pointer}.directive-row-meta{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-top:6px;font-size:.82rem;color:#64748b}.secondary-button.compact{padding:6px 9px;font-size:.83rem}.directive-department-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.directive-department-card{border:1px solid #e2e8f0;background:#fff;border-radius:13px;padding:14px;text-align:left;display:grid;gap:5px;cursor:pointer}.directive-department-card:hover{border-color:#93c5fd}.directive-department-card small{color:#64748b}.directive-mini-meter{height:6px;background:#e2e8f0;border-radius:999px;overflow:hidden;margin-top:5px}.directive-mini-meter i{display:block;height:100%;background:#22c55e}.directive-report-builder{display:grid;gap:16px}.directive-report-controls{align-items:end;flex-wrap:wrap}.directive-report-controls label{min-width:220px}.directive-report-placeholder,.directive-empty{border:1px dashed #cbd5e1;border-radius:12px;padding:24px;text-align:center;color:#64748b}.directive-empty{display:grid;place-items:center;gap:6px}.directive-report-document{background:#fff;border:1px solid #dbe4ee;border-radius:12px;padding:22px}.directive-report-document>header{text-align:center}.directive-report-document>header h3{margin:0 0 6px;text-transform:uppercase}.directive-report-summary{display:flex;gap:12px;flex-wrap:wrap;margin:16px 0}.directive-report-summary span{border:1px solid #e2e8f0;border-radius:999px;padding:6px 10px}.directive-report-section{margin-top:20px}.directive-report-section h4{margin:0 0 8px}.directive-report-section table{width:100%;border-collapse:collapse;font-size:.9rem}.directive-report-section th,.directive-report-section td{border:1px solid #cbd5e1;padding:7px;vertical-align:top}.directive-report-section th{background:#f8fafc;text-align:center}.directive-report-empty{text-align:center;color:#64748b}.directive-report-actions{margin-top:12px;flex-wrap:wrap}.directive-modal-backdrop{position:fixed;inset:0;z-index:1200;background:rgba(15,23,42,.58);display:grid;place-items:center;padding:18px}.directive-modal-card{width:min(980px,96vw);max-height:92vh;overflow:auto;background:#fff;border-radius:16px;box-shadow:0 24px 70px rgba(15,23,42,.3)}.directive-modal-header{position:sticky;top:0;z-index:2;background:#fff;border-bottom:1px solid #e2e8f0;padding:16px 18px;display:flex;justify-content:space-between;gap:18px}.directive-modal-header h2{margin:3px 0 5px;font-size:1.25rem}.directive-modal-header p{margin:0;color:#64748b}.directive-modal-body{padding:18px}.directive-modal-footer{position:sticky;bottom:0;background:#fff;border-top:1px solid #e2e8f0;padding:13px 18px;justify-content:flex-end;flex-wrap:wrap}.directive-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.directive-form-grid .field-full,.directive-detail-grid .field-full{grid-column:1/-1}.directive-support-field{border:1px solid #dbe4ee;border-radius:10px;padding:10px 12px}.directive-checkbox-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.directive-checkbox-grid label{display:flex;align-items:center;gap:8px}.directive-checkbox-grid input{width:auto}.directive-detail-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.directive-detail-summary>div{border:1px solid #e2e8f0;border-radius:10px;padding:10px;display:grid;gap:5px}.directive-detail-summary span{font-size:.82rem;color:#64748b}.directive-detail-section{margin-top:18px}.directive-detail-section h3{margin:0 0 10px}.directive-detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.directive-detail-grid>div{border-bottom:1px solid #eef2f7;padding-bottom:8px}.directive-detail-grid dt{font-size:.8rem;color:#64748b}.directive-detail-grid dd{margin:3px 0 0;font-weight:600}.directive-history{display:grid;gap:0}.directive-history-item{display:grid;grid-template-columns:18px 1fr;gap:10px;position:relative;padding-bottom:14px}.directive-history-item:before{content:"";position:absolute;left:5px;top:12px;bottom:-2px;width:2px;background:#e2e8f0}.directive-history-item:last-child:before{display:none}.directive-history-dot{width:12px;height:12px;border-radius:50%;background:#3b82f6;margin-top:5px;z-index:1}.directive-history-item header{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.directive-history-item header span{font-size:.82rem;color:#64748b}.directive-history-item p{margin:6px 0}.directive-evidence-links{display:flex;gap:8px;flex-wrap:wrap;margin-top:7px}.directive-evidence-links a{font-size:.83rem}.danger-button{border:1px solid #fecaca;background:#fff1f2;color:#b91c1c;border-radius:9px;padding:9px 12px;font:inherit;font-weight:700;cursor:pointer}.hidden{display:none!important}
+@media(max-width:900px){.directive-metrics,.directive-detail-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.directive-department-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.directive-page-header{display:grid}.directive-header-actions{justify-content:flex-start}.directive-filters{grid-template-columns:1fr 1fr}.directive-filters label:first-child{grid-column:1/-1}}
+@media(max-width:640px){.directive-metrics,.directive-department-grid,.directive-filters,.directive-form-grid,.directive-detail-summary,.directive-detail-grid,.directive-checkbox-grid{grid-template-columns:1fr}.directive-form-grid .field-full,.directive-detail-grid .field-full,.directive-filters label:first-child{grid-column:auto}.directive-page-header,.directive-recent-card,.directive-list-meta,.directive-history-item header{align-items:stretch}.directive-recent-card,.directive-list-meta,.directive-history-item header{display:grid}.directive-modal-backdrop{padding:0}.directive-modal-card{width:100vw;max-height:100vh;height:100vh;border-radius:0}.directive-report-document{padding:12px;overflow:auto}.directive-report-section table{min-width:760px}.directive-report-section{overflow:auto}.directive-tabs{overflow:auto;flex-wrap:nowrap}.directive-tab{flex:0 0 auto}.directive-modal-footer{justify-content:stretch}.directive-modal-footer button{flex:1 1 auto}}
+@media print{.directive-report-actions,.directive-report-controls,.directive-tabs,.directive-page-header{display:none!important}.directive-report-document{border:0;padding:0}.directive-report-section{break-inside:avoid}}
+
+/* V1.10.6 - phân công theo Phòng/Khu → Tổ/Nhóm → Người phụ trách và khóa workflow. */
+.directive-assignment-hint{border:1px solid #bfdbfe;background:#eff6ff;color:#1e3a5f;border-radius:10px;padding:10px 12px;line-height:1.45}.directive-assignment-hint strong{color:#0f4c81}.directive-workflow-warning{display:flex;gap:8px;align-items:flex-start;border:1px solid #fcd34d;background:#fffbeb;color:#78350f;border-radius:10px;padding:10px 12px;margin-top:14px}.directive-workflow-warning span{color:#92400e}.directive-form-grid small{color:#64748b;line-height:1.35}.directive-detail-summary{grid-template-columns:repeat(5,minmax(0,1fr))}@media(max-width:1100px){.directive-detail-summary{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:640px){.directive-detail-summary{grid-template-columns:1fr}}
+
+/* =========================================================
+   V1.11.0 - Executive Directives Production UX
+   Mobile cards + iOS/PWA dynamic viewport + safe-area modal.
+   ========================================================= */
+.directive-mobile-list{display:none}
+.directive-page-header>div,.directive-shell,.directive-filters>*{min-width:0}
+.directive-page-header p,.directive-list-meta span{overflow-wrap:anywhere}
+.directive-form-modal .directive-modal-body{background:#fff}
+.directive-modal-card{display:grid;grid-template-rows:auto minmax(0,1fr) auto;overflow:hidden;max-height:min(92dvh,900px)}
+.directive-modal-header,.directive-modal-footer{position:relative;inset:auto}
+.directive-modal-body{min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.directive-optional-section{border:1px solid #dbe4ee;border-radius:12px;background:#fbfdff;overflow:hidden}
+.directive-optional-section>summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;font-weight:800;color:#29465d}
+.directive-optional-section>summary::-webkit-details-marker{display:none}
+.directive-optional-section>summary:after{content:"＋";font-size:1rem;color:#0f5f8f;flex:0 0 auto}
+.directive-optional-section[open]>summary:after{content:"−"}
+.directive-optional-section>summary small{margin-left:auto;color:#64748b;font-weight:600;font-size:.78rem}
+.directive-optional-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:0 14px 14px}
+.directive-optional-grid-single{grid-template-columns:1fr}
+.directive-optional-grid label{display:grid;gap:6px}
+.directive-optional-grid label>span{font-size:.86rem;font-weight:700;color:#334155}
+.directive-optional-grid input,.directive-optional-grid select{width:100%;border:1px solid #cbd5e1;border-radius:9px;padding:9px 10px;font:inherit;background:#fff}
+.directive-optional-grid small{color:#64748b;line-height:1.35}
+.directive-optional-section .directive-support-field{margin:0 14px 14px;background:#fff}
+.sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+
+.directive-mobile-card{border:1px solid #dbe4ee;border-radius:14px;background:#fff;padding:14px;display:grid;gap:13px;box-shadow:0 4px 14px rgba(30,70,100,.045)}
+.directive-mobile-card header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.directive-mobile-card-title{display:grid;gap:5px;min-width:0}
+.directive-mobile-card-title>span,.directive-mobile-card-title>small{color:#64748b;font-size:.82rem}
+.directive-mobile-card-title .directive-title-link{font-size:1rem;line-height:1.4;overflow-wrap:anywhere}
+.directive-mobile-card-meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.directive-mobile-card-meta>div{min-width:0;border-top:1px solid #eef2f7;padding-top:9px;display:grid;gap:4px}
+.directive-mobile-card-meta span{font-size:.74rem;color:#64748b}
+.directive-mobile-card-meta strong{font-size:.88rem;color:#15324a;overflow-wrap:anywhere}
+.directive-mobile-card footer{display:flex;justify-content:flex-end}
+.directive-mobile-card footer .secondary-button{min-height:40px}
+
+@media(max-width:700px){
+  .directive-shell.page-card{padding:14px;overflow:hidden}
+  .directive-page-header{gap:12px}
+  .directive-page-header h2{font-size:1.55rem;line-height:1.25}
+  .directive-page-header p{font-size:.92rem;line-height:1.5}
+  .directive-header-actions{display:grid;grid-template-columns:minmax(0,1fr) auto;width:100%;gap:8px}
+  .directive-header-actions .primary-button{min-height:46px}
+  .directive-header-actions .secondary-button{min-height:46px;padding-inline:12px}
+  .directive-tabs{width:100%;max-width:100%;padding-bottom:8px;scrollbar-width:none}
+  .directive-tabs::-webkit-scrollbar{display:none}
+  .directive-tab{min-height:44px}
+  .directive-filters{grid-template-columns:1fr!important;gap:10px}
+  .directive-filters label:first-child{grid-column:auto!important}
+  .directive-filters input,.directive-filters select{min-height:46px;font-size:16px}
+  .directive-list-meta{gap:6px;margin-top:12px}
+  .directive-desktop-list{display:none!important}
+  .directive-mobile-list{display:grid;gap:10px;min-width:0}
+  .directive-mobile-card-meta{grid-template-columns:1fr}
+  .directive-mobile-card header{display:grid}
+  .directive-mobile-card header>.directive-status{justify-self:start}
+
+  .directive-modal-backdrop{padding:0;place-items:stretch;overscroll-behavior:none}
+  .directive-modal-card{width:100%;height:100dvh;max-height:100dvh;border-radius:0;box-shadow:none;grid-template-rows:auto minmax(0,1fr) auto}
+  .directive-modal-header{padding:calc(12px + env(safe-area-inset-top)) 16px 12px;align-items:flex-start}
+  .directive-modal-header h2{font-size:1.35rem;line-height:1.3}
+  .directive-modal-header p{font-size:.88rem;line-height:1.45}
+  .directive-modal-body{padding:14px 16px 24px;scroll-padding-bottom:110px}
+  .directive-modal-footer{padding:11px 16px calc(11px + env(safe-area-inset-bottom));display:grid;grid-template-columns:minmax(0,.65fr) minmax(0,1.35fr);gap:8px;background:#fff;box-shadow:0 -8px 24px rgba(15,23,42,.07)}
+  .directive-modal-footer button{width:100%;min-height:48px;flex:none}
+  .directive-form-grid,.directive-optional-grid{grid-template-columns:1fr!important}
+  .directive-form-grid input,.directive-form-grid select,.directive-form-grid textarea,.directive-optional-grid input,.directive-optional-grid select{font-size:16px;min-height:46px}
+  .directive-form-grid textarea{min-height:132px;resize:vertical}
+  .directive-optional-section>summary{min-height:48px;padding:12px}
+  .directive-optional-grid{padding:0 12px 12px}
+  .directive-optional-section .directive-support-field{margin:0 12px 12px}
+  .directive-checkbox-grid{grid-template-columns:1fr!important}
+  .directive-checkbox-grid label{min-height:44px;padding:4px 0}
+  .directive-checkbox-grid input{width:22px;height:22px}
+  .directive-assignment-hint{font-size:.9rem}
+  .directive-report-actions{display:grid;grid-template-columns:1fr}
+  .directive-report-actions button{width:100%;min-height:44px}
+  body.is-executive-route .v3-main{padding-bottom:env(safe-area-inset-bottom)}
+}
+
+
+/* V1.11.2 - Mobile dashboard: 4 chỉ số hiển thị 2 x 2, gọn trên điện thoại. */
+@media(max-width:640px){
+  .directive-metrics{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px}
+  .directive-metric{padding:12px 12px;min-height:108px}
+  .directive-metric span{font-size:.82rem;line-height:1.25}
+  .directive-metric strong{font-size:1.8rem;line-height:1.05}
+  .directive-metric small{font-size:.78rem;line-height:1.25}
+}
+
+
+/* =========================================================
+   V1.11.3 - Executive Directives UI polish
+   Chỉ presentation/responsive; không đổi workflow hoặc dữ liệu.
+   ========================================================= */
+.directive-shell.page-card{padding:22px 24px;border:1px solid #dbe5ef;box-shadow:0 8px 28px rgba(15,48,72,.045)}
+.directive-page-header{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:24px;margin-bottom:2px}
+.directive-header-copy{display:grid;gap:4px;min-width:0}
+.directive-header-copy h2{margin:0;font-size:1.55rem;line-height:1.25;color:#0f2f49;letter-spacing:-.015em}
+.directive-header-copy p{margin:0;color:#405d73;font-size:.94rem;line-height:1.5}
+.directive-header-copy small{margin-top:2px;color:#71869a;font-size:.82rem}
+.directive-header-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:nowrap;min-width:0}
+.directive-header-actions button{white-space:nowrap;min-height:42px;border-radius:10px}
+.directive-main-action{padding-inline:15px}
+.directive-sync-button{width:44px;min-width:44px;flex:0 0 44px;padding:0!important;font-size:1.05rem;display:inline-grid!important;place-items:center}
+.directive-tabs{margin-top:12px;gap:6px;padding-bottom:10px}
+.directive-tab{padding:8px 12px;border-radius:9px;color:#24455d}
+.directive-tab.is-active{box-shadow:inset 0 0 0 1px rgba(37,99,235,.06)}
+.directive-overview{gap:16px}
+.directive-metrics{gap:10px}
+.directive-metric{padding:14px 15px;border-radius:12px;box-shadow:0 3px 12px rgba(15,48,72,.035)}
+.directive-metric strong{font-size:1.75rem;color:#102f47}
+.directive-panel{border-radius:12px;padding:15px 16px}
+.section-heading h3{margin:0;color:#15324a}
+.section-heading p{margin:4px 0 0;color:#647b8d;line-height:1.45}
+.directive-recent-card{border-radius:11px;padding:12px 13px}
+.directive-filters{gap:10px;padding:2px 0 4px}
+.directive-filters input,.directive-filters select{min-height:43px;border-radius:9px;transition:border-color .15s ease,box-shadow .15s ease}
+.directive-filters input:focus,.directive-filters select:focus,.directive-form-grid input:focus,.directive-form-grid select:focus,.directive-form-grid textarea:focus{outline:none;border-color:#6aaee0;box-shadow:0 0 0 3px rgba(14,116,172,.10)}
+.directive-list-meta{margin:12px 0 8px}
+.directive-table-wrap{border-radius:11px;box-shadow:0 3px 12px rgba(15,48,72,.025)}
+.directive-table th{background:#f5f8fb;color:#405d73;font-weight:750}
+.directive-table td{line-height:1.4}
+.directive-form-modal{width:min(900px,calc(100vw - 40px))}
+.directive-modal-card{border:1px solid rgba(203,213,225,.9)}
+.directive-modal-header{padding:15px 18px}
+.directive-modal-header h2{margin:0 0 4px;color:#0f2f49;letter-spacing:-.01em}
+.directive-modal-header p{max-width:780px;font-size:.9rem;line-height:1.45}
+.directive-modal-body{padding:16px 18px 18px}
+.directive-modal-footer{padding:11px 18px}
+.directive-form-grid{gap:12px 14px}
+.directive-form-grid label>span,.directive-support-field legend{font-size:.84rem}
+.directive-form-grid input,.directive-form-grid select,.directive-form-grid textarea{border-radius:9px;min-height:43px}
+.directive-form-grid textarea{line-height:1.5}
+.directive-support-field{background:#fbfdff}
+.directive-checkbox-grid{gap:7px 12px}
+.directive-mobile-card-title>small{line-height:1.35}
+
+@media(max-width:900px){
+  .directive-shell.page-card{padding:18px}
+  .directive-page-header{grid-template-columns:1fr;gap:12px}
+  .directive-header-actions{justify-content:flex-start}
+}
+
+@media(max-width:700px){
+  .directive-shell.page-card{padding:14px 14px 16px;border-radius:16px}
+  .directive-page-header{gap:10px}
+  .directive-header-copy h2{font-size:1.45rem}
+  .directive-header-copy p{font-size:.88rem;line-height:1.45}
+  .directive-header-copy small{font-size:.78rem}
+  .directive-header-actions{display:flex!important;align-items:stretch;justify-content:stretch;gap:6px;width:100%;flex-wrap:nowrap}
+  .directive-header-actions .directive-main-action{flex:1 1 0;min-width:0;min-height:43px;padding:9px 7px;font-size:.84rem;line-height:1.15;white-space:normal}
+  .directive-header-actions .directive-sync-button{flex:0 0 43px!important;width:43px;min-width:43px;min-height:43px;padding:0!important;white-space:nowrap}
+  .directive-tabs{margin-top:8px;gap:5px}
+  .directive-tab{min-height:42px;padding:8px 10px;font-size:.88rem}
+  .directive-metrics{gap:8px!important}
+  .directive-metric{padding:10px 11px!important;min-height:96px!important;border-radius:11px}
+  .directive-metric span{font-size:.78rem!important}
+  .directive-metric strong{font-size:1.65rem!important}
+  .directive-metric small{font-size:.74rem!important}
+  .directive-panel{padding:13px;border-radius:12px}
+  .section-heading{gap:8px}
+  .section-heading h3{font-size:1rem}
+  .section-heading p{font-size:.84rem}
+  .section-heading .secondary-button{min-height:40px;padding:7px 10px}
+  .directive-filters input,.directive-filters select{min-height:44px}
+  .directive-list-meta span{font-size:.8rem}
+  .directive-mobile-card{padding:12px;gap:11px;border-radius:12px}
+  .directive-mobile-card-meta{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px}
+  .directive-mobile-card header{display:flex!important}
+  .directive-mobile-card header>.directive-status{justify-self:auto}
+  .directive-modal-header{padding:calc(11px + env(safe-area-inset-top)) 14px 11px}
+  .directive-modal-header h2{font-size:1.25rem}
+  .directive-modal-header p{font-size:.84rem}
+  .directive-modal-body{padding:13px 14px 22px}
+  .directive-modal-footer{padding:10px 14px calc(10px + env(safe-area-inset-bottom))}
+}
+
+@media(max-width:390px){
+  .directive-header-actions .directive-main-action{font-size:.79rem;padding-inline:5px}
+  .directive-tab{font-size:.83rem;padding-inline:8px}
+  .directive-mobile-card-meta{grid-template-columns:1fr!important}
+}

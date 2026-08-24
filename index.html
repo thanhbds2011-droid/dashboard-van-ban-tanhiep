@@ -1,1240 +1,145 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="vi">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-  <title>Hệ thống nhắc việc văn bản</title>
-<script>
-  const DA_DANG_KY = localStorage.getItem("nhac_viec_da_dang_ky_nhan_su");
-
-  if (!DA_DANG_KY) {
-    window.location.replace("/dashboard-van-ban-tanhiep/login.html?v=20260709.6");
-  }
-</script>
-  <link rel="manifest" href="/dashboard-van-ban-tanhiep/manifest.json?v=20260709.6" />
-  <link rel="apple-touch-icon" href="/dashboard-van-ban-tanhiep/icon-192.png" />
-
-  <meta name="theme-color" content="#1f5f99" />
-  <meta name="mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-title" content="Nhắc việc" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-
-  <style>
-    :root{
-      --main:#1f5f99;
-      --main2:#2f80c0;
-      --bg:#f3f7fb;
-      --card:#fff;
-      --text:#1f2937;
-      --muted:#6b7280;
-      --border:#d7dce2;
-      --red:#e76f51;
-      --orange:#f4a261;
-      --blue:#5dade2;
-      --green:#4f8a6d;
-      --gray:#7b8490;
-      --shadow:0 6px 18px rgba(15,23,42,.08);
-    }
-
-    *{box-sizing:border-box}
-
-    body{
-      margin:0;
-      min-height:100vh;
-      font-family:"Segoe UI",Roboto,Arial,sans-serif;
-      background:radial-gradient(circle at top right,rgba(47,128,192,.12),transparent 32%),var(--bg);
-      color:var(--text);
-    }
-
-    header{
-      background:linear-gradient(135deg,#174b7b,var(--main2));
-      color:#fff;
-      text-align:center;
-      padding:22px 14px 19px;
-      box-shadow:0 8px 24px rgba(23,75,123,.22);
-    }
-
-    header h1{
-      margin:0;
-      font-size:22px;
-      line-height:1.35;
-      font-weight:800;
-    }
-
-    header p{
-      margin:8px auto 0;
-      max-width:720px;
-      font-size:14px;
-      line-height:1.45;
-      opacity:.95;
-    }
-
-    .header-actions{
-      margin:16px auto 0;
-      display:flex;
-      justify-content:center;
-      align-items:center;
-      gap:10px;
-      flex-wrap:wrap;
-    }
-
-    .header-action{
-      min-height:42px;
-      padding:10px 15px;
-      border:1px solid rgba(255,255,255,.38);
-      border-radius:12px;
-      background:rgba(255,255,255,.14);
-      color:#fff;
-      font:inherit;
-      font-size:14px;
-      font-weight:800;
-      text-decoration:none;
-      cursor:pointer;
-      display:inline-flex;
-      align-items:center;
-      justify-content:center;
-      gap:7px;
-      box-shadow:0 6px 14px rgba(0,0,0,.10);
-      transition:transform .15s ease, background .15s ease;
-    }
-
-    .header-action:hover{
-      background:rgba(255,255,255,.23);
-      transform:translateY(-1px);
-    }
-
-    .header-action.logout{
-      background:rgba(117,25,25,.28);
-    }
-
-    .sync-bar{
-      text-align:center;
-      background:#eaf4ff;
-      color:var(--main);
-      font-weight:700;
-      font-size:13px;
-      padding:8px 12px;
-      border-bottom:1px solid #d7e8f8;
-    }
-
-    .sync-bar.error{
-      background:#fff1ed;
-      color:var(--red);
-      border-bottom-color:#f5c2b5;
-    }
-
-    .container{
-      max-width:1180px;
-      margin:auto;
-      padding:14px;
-    }
-
-    .tabs{
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:10px;
-      margin-bottom:14px;
-    }
-
-    .tab-btn{
-      border:0;
-      padding:13px 10px;
-      border-radius:16px;
-      background:#fff;
-      color:var(--main);
-      font-weight:800;
-      font-size:15px;
-      cursor:pointer;
-      box-shadow:var(--shadow);
-      font-family:inherit;
-    }
-
-    .tab-btn.active{
-      background:var(--main);
-      color:#fff;
-    }
-
-    .cards{
-      display:grid;
-      grid-template-columns:repeat(4,1fr);
-      gap:12px;
-      margin-bottom:14px;
-    }
-
-    .card{
-      background:var(--card);
-      border-radius:18px;
-      padding:16px 10px;
-      text-align:center;
-      box-shadow:var(--shadow);
-      border-left:5px solid var(--main);
-      min-height:98px;
-      display:flex;
-      flex-direction:column;
-      justify-content:center;
-    }
-
-    .card.full{grid-column:span 4}
-
-    .number{
-      font-size:31px;
-      font-weight:850;
-      margin-bottom:5px;
-    }
-
-    .label{
-      font-size:13.5px;
-      color:#555;
-      font-weight:800;
-      line-height:1.35;
-    }
-
-    .red{color:var(--red)}
-    .orange{color:var(--orange)}
-    .blue{color:var(--blue)}
-    .green{color:var(--green)}
-    .gray{color:var(--gray)}
-
-    .filters{
-      background:#fff;
-      padding:14px;
-      border-radius:18px;
-      margin-bottom:14px;
-      box-shadow:var(--shadow);
-      display:grid;
-      grid-template-columns:1fr 240px 220px;
-      gap:10px;
-    }
-
-    input,select{
-      width:100%;
-      padding:12px;
-      min-height:46px;
-      border:1px solid var(--border);
-      border-radius:13px;
-      font-size:14px;
-      outline:0;
-      background:#fff;
-      font-family:inherit;
-      font-weight:650;
-      color:#334155;
-    }
-
-    input:focus,select:focus{
-      border-color:var(--main2);
-      box-shadow:0 0 0 3px rgba(47,128,192,.12);
-    }
-
-    .section-title{
-      font-size:18px;
-      font-weight:850;
-      margin:18px 0 10px;
-      color:var(--main);
-    }
-
-    .table-wrap{
-      background:#fff;
-      border-radius:18px;
-      overflow-x:auto;
-      box-shadow:var(--shadow);
-    }
-
-    table{
-      width:100%;
-      border-collapse:collapse;
-      min-width:900px;
-    }
-
-    th{
-      background:var(--main);
-      color:#fff;
-      padding:12px;
-      text-align:left;
-      font-size:14px;
-      font-weight:850;
-    }
-
-    td{
-      padding:12px;
-      border-bottom:1px solid #eee;
-      vertical-align:top;
-      font-size:14px;
-      line-height:1.45;
-      color:#334155;
-    }
-
-    tr:hover{
-      background:#eef6ff;
-      cursor:pointer;
-    }
-
-    .badge{
-      display:inline-block;
-      padding:6px 10px;
-      border-radius:999px;
-      color:#fff;
-      font-weight:850;
-      font-size:12px;
-      white-space:nowrap;
-    }
-
-    .badge-red{background:var(--red)}
-    .badge-orange{background:var(--orange)}
-    .badge-blue{background:var(--blue)}
-    .badge-green{background:var(--green)}
-    .badge-gray{background:var(--gray)}
-
-    .btn{
-      display:inline-block;
-      text-decoration:none;
-      background:var(--main2);
-      color:#fff;
-      padding:8px 12px;
-      border-radius:10px;
-      font-size:13px;
-      font-weight:800;
-    }
-
-    .mobile-list{display:none}
-
-    .mobile-card{
-      background:#fff;
-      border-radius:18px;
-      padding:15px;
-      margin-bottom:13px;
-      box-shadow:var(--shadow);
-      border-left:5px solid var(--main);
-    }
-
-    .mobile-card h3{
-      margin:0 0 8px;
-      font-size:17px;
-      color:var(--main);
-      line-height:1.35;
-    }
-
-    .mobile-card p{
-      margin:7px 0;
-      font-size:14.5px;
-      line-height:1.45;
-    }
-
-    .mobile-meta{
-      color:var(--muted);
-      font-size:13px;
-    }
-
-    .pagination{
-      display:flex;
-      justify-content:center;
-      flex-wrap:wrap;
-      gap:8px;
-      margin:18px 0;
-    }
-
-    .pagination button{
-      border:0;
-      background:#fff;
-      color:var(--main);
-      padding:9px 13px;
-      border-radius:10px;
-      font-weight:800;
-      box-shadow:0 3px 10px rgba(0,0,0,.08);
-      cursor:pointer;
-    }
-
-    .pagination button.active{
-      background:var(--main);
-      color:#fff;
-    }
-
-    .pagination button:disabled{
-      opacity:.45;
-      cursor:not-allowed;
-    }
-
-    .modal{
-      display:none;
-      position:fixed;
-      z-index:99;
-      inset:0;
-      background:rgba(0,0,0,.55);
-      padding:14px;
-    }
-
-    .modal-content{
-      background:#fff;
-      max-width:760px;
-      margin:30px auto;
-      border-radius:18px;
-      padding:18px;
-      max-height:86vh;
-      overflow-y:auto;
-      box-shadow:0 8px 30px rgba(0,0,0,.25);
-    }
-
-    .modal-header{
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      gap:12px;
-      border-bottom:1px solid #eee;
-      padding-bottom:10px;
-      margin-bottom:12px;
-    }
-
-    .modal-header h2{
-      margin:0;
-      color:var(--main);
-      font-size:19px;
-    }
-
-    .close{
-      font-size:28px;
-      cursor:pointer;
-      color:#555;
-      font-weight:850;
-    }
-
-    .detail-row{
-      margin:10px 0;
-      line-height:1.5;
-    }
-
-    .detail-row strong{color:var(--main)}
-
-    .ai-detail{
-      white-space:pre-wrap;
-      background:#f7f9fc;
-      padding:12px;
-      border-radius:12px;
-      border-left:4px solid var(--main2);
-      line-height:1.55;
-    }
-
-    .loading{
-      text-align:center;
-      padding:26px;
-      font-weight:800;
-      color:var(--main);
-    }
-
-    .footer{
-      text-align:center;
-      color:#777;
-      padding:24px;
-      font-size:13px;
-    }
-
-    .setup-modal{
-      display:none;
-      position:fixed;
-      inset:0;
-      z-index:9998;
-      background:rgba(15,23,42,.45);
-      padding:16px;
-      align-items:center;
-      justify-content:center;
-    }
-
-    .setup-modal.show{display:flex}
-
-    .setup-card{
-      width:100%;
-      max-width:420px;
-      background:#fff;
-      border-radius:22px;
-      padding:20px;
-      box-shadow:0 18px 50px rgba(0,0,0,.25);
-    }
-
-    .setup-icon{
-      width:52px;
-      height:52px;
-      border-radius:16px;
-      background:linear-gradient(135deg,var(--main),var(--main2));
-      color:#fff;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      font-size:26px;
-      margin-bottom:12px;
-    }
-
-    .setup-title{
-      color:var(--main);
-      font-size:19px;
-      font-weight:850;
-      margin-bottom:8px;
-      line-height:1.35;
-    }
-
-    .setup-text{
-      color:#4b5563;
-      font-size:14.5px;
-      line-height:1.55;
-      margin-bottom:14px;
-    }
-
-    .setup-note{
-      background:#f3f7fb;
-      border-left:4px solid var(--main2);
-      border-radius:12px;
-      padding:11px 12px;
-      color:#374151;
-      font-size:13.5px;
-      line-height:1.45;
-      margin-bottom:14px;
-    }
-
-    .setup-actions{
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:10px;
-    }
-
-    .setup-primary,.setup-secondary{
-      border:0;
-      border-radius:13px;
-      padding:12px 10px;
-      font-weight:850;
-      font-size:14px;
-      cursor:pointer;
-      font-family:inherit;
-    }
-
-    .setup-primary{
-      background:var(--main);
-      color:#fff;
-    }
-
-    .setup-secondary{
-      background:#eef2f7;
-      color:#4b5563;
-    }
-
-    @media(max-width:850px){
-      header{padding:17px 14px}
-      header h1{font-size:19px}
-      header p{font-size:13.5px}
-      .container{padding:12px}
-      .cards{grid-template-columns:1fr 1fr;gap:12px}
-      .card{padding:14px 8px;min-height:96px}
-      .card.full{grid-column:span 2}
-      .number{font-size:30px}
-      .filters{grid-template-columns:1fr}
-      .table-wrap{display:none}
-      .mobile-list{display:block}
-      .modal-content{margin:20px auto;padding:16px}
-    }
-  </style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0f5f8f">
+  <meta name="description" content="Hệ thống quản lý nhiệm vụ và đánh giá KPI">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="KPI Tân Hiệp">
+  <title>Nhiệm vụ và đánh giá KPI</title>
+  <link rel="icon" type="image/png" href="./icons/favicon-64.png">
+  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+  <link rel="manifest" href="./manifest.webmanifest?v=20260824.V1_15_0">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./v3.css?v=20260824.V1_15_0">
+  <link rel="stylesheet" href="./kpi.css?v=20260824.V1_15_0">
+  <link rel="stylesheet" href="./ai-assistant.css?v=20260824.V1_15_0">
+  <link rel="stylesheet" href="./ui-v1.3.0.css?v=20260824.V1_15_0">
+  <link rel="stylesheet" href="./ui-v1.10.1.css?v=20260824.V1_15_0">
+  <link rel="stylesheet" href="./ui-v1.10.2.css?v=20260824.V1_15_0">
+  <link rel="stylesheet" href="./ui-task-detail-tabs-hotfix.css?v=20260824.V1_15_0">
+  <link rel="stylesheet" href="./executive-directives.css?v=20260824.V1_15_0">
 </head>
-
-<body>
-
-<header>
-  <h1>📑 HỆ THỐNG NHẮC VIỆC VĂN BẢN</h1>
-  <p>Dashboard giám sát, nhắc việc và lưu trữ kết quả thực hiện nhiệm vụ</p>
-
-  <div class="header-actions" aria-label="Điều hướng hệ thống">
-    <a
-      class="header-action"
-      href="/dashboard-van-ban-tanhiep/nhiem-vu/"
-      title="Mở nhiệm vụ và đánh giá KPI"
-    >
-      <span aria-hidden="true">📊</span>
-      <span>Đánh giá KPI</span>
-    </a>
-
-    <button
-      class="header-action logout"
-      type="button"
-      onclick="dangXuatDashboardVanBan()"
-      title="Đăng xuất khỏi Dashboard Văn bản"
-    >
-      <span aria-hidden="true">🚪</span>
-      <span>Đăng xuất</span>
-    </button>
-  </div>
-</header>
-
-<div id="syncBar" class="sync-bar">
-  <span id="syncText">Đang đồng bộ dữ liệu...</span>
-</div>
-
-<div class="container">
-  <div class="tabs">
-    <button class="tab-btn active" id="btnTheoDoi" onclick="doiTab('theoDoi')">📌 Đang theo dõi</button>
-    <button class="tab-btn" id="btnLuuTru" onclick="doiTab('luuTru')">📁 Lưu trữ</button>
-  </div>
-
-  <div class="cards" id="khuThongKe"></div>
-
-  <div class="filters">
-    <input type="text" id="tuKhoa" placeholder="🔍 Tìm số hiệu, trích yếu..." oninput="hienThiDuLieu()">
-
-    <select id="locPhong" onchange="hienThiDuLieu()">
-      <option value="">Tất cả phòng ban</option>
-      <option value="PHÒNG TỔ CHỨC - HÀNH CHÍNH">Phòng Tổ chức - Hành chính</option>
-      <option value="PHÒNG KẾ HOẠCH TÀI CHÍNH">Phòng Kế hoạch tài chính</option>
-      <option value="PHÒNG CÔNG TÁC XÃ HỘI">Phòng Công tác xã hội</option>
-      <option value="PHÒNG Y TẾ">Phòng Y tế</option>
-      <option value="KHU I">Khu I</option>
-      <option value="KHU II">Khu II</option>
-      <option value="KHU III">Khu III</option>
-    </select>
-
-    <select id="locTrangThai" onchange="hienThiDuLieu()">
-      <option value="">Tất cả trạng thái</option>
-      <option value="QUÁ HẠN">Quá hạn</option>
-      <option value="ĐẾN HẠN HÔM NAY">Đến hạn hôm nay</option>
-      <option value="SẮP ĐẾN HẠN">Sắp đến hạn</option>
-      <option value="CÒN HẠN">Còn hạn</option>
-    </select>
-  </div>
-
-  <div class="section-title" id="tieuDeBang">📌 Danh sách văn bản đang theo dõi</div>
-
-  <div class="table-wrap">
-    <table>
-      <thead id="theadBang"></thead>
-      <tbody id="bangDuLieu">
-        <tr><td colspan="8" class="loading">Đang tải dữ liệu...</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <div class="mobile-list" id="mobileList">
-    <div class="loading">Đang tải dữ liệu...</div>
-  </div>
-
-  <div id="phanTrang" class="pagination"></div>
-</div>
-
-<div class="footer">
-  Trung tâm Bảo trợ xã hội Tân Hiệp - Dashboard chỉ xem dành cho Ban Giám đốc
-</div>
-
-<div id="modalChiTiet" class="modal">
-  <div class="modal-content">
-    <div class="modal-header">
-      <h2>📄 Chi tiết văn bản</h2>
-      <span class="close" onclick="dongChiTiet()">&times;</span>
+<body class="v3-body">
+  <header class="v3-header">
+    <div class="v3-header-inner">
+      <div class="brand-block">
+        <div class="brand-mark" aria-hidden="true">📋</div>
+        <div>
+          <h1 id="appBrandTitle">Nhiệm vụ và đánh giá KPI</h1>
+          <p id="appBrandSubtitle">Trung tâm Bảo trợ xã hội Tân Hiệp</p>
+        </div>
+      </div>
+      <div class="v3-user-area">
+        <div id="currentUserAvatar" class="user-avatar" aria-hidden="true">ND</div>
+        <div id="currentUserInfo" class="v3-user-info">Đang tải tài khoản…</div>
+        <button id="btnInstallApp" type="button" class="header-button hidden" title="Cài đặt ứng dụng">⬇ <span>Cài ứng dụng</span></button>
+        <button id="btnPushSettings" type="button" class="header-button header-notification-button" title="Cài đặt thông báo">🔔 <span>Thông báo</span></button>
+        <button id="btnLogout" type="button" class="header-button">Đăng xuất</button>
+        <button id="btnMobileMenu" type="button" class="mobile-menu-button" aria-label="Mở menu" aria-expanded="false">☰</button>
+      </div>
     </div>
-    <div id="noiDungChiTiet"></div>
+  </header>
+
+  <nav id="v3Navigation" class="v3-navigation" aria-label="Điều hướng chính">
+    <a href="#/dashboard" data-route="#/dashboard"><span aria-hidden="true">🏠</span>Trang chủ</a>
+    <a href="#/directives" data-route="#/directives"><span aria-hidden="true">📌</span>Chỉ đạo điều hành</a>
+    <a href="#/standard-tasks" data-route="#/standard-tasks"><span aria-hidden="true">📁</span>Danh mục công việc</a>
+    <a href="#/tasks" data-route="#/tasks"><span aria-hidden="true">📋</span>Nhiệm vụ</a>
+    <a href="#/kpi" data-route="#/kpi"><span aria-hidden="true">📊</span>Kế hoạch KPI</a>
+    <a href="#/reports" data-route="#/reports"><span aria-hidden="true">📄</span>Báo cáo</a>
+    <a id="adminMenuItem" href="#/admin" data-route="#/admin" hidden><span aria-hidden="true">⚙️</span>Quản trị</a>
+    <button id="btnMobilePushSettings" type="button" class="mobile-logout-button mobile-notification-settings"><span aria-hidden="true">🔔</span>Cài đặt thông báo</button>
+    <button id="btnMobileLogout" type="button" class="mobile-logout-button"><span aria-hidden="true">↪</span>Đăng xuất</button>
+  </nav>
+  <div id="navOverlay" class="nav-overlay" hidden></div>
+
+  <section id="pushStatusBox" class="push-status-box hidden" aria-live="polite"><div><strong id="pushStatusTitle">Thông báo nhiệm vụ</strong><span id="pushStatusText"></span></div><button id="pushStatusAction" type="button" class="secondary-button hidden">Bật thông báo</button></section>
+
+  <div id="pushSettingsModal" class="app-modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="pushSettingsTitle">
+    <section class="app-modal-card push-settings-card">
+      <header class="app-modal-header">
+        <div><span class="modal-kicker">Thiết bị hiện tại</span><h2 id="pushSettingsTitle">🔔 Cài đặt thông báo</h2><p>Kiểm tra trạng thái nhận thông báo trên thiết bị và tài khoản đang đăng nhập.</p></div>
+        <button id="btnClosePushSettings" class="modal-close-button" type="button" aria-label="Đóng">×</button>
+      </header>
+      <div id="pushSettingsState" class="push-settings-state">Đang kiểm tra…</div>
+      <dl class="push-settings-grid">
+        <div><dt>Quyền thông báo</dt><dd id="pushSettingPermission">—</dd></div>
+        <div><dt>Đăng ký nhận thông báo</dt><dd id="pushSettingOptedIn">—</dd></div>
+        <div><dt>Mã thiết bị</dt><dd id="pushSettingSubscription">—</dd></div>
+        <div><dt>Tài khoản nhận</dt><dd id="pushSettingUid">—</dd></div>
+        <div><dt>Liên kết hệ thống</dt><dd id="pushSettingFirestore">—</dd></div><div><dt>Chỉ đạo điều hành</dt><dd id="pushSettingExecutive">—</dd></div>
+        <div><dt>Kiểm tra lúc</dt><dd id="pushSettingUpdatedAt">—</dd></div>
+      </dl>
+      <div class="push-settings-help">Nếu quyền bị chặn, bấm biểu tượng cài đặt cạnh thanh địa chỉ → Quyền trang web → Thông báo → Cho phép, rồi tải lại trang.</div>
+      <footer class="app-modal-actions">
+        <button id="btnPushRequestPermission" class="secondary-button" type="button">Bật/Mở quyền</button>
+        <button id="btnPushResync" class="primary-button" type="button">↻ Đồng bộ lại</button>
+        <button id="btnPushSettingsDone" class="secondary-button" type="button">Đóng</button>
+      </footer>
+    </section>
   </div>
-</div>
 
-<div id="notificationSetupModal" class="setup-modal">
-  <div class="setup-card">
-    <div class="setup-icon">🔔</div>
-    <div class="setup-title">Thiết lập thông báo nhắc việc</div>
-    <div class="setup-text" id="notificationSetupText">
-      Hệ thống sẽ gửi thông báo khi có văn bản mới, văn bản khẩn, văn bản sắp đến hạn hoặc quá hạn.
-    </div>
-    <div class="setup-note" id="notificationSetupNote">
-      Sau khi bật, bạn có thể tắt trong phần Cài đặt thông báo của điện thoại hoặc trình duyệt.
-    </div>
-    <div class="setup-actions">
-      <button id="btnChoPhepThongBao" class="setup-primary" type="button">Cho phép</button>
-      <button id="btnBoQuaThongBao" class="setup-secondary" type="button">Để sau</button>
-    </div>
+  <section id="offlineBanner" class="system-banner offline-banner hidden" role="status">Mất kết nối Internet. Dữ liệu đang hiển thị chỉ để xem; vui lòng kết nối lại trước khi lưu.</section>
+  <section id="appUpdateBanner" class="system-banner update-banner hidden" role="status"><span>Đã có phiên bản ứng dụng mới.</span><div><button id="btnApplyUpdate" class="primary-button" type="button">Cập nhật ngay</button><button id="btnDismissUpdate" class="secondary-button" type="button">Để sau</button></div></section>
+
+  <div id="iosInstallHelp" class="app-modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="installHelpTitle">
+    <section class="app-modal-card install-help-card">
+      <header class="app-modal-header">
+        <div><h2 id="installHelpTitle">Cài ứng dụng Nhiệm vụ và đánh giá KPI</h2><p id="installHelpText">Đang xác định hướng dẫn phù hợp thiết bị…</p></div>
+        <button id="btnCloseIosInstall" class="modal-close-button" type="button" aria-label="Đóng">×</button>
+      </header>
+    </section>
   </div>
-</div>
 
-<script>
-const APP_VERSION = "20260709.6";
-const API_URL = "https://script.google.com/macros/s/AKfycbyMINgn39Y_zlvdG9nqMpDH9KeoBKXnR_ueWr_wpVLPu82QxZVPSH4tnkVR9oa7eTJ2KQ/exec";
-const ONESIGNAL_APP_ID = "1a1d8e66-d523-4a9a-84be-1d3c248bad61";
-const ONESIGNAL_SAFARI_WEB_ID = "web.onesignal.auto.12e0c5f3-6b76-47bb-8015-fa3026009bd5";
-const ONESIGNAL_EXTERNAL_ID_KEY = "nhac_viec_van_ban_external_id";
-const NOTIFICATION_DISMISSED_KEY = "nhac_viec_thong_bao_de_sau";
+  <main id="appOutlet" class="v3-main" aria-live="polite">
+    <section class="page-card"><div class="skeleton skeleton-title"></div><div class="skeleton skeleton-line"></div></section>
+  </main>
 
-let duLieuTheoDoi = [];
-let duLieuLuuTru = [];
-let tabHienTai = "theoDoi";
-let trangHienTai = 1;
-let dangTaiDuLieu = false;
-let daMoTuThongBao = false;
-let oneSignalReady = false;
-let oneSignalInstance = null;
+  <footer class="v3-footer">Quản lý giao việc • Theo dõi tiến độ • Lưu minh chứng • Đánh giá kết quả • <span id="appVersionLabel">V1.15.0</span></footer>
 
-const SO_DONG_MOI_TRANG = 10;
-const TU_DONG_DONG_BO_MS = 10000;
-
-function dangXuatDashboardVanBan(){
-  const storageKeys = [
-    "nhac_viec_da_dang_ky_nhan_su",
-    "nhac_viec_ma_nhan_su",
-    "nhac_viec_ho_ten",
-    "nhac_viec_nam_sinh",
-    "nhac_viec_phong",
-    "nhac_viec_chuc_vu",
-    "nhac_viec_vai_tro",
-    "nhac_viec_subscription_id",
-    "nhac_viec_ngay_dang_ky",
-    "nhac_viec_thong_bao_de_sau"
-  ];
-
-  storageKeys.forEach(function(key){
-    localStorage.removeItem(key);
-  });
-
-  window.location.replace(
-    "/dashboard-van-ban-tanhiep/login.html?v=" + encodeURIComponent(APP_VERSION)
-  );
-}
-
-const notificationSetupModal = document.getElementById("notificationSetupModal");
-const notificationSetupText = document.getElementById("notificationSetupText");
-const notificationSetupNote = document.getElementById("notificationSetupNote");
-const btnChoPhepThongBao = document.getElementById("btnChoPhepThongBao");
-const btnBoQuaThongBao = document.getElementById("btnBoQuaThongBao");
-
-function napOneSignal(){
-  const s = document.createElement("script");
-  s.src = "https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js";
-  s.defer = true;
-  document.head.appendChild(s);
-}
-
-function laIPhoneHoacIPad(){
-  const ua = navigator.userAgent || "";
-  return /iPad|iPhone|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-}
-
-function daMoTuManHinhChinh(){
-  return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
-}
-
-function taoExternalId(){
-  let id = localStorage.getItem(ONESIGNAL_EXTERNAL_ID_KEY);
-  if(!id){
-    id = "vanban_" + Date.now() + "_" + Math.random().toString(36).slice(2,12);
-    localStorage.setItem(ONESIGNAL_EXTERNAL_ID_KEY,id);
-  }
-  return id;
-}
-
-function hienThiThietLapThongBao(text,note){
-  if(!notificationSetupModal) return;
-  if(text && notificationSetupText) notificationSetupText.textContent = text;
-  if(note && notificationSetupNote) notificationSetupNote.textContent = note;
-  notificationSetupModal.classList.add("show");
-}
-
-function anThietLapThongBao(){
-  if(notificationSetupModal) notificationSetupModal.classList.remove("show");
-}
-
-function capNhatNutThongBao(daBat){
-  if(daBat){
-    anThietLapThongBao();
-    localStorage.removeItem(NOTIFICATION_DISMISSED_KEY);
-    return;
-  }
-
-  if(localStorage.getItem(NOTIFICATION_DISMISSED_KEY) === "1") return;
-
-  if(laIPhoneHoacIPad() && !daMoTuManHinhChinh()){
-    hienThiThietLapThongBao(
-      "Để nhận thông báo trên iPhone/iPad, hãy thêm hệ thống vào Màn hình chính trước.",
-      "Mở bằng Safari → Chia sẻ → Thêm vào Màn hình chính → mở lại từ biểu tượng mới → chọn Cho phép."
-    );
-    return;
-  }
-
-  hienThiThietLapThongBao(
-    "Bật thông báo để nhận văn bản mới, văn bản khẩn và các nhắc việc đến hạn.",
-    "Sau khi bật, nếu muốn tắt bạn vào Cài đặt thông báo của điện thoại hoặc trình duyệt."
-  );
-}
-
-function layTrangThaiSubscription(OneSignal){
-  return {
-    id: OneSignal.User.PushSubscription.id || "",
-    token: OneSignal.User.PushSubscription.token || "",
-    optedIn: OneSignal.User.PushSubscription.optedIn === true,
-    permission: typeof Notification !== "undefined" ? Notification.permission : "unknown"
-  };
-}
-
-function choDenKhiSubscriptionSanSang(OneSignal){
-  return new Promise(function(resolve){
-    const hienTai = layTrangThaiSubscription(OneSignal);
-    if(hienTai.id && hienTai.optedIn){
-      resolve(hienTai);
-      return;
-    }
-
-    const handler = function(){
-      const moi = layTrangThaiSubscription(OneSignal);
-      if(moi.id && moi.optedIn){
-        try{ OneSignal.User.PushSubscription.removeEventListener("change",handler); }catch(e){}
-        resolve(moi);
+  <script>
+  (() => {
+    const startedAt = Date.now();
+    const showRecovery = () => {
+      if (document.documentElement.dataset.buildVersion) return;
+      let box = document.getElementById('startupRecovery');
+      if (!box) {
+        box = document.createElement('section');
+        box.id = 'startupRecovery';
+        box.setAttribute('role','alert');
+        box.style.cssText = 'position:fixed;inset:16px;z-index:99999;margin:auto;max-width:560px;height:max-content;padding:22px;border-radius:18px;background:#fff;box-shadow:0 24px 70px rgba(15,50,70,.28);font-family:Be Vietnam Pro,system-ui,sans-serif;color:#0b3653';
+        box.innerHTML = '<h2 style="margin:0 0 8px">Ứng dụng chưa khởi động hoàn tất</h2><p style="margin:0 0 16px;line-height:1.55">Có thể phiên PWA hoặc bộ nhớ đệm đang cũ. Hãy thử tải lại; nếu vẫn trắng màn hình, dùng Khôi phục ứng dụng.</p><div style="display:flex;gap:10px;flex-wrap:wrap"><button id="startupReload" style="padding:10px 15px;border:0;border-radius:10px;background:#0f6f9f;color:#fff;font-weight:700">Tải lại</button><button id="startupRecover" style="padding:10px 15px;border:1px solid #8fb7cc;border-radius:10px;background:#fff;color:#0b557b;font-weight:700">Khôi phục ứng dụng</button></div>';
+        document.body.appendChild(box);
+        document.getElementById('startupReload').onclick = () => location.reload();
+        document.getElementById('startupRecover').onclick = async () => {
+          try {
+            if ('serviceWorker' in navigator) {
+              const regs = await navigator.serviceWorker.getRegistrations();
+              await Promise.all(regs.filter(reg => String(reg.active?.scriptURL || reg.installing?.scriptURL || reg.waiting?.scriptURL || '').includes('/nhiem-vu/sw.js')).map(reg => reg.unregister()));
+            }
+            if ('caches' in window) {
+              const keys = await caches.keys();
+              await Promise.all(keys.filter(key => key.startsWith('nhiem-vu-')).map(key => caches.delete(key)));
+            }
+          } catch (_) {}
+          location.reload();
+        };
       }
+      console.warn('Startup watchdog:', Date.now()-startedAt, 'ms');
     };
-
-    OneSignal.User.PushSubscription.addEventListener("change",handler);
-  });
-}
-
-function khoiTaoOneSignal(){
-  window.OneSignalDeferred = window.OneSignalDeferred || [];
-
-  window.OneSignalDeferred.push(async function(OneSignal){
-    try{
-      oneSignalInstance = OneSignal;
-
-      await OneSignal.init({
-        appId: ONESIGNAL_APP_ID,
-        safari_web_id: ONESIGNAL_SAFARI_WEB_ID,
-        serviceWorkerPath: "/dashboard-van-ban-tanhiep/OneSignalSDKWorker.js",
-        serviceWorkerUpdaterPath: "/dashboard-van-ban-tanhiep/OneSignalSDKWorker.js",
-        serviceWorkerParam:{scope:"/dashboard-van-ban-tanhiep/"},
-        notifyButton:{enable:false},
-        welcomeNotification:{disable:true}
-      });
-
-      oneSignalReady = true;
-
-      const trangThai = layTrangThaiSubscription(OneSignal);
-      capNhatNutThongBao(trangThai.id && trangThai.optedIn);
-
-      OneSignal.User.PushSubscription.addEventListener("change",function(){
-        const tt = layTrangThaiSubscription(OneSignal);
-        capNhatNutThongBao(tt.id && tt.optedIn);
-      });
-
-    }catch(error){
-      console.error("Lỗi OneSignal:",error);
-      capNhatNutThongBao(false);
-    }
-  });
-}
-
-async function batThongBaoOneSignal(){
-  try{
-    const OneSignal = oneSignalInstance;
-
-    if(!oneSignalReady || !OneSignal){
-      alert("Hệ thống thông báo chưa sẵn sàng. Vui lòng tải lại trang.");
-      return;
-    }
-
-    if(!OneSignal.Notifications.isPushSupported()){
-      alert("Thiết bị hoặc trình duyệt này chưa hỗ trợ nhận thông báo.");
-      return;
-    }
-
-    if(laIPhoneHoacIPad() && !daMoTuManHinhChinh()){
-      alert("Trên iPhone/iPad: mở bằng Safari → Chia sẻ → Thêm vào Màn hình chính → mở lại từ biểu tượng ngoài màn hình.");
-      return;
-    }
-
-    btnChoPhepThongBao.disabled = true;
-    btnChoPhepThongBao.textContent = "Đang thiết lập...";
-
-    await OneSignal.Notifications.requestPermission(true);
-
-    if(typeof Notification !== "undefined" && Notification.permission !== "granted"){
-      alert("Trình duyệt chưa cho phép nhận thông báo.");
-      btnChoPhepThongBao.disabled = false;
-      btnChoPhepThongBao.textContent = "Cho phép";
-      return;
-    }
-
-    await OneSignal.User.PushSubscription.optIn();
-
-    const sub = await choDenKhiSubscriptionSanSang(OneSignal);
-    const externalId = taoExternalId();
-    await OneSignal.login(externalId);
-
-    console.log("External ID:", externalId);
-    console.log("Subscription ID:", sub.id);
-
-    capNhatNutThongBao(true);
-    alert("✅ Đã bật thông báo thành công.");
-
-  }catch(error){
-    console.error(error);
-    alert("Chưa bật được thông báo. Hãy kiểm tra quyền thông báo của thiết bị.");
-  }finally{
-    btnChoPhepThongBao.disabled = false;
-    btnChoPhepThongBao.textContent = "Cho phép";
-  }
-}
-
-btnChoPhepThongBao.addEventListener("click",batThongBaoOneSignal);
-btnBoQuaThongBao.addEventListener("click",function(){
-  localStorage.setItem(NOTIFICATION_DISMISSED_KEY,"1");
-  anThietLapThongBao();
-});
-
-async function taiDuLieu(tuDong){
-  if(dangTaiDuLieu) return;
-  dangTaiDuLieu = true;
-
-  try{
-    if(!tuDong) capNhatTrangThaiDongBo("Đang đồng bộ dữ liệu...",false);
-
-    const response = await fetch(API_URL + "?t=" + Date.now(),{cache:"no-store"});
-    const data = await response.json();
-
-    duLieuTheoDoi = data.dangTheoDoi || [];
-    duLieuLuuTru = data.luuTru || [];
-
-    hienThiDuLieu();
-    moVanBanTuThongBaoNeuCo();
-    capNhatTrangThaiDongBo(null,false);
-
-  }catch(error){
-    capNhatTrangThaiDongBo("Không đồng bộ được dữ liệu. Kiểm tra kết nối hoặc API.",true);
-    document.getElementById("bangDuLieu").innerHTML = '<tr><td colspan="8" class="loading red">Không tải được dữ liệu.</td></tr>';
-    document.getElementById("mobileList").innerHTML = '<div class="loading red">Không tải được dữ liệu.</div>';
-    console.error(error);
-  }finally{
-    dangTaiDuLieu = false;
-  }
-}
-
-function capNhatTrangThaiDongBo(message,isError){
-  const syncBar = document.getElementById("syncBar");
-  const syncText = document.getElementById("syncText");
-  syncBar.classList.toggle("error",!!isError);
-
-  if(message){
-    syncText.textContent = message;
-    return;
-  }
-
-  const now = new Date();
-  syncText.textContent = "✅ Đã đồng bộ dữ liệu lúc " + now.toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit",second:"2-digit"}) + " • Tự cập nhật mỗi 10 giây";
-}
-
-function doiTab(tab){
-  tabHienTai = tab;
-  trangHienTai = 1;
-  document.getElementById("btnTheoDoi").classList.toggle("active",tab==="theoDoi");
-  document.getElementById("btnLuuTru").classList.toggle("active",tab==="luuTru");
-  document.getElementById("tieuDeBang").textContent = tab==="theoDoi" ? "📌 Danh sách văn bản đang theo dõi" : "📁 Danh sách văn bản đã lưu trữ";
-  document.getElementById("locTrangThai").style.display = tab==="theoDoi" ? "block" : "none";
-  hienThiDuLieu();
-}
-
-function layDuLieuHienTai(){
-  return tabHienTai === "theoDoi" ? duLieuTheoDoi : duLieuLuuTru;
-}
-
-function hienThiDuLieu(){
-  const dataHienTai = layDuLieuHienTai();
-  const tuKhoa = document.getElementById("tuKhoa").value.toLowerCase().trim();
-  const locPhong = document.getElementById("locPhong").value;
-  const locTrangThai = document.getElementById("locTrangThai").value;
-
-  const duLieuLoc = dataHienTai.filter(function(item){
-    const trangThai = tabHienTai==="theoDoi" ? tinhTrangThai(item.hanXuLy) : tinhTrangThaiLuuTru(item.hanXuLy,item.ngayHoanThanh);
-    const textSearch = [item.soHieu,item.trichYeu,item.phongBan,item.goiYAI].join(" ").toLowerCase();
-
-    return (!tuKhoa || textSearch.includes(tuKhoa)) &&
-           (!locPhong || phongBanCoChua(item.phongBan,locPhong)) &&
-           (tabHienTai==="luuTru" || !locTrangThai || trangThai===locTrangThai);
-  });
-
-  capNhatThongKe();
-  veDuLieuTheoTrang(duLieuLoc);
-}
-
-function capNhatThongKe(){
-  const data = layDuLieuHienTai();
-
-  if(tabHienTai==="luuTru"){
-    document.getElementById("khuThongKe").innerHTML = `
-      <div class="card full">
-        <div class="number green">${data.length}</div>
-        <div class="label">Tổng văn bản lưu trữ</div>
-      </div>`;
-    return;
-  }
-
-  let tong=0,quaHan=0,denHan=0,sapHan=0,conHan=0;
-
-  data.forEach(function(item){
-    const tt = tinhTrangThai(item.hanXuLy);
-    tong++;
-    if(tt==="QUÁ HẠN") quaHan++;
-    else if(tt==="ĐẾN HẠN HÔM NAY") denHan++;
-    else if(tt==="SẮP ĐẾN HẠN") sapHan++;
-    else if(tt==="CÒN HẠN") conHan++;
-  });
-
-  document.getElementById("khuThongKe").innerHTML = `
-    <div class="card"><div class="number gray">${tong}</div><div class="label">Tổng văn bản</div></div>
-    <div class="card"><div class="number orange">${denHan}</div><div class="label">Đến hạn hôm nay</div></div>
-    <div class="card"><div class="number blue">${sapHan}</div><div class="label">Sắp đến hạn ≤ 5 ngày</div></div>
-    <div class="card"><div class="number green">${conHan}</div><div class="label">Còn hạn</div></div>
-    <div class="card full"><div class="number red">${quaHan}</div><div class="label">Quá hạn cần xử lý ngay</div></div>`;
-}
-
-function veDuLieuTheoTrang(data){
-  const tongTrang = Math.ceil(data.length / SO_DONG_MOI_TRANG);
-  if(trangHienTai > tongTrang) trangHienTai = tongTrang || 1;
-
-  const batDau = (trangHienTai - 1) * SO_DONG_MOI_TRANG;
-  const dataTrang = data.slice(batDau,batDau + SO_DONG_MOI_TRANG);
-
-  veBang(dataTrang,batDau);
-  veMobile(dataTrang);
-  vePhanTrang(data);
-}
-
-function veBang(data,batDau){
-  const thead = document.getElementById("theadBang");
-  const tbody = document.getElementById("bangDuLieu");
-
-  thead.innerHTML = tabHienTai==="theoDoi" ? `
-    <tr><th>STT</th><th>Số hiệu</th><th>Trích yếu</th><th>Phòng ban</th><th>Hạn xử lý</th><th>Trạng thái</th><th>File</th></tr>` :
-    `<tr><th>STT</th><th>Dấu thời gian</th><th>Số hiệu</th><th>Trích yếu</th><th>Phòng ban</th><th>Hạn xử lý</th><th>Ngày hoàn thành</th><th>Kết quả</th></tr>`;
-
-  if(data.length===0){
-    tbody.innerHTML = '<tr><td colspan="8" class="loading">Không có dữ liệu phù hợp.</td></tr>';
-    return;
-  }
-
-  let html = "";
-
-  data.forEach(function(item,index){
-    if(tabHienTai==="theoDoi"){
-      const trangThai = tinhTrangThai(item.hanXuLy);
-      html += `
-        <tr onclick="moChiTiet(${duLieuTheoDoi.indexOf(item)})">
-          <td>${batDau+index+1}</td>
-          <td><strong>${safe(item.soHieu)}</strong></td>
-          <td>${safe(item.trichYeu)}</td>
-          <td>${safe(item.phongBan)}</td>
-          <td>${dinhDangNgay(item.hanXuLy)}</td>
-          <td><span class="badge ${layMauTrangThai(trangThai)}">${trangThai}</span></td>
-          <td onclick="event.stopPropagation()">${taoNutFile(item.file)}</td>
-        </tr>`;
-    }else{
-      const ketQua = tinhTrangThaiLuuTru(item.hanXuLy,item.ngayHoanThanh);
-      html += `
-        <tr>
-          <td>${batDau+index+1}</td>
-          <td>${dinhDangNgayGio(item.dauThoiGian)}</td>
-          <td><strong>${safe(item.soHieu)}</strong></td>
-          <td>${safe(item.trichYeu)}</td>
-          <td>${safe(item.phongBan)}</td>
-          <td>${dinhDangNgay(item.hanXuLy)}</td>
-          <td>${dinhDangNgayGio(item.ngayHoanThanh)}</td>
-          <td><span class="badge ${layMauTrangThai(ketQua)}">${ketQua}</span></td>
-        </tr>`;
-    }
-  });
-
-  tbody.innerHTML = html;
-}
-
-function veMobile(data){
-  const box = document.getElementById("mobileList");
-
-  if(data.length===0){
-    box.innerHTML = '<div class="loading">Không có dữ liệu phù hợp.</div>';
-    return;
-  }
-
-  let html = "";
-
-  data.forEach(function(item){
-    if(tabHienTai==="theoDoi"){
-      const trangThai = tinhTrangThai(item.hanXuLy);
-      html += `
-        <div class="mobile-card" onclick="moChiTiet(${duLieuTheoDoi.indexOf(item)})">
-          <h3>${safe(item.soHieu)}</h3>
-          <p class="mobile-meta">${safe(item.phongBan)}</p>
-          <p><strong>📅 Hạn xử lý:</strong> ${dinhDangNgay(item.hanXuLy)}</p>
-          <p><span class="badge ${layMauTrangThai(trangThai)}">${trangThai}</span></p>
-          <p><strong>Trích yếu:</strong> ${safe(item.trichYeu)}</p>
-          <p onclick="event.stopPropagation()">${taoNutFile(item.file)}</p>
-        </div>`;
-    }else{
-      const ketQua = tinhTrangThaiLuuTru(item.hanXuLy,item.ngayHoanThanh);
-      html += `
-        <div class="mobile-card">
-          <h3>${safe(item.soHieu)}</h3>
-          <p class="mobile-meta">${safe(item.phongBan)}</p>
-          <p><strong>Trích yếu:</strong> ${safe(item.trichYeu)}</p>
-          <p><strong>📅 Hạn xử lý:</strong> ${dinhDangNgay(item.hanXuLy)}</p>
-          <p><strong>✅ Ngày hoàn thành:</strong> ${dinhDangNgayGio(item.ngayHoanThanh)}</p>
-          <p><span class="badge ${layMauTrangThai(ketQua)}">${ketQua}</span></p>
-        </div>`;
-    }
-  });
-
-  box.innerHTML = html;
-}
-
-function vePhanTrang(data){
-  const tongTrang = Math.ceil(data.length / SO_DONG_MOI_TRANG);
-  const box = document.getElementById("phanTrang");
-
-  if(tongTrang<=1){
-    box.innerHTML = "";
-    return;
-  }
-
-  let html = `<button onclick="doiTrang(${trangHienTai-1})" ${trangHienTai===1 ? "disabled" : ""}>‹ Trước</button>`;
-
-  for(let i=1;i<=tongTrang;i++){
-    html += `<button onclick="doiTrang(${i})" class="${i===trangHienTai ? "active" : ""}">${i}</button>`;
-  }
-
-  html += `<button onclick="doiTrang(${trangHienTai+1})" ${trangHienTai===tongTrang ? "disabled" : ""}>Sau ›</button>`;
-  box.innerHTML = html;
-}
-
-function doiTrang(trang){
-  trangHienTai = trang;
-  hienThiDuLieu();
-}
-
-function moChiTiet(index){
-  const item = duLieuTheoDoi[index];
-  if(!item) return;
-
-  const trangThai = tinhTrangThai(item.hanXuLy);
-
-  document.getElementById("noiDungChiTiet").innerHTML = `
-    <div class="detail-row"><strong>Số hiệu:</strong> ${safe(item.soHieu)}</div>
-    <div class="detail-row"><strong>Trích yếu:</strong> ${safe(item.trichYeu)}</div>
-    <div class="detail-row"><strong>Phòng ban:</strong> ${safe(item.phongBan)}</div>
-    <div class="detail-row"><strong>Hạn xử lý:</strong> ${dinhDangNgay(item.hanXuLy)}</div>
-    <div class="detail-row"><strong>Trạng thái:</strong> <span class="badge ${layMauTrangThai(trangThai)}">${trangThai}</span></div>
-    <div class="detail-row"><strong>File đính kèm:</strong> ${taoNutFile(item.file)}</div>
-    <div class="detail-row"><strong>Tóm tắt và gợi ý xử lý:</strong></div>
-    <div class="ai-detail">${safe(item.goiYAI || "Chưa có nội dung tổng hợp.")}</div>`;
-
-  document.getElementById("modalChiTiet").style.display = "block";
-}
-
-function dongChiTiet(){
-  document.getElementById("modalChiTiet").style.display = "none";
-}
-
-window.onclick = function(event){
-  const modal = document.getElementById("modalChiTiet");
-  if(event.target === modal) dongChiTiet();
-};
-
-function moVanBanTuThongBaoNeuCo(){
-  if(daMoTuThongBao) return;
-
-  const params = new URLSearchParams(window.location.search);
-  const soHieuCanMo = params.get("soHieu");
-  if(!soHieuCanMo) return;
-
-  const index = duLieuTheoDoi.findIndex(function(item){
-    return chuanHoaSoHieuClient_(item.soHieu) === chuanHoaSoHieuClient_(soHieuCanMo);
-  });
-
-  if(index>=0){
-    daMoTuThongBao = true;
-    doiTab("theoDoi");
-    moChiTiet(index);
-  }
-}
-
-function chuanHoaSoHieuClient_(text){
-  return String(text || "").toUpperCase().replace(/\s+/g,"").trim();
-}
-
-function phongBanCoChua(giaTri,phongCanTim){
-  if(!giaTri || !phongCanTim) return false;
-  return chuanHoa(giaTri).includes(chuanHoa(phongCanTim));
-}
-
-function chuanHoa(text){
-  return String(text || "").toUpperCase().replace(/\s+/g," ").trim();
-}
-
-function tinhTrangThai(hanXuLy){
-  if(!hanXuLy) return "CHƯA CÓ HẠN";
-
-  const today = new Date();
-  today.setHours(0,0,0,0);
-
-  const han = new Date(hanXuLy);
-  if(isNaN(han)) return "CHƯA CÓ HẠN";
-  han.setHours(0,0,0,0);
-
-  const diff = Math.round((han - today) / (1000*60*60*24));
-
-  if(diff < 0) return "QUÁ HẠN";
-  if(diff === 0) return "ĐẾN HẠN HÔM NAY";
-  if(diff > 0 && diff <= 5) return "SẮP ĐẾN HẠN";
-  return "CÒN HẠN";
-}
-
-function tinhTrangThaiLuuTru(hanXuLy,ngayHoanThanh){
-  const han = new Date(hanXuLy);
-  const ht = new Date(ngayHoanThanh);
-
-  if(isNaN(han) || isNaN(ht)) return "ĐÃ LƯU TRỮ";
-
-  han.setHours(0,0,0,0);
-  ht.setHours(0,0,0,0);
-
-  return ht.getTime() <= han.getTime() ? "HOÀN THÀNH ĐÚNG HẠN" : "HOÀN THÀNH TRỄ HẠN";
-}
-
-function layMauTrangThai(trangThai){
-  if(trangThai==="QUÁ HẠN" || trangThai==="HOÀN THÀNH TRỄ HẠN") return "badge-red";
-  if(trangThai==="ĐẾN HẠN HÔM NAY") return "badge-orange";
-  if(trangThai==="SẮP ĐẾN HẠN") return "badge-blue";
-  if(trangThai==="CÒN HẠN" || trangThai==="HOÀN THÀNH ĐÚNG HẠN") return "badge-green";
-  return "badge-gray";
-}
-
-function dinhDangNgay(value){
-  if(!value) return "";
-  const d = new Date(value);
-  if(isNaN(d)) return value;
-  return d.toLocaleDateString("vi-VN");
-}
-
-function dinhDangNgayGio(value){
-  if(!value) return "";
-  const d = new Date(value);
-  if(isNaN(d)) return value;
-  return d.toLocaleString("vi-VN");
-}
-
-function taoNutFile(link){
-  if(!link) return "";
-  const url = String(link).replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-  return `<a class="btn" href="${url}" target="_blank" rel="noopener noreferrer">📎 Mở file</a>`;
-}
-
-function safe(value){
-  if(!value) return "";
-  return String(value)
-    .replace(/&/g,"&amp;")
-    .replace(/</g,"&lt;")
-    .replace(/>/g,"&gt;")
-    .replace(/"/g,"&quot;")
-    .replace(/'/g,"&#039;");
-}
-
-napOneSignal();
-khoiTaoOneSignal();
-taiDuLieu();
-
-setInterval(function(){
-  taiDuLieu(true);
-},TU_DONG_DONG_BO_MS);
-</script>
-
+    window.setTimeout(showRecovery, 15000);
+  })();
+  </script>
+  <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+  <script src="./onesignal.js?v=20260824.V1_15_0" defer></script>
+  <script type="module" src="./pwa.js?v=20260824.V1_15_0" defer></script>
+  <script type="module" src="./app-v3.js?v=20260824.V1_15_0"></script>
+  <script type="module" src="./release-v1.15.0.js?v=20260824.V1_15_0"></script>
 </body>
 </html>
