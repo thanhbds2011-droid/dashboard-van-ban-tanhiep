@@ -1,12 +1,12 @@
 /** Tải minh chứng lên Google Drive qua Google Apps Script Web App. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_13_0";
-import { NOTIFICATION_WEB_APP_URL } from "../notification-config.js?v=20260824.V1_13_0";
+import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_14_0";
+import { NOTIFICATION_WEB_APP_URL } from "../notification-config.js?v=20260824.V1_14_0";
 
 const MAX_BYTES = 8 * 1024 * 1024;
 const TIMEOUT_MS = 180000;
-const IMAGE_OPTIMIZE_THRESHOLD = 900 * 1024;
-const IMAGE_MAX_EDGE = 2200;
-const IMAGE_QUALITY = 0.84;
+const IMAGE_OPTIMIZE_THRESHOLD = 700 * 1024;
+const IMAGE_MAX_EDGE = 1800;
+const IMAGE_QUALITY = 0.80;
 const ALLOWED = [".pdf", ".jpg", ".jpeg", ".png", ".webp", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt"];
 const preparedFiles = new WeakMap();
 const activeUploads = new Map();
@@ -198,7 +198,7 @@ async function performUpload(originalFile, task, options = {}) {
     const pendingCallbacks = new Set();
     let settled = false;
     let pollTimer = null;
-    let pollDelay = 650;
+    let pollDelay = 1500;
     const startedAt = Date.now();
 
     iframe.name = frameName;
@@ -288,7 +288,7 @@ async function performUpload(originalFile, task, options = {}) {
           return;
         }
         if (!settled) {
-          pollDelay = Math.min(1800, Math.round(pollDelay * 1.2));
+          pollDelay = Math.min(5000, Math.round(pollDelay * 1.45));
           pollTimer = window.setTimeout(poll, pollDelay);
         }
       };
@@ -296,7 +296,7 @@ async function performUpload(originalFile, task, options = {}) {
       script.onerror = () => {
         release();
         if (!settled) {
-          pollDelay = Math.min(2200, Math.round(pollDelay * 1.35));
+          pollDelay = Math.min(5000, Math.round(pollDelay * 1.6));
           pollTimer = window.setTimeout(poll, pollDelay);
         }
       };
@@ -311,7 +311,7 @@ async function performUpload(originalFile, task, options = {}) {
     );
     document.body.append(iframe, form);
     form.submit();
-    pollTimer = window.setTimeout(poll, 450);
+    pollTimer = window.setTimeout(poll, 1500);
   });
 }
 

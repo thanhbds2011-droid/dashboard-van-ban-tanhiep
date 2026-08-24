@@ -1,5 +1,5 @@
 /**
- * Phân hệ Chỉ đạo điều hành V1.11.1 - Authentication & Oral Directive Capture Hardening.
+ * Phân hệ Chỉ đạo điều hành V1.14.0 - Free-tier scale & realtime lifecycle hardening.
  * Độc lập hoàn toàn với Nhiệm vụ/KPI.
  *
  * Collections:
@@ -8,10 +8,10 @@
  * - executiveDirectiveStates (trạng thái hiện hành theo Phòng/Khu)
  * - executiveWeeklyReports
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_13_0";
-import { UserContext } from "../core/user-context.js?v=20260824.V1_13_0";
-import { Permissions } from "../core/permissions.js?v=20260824.V1_13_0";
-import { ExecutiveNotificationService } from "./executive-notification-service.js?v=20260824.V1_13_0";
+import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_14_0";
+import { UserContext } from "../core/user-context.js?v=20260824.V1_14_0";
+import { Permissions } from "../core/permissions.js?v=20260824.V1_14_0";
+import { ExecutiveNotificationService } from "./executive-notification-service.js?v=20260824.V1_14_0";
 
 const DIRECTIVES = "executiveDirectives";
 const UPDATES = "executiveDirectiveUpdates";
@@ -83,6 +83,30 @@ function sortUpdates(items = []) {
     const bt = b.createdAt?.toMillis?.() || 0;
     return bt - at;
   });
+}
+
+function subscribeSnapshotDeferred(reference, onSnapshotData, onError, options = {}) {
+  let cancelled = false;
+  let timer = null;
+  let unsubscribe = null;
+  const startDelayMs = Math.max(0, Number(options.startDelayMs || 0));
+  const jitterMs = Math.max(0, Number(options.jitterMs || 0));
+
+  const begin = () => {
+    if (cancelled) return;
+    unsubscribe = FirebaseService.onSnapshot(reference, onSnapshotData, onError);
+  };
+  const delay = startDelayMs + (jitterMs ? Math.floor(Math.random() * jitterMs) : 0);
+  if (delay > 0) timer = window.setTimeout(begin, delay);
+  else begin();
+
+  return () => {
+    cancelled = true;
+    if (timer) window.clearTimeout(timer);
+    timer = null;
+    try { unsubscribe?.(); } catch (_) { /* Đóng listener an toàn. */ }
+    unsubscribe = null;
+  };
 }
 function managerAuditPayload(type, directiveId, message, extras = {}) {
   const user = assertActiveUser();
@@ -221,7 +245,7 @@ export const ExecutiveDirectiveService = Object.freeze({
     return sortDirectives(items.filter(item => includeDeleted || item.isDeleted !== true));
   },
 
-  subscribeDirectives(onNext, onError = console.warn) {
+  subscribeDirectives(onNext, onError = console.warn, options = {}) {
     const user = assertActiveUser();
     const collectionRef = FirebaseService.collection(FirebaseService.db, DIRECTIVES);
     const q = Permissions.canViewAllExecutiveDirectives()
@@ -237,10 +261,10 @@ export const ExecutiveDirectiveService = Object.freeze({
             FirebaseService.where("assignedUserId", "==", user.uid),
             FirebaseService.limit(MAX_LIST)
           );
-    return FirebaseService.onSnapshot(q, snapshot => {
+    return subscribeSnapshotDeferred(q, snapshot => {
       const items = sortDirectives(mapSnapshot(snapshot).filter(item => item.isDeleted !== true));
       onNext(items);
-    }, onError);
+    }, onError, options);
   },
 
   async listUpdates() {
@@ -265,7 +289,7 @@ export const ExecutiveDirectiveService = Object.freeze({
     return sortUpdates(mapSnapshot(await FirebaseService.getDocs(q)));
   },
 
-  subscribeUpdates(onNext, onError = console.warn) {
+  subscribeUpdates(onNext, onError = console.warn, options = {}) {
     const user = assertActiveUser();
     const collectionRef = FirebaseService.collection(FirebaseService.db, UPDATES);
     const q = Permissions.canViewAllExecutiveDirectives()
@@ -281,7 +305,12 @@ export const ExecutiveDirectiveService = Object.freeze({
             FirebaseService.where("assignedUserId", "==", user.uid),
             FirebaseService.limit(MAX_LIST)
           );
-    return FirebaseService.onSnapshot(q, snapshot => onNext(sortUpdates(mapSnapshot(snapshot))), onError);
+    return subscribeSnapshotDeferred(
+      q,
+      snapshot => onNext(sortUpdates(mapSnapshot(snapshot))),
+      onError,
+      options
+    );
   },
 
   canAcceptDepartment(directive, departmentId = "") {

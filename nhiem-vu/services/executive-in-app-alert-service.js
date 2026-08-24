@@ -2,12 +2,13 @@
  * Toast realtime riêng cho Chỉ đạo điều hành V1.10.6.
  * Không phụ thuộc Nhiệm vụ/KPI và không thay thế OneSignal Push.
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_13_0";
-import { UserContext } from "../core/user-context.js?v=20260824.V1_13_0";
-import { Permissions } from "../core/permissions.js?v=20260824.V1_13_0";
-import { ToastService } from "../core/toast-service.js?v=20260824.V1_13_0";
+import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_14_0";
+import { UserContext } from "../core/user-context.js?v=20260824.V1_14_0";
+import { Permissions } from "../core/permissions.js?v=20260824.V1_14_0";
+import { ToastService } from "../core/toast-service.js?v=20260824.V1_14_0";
 
-const MAX_LIST = 2000;
+const MAX_LIST = 200;
+const ALERT_LOOKBACK_MS = 48 * 60 * 60 * 1000;
 let stopFns = [];
 let startedUid = "";
 function clean(v) { return String(v ?? "").trim(); }
@@ -53,12 +54,20 @@ export const ExecutiveInAppAlertService = Object.freeze({
     stop();
     startedUid = user.uid;
 
+    const since = FirebaseService.Timestamp.fromDate(new Date(Date.now() - ALERT_LOOKBACK_MS));
     const directives = FirebaseService.collection(FirebaseService.db, "executiveDirectives");
     const directiveQuery = Permissions.canViewAllExecutiveDirectives(user)
-      ? FirebaseService.query(directives, FirebaseService.limit(MAX_LIST))
+      ? FirebaseService.query(
+          directives,
+          FirebaseService.where("updatedAt", ">=", since),
+          FirebaseService.orderBy("updatedAt", "desc"),
+          FirebaseService.limit(MAX_LIST)
+        )
       : FirebaseService.query(
           directives,
           FirebaseService.where("visibleDepartmentIds", "array-contains", user.departmentId),
+          FirebaseService.where("updatedAt", ">=", since),
+          FirebaseService.orderBy("updatedAt", "desc"),
           FirebaseService.limit(MAX_LIST)
         );
     let directivesReady = false;
@@ -81,6 +90,8 @@ export const ExecutiveInAppAlertService = Object.freeze({
     if (Permissions.canManageExecutiveDirectives(user)) {
       const updates = FirebaseService.query(
         FirebaseService.collection(FirebaseService.db, "executiveDirectiveUpdates"),
+        FirebaseService.where("createdAt", ">=", since),
+        FirebaseService.orderBy("createdAt", "desc"),
         FirebaseService.limit(MAX_LIST)
       );
       let updatesReady = false;

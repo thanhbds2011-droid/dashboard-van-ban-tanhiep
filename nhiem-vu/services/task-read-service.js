@@ -1,10 +1,10 @@
 /** Đọc nhiệm vụ theo kỳ hiện hành, phạm vi tài khoản và bộ nhớ đệm ngắn. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_13_0";
-import { UserContext } from "../core/user-context.js?v=20260824.V1_13_0";
-import { Permissions } from "../core/permissions.js?v=20260824.V1_13_0";
-import { PeriodReadService } from "./period-read-service.js?v=20260824.V1_13_0";
+import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_14_0";
+import { UserContext } from "../core/user-context.js?v=20260824.V1_14_0";
+import { Permissions } from "../core/permissions.js?v=20260824.V1_14_0";
+import { PeriodReadService } from "./period-read-service.js?v=20260824.V1_14_0";
 
-const TASK_CACHE_MS = 45 * 1000;
+const TASK_CACHE_MS = 2 * 60 * 1000;
 const PROFESSIONAL_DEPARTMENT_IDS = Object.freeze(["BGD", "TCHC", "CTXH", "KHTC", "YT", "KI", "KII", "KIII"]);
 let taskCache = { key: "", items: [], loadedAt: 0, period: null };
 let taskRequest = null;
@@ -191,10 +191,13 @@ async function loadScopedTasks(options = {}) {
   }
 }
 
-function subscribeScopedTasks(onData, onError) {
+function subscribeScopedTasks(onData, onError, options = {}) {
   if (typeof onData !== "function") throw new Error("Thiếu hàm nhận dữ liệu nhiệm vụ.");
   let cancelled = false;
   let unsubscribeAll = () => {};
+  let startTimer = null;
+  const startDelayMs = Math.max(0, Number(options.startDelayMs || 0));
+  const jitterMs = Math.max(0, Number(options.jitterMs || 0));
 
   PeriodReadService.getActive().then(period => {
     if (cancelled) return;
@@ -202,7 +205,10 @@ function subscribeScopedTasks(onData, onError) {
       onData([]);
       return;
     }
-    const references = scopedReferences(period.id);
+
+    const begin = () => {
+      if (cancelled) return;
+      const references = scopedReferences(period.id);
     const stores = references.map(() => new Map());
     const initialized = references.map(() => false);
     const failed = references.map(() => false);
@@ -232,13 +238,20 @@ function subscribeScopedTasks(onData, onError) {
         emit();
       }
     ));
-    unsubscribeAll = () => unsubscribers.forEach(unsubscribe => {
-      try { unsubscribe?.(); } catch (_) { /* Đóng listener an toàn. */ }
-    });
+      unsubscribeAll = () => unsubscribers.forEach(unsubscribe => {
+        try { unsubscribe?.(); } catch (_) { /* Đóng listener an toàn. */ }
+      });
+    };
+
+    const delay = startDelayMs + (jitterMs ? Math.floor(Math.random() * jitterMs) : 0);
+    if (delay > 0) startTimer = window.setTimeout(begin, delay);
+    else begin();
   }).catch(error => onError?.(error));
 
   return () => {
     cancelled = true;
+    if (startTimer) window.clearTimeout(startTimer);
+    startTimer = null;
     unsubscribeAll();
   };
 }
@@ -257,8 +270,8 @@ export const TaskReadService = Object.freeze({
     taskRequest = null;
   },
 
-  subscribe(onData, onError) {
-    return subscribeScopedTasks(onData, onError);
+  subscribe(onData, onError, options = {}) {
+    return subscribeScopedTasks(onData, onError, options);
   },
 
   summarize(tasks = []) {

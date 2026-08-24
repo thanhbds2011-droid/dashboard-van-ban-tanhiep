@@ -5,7 +5,7 @@
  *
  * Không đọc/ghi taskPushSubscriptions và không gọi TaskNotificationService.
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_13_0";
+import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_14_0";
 
 let currentUser = null;
 let oneSignalInstance = null;
@@ -31,10 +31,22 @@ function subscriptionRef(user, subscriptionId) {
     `${user.uid}_${subscriptionId}`
   );
 }
-async function saveSnapshot(snapshot) {
+async function saveSnapshot(snapshot, options = {}) {
   if (!currentUser?.uid) return false;
   const subscriptionId = clean(snapshot?.subscriptionId);
   if (!subscriptionId) return false;
+  const active = snapshot.optedIn === true && snapshot.permission === "granted";
+  const fingerprint = [
+    currentUser.uid, subscriptionId, clean(currentUser.departmentId).toUpperCase(),
+    clean(currentUser.role).toUpperCase(), active ? "1" : "0", snapshot.permission || "default", snapshot.oneSignalId || ""
+  ].join("|");
+  const storageKey = `executivePushSync:${currentUser.uid}:${subscriptionId}`;
+  if (options.force !== true) {
+    try {
+      const cached = JSON.parse(localStorage.getItem(storageKey) || "null");
+      if (cached?.fingerprint === fingerprint && Date.now() - Number(cached.at || 0) < 12 * 60 * 60 * 1000) return true;
+    } catch (_) { /* no-op */ }
+  }
   await FirebaseService.setDoc(subscriptionRef(currentUser, subscriptionId), {
     subscriptionId,
     userId: currentUser.uid,
@@ -42,19 +54,20 @@ async function saveSnapshot(snapshot) {
     departmentId: clean(currentUser.departmentId).toUpperCase(),
     role: clean(currentUser.role).toUpperCase(),
     module: "EXECUTIVE_DIRECTIVES",
-    active: snapshot.optedIn === true && snapshot.permission === "granted",
+    active,
     notificationPermission: snapshot.permission || "default",
     oneSignalId: snapshot.oneSignalId || "",
     platform: "WEB_PUSH",
     updatedAt: FirebaseService.serverTimestamp()
   }, { merge: true });
+  try { localStorage.setItem(storageKey, JSON.stringify({ fingerprint, at: Date.now() })); } catch (_) { /* no-op */ }
   return true;
 }
 function bindOneSignalChange(OneSignal) {
   const subscription = OneSignal?.User?.PushSubscription;
   if (!subscription?.addEventListener || changeHandler) return;
   changeHandler = () => {
-    saveSnapshot(subscriptionSnapshot(OneSignal))
+    saveSnapshot(subscriptionSnapshot(OneSignal), { force: true })
       .catch(error => console.warn("Không đồng bộ được thiết bị Chỉ đạo điều hành:", error));
   };
   subscription.addEventListener("change", changeHandler);
@@ -97,7 +110,7 @@ export const ExecutivePushSubscriptionService = Object.freeze({
 
   async syncNow() {
     if (!currentUser?.uid || !oneSignalInstance) return false;
-    return saveSnapshot(subscriptionSnapshot(oneSignalInstance));
+    return saveSnapshot(subscriptionSnapshot(oneSignalInstance), { force: true });
   },
 
 
@@ -113,7 +126,7 @@ export const ExecutivePushSubscriptionService = Object.freeze({
       if (browserPermission() === "granted" && OneSignal.User?.PushSubscription?.optedIn !== true) {
         await OneSignal.User?.PushSubscription?.optIn?.();
       }
-      return saveSnapshot(subscriptionSnapshot(OneSignal));
+      return saveSnapshot(subscriptionSnapshot(OneSignal), { force: true });
     } catch (error) {
       console.warn("Không bật được Push Chỉ đạo điều hành:", error);
       return false;
