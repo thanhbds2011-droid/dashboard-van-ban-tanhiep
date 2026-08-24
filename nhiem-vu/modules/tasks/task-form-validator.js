@@ -1,5 +1,5 @@
 /** Chuẩn hóa và kiểm tra dữ liệu form nhiệm vụ. */
-import { normalizeSentenceText } from "../../core/text-normalizer.js?v=20260810.V1_10_6";
+import { normalizeSentenceText } from "../../core/text-normalizer.js?v=20260824.V1_13_0";
 
 export function cleanText(value, maxLength = 5000) {
   return String(value || "").replace(/\s+/g, " ").trim().slice(0, maxLength);
@@ -45,17 +45,19 @@ export function validateTaskCreateInput(data) {
 }
 
 export function validateProgressInput(data, task) {
-  const progress = Number(data.progress);
-  if (!Number.isFinite(progress) || progress < 0 || progress > 100) {
-    throw new Error("Tiến độ phải từ 0 đến 100%.");
+  const status = cleanText(data?.status, 40).toUpperCase();
+  if (!["DANG_XU_LY", "TAM_DUNG", "HOAN_THANH", "MILESTONE_COMPLETED"].includes(status)) {
+    throw new Error("Trạng thái cập nhật chưa hợp lệ.");
   }
-  if (data.status === "HOAN_THANH") {
-    if (progress !== 100) throw new Error("Nhiệm vụ hoàn thành phải có tiến độ 100%.");
-    if (!cleanText(data.resultSummary, 5000)) throw new Error("Vui lòng nhập kết quả thực hiện.");
-    const evidenceRequired = Boolean(task?.mandatoryEvidence) || task?.evidenceRequired === true;
-    const hasEvidence = Boolean(data.evidenceUrl || data.evidenceText || task?.evidenceUrl || task?.evidenceText);
+
+  const monthlyMilestones = String(task?.milestoneMode || "").toUpperCase() === "MONTHLY";
+  if (monthlyMilestones && status === "HOAN_THANH") {
+    throw new Error("Nhiệm vụ Theo tháng chỉ được hoàn thành qua mốc cuối cùng; không được kết thúc trực tiếp cả kỳ.");
+  }
+
+  if (["HOAN_THANH", "MILESTONE_COMPLETED"].includes(status)) {
+    const evidenceRequired = Boolean(task?.mandatoryEvidence || task?.standardTaskMandatoryEvidence || task?.evidenceRequired === true);
+    const hasEvidence = Boolean(data?.evidenceUrl || data?.evidenceText || task?.evidenceUrl || task?.evidenceText);
     if (evidenceRequired && !hasEvidence) throw new Error("Đầu việc này bắt buộc phải có minh chứng.");
-  } else if (progress === 100) {
-    throw new Error("Mốc 100% chỉ áp dụng khi chọn trạng thái Hoàn thành.");
   }
 }

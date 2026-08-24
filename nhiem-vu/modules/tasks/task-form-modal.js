@@ -6,15 +6,15 @@
  * - Có chọn Tổ/Nhóm: bắt buộc chọn đúng một cá nhân thuộc Tổ/Nhóm đó.
  * - Phòng/Khu phối hợp chỉ theo dõi, không phải tiếp nhận/phân công.
  */
-import { UserContext } from "../../core/user-context.js?v=20260810.V1_10_6";
-import { Permissions } from "../../core/permissions.js?v=20260810.V1_10_6";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260810.V1_10_6";
-import { DirectorTaskService } from "../../services/director-task-service.js?v=20260810.V1_10_6";
-import { UserReadService } from "../../services/user-read-service.js?v=20260810.V1_10_6";
-import { DepartmentReadService } from "../../services/department-read-service.js?v=20260810.V1_10_6";
-import { validateTaskCreateInput, cleanTaskSentence } from "./task-form-validator.js?v=20260810.V1_10_6";
-import { mountTaskAiAssistant } from "../../ai-assistant.js?v=20260810.V1_10_6";
-import { ToastService } from "../../core/toast-service.js?v=20260810.V1_10_6";
+import { UserContext } from "../../core/user-context.js?v=20260824.V1_13_0";
+import { Permissions } from "../../core/permissions.js?v=20260824.V1_13_0";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260824.V1_13_0";
+import { DirectorTaskService } from "../../services/director-task-service.js?v=20260824.V1_13_0";
+import { UserReadService } from "../../services/user-read-service.js?v=20260824.V1_13_0";
+import { DepartmentReadService } from "../../services/department-read-service.js?v=20260824.V1_13_0";
+import { validateTaskCreateInput, cleanTaskSentence } from "./task-form-validator.js?v=20260824.V1_13_0";
+import { mountTaskAiAssistant } from "../../ai-assistant.js?v=20260824.V1_13_0";
+import { ToastService } from "../../core/toast-service.js?v=20260824.V1_13_0";
 
 const DIRECT_TASK_BASE_SCORE = 12;
 const DIFFICULTY_OPTIONS = Object.freeze([
@@ -105,8 +105,7 @@ export async function openTaskCreateModal({ onSaved }) {
   const defaultDepartment = canChooseDepartment
     ? (current.departmentId || departments[0]?.id || departments[0]?.code || "TCHC")
     : current.departmentId;
-  const deadline = new Date();
-  deadline.setDate(deadline.getDate() + 7);
+  // V1.13.0: không tự đặt +7 ngày. Nhiệm vụ phát sinh bắt buộc người giao chọn hạn cụ thể.
 
   const overlay = document.createElement("div");
   overlay.className = "modal-backdrop";
@@ -133,7 +132,7 @@ export async function openTaskCreateModal({ onSaved }) {
           <div class="six-clear-grid">
             <div><b>Rõ người</b><span id="sixClearPerson">Giao cấp Phòng/Khu</span></div>
             <div><b>Rõ việc</b><span id="sixClearWork">Chưa nhập tên nhiệm vụ</span></div>
-            <div><b>Rõ thời gian</b><span id="sixClearTime">${dateInputValue(deadline)}</span></div>
+            <div><b>Rõ thời gian</b><span id="sixClearTime">Chưa chọn hạn</span></div>
             <div><b>Rõ trách nhiệm</b><span id="sixClearResponsibility">Phòng/Khu chính chịu trách nhiệm tổ chức thực hiện</span></div>
             <div><b>Rõ sản phẩm</b><span id="sixClearProduct">Chưa nhập sản phẩm đầu ra</span></div>
             <div><b>Rõ kết quả</b><span id="sixClearResult">Chưa nhập tiêu chí nghiệm thu</span></div>
@@ -149,7 +148,7 @@ export async function openTaskCreateModal({ onSaved }) {
           <span>Không chọn Tổ/Nhóm: Phòng/Khu tiếp nhận rồi phân công nội bộ. Nếu chọn Tổ/Nhóm: phải chọn đúng một cá nhân thuộc Tổ/Nhóm đó; cá nhân tự xác nhận tiếp nhận. Phòng/Khu phối hợp chỉ theo dõi.</span>
         </div>` : ""}
 
-        <label><span>Hạn xử lý *</span><input id="deadline" type="date" value="${dateInputValue(deadline)}" required></label>
+        <label><span>Hạn hoàn thành *</span><input id="deadline" type="date" value="" required><small>Không có hạn mặc định; phải chọn ngày cụ thể trước khi giao nhiệm vụ.</small></label>
         <label><span>Hệ số độ khó *</span><select id="difficultyCoefficient">${DIFFICULTY_OPTIONS.map(item => option(item.value, item.label, item.value === 1)).join("")}</select></label>
         <label class="field-full"><span>Cách theo dõi trong kỳ</span><select id="trackingMode"><option value="FINAL_OUTPUT">Theo sản phẩm/kết quả cuối cùng</option><option value="ITEMIZED">Theo từng lượt công việc phát sinh</option></select></label>
         <label id="workItemTypeField" class="field-full" hidden><span>Nội dung chi tiết cần theo dõi</span><select id="workItemType"><option value="GENERIC">Công việc phát sinh thông thường</option><option value="DOCUMENT">Văn bản/hồ sơ được giao</option><option value="QUANTITY">Sản lượng theo tháng và kết quả quý</option><option value="ATTENDANCE">Buổi hoạt động và tình trạng tham dự</option></select></label>
@@ -386,7 +385,7 @@ export async function openTaskCreateModal({ onSaved }) {
 
       const supportDepartmentIds = [...overlay.querySelectorAll("#supportDepartments input:checked")]
         .map(input => input.value);
-      const dueDate = new Date(`${$("deadline").value}T23:59:59`);
+      const dueDate = new Date(`${$("deadline").value}T23:59:59+07:00`);
       const coefficient = Number(coefficientSelect.value || 1);
 
       const data = {
@@ -401,6 +400,7 @@ export async function openTaskCreateModal({ onSaved }) {
         ownerPosition: assignmentMode === "DEPARTMENT" ? "" : (selectedOwner?.position || ""),
         teamId: assignmentMode === "DEPARTMENT" ? "" : normalizeTeamId(selectedTeamId || selectedOwner?.teamId),
         deadline: dueDate,
+        deadlineDateKey: String($("deadline").value || "").trim(),
         priority: "DOT_XUAT",
         workType: "DOT_XUAT",
         supportDepartmentIds,
