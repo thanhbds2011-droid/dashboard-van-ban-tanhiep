@@ -1,9 +1,9 @@
-import { UserContext } from "../../core/user-context.js?v=20260824.V1_13_0";
-import { Permissions } from "../../core/permissions.js?v=20260824.V1_13_0";
-import { ToastService } from "../../core/toast-service.js?v=20260824.V1_13_0";
-import { DepartmentReadService } from "../../services/department-read-service.js?v=20260824.V1_13_0";
-import { UserReadService } from "../../services/user-read-service.js?v=20260824.V1_13_0";
-import { ExecutiveDirectiveService } from "../../services/executive-directive-service.js?v=20260824.V1_13_0";
+import { UserContext } from "../../core/user-context.js?v=20260824.V1_14_0";
+import { Permissions } from "../../core/permissions.js?v=20260824.V1_14_0";
+import { ToastService } from "../../core/toast-service.js?v=20260824.V1_14_0";
+import { DepartmentReadService } from "../../services/department-read-service.js?v=20260824.V1_14_0";
+import { UserReadService } from "../../services/user-read-service.js?v=20260824.V1_14_0";
+import { ExecutiveDirectiveService } from "../../services/executive-directive-service.js?v=20260824.V1_14_0";
 
 let state = {
   directives: [],
@@ -19,6 +19,9 @@ let state = {
 };
 let renderSequence = 0;
 let cleanupBound = false;
+let directiveRefreshPromise = null;
+let lastDirectiveRefreshAt = 0;
+const DIRECTIVE_REFRESH_COOLDOWN_MS = 8000;
 
 const SOURCE_LABELS = Object.freeze({
   MEETING_WEEKLY: "Họp giao ban",
@@ -261,12 +264,12 @@ function startRealtime(outlet, sequence) {
       if (sequence !== renderSequence || window.location.hash !== "#/directives" || !outlet.isConnected) return;
       state.directives = items;
       rerender();
-    }, error => console.warn("Không thể đồng bộ nội dung chỉ đạo:", error)),
+    }, error => console.warn("Không thể đồng bộ nội dung chỉ đạo:", error), { startDelayMs: 60 * 1000, jitterMs: 30 * 1000 }),
     ExecutiveDirectiveService.subscribeUpdates(items => {
       if (sequence !== renderSequence || window.location.hash !== "#/directives" || !outlet.isConnected) return;
       state.updates = items;
       rerender();
-    }, error => console.warn("Không thể đồng bộ tiến độ Chỉ đạo điều hành:", error))
+    }, error => console.warn("Không thể đồng bộ tiến độ Chỉ đạo điều hành:", error), { startDelayMs: 60 * 1000, jitterMs: 30 * 1000 })
   ];
   state.stopRealtime = () => stops.forEach(stop => {
     try { stop?.(); } catch (_) { /* no-op */ }
@@ -279,7 +282,7 @@ function mountShell(outlet) {
   outlet.innerHTML = `
     <section class="directive-shell page-card">
       <header class="directive-page-header">
-        <div class="directive-header-copy"><h2>Chỉ đạo của Ban Giám đốc</h2><p>Giao việc, tiếp nhận, theo dõi và đôn đốc thực hiện.</p><small id="directiveRealtimeState">Đang kết nối đồng bộ trực tiếp…</small></div>
+        <div class="directive-header-copy"><h2>Chỉ đạo của Ban Giám đốc</h2><p>Giao việc, tiếp nhận, theo dõi và đôn đốc thực hiện.</p><small id="directiveRealtimeState">Đã tải dữ liệu · đồng bộ nền sau ít phút</small></div>
         <div class="directive-header-actions">${manager ? '<button id="btnCreateDirective" class="primary-button directive-main-action" type="button">＋ Thêm chỉ đạo</button>' : ""}${oralRecorder ? '<button id="btnRecordOralDirective" class="primary-button directive-main-action" type="button">🗣 Ghi nhận BGĐ</button>' : ""}<button id="btnDirectiveRefresh" class="secondary-button directive-sync-button" type="button" aria-label="Cập nhật dữ liệu" title="Cập nhật dữ liệu">↻</button></div>
       </header>
       <nav class="directive-tabs" aria-label="Chỉ đạo điều hành">
@@ -301,17 +304,28 @@ function mountShell(outlet) {
 }
 
 async function refreshAll() {
+  if (directiveRefreshPromise) return directiveRefreshPromise;
+  const now = Date.now();
+  if (now - lastDirectiveRefreshAt < DIRECTIVE_REFRESH_COOLDOWN_MS) return null;
+  lastDirectiveRefreshAt = now;
+
   const button = document.getElementById("btnDirectiveRefresh");
   if (button) button.disabled = true;
-  try {
-    const [directives, updates] = await Promise.all([ExecutiveDirectiveService.listDirectives(), ExecutiveDirectiveService.listUpdates()]);
-    state.directives = directives;
-    state.updates = updates;
-    renderCurrentTab();
-    ToastService.success("Đã cập nhật Chỉ đạo điều hành.");
-  } catch (error) {
-    ToastService.error(error?.message || "Không thể cập nhật dữ liệu.");
-  } finally { if (button) button.disabled = false; }
+  directiveRefreshPromise = (async () => {
+    try {
+      const [directives, updates] = await Promise.all([ExecutiveDirectiveService.listDirectives(), ExecutiveDirectiveService.listUpdates()]);
+      state.directives = directives;
+      state.updates = updates;
+      renderCurrentTab();
+      ToastService.success("Đã cập nhật Chỉ đạo điều hành.");
+    } catch (error) {
+      ToastService.error(error?.message || "Không thể cập nhật dữ liệu.");
+    } finally {
+      if (button?.isConnected) button.disabled = false;
+      directiveRefreshPromise = null;
+    }
+  })();
+  return directiveRefreshPromise;
 }
 
 function renderCurrentTab() {
