@@ -8,19 +8,19 @@ const repo = path.resolve(root, '..');
 const read = p => fs.readFileSync(path.join(root, p), 'utf8');
 const readRepo = p => fs.readFileSync(path.join(repo, p), 'utf8');
 
-test('V1.14.0 dùng version/cache tập trung', () => {
+test('V1.14.1 tiếp tục dùng version/cache tập trung', () => {
   const source = read('core/app-version.js');
-  assert.match(source, /APP_VERSION = "1\.14\.0"/);
-  assert.match(source, /BUILD_VERSION = "20260824\.V1_14_0"/);
-  assert.match(source, /CACHE_NAME = "nhiem-vu-20260824-v1-14-0"/);
+  assert.match(source, /APP_VERSION = "1\.14\.1"/);
+  assert.match(source, /BUILD_VERSION = "20260824\.V1_14_1"/);
+  assert.match(source, /CACHE_NAME = "nhiem-vu-20260824-v1-14-1"/);
 });
 
 test('App lazy-load route, không tải toàn bộ KPI ngay khi mở ứng dụng', () => {
   const source = read('app-v3.js');
   assert.match(source, /function lazyRoute\(/);
   assert.match(source, /import\(modulePath\)/);
-  assert.match(source, /lazyRoute\("\.\/modules\/reports\/reports-view\.js\?v=20260824\.V1_14_0"/);
-  assert.match(read('modules/reports/reports-view.js'), /kpi-workflow\.js\?v=20260824\.V1_14_0/);
+  assert.match(source, /lazyRoute\("\.\/modules\/reports\/reports-view\.js\?v=20260824\.V1_14_1"/);
+  assert.match(read('modules/reports/reports-view.js'), /kpi-workflow\.js\?v=20260824\.V1_14_1/);
   assert.doesNotMatch(source, /import\s*\{\s*renderReportsView\s*\}\s*from\s*["']\.\/modules\/reports/);
 });
 
@@ -98,7 +98,7 @@ test('PWA chỉ kiểm tra update định kỳ hợp lý, không spam mỗi fore
 
 test('Service Worker cache-first asset versioned và không tái chép cache release cũ', () => {
   const source = read('sw.js');
-  assert.match(source, /BUILD_VERSION = "20260824\.V1_14_0"/);
+  assert.match(source, /BUILD_VERSION = "20260824\.V1_14_1"/);
   assert.match(source, /isCurrentVersion/);
   assert.match(source, /caches\.match\(request\)/);
   assert.doesNotMatch(source, /ignoreSearch\s*:\s*true/);
