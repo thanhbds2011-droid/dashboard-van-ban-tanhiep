@@ -1,7 +1,7 @@
 /** Đọc danh mục đầu việc theo đơn vị, vai trò và vai trò kiêm nhiệm. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260810.V1_10_6";
-import { UserContext } from "../core/user-context.js?v=20260810.V1_10_6";
-import { Permissions } from "../core/permissions.js?v=20260810.V1_10_6";
+import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_13_0";
+import { UserContext } from "../core/user-context.js?v=20260824.V1_13_0";
+import { Permissions } from "../core/permissions.js?v=20260824.V1_13_0";
 
 const CATALOG_CACHE_MS = 5 * 60 * 1000;
 const PROFESSIONAL_DEPARTMENT_IDS = Object.freeze(["BGD", "TCHC", "CTXH", "KHTC", "YT", "KI", "KII", "KIII"]);
@@ -38,7 +38,7 @@ function deduplicateByCode(items = []) {
 }
 
 function audienceOf(item) {
-  return upper(item?.audienceType || (item?.isManagementTask ? "MANAGEMENT" : "ALL_DEPARTMENT"));
+  return upper(item?.audienceType);
 }
 
 function canRegisterCdtnItem(item) {

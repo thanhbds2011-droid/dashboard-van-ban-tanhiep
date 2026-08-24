@@ -2,13 +2,14 @@
  * Lưu toàn bộ dữ liệu một kỳ lên Google Drive rồi mới dọn dữ liệu vận hành.
  * Minh chứng trên Drive không bị xóa; tệp lưu trữ chỉ giữ đường dẫn và dữ liệu đối chiếu.
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260810.V1_10_6";
-import { UserContext } from "../core/user-context.js?v=20260810.V1_10_6";
-import { APP_VERSION } from "../core/app-version.js?v=20260818.V1_11_4";
-import { NOTIFICATION_WEB_APP_URL } from "../notification-config.js?v=20260810.V1_10_6";
+import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_13_0";
+import { UserContext } from "../core/user-context.js?v=20260824.V1_13_0";
+import { APP_VERSION } from "../core/app-version.js?v=20260824.V1_13_0";
+import { NOTIFICATION_WEB_APP_URL } from "../notification-config.js?v=20260824.V1_13_0";
 
 const ARCHIVE_COLLECTIONS = Object.freeze([
   "tasks",
+  "taskMilestones",
   "taskWorkItems",
   "taskLogs",
   "taskRegistrations",
@@ -23,6 +24,7 @@ const ARCHIVE_COLLECTIONS = Object.freeze([
 ]);
 
 const PURGE_ORDER = Object.freeze([
+  "taskMilestones",
   "taskWorkItems",
   "taskLogs",
   "taskEvaluations",

@@ -1,15 +1,15 @@
 /** Quản lý các lượt công việc phát sinh bên trong một nhiệm vụ KPI. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260810.V1_10_6";
-import { UserContext } from "../core/user-context.js?v=20260810.V1_10_6";
-import { Permissions } from "../core/permissions.js?v=20260810.V1_10_6";
-import { progressRateFromDates } from "../kpi-engine.js?v=20260810.V1_10_6";
+import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_13_0";
+import { UserContext } from "../core/user-context.js?v=20260824.V1_13_0";
+import { Permissions } from "../core/permissions.js?v=20260824.V1_13_0";
+import { progressRateFromDates } from "../kpi-engine.js?v=20260824.V1_13_0";
 import {
   ATTENDANCE_STATUSES,
   WORK_ITEM_TYPES,
   calculateWorkItemSummary,
   convertActualRate,
   normalizeWorkItemType
-} from "../work-item-score-engine.js?v=20260810.V1_10_6";
+} from "../work-item-score-engine.js?v=20260824.V1_13_0";
 
 const COLLECTION = "taskWorkItems";
 const ALLOWED_RATES = Object.freeze([100, 80, 60, 0]);

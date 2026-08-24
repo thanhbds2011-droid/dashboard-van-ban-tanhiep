@@ -1,12 +1,13 @@
 /** Tạo, phân công, tiếp nhận, cập nhật tiến độ và hoàn thành nhiệm vụ. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260810.V1_10_6";
-import { UserContext } from "../core/user-context.js?v=20260810.V1_10_6";
-import { Permissions } from "../core/permissions.js?v=20260818.V1_11_4";
-import { TaskLogService } from "./task-log-service.js?v=20260818.V1_11_4";
-import { TaskWorkItemService } from "./task-work-item-service.js?v=20260810.V1_10_6";
-import { PeriodReadService } from "./period-read-service.js?v=20260810.V1_10_6";
-import { TaskNotificationService } from "./task-notification-service.js?v=20260810.V1_10_6";
-import { APP_VERSION, BUILD_VERSION } from "../core/app-version.js?v=20260818.V1_11_4";
+import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_13_0";
+import { UserContext } from "../core/user-context.js?v=20260824.V1_13_0";
+import { Permissions } from "../core/permissions.js?v=20260824.V1_13_0";
+import { TaskLogService } from "./task-log-service.js?v=20260824.V1_13_0";
+import { TaskWorkItemService } from "./task-work-item-service.js?v=20260824.V1_13_0";
+import { PeriodReadService } from "./period-read-service.js?v=20260824.V1_13_0";
+import { TaskNotificationService } from "./task-notification-service.js?v=20260824.V1_13_0";
+import { APP_VERSION, BUILD_VERSION } from "../core/app-version.js?v=20260824.V1_13_0";
+import { deadlineDateFromKey, isDateKey } from "../core/deadline-engine.js?v=20260824.V1_13_0";
 
 const TASK_WRITE_BUILD_VERSION = BUILD_VERSION;
 const MAX_CODE_SCAN = 1000;
@@ -120,6 +121,15 @@ export const TaskWriteService = Object.freeze({
     }
 
     const departmentId = normalizeDepartmentId(data.primaryDepartmentId);
+    const requestedDeadlineDateKey = String(data.deadlineDateKey || "").trim();
+    const fallbackDeadlineDateKey = data.deadline instanceof Date && !Number.isNaN(data.deadline.getTime())
+      ? dateKey(data.deadline)
+      : "";
+    const deadlineDateKey = isDateKey(requestedDeadlineDateKey) ? requestedDeadlineDateKey : fallbackDeadlineDateKey;
+    if (!isDateKey(deadlineDateKey)) {
+      throw new Error("Hạn hoàn thành cụ thể là bắt buộc khi giao nhiệm vụ đột xuất.");
+    }
+    const deadlineDate = deadlineDateFromKey(deadlineDateKey);
     const activePeriod = await getActivePeriod();
 
     if (!activePeriod?.id) {
@@ -183,7 +193,7 @@ export const TaskWriteService = Object.freeze({
           sixClearDirective: {
             person: data.ownerName || `Cấp ${departmentId}`,
             work: data.title || "",
-            time: dateKey(data.deadline),
+            time: deadlineDateKey,
             responsibility: `${departmentId} chịu trách nhiệm chính; ${data.ownerName || "cấp Phòng/Khu"} chịu trách nhiệm thực hiện và báo cáo.`,
             product: data.expectedOutput || "",
             result: data.resultRequirement || ""
@@ -223,8 +233,8 @@ export const TaskWriteService = Object.freeze({
           status,
           progress: 0,
           priority: "DOT_XUAT",
-          deadline: FirebaseService.Timestamp.fromDate(data.deadline),
-          deadlineDateKey: dateKey(data.deadline),
+          deadline: FirebaseService.Timestamp.fromDate(deadlineDate),
+          deadlineDateKey,
           standardTaskCode: "",
           standardTaskName: "",
           workType: "DOT_XUAT",
@@ -236,7 +246,7 @@ export const TaskWriteService = Object.freeze({
           workItemType,
           quantityUnit,
           confirmer: data.confirmer || user.fullName || "",
-          scoringVersion: "KPI_2026_V1",
+          scoringVersion: "KPI_2026_V1_13",
           periodId: activePeriod?.id || "",
           periodName: activePeriod?.name || "",
           planType: "DOT_XUAT",
@@ -658,21 +668,31 @@ export const TaskWriteService = Object.freeze({
 
   async updateProgress(task, changes) {
     const user = UserContext.requireUser();
-    if (task.ownerUserId !== user.uid) throw new Error("Chỉ người thực hiện mới được cập nhật tiến độ và hoàn thành nhiệm vụ.");
+    if (task.ownerUserId !== user.uid) throw new Error("Chỉ người thực hiện mới được cập nhật trạng thái và minh chứng nhiệm vụ.");
     if (task.assignmentStatus !== "DA_TIEP_NHAN") {
-      throw new Error("Bạn cần xác nhận đã nhận nhiệm vụ trước khi cập nhật tiến độ, kết quả hoặc minh chứng.");
+      throw new Error("Bạn cần xác nhận đã nhận nhiệm vụ trước khi cập nhật trạng thái hoặc minh chứng.");
     }
+    if (task.active === false || String(task.status || "").toUpperCase() === "HUY") {
+      throw new Error("Nhiệm vụ không còn hoạt động.");
+    }
+    if (String(task.status || "").toUpperCase() === "HOAN_THANH" || task.completedAt) {
+      throw new Error("Nhiệm vụ đã hoàn thành; không thể cập nhật trực tiếp.");
+    }
+
+    const status = String(changes.status || "").toUpperCase();
+    if (!["DANG_XU_LY", "TAM_DUNG", "HOAN_THANH"].includes(status)) {
+      throw new Error("Trạng thái cập nhật chưa hợp lệ.");
+    }
+    if (String(task.milestoneMode || "").toUpperCase() === "MONTHLY" && status === "HOAN_THANH") {
+      throw new Error("Nhiệm vụ Theo tháng chỉ kết thúc sau khi hoàn thành mốc cuối cùng.");
+    }
+
+    const evidenceUrl = changes.evidenceUrl || "";
     const payload = {
-      status: changes.status,
-      progress: Number(changes.progress),
-      progressNote: changes.progressNote || "",
-      result: changes.resultSummary || "",
-      resultSummary: changes.resultSummary || "",
-      difficulties: changes.difficulties || "",
-      proposal: changes.proposal || "",
+      status,
       evidenceType: changes.evidenceType || "",
-      evidenceUrl: changes.evidenceUrl || "",
-      evidenceLink: changes.evidenceUrl || "",
+      evidenceUrl,
+      evidenceLink: evidenceUrl,
       evidenceText: changes.evidenceText || "",
       evidenceFileName: changes.evidenceFileName || "",
       evidenceStoragePath: changes.evidenceStoragePath || "",
@@ -680,13 +700,17 @@ export const TaskWriteService = Object.freeze({
       updatedByUserId: user.uid,
       updatedByName: user.fullName || ""
     };
-    if (changes.status === "HOAN_THANH") {
+
+    // Progress vận hành không còn nhập tay. Chỉ khi hoàn thành thật sự mới ghi 100.
+    // Các field legacy progressNote/result/resultSummary/difficulties/proposal không bị xóa/ghi đè.
+    if (status === "HOAN_THANH") {
       payload.progress = 100;
       payload.completedAt = FirebaseService.serverTimestamp();
       payload.completedByUserId = user.uid;
       payload.completedByName = user.fullName || "";
     }
-    const notificationAction = changes.status === "HOAN_THANH" ? "TASK_COMPLETED" : "TASK_UPDATED";
+
+    const notificationAction = status === "HOAN_THANH" ? "TASK_COMPLETED" : "TASK_UPDATED";
     const notificationLogReference = logRef();
     const batch = FirebaseService.writeBatch(FirebaseService.db);
     batch.update(taskRef(task.id), payload);
@@ -697,10 +721,11 @@ export const TaskWriteService = Object.freeze({
       action: notificationAction,
       before: snapshotTask(task),
       after: { ...snapshotTask(task), ...payload, updatedAt: null, completedAt: null },
-      note: changes.progressNote || ""
+      note: status === "HOAN_THANH" ? "Hoàn thành nhiệm vụ; tiến độ được hệ thống tự ghi 100%." : "Cập nhật trạng thái/minh chứng nhiệm vụ."
     }));
     await batch.commit();
 
+    // TaskNotificationService.send() chỉ enqueue; Push không nằm trên critical path Firestore/UI.
     await TaskNotificationService.send(
       notificationAction,
       task.id,
@@ -711,7 +736,7 @@ export const TaskWriteService = Object.freeze({
         oldStatus: task.status || "",
         newStatus: payload.status || "",
         oldProgress: Number(task.progress || 0),
-        newProgress: Number(payload.progress || 0),
+        newProgress: status === "HOAN_THANH" ? 100 : Number(task.progress || 0),
         performedByUserId: user.uid,
         performedByName: user.fullName || "",
         performedByRole: user.role || "",

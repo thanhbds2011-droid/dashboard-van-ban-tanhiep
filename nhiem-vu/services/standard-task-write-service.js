@@ -5,11 +5,12 @@
  * - Bí thư, Phó Bí thư và Ủy viên BCH được tạo đầu việc trong phạm vi Chi đoàn.
  * - Quyền tạo, sửa và xóa được tách riêng; Firestore Rules là lớp bảo vệ cuối cùng.
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260810.V1_10_6";
-import { UserContext } from "../core/user-context.js?v=20260810.V1_10_6";
-import { Permissions } from "../core/permissions.js?v=20260810.V1_10_6";
+import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_13_0";
+import { UserContext } from "../core/user-context.js?v=20260824.V1_13_0";
+import { Permissions } from "../core/permissions.js?v=20260824.V1_13_0";
+import { validateDeadlineConfiguration } from "../core/deadline-engine.js?v=20260824.V1_13_0";
 
-const SYNC_VERSION = "20260818.V1_11_4";
+const SYNC_VERSION = "20260824.V1_13_0";
 const MAX_STANDARD_TASK_NAME_LENGTH = 1000;
 const STANDARD_TASK_COLLECTION = "standardTasks";
 const SEQUENCE_COLLECTION = "standardTaskSequences";
@@ -100,14 +101,11 @@ function delegationIsActive(data, user) {
   return (start === null || start <= now) && (end === null || end >= now);
 }
 
-function normalizeAudienceType(value, departmentId, legacyManagement = false) {
+function normalizeAudienceType(value, departmentId) {
   const department = upper(departmentId);
   const requested = upper(value);
   const allowed = department === "CDTN" ? CDTN_AUDIENCES : DEPARTMENT_AUDIENCES;
-
-  if (allowed.includes(requested)) return requested;
-  if (department === "CDTN") return legacyManagement ? "CDTN_SECRETARY" : "CDTN_MEMBER";
-  return legacyManagement ? "MANAGEMENT" : "ALL_DEPARTMENT";
+  return allowed.includes(requested) ? requested : "";
 }
 
 function normalizeTrackingMode(value) {
@@ -301,13 +299,14 @@ function taskPayload({ data, user, departmentId, code, sequence, existing = fals
   const workType = normalizeWorkType(data.workType);
   const baseScore = workType === "DOT_XUAT" ? 12 : 10;
   const difficultyCoefficient = Number(data.difficultyCoefficient || 1);
-  const audienceType = normalizeAudienceType(data.audienceType, departmentId, data.isManagementTask === true);
+  const audienceType = normalizeAudienceType(data.audienceType, departmentId);
   const isManagementTask = data.isManagementTask === true;
   const isCoreTaskDefault = data.isCoreTaskDefault === true;
   const maximumConvertedScore = Math.round(baseScore * difficultyCoefficient * 10) / 10;
   const trackingMode = normalizeTrackingMode(data.trackingMode);
   const workItemType = normalizeWorkItemType(data.workItemType, trackingMode);
   const quantityUnit = workItemType === "QUANTITY" ? clean(data.quantityUnit) : "";
+  const deadlineConfig = validateDeadlineConfiguration(data.frequency, data.completionDeadline);
   const isCdtn = departmentId === "CDTN";
 
   if (workItemType === "QUANTITY" && !quantityUnit) {
@@ -321,6 +320,8 @@ function taskPayload({ data, user, departmentId, code, sequence, existing = fals
     organizationId: isCdtn ? "CDTN" : "",
     scopeType: isCdtn ? "ORGANIZATION" : "DEPARTMENT",
     frequency: clean(data.frequency),
+    completionDeadline: deadlineConfig.completionDeadline,
+    deadlineRuleType: deadlineConfig.kind,
     workType,
     outputRequirement: clean(data.outputRequirement),
     mandatoryEvidence: clean(data.mandatoryEvidence),
@@ -383,7 +384,9 @@ export const StandardTaskWriteService = Object.freeze({
     try {
       delegation = await this.getEditorDelegation();
     } catch (error) {
-      console.warn("Không đọc được ủy quyền nhập danh mục:", error);
+      if (!String(error?.code || "").includes("permission-denied")) {
+        console.warn("Không đọc được ủy quyền nhập danh mục:", error);
+      }
     }
 
     const cdtnDirectory = await readCdtnDirectoryAccess(user);
@@ -539,6 +542,14 @@ export const StandardTaskWriteService = Object.freeze({
     }
     if (!clean(data.outputRequirement)) throw new Error("Hãy nhập kết quả đầu ra hoặc yêu cầu hoàn thành.");
     if (!clean(data.frequency)) throw new Error("Hãy nhập chu kỳ hoặc tần suất thực hiện.");
+    const audienceType = normalizeAudienceType(data.audienceType, departmentId);
+    if (!audienceType) {
+      throw new Error(departmentId === "CDTN"
+        ? "Hãy chọn Đối tượng áp dụng Chi đoàn."
+        : "Hãy chọn Đối tượng áp dụng: ALL_DEPARTMENT hoặc MANAGEMENT.");
+    }
+    // Theo tháng/quý/năm phải có cấu hình hạn; các chu kỳ phát sinh/khác nhập deadline cụ thể khi đăng ký/giao.
+    validateDeadlineConfiguration(data.frequency, data.completionDeadline);
     if (!clean(data.mandatoryEvidence)) throw new Error("Hãy nhập loại minh chứng bắt buộc.");
     if (!VALID_COEFFICIENTS.some(value => Math.abs(value - difficultyCoefficient) < 0.000001)) {
       throw new Error("Hệ số độ khó chỉ được dùng 100%, 110% hoặc 120%.");

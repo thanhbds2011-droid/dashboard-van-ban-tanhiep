@@ -2,10 +2,10 @@
  * Toast realtime riêng cho Chỉ đạo điều hành V1.10.6.
  * Không phụ thuộc Nhiệm vụ/KPI và không thay thế OneSignal Push.
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260810.V1_10_6";
-import { UserContext } from "../core/user-context.js?v=20260810.V1_10_6";
-import { Permissions } from "../core/permissions.js?v=20260810.V1_10_6";
-import { ToastService } from "../core/toast-service.js?v=20260810.V1_10_6";
+import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_13_0";
+import { UserContext } from "../core/user-context.js?v=20260824.V1_13_0";
+import { Permissions } from "../core/permissions.js?v=20260824.V1_13_0";
+import { ToastService } from "../core/toast-service.js?v=20260824.V1_13_0";
 
 const MAX_LIST = 2000;
 let stopFns = [];
@@ -71,7 +71,11 @@ export const ExecutiveInAppAlertService = Object.freeze({
         if (clean(directive.updatedByUserId || directive.createdByUserId) === user.uid) return;
         ToastService.success(change.type === 'added' ? directiveMessage(directive) : `Chỉ đạo vừa được cập nhật: ${clean(directive.content).slice(0, 150)}`, 7000);
       });
-    }, error => console.warn("Không theo dõi được Chỉ đạo điều hành realtime:", error));
+    }, error => {
+      if (!String(error?.code || "").includes("permission-denied")) {
+        console.warn("Không theo dõi được Chỉ đạo điều hành realtime:", error);
+      }
+    });
     stopFns.push(stopDirectives);
 
     if (Permissions.canManageExecutiveDirectives(user)) {

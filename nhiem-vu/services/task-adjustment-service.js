@@ -2,10 +2,11 @@
  * Quy trình đề nghị và phê duyệt điều chỉnh nhiệm vụ.
  * Không chuyển điểm giữa nhân sự; mọi thay đổi được lưu trong kpiAdjustments và taskLogs.
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260810.V1_10_6";
-import { UserContext } from "../core/user-context.js?v=20260810.V1_10_6";
-import { TaskLogService } from "./task-log-service.js?v=20260810.V1_10_6";
-import { TaskNotificationService } from "./task-notification-service.js?v=20260810.V1_10_6";
+import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_13_0";
+import { UserContext } from "../core/user-context.js?v=20260824.V1_13_0";
+import { TaskLogService } from "./task-log-service.js?v=20260824.V1_13_0";
+import { TaskNotificationService } from "./task-notification-service.js?v=20260824.V1_13_0";
+import { daysInMonth, deadlineDateFromKey } from "../core/deadline-engine.js?v=20260824.V1_13_0";
 
 const COLLECTION = "kpiAdjustments";
 const TYPES = Object.freeze({
@@ -61,6 +62,32 @@ function logRef() {
   return FirebaseService.doc(FirebaseService.collection(FirebaseService.db, "taskLogs"));
 }
 
+function monthlyTask(task) {
+  return String(task?.milestoneMode || "").toUpperCase() === "MONTHLY";
+}
+
+function adjustedMonthDateKey(existingDateKey, newDay) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(validDateKey(existingDateKey));
+  if (!match) return "";
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Math.min(Math.max(1, Number(newDay)), daysInMonth(year, month));
+  return `${match[1]}-${match[2]}-${String(day).padStart(2, "0")}`;
+}
+
+async function loadTaskMilestones(taskId) {
+  const snapshot = await FirebaseService.getDocs(
+    FirebaseService.query(
+      FirebaseService.collection(FirebaseService.db, "taskMilestones"),
+      FirebaseService.where("taskId", "==", taskId)
+    )
+  );
+  return snapshot.docs
+    .map(item => ({ id: item.id, ...item.data() }))
+    .filter(item => item.active !== false)
+    .sort((a, b) => Number(a.sequence || 0) - Number(b.sequence || 0));
+}
+
 function completedTask(task) {
   return Boolean(
     task?.completedAt ||
@@ -113,6 +140,12 @@ function proposedSnapshot(task, data, type) {
   const description = clean(data.description || task.description, 5000);
   const adjustedWorkload = clean(data.adjustedWorkload, 1000);
   const deadlineDateKey = validDateKey(data.deadlineDateKey);
+  if (monthlyTask(task) && deadlineDateKey && deadlineDateKey !== task.deadlineDateKey) {
+    const currentFinal = validDateKey(task.deadlineDateKey);
+    if (!currentFinal || deadlineDateKey.slice(0, 7) !== currentFinal.slice(0, 7)) {
+      throw new Error("Nhiệm vụ Theo tháng chỉ được điều chỉnh ngày của các mốc trong cùng kỳ; không được chuyển mốc cuối sang tháng/kỳ khác.");
+    }
+  }
   if (!adjustedWorkload && description === clean(task.description, 5000) && (!deadlineDateKey || deadlineDateKey === task.deadlineDateKey)) {
     throw new Error("Hãy nêu ít nhất một nội dung cần điều chỉnh: khối lượng, nội dung hoặc thời hạn.");
   }
@@ -297,6 +330,11 @@ export const TaskAdjustmentService = Object.freeze({
       ? String(adjustment.adjustmentType).toUpperCase()
       : TYPES.ADJUST_SCOPE;
     const proposed = adjustment.proposedSnapshot || {};
+    const proposedDeadlineDateKey = validDateKey(proposed.deadlineDateKey);
+    const deadlineIsChanging = Boolean(proposedDeadlineDateKey && proposedDeadlineDateKey !== validDateKey(task.deadlineDateKey));
+    const milestones = approvedType === TYPES.ADJUST_SCOPE && monthlyTask(task) && deadlineIsChanging
+      ? await loadTaskMilestones(task.id)
+      : [];
     const taskChanges = {
       originalPlanSnapshot: task.originalPlanSnapshot || adjustment.originalPlanSnapshot || planSnapshot(task),
       adjustmentStatus: "APPROVED",
@@ -335,13 +373,41 @@ export const TaskAdjustmentService = Object.freeze({
         adjustedWorkload: clean(proposed.adjustedWorkload, 1000),
         description: clean(proposed.description || task.description, 5000)
       });
-      const deadlineDateKey = validDateKey(proposed.deadlineDateKey);
+      const deadlineDateKey = proposedDeadlineDateKey;
       if (deadlineDateKey) {
+        if (monthlyTask(task) && deadlineIsChanging) {
+          if (!milestones.length) throw new Error("Không tìm thấy các mốc tháng để điều chỉnh thời hạn an toàn.");
+          const finalMilestone = milestones[milestones.length - 1];
+          if (!finalMilestone || deadlineDateKey.slice(0, 7) !== String(finalMilestone.dueDateKey || "").slice(0, 7)) {
+            throw new Error("Hạn đề xuất phải nằm trong tháng của mốc cuối kỳ hiện tại.");
+          }
+          taskChanges.completionDeadline = deadlineDateKey.slice(-2);
+        }
         taskChanges.deadlineDateKey = deadlineDateKey;
-        taskChanges.deadline = FirebaseService.Timestamp.fromDate(new Date(`${deadlineDateKey}T23:59:59`));
+        taskChanges.deadline = FirebaseService.Timestamp.fromDate(deadlineDateFromKey(deadlineDateKey));
       }
     }
     const batch = FirebaseService.writeBatch(FirebaseService.db);
+    if (monthlyTask(task) && deadlineIsChanging) {
+      const requestedDay = Number(proposedDeadlineDateKey.slice(-2));
+      milestones.forEach(item => {
+        if (item.completedAt || String(item.status || "").toUpperCase() === "COMPLETED") return;
+        const nextDateKey = adjustedMonthDateKey(item.dueDateKey, requestedDay);
+        if (!nextDateKey) throw new Error(`Mốc ${item.id} có ngày hiện tại không hợp lệ.`);
+        batch.update(FirebaseService.doc(FirebaseService.db, "taskMilestones", item.id), {
+          originalDueDateKey: item.originalDueDateKey || item.dueDateKey || "",
+          dueDateKey: nextDateKey,
+          dueAt: FirebaseService.Timestamp.fromDate(deadlineDateFromKey(nextDateKey)),
+          label: String(item.label || "").replace(/\d{2}\/\d{2}\/\d{4}/, `${nextDateKey.slice(8, 10)}/${nextDateKey.slice(5, 7)}/${nextDateKey.slice(0, 4)}`),
+          deadlineAdjustedAt: FirebaseService.serverTimestamp(),
+          deadlineAdjustedByUserId: user.uid,
+          deadlineAdjustedByName: clean(user.fullName, 300),
+          updatedAt: FirebaseService.serverTimestamp(),
+          updatedByUserId: user.uid,
+          updatedByName: clean(user.fullName, 300)
+        });
+      });
+    }
     batch.update(taskRef(task.id), taskChanges);
     batch.update(adjustmentRef(adjustment.id), {
       status: "APPROVED",

@@ -1,8 +1,8 @@
 /** Đọc nhiệm vụ theo kỳ hiện hành, phạm vi tài khoản và bộ nhớ đệm ngắn. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260810.V1_10_6";
-import { UserContext } from "../core/user-context.js?v=20260810.V1_10_6";
-import { Permissions } from "../core/permissions.js?v=20260810.V1_10_6";
-import { PeriodReadService } from "./period-read-service.js?v=20260810.V1_10_6";
+import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_13_0";
+import { UserContext } from "../core/user-context.js?v=20260824.V1_13_0";
+import { Permissions } from "../core/permissions.js?v=20260824.V1_13_0";
+import { PeriodReadService } from "./period-read-service.js?v=20260824.V1_13_0";
 
 const TASK_CACHE_MS = 45 * 1000;
 const PROFESSIONAL_DEPARTMENT_IDS = Object.freeze(["BGD", "TCHC", "CTXH", "KHTC", "YT", "KI", "KII", "KIII"]);
@@ -54,7 +54,7 @@ function scopedReferences(periodId) {
 
   if (Permissions.isDepartmentLeader()) {
     const departmentId = user.departmentId;
-    return [
+    const references = [
       FirebaseService.query(
         reference,
         periodFilter,
@@ -79,11 +79,20 @@ function scopedReferences(periodId) {
         periodFilter,
         FirebaseService.where("relatedDepartmentIds", "array-contains", departmentId),
         FirebaseService.limit(1000)
-      ),
-      /* Lãnh đạo Phòng/Khu được theo dõi nhiệm vụ Chi đoàn nhưng không mặc nhiên có quyền sửa/duyệt. */
-      FirebaseService.query(reference, periodFilter, FirebaseService.where("primaryDepartmentId", "==", "CDTN"), FirebaseService.limit(1000)),
-      FirebaseService.query(reference, periodFilter, FirebaseService.where("organizationId", "==", "CDTN"), FirebaseService.limit(1000))
+      )
     ];
+    /*
+     * V1.12.0: Không query CDTN cho mọi Trưởng/Phó Phòng/Khu.
+     * Firestore Rules chỉ cho thành viên/ban chấp hành Chi đoàn đọc scope này.
+     * Việc query thừa trước đây tạo permission-denied hàng loạt khi nhiều tài khoản cùng test.
+     */
+    if (Permissions.isCdtnMember()) {
+      references.push(
+        FirebaseService.query(reference, periodFilter, FirebaseService.where("primaryDepartmentId", "==", "CDTN"), FirebaseService.limit(1000)),
+        FirebaseService.query(reference, periodFilter, FirebaseService.where("organizationId", "==", "CDTN"), FirebaseService.limit(1000))
+      );
+    }
+    return references;
   }
 
   return [
