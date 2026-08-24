@@ -13,19 +13,22 @@
  * - Giữ nguyên UID Firebase và mô hình accessAccounts hiện hữu.
  */
 
-import { FirebaseService } from "./firebase-service.js?v=20260824.V1_13_0";
-import { UserContext } from "./user-context.js?v=20260824.V1_13_0";
+import { FirebaseService } from "./firebase-service.js?v=20260824.V1_14_0";
+import { UserContext } from "./user-context.js?v=20260824.V1_14_0";
 
 const LOGIN_URL = "./login.html";
 const AUTH_TIMEOUT_MS = 10000;
 const READ_TIMEOUT_MS = 8000;
 const WRITE_TIMEOUT_MS = 8000;
 const PROFILE_REFRESH_DEBOUNCE_MS = 300;
+const PROFILE_SERVER_CHECK_MIN_MS = 2 * 60 * 1000;
 
 let lastDiagnostic = null;
 let stopProfileWatcher = null;
 let profileVisibilityBound = false;
 let profileReloadTimer = null;
+let lastProfileServerCheckAt = 0;
+let profileServerCheckPromise = null;
 
 function clean(value) { return String(value ?? "").trim(); }
 function normalizeEmail(value) { return clean(value).toLowerCase(); }
@@ -110,45 +113,59 @@ function scheduleProfileReload(firebaseUser, profile) {
   }, PROFILE_REFRESH_DEBOUNCE_MS);
 }
 
-async function refreshProfileScopeFromServer(firebaseUser) {
+async function refreshProfileScopeFromServer(firebaseUser, options = {}) {
   if (!firebaseUser?.uid || document.visibilityState === "hidden") return false;
+  const force = options.force === true;
+  const now = Date.now();
+  if (!force && lastProfileServerCheckAt && now - lastProfileServerCheckAt < PROFILE_SERVER_CHECK_MIN_MS) return false;
+  if (profileServerCheckPromise) return profileServerCheckPromise;
+  lastProfileServerCheckAt = now;
+
+  profileServerCheckPromise = (async () => {
+    try {
+      const email = normalizeEmail(firebaseUser.email);
+      if (!email) return false;
+      const profileRef = FirebaseService.doc(FirebaseService.db, "users", firebaseUser.uid);
+      const accessRef = FirebaseService.doc(FirebaseService.db, "accessAccounts", email);
+      const readServer = FirebaseService.getDocFromServer || FirebaseService.getDoc;
+      const [profileSnapshot, accessSnapshot] = await Promise.all([
+        readServer(profileRef),
+        readServer(accessRef)
+      ]);
+      if (!accessSnapshot.exists()) return false;
+      const access = accessSnapshot.data() || {};
+      if (access.active !== true) return false;
+      const existingProfile = profileSnapshot.exists() ? (profileSnapshot.data() || {}) : null;
+      const desiredProfile = buildProfileFromAccess(firebaseUser, email, access, existingProfile);
+
+      // Nếu Sheet/accessAccounts đã đổi trước users/{UID}, tự đồng bộ users ngay trong phiên PWA.
+      // Rules selfProfileSyncMatchesAccess bảo đảm client chỉ được ghi đúng quyền đã cấp trong accessAccounts.
+      if (!existingProfile || profileNeedsSync(existingProfile, desiredProfile)) {
+        await FirebaseService.setDoc(profileRef, {
+          ...desiredProfile,
+          ...(!existingProfile ? { createdAt: FirebaseService.serverTimestamp() } : {}),
+          updatedAt: FirebaseService.serverTimestamp()
+        }, { merge: true });
+      }
+
+      const current = UserContext.getUser();
+      if (!current?.uid) return false;
+      if (profileScopeFingerprint(desiredProfile) === profileScopeFingerprint(current)) return false;
+      scheduleProfileReload(firebaseUser, desiredProfile);
+      return true;
+    } catch (error) {
+      const code = String(error?.code || "");
+      if (!code.includes("unavailable") && !code.includes("offline")) {
+        console.warn("Chưa kiểm tra được thay đổi quyền tài khoản:", error);
+      }
+      return false;
+    }
+  })();
+
   try {
-    const email = normalizeEmail(firebaseUser.email);
-    if (!email) return false;
-    const profileRef = FirebaseService.doc(FirebaseService.db, "users", firebaseUser.uid);
-    const accessRef = FirebaseService.doc(FirebaseService.db, "accessAccounts", email);
-    const readServer = FirebaseService.getDocFromServer || FirebaseService.getDoc;
-    const [profileSnapshot, accessSnapshot] = await Promise.all([
-      readServer(profileRef),
-      readServer(accessRef)
-    ]);
-    if (!accessSnapshot.exists()) return false;
-    const access = accessSnapshot.data() || {};
-    if (access.active !== true) return false;
-    const existingProfile = profileSnapshot.exists() ? (profileSnapshot.data() || {}) : null;
-    const desiredProfile = buildProfileFromAccess(firebaseUser, email, access, existingProfile);
-
-    // Nếu Sheet/accessAccounts đã đổi trước users/{UID}, tự đồng bộ users ngay trong phiên PWA.
-    // Rules selfProfileSyncMatchesAccess bảo đảm client chỉ được ghi đúng quyền đã cấp trong accessAccounts.
-    if (!existingProfile || profileNeedsSync(existingProfile, desiredProfile)) {
-      await FirebaseService.setDoc(profileRef, {
-        ...desiredProfile,
-        ...(!existingProfile ? { createdAt: FirebaseService.serverTimestamp() } : {}),
-        updatedAt: FirebaseService.serverTimestamp()
-      }, { merge: true });
-    }
-
-    const current = UserContext.getUser();
-    if (!current?.uid) return false;
-    if (profileScopeFingerprint(desiredProfile) === profileScopeFingerprint(current)) return false;
-    scheduleProfileReload(firebaseUser, desiredProfile);
-    return true;
-  } catch (error) {
-    const code = String(error?.code || "");
-    if (!code.includes("unavailable") && !code.includes("offline")) {
-      console.warn("Chưa kiểm tra được thay đổi quyền tài khoản:", error);
-    }
-    return false;
+    return await profileServerCheckPromise;
+  } finally {
+    profileServerCheckPromise = null;
   }
 }
 
@@ -185,6 +202,10 @@ function startProfileScopeWatcher(firebaseUser, initialProfile) {
     window.addEventListener("pageshow", () => {
       const currentFirebaseUser = FirebaseService.auth.currentUser;
       if (currentFirebaseUser?.uid) void refreshProfileScopeFromServer(currentFirebaseUser);
+    });
+    window.addEventListener("app:pwa-resumed", () => {
+      const currentFirebaseUser = FirebaseService.auth.currentUser;
+      if (currentFirebaseUser?.uid) void refreshProfileScopeFromServer(currentFirebaseUser, { force: true });
     });
   }
 }
