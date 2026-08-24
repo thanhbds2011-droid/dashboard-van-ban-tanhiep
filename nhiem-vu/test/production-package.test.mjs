@@ -9,13 +9,14 @@ const required = [
   "firestore.indexes.json",
   "deployment/firestore.rules",
   "deployment/firestore.indexes.json",
-  "deployment/apps-script-account-sync-v3.3.1.gs",
-  "deployment/apps-script-standard-tasks-v4.2.1.gs",
+  "deployment/APPS_SCRIPT_DONG_BO_TAI_KHOAN_V3_3_2.gs",
+  "deployment/apps-script-standard-tasks-v4.3.0.gs",
   "deployment/apps-script-notification-ai-evidence-v6.4.0.gs",
   "nhiem-vu/app-v3.js",
   "nhiem-vu/sw.js",
+  "deployment/ADDON_SHEET_UI_V1_13_0.gs",
   "nhiem-vu/icons/icon-192.png",
-  "deployment/apps-script-handover-reset-v1.0.0.gs",
+  "deployment/apps-script-handover-reset-v1.0.1.gs",
 ];
 
 test("Gói production có đủ thành phần triển khai", () => {
