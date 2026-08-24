@@ -12,18 +12,18 @@
   <title>Nhiệm vụ và đánh giá KPI</title>
   <link rel="icon" type="image/png" href="./icons/favicon-64.png">
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
-  <link rel="manifest" href="./manifest.webmanifest?v=20260818.V1_11_4">
+  <link rel="manifest" href="./manifest.webmanifest?v=20260824.V1_13_0">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./v3.css?v=20260818.V1_11_4">
-  <link rel="stylesheet" href="./kpi.css?v=20260810.V1_10_6">
-  <link rel="stylesheet" href="./ai-assistant.css?v=20260810.V1_10_6">
-  <link rel="stylesheet" href="./ui-v1.3.0.css?v=20260810.V1_10_6">
-  <link rel="stylesheet" href="./ui-v1.10.1.css?v=20260810.V1_10_6">
-  <link rel="stylesheet" href="./ui-v1.10.2.css?v=20260810.V1_10_6">
-  <link rel="stylesheet" href="./ui-task-detail-tabs-hotfix.css?v=20260810.V1_10_6">
-  <link rel="stylesheet" href="./executive-directives.css?v=20260818.V1_11_4">
+  <link rel="stylesheet" href="./v3.css?v=20260824.V1_13_0">
+  <link rel="stylesheet" href="./kpi.css?v=20260824.V1_13_0">
+  <link rel="stylesheet" href="./ai-assistant.css?v=20260824.V1_13_0">
+  <link rel="stylesheet" href="./ui-v1.3.0.css?v=20260824.V1_13_0">
+  <link rel="stylesheet" href="./ui-v1.10.1.css?v=20260824.V1_13_0">
+  <link rel="stylesheet" href="./ui-v1.10.2.css?v=20260824.V1_13_0">
+  <link rel="stylesheet" href="./ui-task-detail-tabs-hotfix.css?v=20260824.V1_13_0">
+  <link rel="stylesheet" href="./executive-directives.css?v=20260824.V1_13_0">
 </head>
 <body class="v3-body">
   <header class="v3-header">
@@ -101,11 +101,45 @@
     <section class="page-card"><div class="skeleton skeleton-title"></div><div class="skeleton skeleton-line"></div></section>
   </main>
 
-  <footer class="v3-footer">Quản lý giao việc • Theo dõi tiến độ • Lưu minh chứng • Đánh giá kết quả • <span id="appVersionLabel">V1.11.3</span></footer>
+  <footer class="v3-footer">Quản lý giao việc • Theo dõi tiến độ • Lưu minh chứng • Đánh giá kết quả • <span id="appVersionLabel">V1.13.0</span></footer>
+
+  <script>
+  (() => {
+    const startedAt = Date.now();
+    const showRecovery = () => {
+      if (document.documentElement.dataset.buildVersion) return;
+      let box = document.getElementById('startupRecovery');
+      if (!box) {
+        box = document.createElement('section');
+        box.id = 'startupRecovery';
+        box.setAttribute('role','alert');
+        box.style.cssText = 'position:fixed;inset:16px;z-index:99999;margin:auto;max-width:560px;height:max-content;padding:22px;border-radius:18px;background:#fff;box-shadow:0 24px 70px rgba(15,50,70,.28);font-family:Be Vietnam Pro,system-ui,sans-serif;color:#0b3653';
+        box.innerHTML = '<h2 style="margin:0 0 8px">Ứng dụng chưa khởi động hoàn tất</h2><p style="margin:0 0 16px;line-height:1.55">Có thể phiên PWA hoặc bộ nhớ đệm đang cũ. Hãy thử tải lại; nếu vẫn trắng màn hình, dùng Khôi phục ứng dụng.</p><div style="display:flex;gap:10px;flex-wrap:wrap"><button id="startupReload" style="padding:10px 15px;border:0;border-radius:10px;background:#0f6f9f;color:#fff;font-weight:700">Tải lại</button><button id="startupRecover" style="padding:10px 15px;border:1px solid #8fb7cc;border-radius:10px;background:#fff;color:#0b557b;font-weight:700">Khôi phục ứng dụng</button></div>';
+        document.body.appendChild(box);
+        document.getElementById('startupReload').onclick = () => location.reload();
+        document.getElementById('startupRecover').onclick = async () => {
+          try {
+            if ('serviceWorker' in navigator) {
+              const regs = await navigator.serviceWorker.getRegistrations();
+              await Promise.all(regs.filter(reg => String(reg.active?.scriptURL || reg.installing?.scriptURL || reg.waiting?.scriptURL || '').includes('/nhiem-vu/sw.js')).map(reg => reg.unregister()));
+            }
+            if ('caches' in window) {
+              const keys = await caches.keys();
+              await Promise.all(keys.filter(key => key.startsWith('nhiem-vu-')).map(key => caches.delete(key)));
+            }
+          } catch (_) {}
+          location.reload();
+        };
+      }
+      console.warn('Startup watchdog:', Date.now()-startedAt, 'ms');
+    };
+    window.setTimeout(showRecovery, 15000);
+  })();
+  </script>
   <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
-  <script src="./onesignal.js?v=20260810.V1_10_6" defer></script>
-  <script type="module" src="./pwa.js?v=20260818.V1_11_4" defer></script>
-  <script type="module" src="./app-v3.js?v=20260818.V1_11_4"></script>
-  <script type="module" src="./release-v1.11.4.js?v=20260818.V1_11_4"></script>
+  <script src="./onesignal.js?v=20260824.V1_13_0" defer></script>
+  <script type="module" src="./pwa.js?v=20260824.V1_13_0" defer></script>
+  <script type="module" src="./app-v3.js?v=20260824.V1_13_0"></script>
+  <script type="module" src="./release-v1.13.0.js?v=20260824.V1_13_0"></script>
 </body>
 </html>

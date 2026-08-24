@@ -119,31 +119,85 @@ export function parseDate(value) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+const VI_DATE_FORMATTER = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Ho_Chi_Minh',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit'
+});
+
+function vietnamDateKey(value) {
+  if (!value) return '';
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value.trim())) return value.trim();
+  const date = parseDate(value);
+  if (!date) return '';
+  const parts = Object.fromEntries(
+    VI_DATE_FORMATTER.formatToParts(date)
+      .filter(part => ['year', 'month', 'day'].includes(part.type))
+      .map(part => [part.type, part.value])
+  );
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+function dateKeySerial(value) {
+  const key = vietnamDateKey(value);
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(key);
+  if (!match) return null;
+  return Math.floor(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])) / 86400000);
+}
+
+/**
+ * Số ngày trễ theo NGÀY LỊCH thực tế tại múi giờ Asia/Ho_Chi_Minh.
+ * Thứ Bảy, Chủ Nhật và ngày nghỉ vẫn được tính như ngày bình thường.
+ */
+export function countCalendarDaysLate(deadlineValue, completedValue) {
+  const deadlineDay = dateKeySerial(deadlineValue);
+  const completedDay = dateKeySerial(completedValue);
+  if (deadlineDay === null || completedDay === null) return 0;
+  return Math.max(0, completedDay - deadlineDay);
+}
+
+/** Alias tương thích code cũ; từ V1.13.0 hàm này cũng tính ngày lịch. */
 export function countWorkingDaysLate(deadlineValue, completedValue) {
-  const deadline = parseDate(deadlineValue);
-  const completed = parseDate(completedValue);
-  if (!deadline || !completed) return 0;
-  deadline.setHours(0, 0, 0, 0);
-  completed.setHours(0, 0, 0, 0);
-  if (completed <= deadline) return 0;
-  let days = 0;
-  const cursor = new Date(deadline);
-  cursor.setDate(cursor.getDate() + 1);
-  while (cursor <= completed) {
-    const weekday = cursor.getDay();
-    if (weekday !== 0 && weekday !== 6) days += 1;
-    cursor.setDate(cursor.getDate() + 1);
-  }
-  return days;
+  return countCalendarDaysLate(deadlineValue, completedValue);
 }
 
 export function progressRateFromDates(deadlineValue, completedValue, isCompleted = true) {
-  if (!isCompleted) return 0;
-  const late = countWorkingDaysLate(deadlineValue, completedValue);
+  if (!isCompleted || !completedValue) return 0;
+  const late = countCalendarDaysLate(deadlineValue, completedValue);
   if (late <= 0) return 100;
   if (late <= 3) return 80;
   if (late <= 5) return 60;
   return 0;
+}
+
+/**
+ * Tổng hợp tiến độ của nhiệm vụ có nhiều mốc định kỳ.
+ * - Chỉ mốc đã đến hạn (theo ngày lịch Việt Nam) mới tham gia mẫu số.
+ * - Đã đến hạn nhưng chưa hoàn thành = 0.
+ * - Mỗi mốc hoàn thành tự chấm 100/80/60/0 theo deadline và completedAt.
+ * - Trung bình cuối cùng luôn quy XUỐNG 100/80/60/0 bằng convertAppendix04Rate().
+ */
+export function calculateMilestoneProgress(milestones = [], asOf = new Date()) {
+  const asOfSerial = dateKeySerial(asOf);
+  const active = (milestones || []).filter(item => item && item.active !== false);
+  const due = active.filter(item => {
+    const serial = dateKeySerial(item.dueDateKey || item.dueAt);
+    return serial !== null && asOfSerial !== null && serial <= asOfSerial;
+  });
+  const rates = due.map(item => {
+    if (!item.completedAt) return 0;
+    return progressRateFromDates(item.dueDateKey || item.dueAt, item.completedAt, true);
+  });
+  const average = rates.length ? round2(rates.reduce((sum, value) => sum + Number(value || 0), 0) / rates.length) : null;
+  return {
+    totalMilestones: active.length,
+    dueMilestones: due.length,
+    completedDueMilestones: due.filter(item => Boolean(item.completedAt)).length,
+    rates,
+    averageRate: average,
+    appliedProgressRate: average === null ? null : convertAppendix04Rate(average)
+  };
 }
 
 export function proposedRating(total) {

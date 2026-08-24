@@ -1,39 +1,36 @@
-import { BUILD_VERSION } from "./core/app-version.js?v=20260818.V1_11_4";
+import { BUILD_VERSION } from "./core/app-version.js?v=20260824.V1_13_0";
 
 let deferredInstallPrompt = null;
 let refreshing = false;
 let registration = null;
+let lastHiddenAt = 0;
 
-function isStandalone() {
-  return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
-}
+function isStandalone() { return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true; }
 function isIos() { return /iphone|ipad|ipod/i.test(navigator.userAgent || ""); }
 function show(id) { document.getElementById(id)?.classList.remove("hidden"); }
 function hide(id) { document.getElementById(id)?.classList.add("hidden"); }
 function setOnlineState() {
   const offline = !navigator.onLine;
   document.body.classList.toggle("is-offline", offline);
-  const box = document.getElementById("offlineBanner");
-  if (box) box.classList.toggle("hidden", !offline);
+  document.getElementById("offlineBanner")?.classList.toggle("hidden", !offline);
 }
 function showUpdate(reg) {
   const bar = document.getElementById("appUpdateBanner");
   if (!bar || !reg?.waiting) return;
   bar.classList.remove("hidden");
-  document.getElementById("btnApplyUpdate")?.addEventListener("click", () => {
-    reg.waiting.postMessage({ type: "SKIP_WAITING" });
-  }, { once: true });
+  document.getElementById("btnApplyUpdate")?.addEventListener("click", () => reg.waiting.postMessage({ type: "SKIP_WAITING" }), { once: true });
 }
 function renderInstallHelp() {
   const title = document.getElementById("installHelpTitle");
   const text = document.getElementById("installHelpText");
   if (title) title.textContent = "Cài ứng dụng Nhiệm vụ và đánh giá KPI";
   if (!text) return;
-  if (isIos()) {
-    text.innerHTML = "Trên iPhone/iPad: mở trang bằng <strong>Safari</strong> → bấm <strong>Chia sẻ</strong> → <strong>Thêm vào Màn hình chính</strong> → bật <strong>Mở dưới dạng ứng dụng web</strong> nếu thiết bị hiển thị tùy chọn này.";
-  } else {
-    text.innerHTML = "Trên Chrome/Edge máy tính: dùng mục <strong>Cài đặt ứng dụng / Install app</strong> ở thanh địa chỉ hoặc menu trình duyệt. <strong>Không dùng “Tạo lối tắt”</strong>; lối tắt thường còn biểu tượng Chrome. Khi cài đúng PWA, ứng dụng mở ở cửa sổ riêng theo chế độ standalone.";
-  }
+  text.innerHTML = isIos()
+    ? "Trên iPhone/iPad: mở trang bằng <strong>Safari</strong> → bấm <strong>Chia sẻ</strong> → <strong>Thêm vào Màn hình chính</strong> → bật <strong>Mở dưới dạng ứng dụng web</strong> nếu có."
+    : "Trên Chrome/Edge máy tính: dùng <strong>Cài đặt ứng dụng / Install app</strong>. Không dùng Tạo lối tắt.";
+}
+async function checkForUpdate() {
+  try { await registration?.update?.(); } catch (_) { /* offline */ }
 }
 async function registerPwa() {
   if (!("serviceWorker" in navigator)) return;
@@ -51,44 +48,46 @@ async function registerPwa() {
       refreshing = true;
       window.location.reload();
     });
-    await registration.update();
-    window.setInterval(() => registration?.update().catch(() => {}), 60 * 60 * 1000);
+    await checkForUpdate();
+    window.setInterval(checkForUpdate, 30 * 60 * 1000);
   } catch (error) {
     console.warn("Không đăng ký được chế độ ứng dụng:", error);
   }
 }
 window.addEventListener("beforeinstallprompt", event => {
-  event.preventDefault();
-  deferredInstallPrompt = event;
-  if (!isStandalone()) show("btnInstallApp");
+  event.preventDefault(); deferredInstallPrompt = event; if (!isStandalone()) show("btnInstallApp");
 });
-window.addEventListener("appinstalled", () => {
-  deferredInstallPrompt = null;
-  hide("btnInstallApp");
-  document.body.classList.add("is-installed-app");
-});
-window.addEventListener("online", setOnlineState);
+window.addEventListener("appinstalled", () => { deferredInstallPrompt = null; hide("btnInstallApp"); document.body.classList.add("is-installed-app"); });
+window.addEventListener("online", () => { setOnlineState(); void checkForUpdate(); });
 window.addEventListener("offline", setOnlineState);
+window.addEventListener("pageshow", event => {
+  /* iOS PWA có thể khôi phục nguyên process từ BFCache. Reload để bootstrap lại quyền/profile. */
+  if (event.persisted && isStandalone()) { window.location.reload(); return; }
+  void checkForUpdate();
+});
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") { lastHiddenAt = Date.now(); return; }
+  void checkForUpdate();
+  if (isStandalone() && lastHiddenAt && Date.now() - lastHiddenAt > 5 * 60 * 1000) {
+    window.dispatchEvent(new CustomEvent("app:pwa-resumed", { detail: { hiddenMs: Date.now() - lastHiddenAt } }));
+  }
+  lastHiddenAt = 0;
+});
 
 document.addEventListener("DOMContentLoaded", () => {
   setOnlineState();
   document.body.classList.toggle("is-installed-app", isStandalone());
   if (isStandalone()) hide("btnInstallApp");
   renderInstallHelp();
-
   document.getElementById("btnInstallApp")?.addEventListener("click", async () => {
     if (isStandalone()) return;
     if (deferredInstallPrompt) {
       deferredInstallPrompt.prompt();
       const choice = await deferredInstallPrompt.userChoice;
-      if (choice?.outcome === "accepted") {
-        deferredInstallPrompt = null;
-        hide("btnInstallApp");
-      }
+      if (choice?.outcome === "accepted") { deferredInstallPrompt = null; hide("btnInstallApp"); }
       return;
     }
-    renderInstallHelp();
-    show("iosInstallHelp");
+    renderInstallHelp(); show("iosInstallHelp");
   });
   document.getElementById("btnCloseIosInstall")?.addEventListener("click", () => hide("iosInstallHelp"));
   document.getElementById("btnDismissUpdate")?.addEventListener("click", () => hide("appUpdateBanner"));
