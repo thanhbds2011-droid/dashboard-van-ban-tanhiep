@@ -1,11 +1,11 @@
-import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_14_0";
-import { UserContext } from "../core/user-context.js?v=20260824.V1_14_0";
-import { Permissions } from "../core/permissions.js?v=20260824.V1_14_0";
-import { TaskLogService } from "./task-log-service.js?v=20260824.V1_14_0";
-import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260824.V1_14_0";
-import { PeriodReadService } from "./period-read-service.js?v=20260824.V1_14_0";
-import { APP_VERSION } from "../core/app-version.js?v=20260824.V1_14_0";
-import { deriveDeadlinePlan, deadlineDateFromKey } from "../core/deadline-engine.js?v=20260824.V1_14_0";
+import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_14_1";
+import { UserContext } from "../core/user-context.js?v=20260824.V1_14_1";
+import { Permissions } from "../core/permissions.js?v=20260824.V1_14_1";
+import { TaskLogService } from "./task-log-service.js?v=20260824.V1_14_1";
+import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260824.V1_14_1";
+import { PeriodReadService } from "./period-read-service.js?v=20260824.V1_14_1";
+import { APP_VERSION } from "../core/app-version.js?v=20260824.V1_14_1";
+import { deriveDeadlinePlan, deadlineDateFromKey, isDateKey, requiresManualDeadline } from "../core/deadline-engine.js?v=20260824.V1_14_1";
 
 const clean = value => String(value ?? "").trim();
 const upper = value => clean(value).toUpperCase();
@@ -262,6 +262,218 @@ function cancellationTaskSnapshot(task) {
   return Object.fromEntries(fields.map(key => [key, task?.[key] ?? null]));
 }
 
+function periodStartKey(period) {
+  return clean(period?.startDate || period?.startDateKey);
+}
+
+function periodEndKey(period) {
+  return clean(period?.endDate || period?.endDateKey);
+}
+
+function validAudienceForDepartment(value, departmentId) {
+  const audience = upper(value);
+  return upper(departmentId) === "CDTN"
+    ? ["CDTN_SECRETARY", "CDTN_EXECUTIVE", "CDTN_MEMBER"].includes(audience)
+    : ["ALL_DEPARTMENT", "MANAGEMENT"].includes(audience);
+}
+
+function optionManualDeadline(options, registration) {
+  const map = options?.manualDeadlines && typeof options.manualDeadlines === "object"
+    ? options.manualDeadlines
+    : {};
+  const keys = [
+    registration?.id,
+    registration?.standardTaskId,
+    registration?.standardTaskCode
+  ].map(clean).filter(Boolean);
+  for (const key of keys) {
+    const value = clean(map[key]);
+    if (value) return value;
+  }
+  return clean(options?.manualDeadlineDateKey);
+}
+
+async function periodForApproval(registration, options, context) {
+  const periodId = clean(registration?.periodId);
+  if (!periodId) throw new Error("Đăng ký chưa có mã kỳ KPI.");
+
+  const supplied = options?.period;
+  if (supplied && clean(supplied.id) === periodId && periodStartKey(supplied) && periodEndKey(supplied)) {
+    return supplied;
+  }
+
+  if (context.periods.has(periodId)) return context.periods.get(periodId);
+
+  const active = await PeriodReadService.getActive();
+  if (active && clean(active.id) === periodId && periodStartKey(active) && periodEndKey(active)) {
+    context.periods.set(periodId, active);
+    return active;
+  }
+
+  const snapshot = await FirebaseService.getDoc(
+    FirebaseService.doc(FirebaseService.db, "evaluationPeriods", periodId)
+  );
+  if (!snapshot.exists()) throw new Error(`Không tìm thấy kỳ KPI ${periodId} của đăng ký.`);
+  const period = { id: snapshot.id, ...snapshot.data() };
+  if (!periodStartKey(period) || !periodEndKey(period)) {
+    throw new Error(`Kỳ KPI ${periodId} chưa có ngày bắt đầu/kết thúc hợp lệ.`);
+  }
+  context.periods.set(periodId, period);
+  return period;
+}
+
+async function catalogForApproval(registration, context) {
+  if (!context.catalog) {
+    context.catalog = await StandardTaskReadService.list({ force: true });
+  }
+  const id = upper(registration?.standardTaskId);
+  const code = upper(registration?.standardTaskCode);
+  return context.catalog.find(item => (
+    (id && upper(item.id) === id)
+    || (code && upper(item.code || item.id) === code)
+  )) || null;
+}
+
+function legacyManualDeadlineError(registration) {
+  const code = registration?.standardTaskCode || registration?.standardTaskId || "đầu việc";
+  const error = new Error(
+    `Đăng ký cũ ${code} thuộc nhóm phải nhập Hạn hoàn thành cụ thể. ` +
+    "Trưởng phòng hãy nhập hạn cụ thể để duyệt; hệ thống không tự lấy ngày cuối kỳ."
+  );
+  error.code = "LEGACY_MANUAL_DEADLINE_REQUIRED";
+  error.registrationId = clean(registration?.id);
+  error.standardTaskId = clean(registration?.standardTaskId);
+  error.standardTaskCode = clean(registration?.standardTaskCode);
+  return error;
+}
+
+async function hydrateRegistrationForApproval(registration, options = {}, context = null) {
+  const ctx = context || { periods: new Map(), catalog: null };
+  const period = await periodForApproval(registration, options, ctx);
+  let recovered = false;
+  const recoverySources = [];
+
+  const result = {
+    ...registration,
+    periodStartDate: clean(registration?.periodStartDate) || periodStartKey(period),
+    periodEndDate: clean(registration?.periodEndDate) || periodEndKey(period)
+  };
+
+  if (!clean(registration?.periodStartDate) || !clean(registration?.periodEndDate)) {
+    recovered = true;
+    recoverySources.push("EVALUATION_PERIOD");
+  }
+
+  const departmentId = registrationDepartmentId(result);
+  const currentFrequency = clean(result.frequency);
+  const needsCatalog = (
+    !currentFrequency
+    || (!requiresManualDeadline(currentFrequency) && !clean(result.completionDeadline))
+    || !validAudienceForDepartment(result.audienceType, departmentId)
+    || !clean(result.standardTaskDepartmentId)
+  );
+  let catalog = null;
+  if (needsCatalog) {
+    catalog = await catalogForApproval(result, ctx);
+    if (!catalog) {
+      throw new Error(
+        `Không tìm thấy đầu việc ${result.standardTaskCode || result.standardTaskId || ""} trong Danh mục công việc để phục hồi đăng ký cũ.`
+      );
+    }
+  }
+
+  if (!clean(result.frequency) && clean(catalog?.frequency)) {
+    result.frequency = clean(catalog.frequency);
+    recovered = true;
+    recoverySources.push("STANDARD_TASK_FREQUENCY");
+  }
+  if (!clean(result.completionDeadline) && clean(catalog?.completionDeadline)) {
+    result.completionDeadline = clean(catalog.completionDeadline);
+    recovered = true;
+    recoverySources.push("STANDARD_TASK_DEADLINE_RULE");
+  }
+  if (clean(result.frequency) && !requiresManualDeadline(result.frequency) && !clean(result.completionDeadline)) {
+    throw new Error(
+      `Đầu việc ${result.standardTaskCode || result.standardTaskId || ""} trong Danh mục công việc chưa có “Thời hạn hoàn thành”. ` +
+      "Hãy cập nhật Google Sheet và đồng bộ standardTasks trước khi duyệt."
+    );
+  }
+  if (!validAudienceForDepartment(result.audienceType, departmentId) && validAudienceForDepartment(catalog?.audienceType, departmentId)) {
+    result.audienceType = clean(catalog.audienceType);
+    recovered = true;
+    recoverySources.push("STANDARD_TASK_AUDIENCE");
+  }
+  if (!clean(result.standardTaskDepartmentId) && clean(catalog?.departmentId)) {
+    result.standardTaskDepartmentId = clean(catalog.departmentId);
+    recovered = true;
+    recoverySources.push("STANDARD_TASK_DEPARTMENT");
+  }
+
+  let manualDeadlineDateKey = clean(result.manualDeadlineDateKey);
+  if (requiresManualDeadline(result.frequency)) {
+    const supplied = optionManualDeadline(options, result);
+    if (isDateKey(supplied)) {
+      manualDeadlineDateKey = supplied;
+      if (manualDeadlineDateKey !== clean(result.manualDeadlineDateKey)) {
+        recovered = true;
+        recoverySources.push("APPROVER_MANUAL_DEADLINE");
+      }
+    } else if (
+      clean(result.deadlineMode) === "SINGLE_MANUAL"
+      && isDateKey(result.deadlineDateKey)
+    ) {
+      manualDeadlineDateKey = clean(result.deadlineDateKey);
+    } else {
+      throw legacyManualDeadlineError(result);
+    }
+  }
+  result.manualDeadlineDateKey = manualDeadlineDateKey;
+
+  const plan = registrationDeadlinePlan(result);
+  if (!clean(result.deadlineMode)) result.deadlineMode = plan.deadlineMode;
+  if (!clean(result.deadlineDateKey)) result.deadlineDateKey = plan.deadlineDateKey;
+  if (!Array.isArray(result.milestoneDateKeys)) result.milestoneDateKeys = plan.milestoneDateKeys;
+
+  if (
+    clean(registration?.deadlineMode) !== clean(result.deadlineMode)
+    || clean(registration?.deadlineDateKey) !== clean(result.deadlineDateKey)
+    || !Array.isArray(registration?.milestoneDateKeys)
+  ) {
+    recovered = true;
+    recoverySources.push("DEADLINE_PLAN");
+  }
+
+  result._legacySnapshotRecovered = recovered;
+  result._legacySnapshotRecoverySources = [...new Set(recoverySources)];
+  return result;
+}
+
+function approvalSnapshotPatch(registration, reviewer) {
+  const patch = {
+    periodStartDate: clean(registration.periodStartDate),
+    periodEndDate: clean(registration.periodEndDate),
+    frequency: clean(registration.frequency),
+    completionDeadline: clean(registration.completionDeadline),
+    deadlineMode: clean(registration.deadlineMode),
+    deadlineDateKey: clean(registration.deadlineDateKey),
+    milestoneDateKeys: Array.isArray(registration.milestoneDateKeys) ? registration.milestoneDateKeys : [],
+    manualDeadlineDateKey: clean(registration.manualDeadlineDateKey),
+    audienceType: clean(registration.audienceType),
+    standardTaskDepartmentId: clean(registration.standardTaskDepartmentId || registrationDepartmentId(registration))
+  };
+  if (registration._legacySnapshotRecovered === true) {
+    patch.legacySnapshotRecovered = true;
+    patch.legacySnapshotRecoveredAt = FirebaseService.serverTimestamp();
+    patch.legacySnapshotRecoveredByUserId = reviewer.uid;
+    patch.legacySnapshotRecoveredByName = reviewer.fullName || "";
+    patch.legacySnapshotRecoverySources = Array.isArray(registration._legacySnapshotRecoverySources)
+      ? registration._legacySnapshotRecoverySources
+      : [];
+    patch.legacySnapshotSource = "PERIOD_AND_STANDARD_TASK";
+  }
+  return patch;
+}
+
 function registrationDeadlinePlan(registration) {
   const code = registration?.standardTaskCode || registration?.standardTaskId || "đầu việc";
   const periodStartDate = clean(registration?.periodStartDate);
@@ -281,13 +493,14 @@ function registrationDeadlinePlan(registration) {
   });
   const storedDeadlineDateKey = clean(registration?.deadlineDateKey);
   const storedMode = clean(registration?.deadlineMode);
-  const storedMilestones = Array.isArray(registration?.milestoneDateKeys)
+  const hasStoredMilestones = Array.isArray(registration?.milestoneDateKeys);
+  const storedMilestones = hasStoredMilestones
     ? registration.milestoneDateKeys.map(clean)
     : [];
-  if (storedDeadlineDateKey !== derived.deadlineDateKey
+  if ((storedDeadlineDateKey && storedDeadlineDateKey !== derived.deadlineDateKey)
       || (storedMode && storedMode !== derived.mode)
-      || JSON.stringify(storedMilestones) !== JSON.stringify(derived.milestoneDateKeys)) {
-    throw new Error(`Dữ liệu deadline của đăng ký ${code} không còn khớp snapshot nghiệp vụ. Vui lòng hủy và đăng ký lại.`);
+      || (hasStoredMilestones && JSON.stringify(storedMilestones) !== JSON.stringify(derived.milestoneDateKeys))) {
+    throw new Error(`Dữ liệu deadline của đăng ký ${code} không còn khớp snapshot nghiệp vụ. Vui lòng kiểm tra lại danh mục hoặc đăng ký.`);
   }
 
   const deadline = deadlineDateFromKey(derived.deadlineDateKey);
@@ -480,6 +693,7 @@ async function createApprovedTasks(registrations, reviewer, options = {}) {
     });
 
     batch.set(registrationReference, {
+      ...approvalSnapshotPatch(registration, reviewer),
       status: "APPROVED",
       taskId: taskReference.id,
       taskCode: code,
@@ -497,9 +711,14 @@ async function createApprovedTasks(registrations, reviewer, options = {}) {
       periodId: registration.periodId || "",
       action: "TASK_REGISTRATION_APPROVED",
       after: { ...payload, createdAt: null, updatedAt: null, assignedAt: null },
-      note: milestoneIds.length
-        ? `Duyệt ${registration.standardTaskCode || ""} của ${registration.userName || ""}; tạo ${milestoneIds.length} mốc định kỳ.`
-        : `Duyệt ${registration.standardTaskCode || ""} của ${registration.userName || ""}.`
+      note: [
+        milestoneIds.length
+          ? `Duyệt ${registration.standardTaskCode || ""} của ${registration.userName || ""}; tạo ${milestoneIds.length} mốc định kỳ.`
+          : `Duyệt ${registration.standardTaskCode || ""} của ${registration.userName || ""}.`,
+        registration._legacySnapshotRecovered === true
+          ? "Đã phục hồi snapshot đăng ký cũ từ kỳ KPI và Danh mục công việc trước khi duyệt."
+          : ""
+      ].filter(Boolean).join(" ")
     }));
     writeCount += 1;
     taskIds.push(taskReference.id);
@@ -789,14 +1008,17 @@ export const TaskRegistrationService = Object.freeze({
     const selected = (registrations || []).filter(item => item?.status === "PENDING");
     if (!selected.length) throw new Error("Chưa chọn đầu việc để duyệt.");
 
+    const context = { periods: new Map(), catalog: null };
+    const prepared = [];
     for (const item of selected) {
       const delegated = await hasDelegation(reviewer, registrationDepartmentId(item), "APPROVE_REGISTRATIONS");
       const directAuthority = canApprove(item, reviewer);
       if (!directAuthority && (!delegated || item.userId === reviewer.uid)) {
         throw new Error(`Bạn không có quyền duyệt đăng ký của ${item.userName || "người dùng"}.`);
       }
+      prepared.push(await hydrateRegistrationForApproval(item, options, context));
     }
-    return createApprovedTasks(selected, reviewer, options);
+    return createApprovedTasks(prepared, reviewer, options);
   },
 
   async rejectMany(registrations, reason) {

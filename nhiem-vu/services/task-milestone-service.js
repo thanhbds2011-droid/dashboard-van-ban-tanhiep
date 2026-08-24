@@ -5,10 +5,10 @@
  * Các hạn nội bộ được lưu tại taskMilestones; hoàn thành một mốc không tự kết thúc
  * nhiệm vụ, trừ khi đó là mốc cuối cùng và mọi mốc trước đã hoàn thành.
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_14_0";
-import { UserContext } from "../core/user-context.js?v=20260824.V1_14_0";
-import { TaskLogService } from "./task-log-service.js?v=20260824.V1_14_0";
-import { TaskNotificationService } from "./task-notification-service.js?v=20260824.V1_14_0";
+import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_14_1";
+import { UserContext } from "../core/user-context.js?v=20260824.V1_14_1";
+import { TaskLogService } from "./task-log-service.js?v=20260824.V1_14_1";
+import { TaskNotificationService } from "./task-notification-service.js?v=20260824.V1_14_1";
 
 function clean(value) {
   return String(value ?? "").trim();
@@ -59,15 +59,51 @@ function snapshotMilestone(item = {}) {
   };
 }
 
-export const TaskMilestoneService = Object.freeze({
-  async list(taskId) {
-    if (!clean(taskId)) return [];
-    const snapshot = await FirebaseService.getDocs(
-      FirebaseService.query(
-        FirebaseService.collection(FirebaseService.db, "taskMilestones"),
-        FirebaseService.where("taskId", "==", taskId)
+function scopedMilestoneQuery(taskOrId) {
+  const user = UserContext.requireUser();
+  const task = taskOrId && typeof taskOrId === "object" ? taskOrId : null;
+  const taskId = clean(task?.id || taskOrId);
+  if (!taskId) return null;
+
+  const constraints = [
+    FirebaseService.where("taskId", "==", taskId)
+  ];
+
+  /*
+   * Firestore Rules không phải bộ lọc dữ liệu. Query phải chứng minh được nhánh
+   * permission trước khi server trả kết quả:
+   * - chính người thực hiện -> ownerUserId == UID;
+   * - người quản lý/được ủy quyền -> departmentId == Phòng/Khu của task.
+   *
+   * V1.14.0 chỉ query theo taskId nên owner vẫn có thể bị
+   * "Missing or insufficient permissions" dù từng document thực tế thuộc về họ.
+   */
+  if (task && clean(task.ownerUserId) === clean(user.uid)) {
+    constraints.push(FirebaseService.where("ownerUserId", "==", user.uid));
+  } else if (task && clean(task.primaryDepartmentId || task.departmentId)) {
+    constraints.push(
+      FirebaseService.where(
+        "departmentId",
+        "==",
+        String(task.primaryDepartmentId || task.departmentId).trim().toUpperCase()
       )
     );
+  } else {
+    // Tương thích lời gọi cũ chỉ truyền taskId: chỉ cho đọc phạm vi chính UID.
+    constraints.push(FirebaseService.where("ownerUserId", "==", user.uid));
+  }
+
+  return FirebaseService.query(
+    FirebaseService.collection(FirebaseService.db, "taskMilestones"),
+    ...constraints
+  );
+}
+
+export const TaskMilestoneService = Object.freeze({
+  async list(taskOrId) {
+    const reference = scopedMilestoneQuery(taskOrId);
+    if (!reference) return [];
+    const snapshot = await FirebaseService.getDocs(reference);
     return sortMilestones(
       snapshot.docs
         .map(item => ({ id: item.id, ...item.data() }))
@@ -87,7 +123,7 @@ export const TaskMilestoneService = Object.freeze({
     if (task.active === false || String(task.status || "").toUpperCase() === "HUY") throw new Error("Nhiệm vụ không còn hoạt động.");
     if (String(task.milestoneMode || "").toUpperCase() !== "MONTHLY") throw new Error("Nhiệm vụ này không sử dụng mốc tiến độ theo tháng.");
 
-    const all = await this.list(task.id);
+    const all = await this.list(task);
     const current = this.firstIncomplete(all);
     if (!current) throw new Error("Tất cả mốc của nhiệm vụ đã hoàn thành.");
     if (current.id !== milestone.id) {

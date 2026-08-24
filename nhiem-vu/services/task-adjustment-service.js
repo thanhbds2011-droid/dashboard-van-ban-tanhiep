@@ -2,11 +2,12 @@
  * Quy trình đề nghị và phê duyệt điều chỉnh nhiệm vụ.
  * Không chuyển điểm giữa nhân sự; mọi thay đổi được lưu trong kpiAdjustments và taskLogs.
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_14_0";
-import { UserContext } from "../core/user-context.js?v=20260824.V1_14_0";
-import { TaskLogService } from "./task-log-service.js?v=20260824.V1_14_0";
-import { TaskNotificationService } from "./task-notification-service.js?v=20260824.V1_14_0";
-import { daysInMonth, deadlineDateFromKey } from "../core/deadline-engine.js?v=20260824.V1_14_0";
+import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_14_1";
+import { UserContext } from "../core/user-context.js?v=20260824.V1_14_1";
+import { TaskLogService } from "./task-log-service.js?v=20260824.V1_14_1";
+import { TaskNotificationService } from "./task-notification-service.js?v=20260824.V1_14_1";
+import { TaskMilestoneService } from "./task-milestone-service.js?v=20260824.V1_14_1";
+import { daysInMonth, deadlineDateFromKey } from "../core/deadline-engine.js?v=20260824.V1_14_1";
 
 const COLLECTION = "kpiAdjustments";
 const TYPES = Object.freeze({
@@ -75,17 +76,8 @@ function adjustedMonthDateKey(existingDateKey, newDay) {
   return `${match[1]}-${match[2]}-${String(day).padStart(2, "0")}`;
 }
 
-async function loadTaskMilestones(taskId) {
-  const snapshot = await FirebaseService.getDocs(
-    FirebaseService.query(
-      FirebaseService.collection(FirebaseService.db, "taskMilestones"),
-      FirebaseService.where("taskId", "==", taskId)
-    )
-  );
-  return snapshot.docs
-    .map(item => ({ id: item.id, ...item.data() }))
-    .filter(item => item.active !== false)
-    .sort((a, b) => Number(a.sequence || 0) - Number(b.sequence || 0));
+async function loadTaskMilestones(task) {
+  return TaskMilestoneService.list(task);
 }
 
 function completedTask(task) {
@@ -333,7 +325,7 @@ export const TaskAdjustmentService = Object.freeze({
     const proposedDeadlineDateKey = validDateKey(proposed.deadlineDateKey);
     const deadlineIsChanging = Boolean(proposedDeadlineDateKey && proposedDeadlineDateKey !== validDateKey(task.deadlineDateKey));
     const milestones = approvedType === TYPES.ADJUST_SCOPE && monthlyTask(task) && deadlineIsChanging
-      ? await loadTaskMilestones(task.id)
+      ? await loadTaskMilestones(task)
       : [];
     const taskChanges = {
       originalPlanSnapshot: task.originalPlanSnapshot || adjustment.originalPlanSnapshot || planSnapshot(task),
