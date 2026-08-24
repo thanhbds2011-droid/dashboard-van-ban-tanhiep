@@ -1637,3 +1637,65 @@
 @media (max-width: 720px) {
   .kpi-header-sync { width: 100%; justify-content: space-between; }
 }
+
+/* ===== V1.14.2 — Giải thích KPI milestone & inline validation ===== */
+.kpi-milestone-summary-card { display: grid; gap: 12px; }
+.kpi-milestone-score-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(180px, .7fr);
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #b9ddc9;
+  border-radius: 14px;
+  background: #f2faf5;
+}
+.kpi-milestone-score-hero > div { display: grid; gap: 3px; }
+.kpi-milestone-score-hero span { color: #627987; font-size: .82rem; }
+.kpi-milestone-score-hero strong { color: #116c43; font-size: 1.65rem; line-height: 1.1; }
+.kpi-milestone-score-hero small { color: #5f786b; line-height: 1.4; }
+.kpi-milestone-average { align-content: center; padding-left: 14px; border-left: 1px solid #cfe5d7; }
+.kpi-milestone-average strong { color: #275b72; font-size: 1.25rem; }
+.kpi-milestone-rule-note {
+  padding: 11px 13px;
+  border: 1px solid #d8e6ee;
+  border-radius: 11px;
+  background: #f7fbfd;
+  color: #526f80;
+  line-height: 1.5;
+  font-size: .84rem;
+}
+.kpi-milestone-details { border: 1px solid #d8e5ec; border-radius: 12px; overflow: hidden; background: #fff; }
+.kpi-milestone-details > summary { cursor: pointer; list-style: none; padding: 11px 13px; color: #155f85; font-weight: 800; background: #f5fafc; }
+.kpi-milestone-details > summary::-webkit-details-marker { display: none; }
+.kpi-milestone-details > summary::after { content: '⌄'; float: right; }
+.kpi-milestone-details[open] > summary::after { content: '⌃'; }
+.kpi-milestone-detail-list { display: grid; }
+.kpi-milestone-detail {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) 84px;
+  gap: 10px;
+  align-items: center;
+  padding: 11px 13px;
+  border-top: 1px solid #e5edf2;
+}
+.kpi-milestone-detail-index { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: #eaf4f9; color: #196389; font-weight: 800; }
+.kpi-milestone-detail-main { min-width: 0; display: grid; gap: 2px; }
+.kpi-milestone-detail-main strong { color: #294b60; }
+.kpi-milestone-detail-main span, .kpi-milestone-detail-main small { color: #667d8b; line-height: 1.35; }
+.kpi-milestone-detail-score { text-align: right; font-weight: 900; font-size: 1.05rem; color: #315f77; }
+.kpi-milestone-detail.is-good .kpi-milestone-detail-score { color: #157347; }
+.kpi-milestone-detail.is-warning .kpi-milestone-detail-score { color: #9a6a08; }
+.kpi-milestone-detail.is-warning-strong .kpi-milestone-detail-score { color: #a75a13; }
+.kpi-milestone-detail.is-bad .kpi-milestone-detail-score,
+.kpi-milestone-detail.is-overdue .kpi-milestone-detail-score { color: #b13b33; }
+.kpi-milestone-detail.is-pending { opacity: .75; }
+.kpi-required-mark { color: #b5352d; }
+.kpi-inline-field-error { margin-top: 6px; color: #b5352d; font-size: .82rem; font-weight: 750; }
+.kpi-form-error { padding: 10px 12px; border: 1px solid #e8b7b2; border-radius: 10px; background: #fff5f4; color: #9f322a; font-weight: 700; }
+.kpi-field.is-invalid textarea, .kpi-field.is-invalid select { border-color: #d65a50 !important; box-shadow: 0 0 0 3px rgba(214,90,80,.10); }
+@media (max-width: 720px) {
+  .kpi-milestone-score-hero { grid-template-columns: 1fr; }
+  .kpi-milestone-average { padding: 10px 0 0; border-left: 0; border-top: 1px solid #cfe5d7; }
+  .kpi-milestone-detail { grid-template-columns: 28px minmax(0, 1fr); }
+  .kpi-milestone-detail-score { grid-column: 2; text-align: left; }
+}

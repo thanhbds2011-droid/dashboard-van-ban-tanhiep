@@ -173,28 +173,70 @@ export function progressRateFromDates(deadlineValue, completedValue, isCompleted
 
 /**
  * Tổng hợp tiến độ của nhiệm vụ có nhiều mốc định kỳ.
- * - Chỉ mốc đã đến hạn (theo ngày lịch Việt Nam) mới tham gia mẫu số.
- * - Đã đến hạn nhưng chưa hoàn thành = 0.
- * - Mỗi mốc hoàn thành tự chấm 100/80/60/0 theo deadline và completedAt.
+ *
+ * Quy tắc V1.14.2:
+ * - Mốc ĐÃ HOÀN THÀNH luôn được đưa vào tính ngay, kể cả hoàn thành trước hạn.
+ * - Mốc chưa hoàn thành và chưa đến hạn: chưa đưa vào mẫu số.
+ * - Mốc đã đến hạn nhưng chưa hoàn thành: 0 điểm.
+ * - Hoàn thành đúng/sớm hạn = 100; trễ 1–3 ngày = 80; trễ 4–5 ngày = 60; trễ >5 ngày = 0.
  * - Trung bình cuối cùng luôn quy XUỐNG 100/80/60/0 bằng convertAppendix04Rate().
  */
 export function calculateMilestoneProgress(milestones = [], asOf = new Date()) {
   const asOfSerial = dateKeySerial(asOf);
   const active = (milestones || []).filter(item => item && item.active !== false);
-  const due = active.filter(item => {
-    const serial = dateKeySerial(item.dueDateKey || item.dueAt);
-    return serial !== null && asOfSerial !== null && serial <= asOfSerial;
-  });
-  const rates = due.map(item => {
-    if (!item.completedAt) return 0;
-    return progressRateFromDates(item.dueDateKey || item.dueAt, item.completedAt, true);
-  });
-  const average = rates.length ? round2(rates.reduce((sum, value) => sum + Number(value || 0), 0) / rates.length) : null;
+
+  const details = active.map(item => {
+    const dueValue = item.dueDateKey || item.dueAt;
+    const dueSerial = dateKeySerial(dueValue);
+    const completed = Boolean(item.completedAt);
+    const dueNow = dueSerial !== null && asOfSerial !== null && dueSerial <= asOfSerial;
+    const included = completed || dueNow;
+    const rate = !included
+      ? null
+      : completed
+        ? progressRateFromDates(dueValue, item.completedAt, true)
+        : 0;
+    const completedSerial = completed ? dateKeySerial(item.completedAt) : null;
+    const dayDelta = completed && completedSerial !== null && dueSerial !== null
+      ? completedSerial - dueSerial
+      : null;
+    const lateDays = dayDelta === null ? null : Math.max(0, dayDelta);
+    const earlyDays = dayDelta === null ? null : Math.max(0, -dayDelta);
+
+    return {
+      id: item.id || '',
+      sequence: Number(item.sequence || 0),
+      dueDateKey: vietnamDateKey(dueValue),
+      completedAt: item.completedAt || null,
+      completedDateKey: completed ? vietnamDateKey(item.completedAt) : '',
+      completed,
+      dueNow,
+      included,
+      rate,
+      dayDelta,
+      lateDays,
+      earlyDays
+    };
+  }).sort((a, b) => a.sequence - b.sequence || a.dueDateKey.localeCompare(b.dueDateKey));
+
+  const due = details.filter(item => item.dueNow);
+  const included = details.filter(item => item.included);
+  const completedEarlyFuture = details.filter(item => item.completed && !item.dueNow);
+  const rates = included.map(item => Number(item.rate || 0));
+  const average = rates.length
+    ? round2(rates.reduce((sum, value) => sum + value, 0) / rates.length)
+    : null;
+
   return {
     totalMilestones: active.length,
     dueMilestones: due.length,
-    completedDueMilestones: due.filter(item => Boolean(item.completedAt)).length,
+    completedDueMilestones: due.filter(item => item.completed).length,
+    eligibleMilestones: included.length,
+    completedEligibleMilestones: included.filter(item => item.completed).length,
+    completedEarlyFutureMilestones: completedEarlyFuture.length,
+    pendingFutureMilestones: details.filter(item => !item.included).length,
     rates,
+    details,
     averageRate: average,
     appliedProgressRate: average === null ? null : convertAppendix04Rate(average)
   };

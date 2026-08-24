@@ -954,3 +954,61 @@ button,input,select,textarea{font-size:16px}
 .hidden{display:none!important}.system-banner{position:sticky;top:0;z-index:1200;margin:0 auto;padding:12px 18px;display:flex;align-items:center;justify-content:center;gap:16px;font-weight:700}.offline-banner{background:#fff3cd;color:#664d03}.update-banner{background:#e8f4ff;color:#083b5c}.update-banner>div{display:flex;gap:8px}.install-help-card{max-width:560px}.is-offline [data-write-action],.is-offline button[type="submit"]{opacity:.65}.registration-row-registered{border-left:4px solid #1f7a4d}@media(max-width:720px){.system-banner{flex-direction:column;align-items:stretch}.update-banner>div{display:grid;grid-template-columns:1fr 1fr}.header-button span{display:none}}
 
 .auth-diagnostic-box{display:grid;gap:4px;margin:14px 0;padding:12px 14px;border:1px solid #d9e5ed;border-radius:12px;background:#f7fafc;color:#476477;font-size:13px}.auth-diagnostic-box strong{color:#173f59}.auth-diagnostic-box span{overflow-wrap:anywhere}
+
+/* ===== V1.14.2 — Cập nhật nhiệm vụ theo mốc: giao diện người dùng cuối ===== */
+.task-milestone-panel {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #cfe2ec;
+  border-left: 4px solid #4aa6d6;
+  border-radius: 14px;
+  background: #f6fbfe;
+}
+.task-milestone-panel-head { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+.task-milestone-panel-head > div { display: grid; gap: 3px; }
+.task-milestone-panel-head strong { color: #184a68; font-size: 15px; }
+.task-milestone-panel-head span { color: #667d8d; font-size: 13px; }
+.task-milestone-timeline { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 9px; }
+.task-milestone-row {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  padding: 10px 11px;
+  border: 1px solid #d9e6ed;
+  border-radius: 11px;
+  background: #fff;
+}
+.task-milestone-row.is-complete { border-color: #b8ddc6; background: #f3fbf6; }
+.task-milestone-row.is-current { border-color: #83bdd8; background: #eef8fc; box-shadow: inset 0 0 0 1px rgba(45,132,174,.05); }
+.task-milestone-row.is-upcoming { opacity: .78; }
+.task-milestone-icon { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: #e8f3f8; color: #17628a; font-weight: 900; }
+.task-milestone-row.is-complete .task-milestone-icon { background: #dff2e6; color: #197144; }
+.task-milestone-row > div { min-width: 0; display: grid; gap: 2px; }
+.task-milestone-row strong { color: #28485b; overflow-wrap: anywhere; }
+.task-milestone-row small { color: #6b7f8d; line-height: 1.35; }
+.task-milestone-panel-note { color: #557080; line-height: 1.5; font-size: 13px; }
+.task-milestone-complete-action {
+  align-items: flex-start !important;
+  padding: 14px !important;
+  border: 1px solid #b9d9e9 !important;
+  border-radius: 12px;
+  background: #f7fcff;
+}
+.task-milestone-complete-action input { margin-top: 3px; }
+.task-milestone-complete-action small { display: block; margin-top: 4px; color: #667d8d; line-height: 1.45; font-weight: 500; }
+.task-progress-form-error {
+  padding: 11px 13px;
+  border: 1px solid #e9b6b1;
+  border-radius: 10px;
+  background: #fff5f4;
+  color: #9d3028;
+  font-weight: 700;
+  line-height: 1.45;
+}
+@media (max-width: 620px) {
+  .task-milestone-timeline { grid-template-columns: 1fr; }
+  .task-milestone-panel { padding: 13px; }
+}
