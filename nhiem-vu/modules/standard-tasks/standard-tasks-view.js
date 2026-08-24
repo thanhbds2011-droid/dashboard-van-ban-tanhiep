@@ -1,10 +1,11 @@
-import { UserContext } from "../../core/user-context.js?v=20260810.V1_10_6";
-import { Permissions } from "../../core/permissions.js?v=20260818.V1_11_4";
-import { ToastService } from "../../core/toast-service.js?v=20260810.V1_10_6";
-import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260810.V1_10_6";
-import { PeriodReadService } from "../../services/period-read-service.js?v=20260810.V1_10_6";
-import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260818.V1_11_4";
-import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260810.V1_10_6";
+import { UserContext } from "../../core/user-context.js?v=20260824.V1_13_0";
+import { Permissions } from "../../core/permissions.js?v=20260824.V1_13_0";
+import { ToastService } from "../../core/toast-service.js?v=20260824.V1_13_0";
+import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260824.V1_13_0";
+import { PeriodReadService } from "../../services/period-read-service.js?v=20260824.V1_13_0";
+import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260824.V1_13_0";
+import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260824.V1_13_0";
+import { deriveDeadlinePlan, deadlineRuleDescription, requiresManualDeadline } from "../../core/deadline-engine.js?v=20260824.V1_13_0";
 
 let currentCatalogAccess = {
   canManage: false,
@@ -217,7 +218,7 @@ export async function renderStandardTasksView(outlet) {
         const registrationMatches = selectedRegistration === "ALL"
           || (selectedRegistration === "REGISTERED" && Boolean(registration))
           || (selectedRegistration === "AVAILABLE" && item._registrationEligible && !registration);
-        const textMatches = [item.code, item.name, item.outputRequirement, item.frequency, workTypeLabel(item), departmentName(itemDepartmentId)]
+        const textMatches = [item.code, item.name, item.outputRequirement, item.frequency, item.completionDeadline, workTypeLabel(item), departmentName(itemDepartmentId)]
           .join(" ").toLowerCase().includes(keyword);
         return typeMatches && departmentMatches && registrationMatches && textMatches;
       });
@@ -260,7 +261,12 @@ export async function renderStandardTasksView(outlet) {
       const button = document.getElementById("btnRegisterSelected");
       button.disabled = true;
       try {
-        const result = await TaskRegistrationService.registerMany(selected, period);
+        const deadlineOptions = await prepareRegistrationDeadlineOptions(selected, period);
+        if (!deadlineOptions) {
+          button.disabled = false;
+          return;
+        }
+        const result = await TaskRegistrationService.registerMany(selected, period, deadlineOptions);
         ToastService.success(result.pending
           ? `Đã đăng ký ${result.total} đầu việc: ${result.autoApproved} được duyệt ngay, ${result.pending} chờ duyệt.`
           : `Đã đăng ký và duyệt ngay ${result.total} đầu việc.`);
@@ -337,7 +343,7 @@ function renderAvailableTask(item, registrationOpen, catalogAccess) {
     <div class="data-row-main">
       <strong>${escapeHtml(item.code || item.id)} — ${escapeHtml(item.name || "")}</strong>
       <small>${escapeHtml(item.outputRequirement || "")}</small>
-      <div class="standard-task-tags">${workTypeBadge(item)}${trackingModeBadge(item)}${workItemTypeBadge(item)}${classificationBadge(item)}${audienceBadge(item)}${item.frequency ? `<span class="status-pill neutral">${escapeHtml(item.frequency)}</span>` : ""}</div>
+      <div class="standard-task-tags">${workTypeBadge(item)}${trackingModeBadge(item)}${workItemTypeBadge(item)}${classificationBadge(item)}${audienceBadge(item)}${item.frequency ? `<span class="status-pill neutral">${escapeHtml(item.frequency)}</span>` : ""}${deadlineBadge(item)}</div>
       ${registrationEligible ? "" : '<small class="registration-restriction">Đầu việc này chỉ hiển thị để tra cứu; vai trò hiện tại không thuộc đối tượng đăng ký.</small>'}
     </div>
     <div class="data-row-meta">
@@ -375,7 +381,7 @@ function renderRegisteredTask(item, registration, registrationOpen, catalogAcces
     <div class="data-row-main">
       <strong>${escapeHtml(item.code || item.id)} — ${escapeHtml(item.name || "")}</strong>
       <small>${escapeHtml(item.outputRequirement || "")}</small>
-      <div class="standard-task-tags">${workTypeBadge(item)}${trackingModeBadge(item)}${workItemTypeBadge(item)}${classificationBadge(item)}${audienceBadge(item)}${item.frequency ? `<span class="status-pill neutral">${escapeHtml(item.frequency)}</span>` : ""}</div>
+      <div class="standard-task-tags">${workTypeBadge(item)}${trackingModeBadge(item)}${workItemTypeBadge(item)}${classificationBadge(item)}${audienceBadge(item)}${item.frequency ? `<span class="status-pill neutral">${escapeHtml(item.frequency)}</span>` : ""}${deadlineBadge(item)}</div>
       ${registration?.rejectionReason ? `<small class="text-danger">Lý do trả lại: ${escapeHtml(registration.rejectionReason)}</small>` : ""}
     </div>
     <div class="data-row-meta">
@@ -395,7 +401,7 @@ function renderCatalogList(items, catalogAccess) {
     <div class="data-row-main">
       <strong>${escapeHtml(item.code || item.id)} — ${escapeHtml(item.name || "")}</strong>
       <small>${escapeHtml(item.outputRequirement || "")}</small>
-      <div class="standard-task-tags">${workTypeBadge(item)}${trackingModeBadge(item)}${workItemTypeBadge(item)}${classificationBadge(item)}${audienceBadge(item)}${item.frequency ? `<span class="status-pill neutral">${escapeHtml(item.frequency)}</span>` : ""}</div>
+      <div class="standard-task-tags">${workTypeBadge(item)}${trackingModeBadge(item)}${workItemTypeBadge(item)}${classificationBadge(item)}${audienceBadge(item)}${item.frequency ? `<span class="status-pill neutral">${escapeHtml(item.frequency)}</span>` : ""}${deadlineBadge(item)}</div>
     </div>
     <div class="data-row-meta">
       <small>Điểm tối đa: ${formatNumber(item.maximumConvertedScore || 0)}</small>
@@ -513,7 +519,7 @@ async function openTaskEditor(item) {
     item?.workItemType || "GENERIC"
   );
   const currentAudience = String(
-    item?.audienceType || (item?.isManagementTask === true ? "MANAGEMENT" : initialDepartmentId === "CDTN" ? "CDTN_MEMBER" : "ALL_DEPARTMENT")
+    item?.audienceType || (initialDepartmentId === "CDTN" ? "CDTN_MEMBER" : "ALL_DEPARTMENT")
   ).toUpperCase();
   const currentCore = item?.isCoreTaskDefault === true;
   const currentManagement = item?.isManagementTask === true;
@@ -538,7 +544,8 @@ async function openTaskEditor(item) {
       <label class="kpi-field"><span>Tính chất</span><select id="catalogTaskWorkType"><option value="THUONG_XUYEN" ${currentWorkType === "THUONG_XUYEN" ? "selected" : ""}>Thường xuyên</option><option value="DOT_XUAT" ${currentWorkType === "DOT_XUAT" ? "selected" : ""}>Đột xuất</option></select></label>
       <label class="kpi-field full"><span>Tên đầu việc</span><input id="catalogTaskName" maxlength="1000" value="${escapeHtml(item?.name || "")}" placeholder="Nhập tên đầu việc"><small class="field-help">Tối đa 1.000 ký tự; nội dung được lưu đầy đủ trên Firestore.</small></label>
       <label class="kpi-field full"><span>Kết quả đầu ra/Yêu cầu hoàn thành</span><textarea id="catalogTaskOutput" rows="3" placeholder="Nêu sản phẩm hoặc kết quả phải đạt">${escapeHtml(item?.outputRequirement || "")}</textarea></label>
-      <label class="kpi-field full"><span>Chu kỳ/Tần suất</span><input id="catalogTaskFrequency" value="${escapeHtml(item?.frequency || "")}" placeholder="Ví dụ: Theo tháng, theo hồ sơ, khi phát sinh"></label>
+      <label class="kpi-field full"><span>Chu kỳ/Tần suất</span><input id="catalogTaskFrequency" value="${escapeHtml(item?.frequency || "")}" placeholder="Ví dụ: Theo tháng, Theo quý, Theo năm, Khi phát sinh"></label>
+      <label class="kpi-field full"><span>Thời hạn hoàn thành</span><input id="catalogTaskCompletionDeadline" value="${escapeHtml(item?.completionDeadline || "")}" placeholder="Theo tháng/quý: 05 hoặc 25 · Theo năm: 31/12"><small id="catalogTaskDeadlineHelp" class="field-help">${escapeHtml(deadlineRuleDescription(item?.frequency || "", item?.completionDeadline || ""))}</small></label>
       <div class="standard-form-section-title full"><span>2</span><div><strong>Cách theo dõi và căn cứ đánh giá</strong><small>Chọn theo sản phẩm cuối cùng hoặc theo nhiều lượt phát sinh trong kỳ.</small></div></div>
       <label class="kpi-field full"><span>Cách theo dõi trong kỳ</span><select id="catalogTaskTrackingMode">
         <option value="FINAL_OUTPUT" ${currentTrackingMode === "FINAL_OUTPUT" ? "selected" : ""}>Theo sản phẩm/kết quả cuối cùng</option>
@@ -588,6 +595,14 @@ async function openTaskEditor(item) {
   const workItemTypeField = document.getElementById("catalogWorkItemTypeField");
   const quantityUnitField = document.getElementById("catalogQuantityUnitField");
   const scoringMethodPreview = document.getElementById("catalogScoringMethodPreview");
+  const frequencyInput = document.getElementById("catalogTaskFrequency");
+  const completionDeadlineInput = document.getElementById("catalogTaskCompletionDeadline");
+  const deadlineHelp = document.getElementById("catalogTaskDeadlineHelp");
+
+  const refreshDeadlineHelp = () => {
+    if (!deadlineHelp) return;
+    deadlineHelp.textContent = deadlineRuleDescription(frequencyInput?.value || "", completionDeadlineInput?.value || "");
+  };
 
   const recalculate = () => {
     const base = Number(document.getElementById("catalogTaskBaseScore")?.value || 0);
@@ -643,10 +658,14 @@ async function openTaskEditor(item) {
     if (!editing) await syncAudienceFields(true);
   });
   document.getElementById("catalogTaskCoefficient")?.addEventListener("change", recalculate);
+  frequencyInput?.addEventListener("input", refreshDeadlineHelp);
+  frequencyInput?.addEventListener("change", refreshDeadlineHelp);
+  completionDeadlineInput?.addEventListener("input", refreshDeadlineHelp);
   trackingModeInput?.addEventListener("change", syncTrackingFields);
   workItemTypeInput?.addEventListener("change", syncTrackingFields);
   await syncAudienceFields(false);
   syncTrackingFields();
+  refreshDeadlineHelp();
   recalculate();
 
   root.querySelector("#saveCatalogTask")?.addEventListener("click", async event => {
@@ -663,6 +682,7 @@ async function openTaskEditor(item) {
         departmentId,
         name: document.getElementById("catalogTaskName")?.value,
         frequency: document.getElementById("catalogTaskFrequency")?.value,
+        completionDeadline: document.getElementById("catalogTaskCompletionDeadline")?.value,
         workType: document.getElementById("catalogTaskWorkType")?.value,
         outputRequirement: document.getElementById("catalogTaskOutput")?.value,
         mandatoryEvidence: document.getElementById("catalogTaskEvidence")?.value,
@@ -727,7 +747,7 @@ function cdtnRoleLabel(item) {
 }
 
 function audienceBadge(item) {
-  const audience = String(item?.audienceType || (item?.isManagementTask ? "MANAGEMENT" : "ALL_DEPARTMENT")).toUpperCase();
+  const audience = String(item?.audienceType || "").toUpperCase();
   const labels = {
     ALL_DEPARTMENT: ["Toàn Phòng/Khu", "neutral"],
     MANAGEMENT: ["Lãnh đạo, quản lý", "info"],
@@ -735,8 +755,85 @@ function audienceBadge(item) {
     CDTN_EXECUTIVE: ["Ban Chấp hành", "info"],
     CDTN_MEMBER: ["Đoàn viên", "neutral"]
   };
-  const [label, style] = labels[audience] || labels.ALL_DEPARTMENT;
+  const [label, style] = labels[audience] || ["Chưa cấu hình đối tượng", "danger"];
   return `<span class="status-pill ${style}">${escapeHtml(label)}</span>`;
+}
+
+
+function deadlineBadge(item) {
+  const description = deadlineRuleDescription(item?.frequency || "", item?.completionDeadline || "");
+  const missingAutoRule = !requiresManualDeadline(item?.frequency) && !String(item?.completionDeadline || "").trim();
+  return `<span class="status-pill ${missingAutoRule ? "danger" : "info"}" title="Quy tắc hạn KPI">⏱ ${escapeHtml(description)}</span>`;
+}
+
+async function prepareRegistrationDeadlineOptions(items, period) {
+  if (!period?.startDate || !period?.endDate) {
+    throw new Error("Kỳ KPI chưa có ngày bắt đầu/kết thúc hợp lệ.");
+  }
+
+  const manualItems = [];
+  for (const item of items || []) {
+    if (requiresManualDeadline(item?.frequency)) {
+      manualItems.push(item);
+      continue;
+    }
+    // Kiểm tra cấu hình danh mục trước khi tạo registration; tuyệt đối không tự lấy cuối kỳ.
+    deriveDeadlinePlan({
+      frequency: item?.frequency,
+      completionDeadline: item?.completionDeadline,
+      periodStartDate: period.startDate,
+      periodEndDate: period.endDate
+    });
+  }
+
+  if (!manualItems.length) return { manualDeadlines: {} };
+  return requestManualRegistrationDeadlines(manualItems, period);
+}
+
+function requestManualRegistrationDeadlines(items, period) {
+  return new Promise(resolve => {
+    let settled = false;
+    const finish = value => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+    const body = `<div class="kpi-form-grid">
+      <div class="info-banner full"><strong>Nhập hạn hoàn thành cụ thể</strong><span>Các đầu việc Khi phát sinh/chu kỳ không có quy tắc tự động bắt buộc có deadline trước khi gửi duyệt. Hệ thống không tự lấy ngày đăng ký, ngày giao hoặc ngày cuối kỳ.</span></div>
+      ${(items || []).map((item, index) => `<label class="kpi-field full"><span>${escapeHtml(item.code || item.id || `Đầu việc ${index + 1}`)} — ${escapeHtml(item.name || "")}</span><input type="date" data-registration-manual-deadline="${escapeHtml(taskKey(item))}" required><small>Hạn cụ thể của nhiệm vụ trong kỳ ${escapeHtml(period?.name || period?.id || "")}</small></label>`).join("")}
+    </div>`;
+    const root = openStandardModal(
+      "Hạn hoàn thành khi đăng ký",
+      body,
+      '<button class="kpi-button secondary" data-standard-close type="button">Hủy</button><button id="confirmRegistrationDeadlines" class="kpi-button" type="button">Tiếp tục đăng ký</button>'
+    );
+
+    const observer = new MutationObserver(() => {
+      if (!document.body.contains(root)) {
+        observer.disconnect();
+        finish(null);
+      }
+    });
+    observer.observe(document.body, { childList: true });
+
+    root.querySelector("#confirmRegistrationDeadlines")?.addEventListener("click", () => {
+      try {
+        const manualDeadlines = {};
+        root.querySelectorAll("[data-registration-manual-deadline]").forEach(input => {
+          const key = input.getAttribute("data-registration-manual-deadline") || "";
+          const value = String(input.value || "").trim();
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error("Vui lòng nhập đầy đủ Hạn hoàn thành cho tất cả đầu việc phát sinh.");
+          manualDeadlines[key] = value;
+        });
+        observer.disconnect();
+        settled = true;
+        closeStandardModal(root);
+        resolve({ manualDeadlines });
+      } catch (error) {
+        ToastService.error(error.message || "Hạn hoàn thành chưa hợp lệ.");
+      }
+    });
+  });
 }
 
 async function openCatalogDelegation(currentDelegation, period) {
