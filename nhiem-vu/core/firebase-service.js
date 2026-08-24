@@ -4,7 +4,7 @@
  * Không khởi tạo Firebase lần thứ hai.
  */
 
-import { app, auth, db } from "../firebase-config.js?v=20260810.V1_10_6";
+import { app, auth, db } from "../firebase-config.js?v=20260824.V1_13_0";
 
 import {
   onAuthStateChanged,
@@ -15,6 +15,7 @@ import {
   collection,
   doc,
   getDoc,
+  getDocFromServer,
   getDocs,
   getDocsFromServer,
   onSnapshot,
@@ -72,6 +73,7 @@ export const FirebaseService = Object.freeze({
   collection,
   doc,
   getDoc,
+  getDocFromServer,
   getDocs,
   getDocsFromServer,
   onSnapshot,

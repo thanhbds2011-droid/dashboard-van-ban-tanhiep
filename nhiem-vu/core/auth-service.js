@@ -1,5 +1,5 @@
 /**
- * Authentication & profile bootstrap V1.11.1.
+ * Authentication & profile bootstrap V1.12.0.
  *
  * Nguồn quyền:
  * - Firebase Authentication: danh tính/UID thật.
@@ -13,15 +13,19 @@
  * - Giữ nguyên UID Firebase và mô hình accessAccounts hiện hữu.
  */
 
-import { FirebaseService } from "./firebase-service.js?v=20260810.V1_10_6";
-import { UserContext } from "./user-context.js?v=20260810.V1_10_6";
+import { FirebaseService } from "./firebase-service.js?v=20260824.V1_13_0";
+import { UserContext } from "./user-context.js?v=20260824.V1_13_0";
 
 const LOGIN_URL = "./login.html";
 const AUTH_TIMEOUT_MS = 10000;
 const READ_TIMEOUT_MS = 8000;
 const WRITE_TIMEOUT_MS = 8000;
+const PROFILE_REFRESH_DEBOUNCE_MS = 300;
 
 let lastDiagnostic = null;
+let stopProfileWatcher = null;
+let profileVisibilityBound = false;
+let profileReloadTimer = null;
 
 function clean(value) { return String(value ?? "").trim(); }
 function normalizeEmail(value) { return clean(value).toLowerCase(); }
@@ -32,6 +36,158 @@ function normalizeAdditionalRoles(value) {
   return [...new Set(roles.map(normalizeRole).filter(Boolean))].sort();
 }
 function hasOwn(object, key) { return Object.prototype.hasOwnProperty.call(object || {}, key); }
+
+
+
+const PROFILE_SCOPE_FIELDS = Object.freeze([
+  "email", "fullName", "departmentId", "role", "position", "leaderLevel",
+  "isDepartmentHead", "teamId", "employeeCode", "additionalRoles",
+  "taskNotificationCoordinator", "active"
+]);
+
+function profileScopeFingerprint(profile = {}) {
+  const normalized = {
+    email: normalizeEmail(profile.email),
+    fullName: clean(profile.fullName),
+    departmentId: normalizeDepartment(profile.departmentId),
+    role: normalizeRole(profile.role),
+    position: clean(profile.position),
+    leaderLevel: normalizeRole(profile.leaderLevel),
+    isDepartmentHead: typeof profile.isDepartmentHead === "boolean" ? profile.isDepartmentHead : null,
+    teamId: clean(profile.teamId).toUpperCase(),
+    employeeCode: clean(profile.employeeCode),
+    additionalRoles: normalizeAdditionalRoles(profile.additionalRoles),
+    taskNotificationCoordinator: profile.taskNotificationCoordinator === true,
+    active: profile.active === true
+  };
+  return JSON.stringify(normalized);
+}
+
+function contextPayload(firebaseUser, profile = {}) {
+  return {
+    uid: firebaseUser.uid,
+    email: profile.email || firebaseUser.email || "",
+    fullName: profile.fullName || firebaseUser.displayName || "",
+    role: profile.role,
+    departmentId: profile.departmentId,
+    teamId: profile.teamId || "",
+    position: profile.position || "",
+    employeeCode: profile.employeeCode || "",
+    leaderLevel: profile.leaderLevel || "",
+    isDepartmentHead: typeof profile.isDepartmentHead === "boolean" ? profile.isDepartmentHead : null,
+    additionalRoles: profile.additionalRoles || [],
+    active: profile.active === true
+  };
+}
+
+function stopProfileScopeWatcher() {
+  try { stopProfileWatcher?.(); } catch (_) { /* listener đã đóng */ }
+  stopProfileWatcher = null;
+  if (profileReloadTimer) window.clearTimeout(profileReloadTimer);
+  profileReloadTimer = null;
+}
+
+function announceProfileReload(beforeProfile, afterProfile) {
+  const info = document.getElementById("currentUserInfo");
+  if (info) {
+    info.textContent = "Quyền tài khoản vừa được cập nhật. Đang tải lại phạm vi làm việc…";
+  }
+  document.body?.classList?.add("profile-scope-refreshing");
+  try {
+    window.dispatchEvent(new CustomEvent("app:profile-scope-changed", {
+      detail: { before: beforeProfile || null, after: afterProfile || null }
+    }));
+  } catch (_) { /* CustomEvent không được cản reload */ }
+}
+
+function scheduleProfileReload(firebaseUser, profile) {
+  const before = UserContext.getUser();
+  const next = UserContext.setUser(contextPayload(firebaseUser, profile));
+  announceProfileReload(before, next);
+  if (profileReloadTimer) window.clearTimeout(profileReloadTimer);
+  profileReloadTimer = window.setTimeout(() => {
+    window.location.reload();
+  }, PROFILE_REFRESH_DEBOUNCE_MS);
+}
+
+async function refreshProfileScopeFromServer(firebaseUser) {
+  if (!firebaseUser?.uid || document.visibilityState === "hidden") return false;
+  try {
+    const email = normalizeEmail(firebaseUser.email);
+    if (!email) return false;
+    const profileRef = FirebaseService.doc(FirebaseService.db, "users", firebaseUser.uid);
+    const accessRef = FirebaseService.doc(FirebaseService.db, "accessAccounts", email);
+    const readServer = FirebaseService.getDocFromServer || FirebaseService.getDoc;
+    const [profileSnapshot, accessSnapshot] = await Promise.all([
+      readServer(profileRef),
+      readServer(accessRef)
+    ]);
+    if (!accessSnapshot.exists()) return false;
+    const access = accessSnapshot.data() || {};
+    if (access.active !== true) return false;
+    const existingProfile = profileSnapshot.exists() ? (profileSnapshot.data() || {}) : null;
+    const desiredProfile = buildProfileFromAccess(firebaseUser, email, access, existingProfile);
+
+    // Nếu Sheet/accessAccounts đã đổi trước users/{UID}, tự đồng bộ users ngay trong phiên PWA.
+    // Rules selfProfileSyncMatchesAccess bảo đảm client chỉ được ghi đúng quyền đã cấp trong accessAccounts.
+    if (!existingProfile || profileNeedsSync(existingProfile, desiredProfile)) {
+      await FirebaseService.setDoc(profileRef, {
+        ...desiredProfile,
+        ...(!existingProfile ? { createdAt: FirebaseService.serverTimestamp() } : {}),
+        updatedAt: FirebaseService.serverTimestamp()
+      }, { merge: true });
+    }
+
+    const current = UserContext.getUser();
+    if (!current?.uid) return false;
+    if (profileScopeFingerprint(desiredProfile) === profileScopeFingerprint(current)) return false;
+    scheduleProfileReload(firebaseUser, desiredProfile);
+    return true;
+  } catch (error) {
+    const code = String(error?.code || "");
+    if (!code.includes("unavailable") && !code.includes("offline")) {
+      console.warn("Chưa kiểm tra được thay đổi quyền tài khoản:", error);
+    }
+    return false;
+  }
+}
+
+function startProfileScopeWatcher(firebaseUser, initialProfile) {
+  stopProfileScopeWatcher();
+  if (!firebaseUser?.uid) return;
+  let baseline = profileScopeFingerprint(initialProfile);
+  const ref = FirebaseService.doc(FirebaseService.db, "users", firebaseUser.uid);
+  stopProfileWatcher = FirebaseService.onSnapshot(ref, snapshot => {
+    if (!snapshot.exists()) return;
+    const profile = snapshot.data() || {};
+    const fingerprint = profileScopeFingerprint(profile);
+    if (!baseline) { baseline = fingerprint; return; }
+    if (fingerprint === baseline) return;
+    baseline = fingerprint;
+    const current = UserContext.getUser();
+    if (profileScopeFingerprint(profile) === profileScopeFingerprint(current)) return;
+    scheduleProfileReload(firebaseUser, profile);
+  }, error => {
+    const code = String(error?.code || "");
+    if (!code.includes("permission-denied")) {
+      console.warn("Theo dõi thay đổi quyền tài khoản bị gián đoạn:", error);
+    }
+  });
+
+  if (!profileVisibilityBound) {
+    profileVisibilityBound = true;
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") {
+        const currentFirebaseUser = FirebaseService.auth.currentUser;
+        if (currentFirebaseUser?.uid) void refreshProfileScopeFromServer(currentFirebaseUser);
+      }
+    });
+    window.addEventListener("pageshow", () => {
+      const currentFirebaseUser = FirebaseService.auth.currentUser;
+      if (currentFirebaseUser?.uid) void refreshProfileScopeFromServer(currentFirebaseUser);
+    });
+  }
+}
 
 function codedError(code, message, cause = null) {
   const error = new Error(message);
@@ -217,20 +373,8 @@ export const AuthService = Object.freeze({
       if (!profile.role || !profile.departmentId) throw codedError("AUTH_PROFILE_INCOMPLETE", "Hồ sơ người dùng thiếu vai trò hoặc Phòng/Khu.");
 
       emitProgress(progress, "READY", "Đã tải tài khoản. Đang mở ứng dụng…");
-      const context = UserContext.setUser({
-        uid: firebaseUser.uid,
-        email: profile.email || firebaseUser.email || "",
-        fullName: profile.fullName || firebaseUser.displayName || "",
-        role: profile.role,
-        departmentId: profile.departmentId,
-        teamId: profile.teamId || "",
-        position: profile.position || "",
-        employeeCode: profile.employeeCode || "",
-        leaderLevel: profile.leaderLevel || "",
-        isDepartmentHead: typeof profile.isDepartmentHead === "boolean" ? profile.isDepartmentHead : null,
-        additionalRoles: profile.additionalRoles || [],
-        active: profile.active === true
-      });
+      const context = UserContext.setUser(contextPayload(firebaseUser, profile));
+      startProfileScopeWatcher(firebaseUser, profile);
       lastDiagnostic = { ...lastDiagnostic, finishedAt: Date.now(), durationMs: Date.now() - startedAt, result: "READY" };
       return context;
     } catch (error) {
@@ -252,6 +396,7 @@ export const AuthService = Object.freeze({
   },
 
   async logout() {
+    stopProfileScopeWatcher();
     UserContext.clear();
     await FirebaseService.logout();
     this.redirectToLogin();
