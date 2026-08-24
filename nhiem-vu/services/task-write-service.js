@@ -1,13 +1,13 @@
 /** Tạo, phân công, tiếp nhận, cập nhật tiến độ và hoàn thành nhiệm vụ. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_14_2";
-import { UserContext } from "../core/user-context.js?v=20260824.V1_14_2";
-import { Permissions } from "../core/permissions.js?v=20260824.V1_14_2";
-import { TaskLogService } from "./task-log-service.js?v=20260824.V1_14_2";
-import { TaskWorkItemService } from "./task-work-item-service.js?v=20260824.V1_14_2";
-import { PeriodReadService } from "./period-read-service.js?v=20260824.V1_14_2";
-import { TaskNotificationService } from "./task-notification-service.js?v=20260824.V1_14_2";
-import { APP_VERSION, BUILD_VERSION } from "../core/app-version.js?v=20260824.V1_14_2";
-import { deadlineDateFromKey, isDateKey } from "../core/deadline-engine.js?v=20260824.V1_14_2";
+import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_15_0";
+import { UserContext } from "../core/user-context.js?v=20260824.V1_15_0";
+import { Permissions } from "../core/permissions.js?v=20260824.V1_15_0";
+import { TaskLogService } from "./task-log-service.js?v=20260824.V1_15_0";
+import { TaskWorkItemService } from "./task-work-item-service.js?v=20260824.V1_15_0";
+import { PeriodReadService } from "./period-read-service.js?v=20260824.V1_15_0";
+import { TaskNotificationService } from "./task-notification-service.js?v=20260824.V1_15_0";
+import { APP_VERSION, BUILD_VERSION } from "../core/app-version.js?v=20260824.V1_15_0";
+import { deadlineDateFromKey, isDateKey } from "../core/deadline-engine.js?v=20260824.V1_15_0";
 
 const TASK_WRITE_BUILD_VERSION = BUILD_VERSION;
 const MAX_CODE_SCAN = 1000;
@@ -759,7 +759,7 @@ export const TaskWriteService = Object.freeze({
     if (task.scoreLocked === true || String(task.scoringStatus || "").toUpperCase() === "CONFIRMED") {
       throw new Error("Đánh giá đã khóa nên không thể gửi đề nghị.");
     }
-    const items = await TaskWorkItemService.list(task.id);
+    const items = await TaskWorkItemService.list(task);
     if (items.length) {
       throw new Error("Đầu việc đã có lượt phát sinh nên không thể đề nghị “Không phát sinh”.");
     }
@@ -811,7 +811,7 @@ export const TaskWriteService = Object.freeze({
     if (String(task.noOccurrenceStatus || "").toUpperCase() !== "REQUESTED") {
       throw new Error("Đầu việc chưa có đề nghị “Không phát sinh” đang chờ xác nhận.");
     }
-    const items = await TaskWorkItemService.list(task.id);
+    const items = await TaskWorkItemService.list(task);
     if (items.length) {
       throw new Error("Đầu việc đã có lượt phát sinh; không thể loại khỏi điểm A.");
     }

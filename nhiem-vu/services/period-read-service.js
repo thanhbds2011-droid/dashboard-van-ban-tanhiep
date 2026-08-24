@@ -1,5 +1,5 @@
 /** Đọc kỳ đánh giá với bộ nhớ đệm ngắn để không lặp truy vấn ở mỗi màn hình. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_14_2";
+import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_15_0";
 
 const ACTIVE_CACHE_MS = 5 * 60 * 1000;
 let activeCache = { value: null, loadedAt: 0 };

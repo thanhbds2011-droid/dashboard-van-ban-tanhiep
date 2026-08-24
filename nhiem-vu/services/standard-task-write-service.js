@@ -5,12 +5,12 @@
  * - Bí thư, Phó Bí thư và Ủy viên BCH được tạo đầu việc trong phạm vi Chi đoàn.
  * - Quyền tạo, sửa và xóa được tách riêng; Firestore Rules là lớp bảo vệ cuối cùng.
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_14_2";
-import { UserContext } from "../core/user-context.js?v=20260824.V1_14_2";
-import { Permissions } from "../core/permissions.js?v=20260824.V1_14_2";
-import { validateDeadlineConfiguration } from "../core/deadline-engine.js?v=20260824.V1_14_2";
+import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_15_0";
+import { UserContext } from "../core/user-context.js?v=20260824.V1_15_0";
+import { Permissions } from "../core/permissions.js?v=20260824.V1_15_0";
+import { validateDeadlineConfiguration, isEventDrivenFrequency } from "../core/deadline-engine.js?v=20260824.V1_15_0";
 
-const SYNC_VERSION = "20260824.V1_14_2";
+const SYNC_VERSION = "20260824.V1_15_0";
 const MAX_STANDARD_TASK_NAME_LENGTH = 1000;
 const STANDARD_TASK_COLLECTION = "standardTasks";
 const SEQUENCE_COLLECTION = "standardTaskSequences";
@@ -303,8 +303,9 @@ function taskPayload({ data, user, departmentId, code, sequence, existing = fals
   const isManagementTask = data.isManagementTask === true;
   const isCoreTaskDefault = data.isCoreTaskDefault === true;
   const maximumConvertedScore = Math.round(baseScore * difficultyCoefficient * 10) / 10;
-  const trackingMode = normalizeTrackingMode(data.trackingMode);
-  const workItemType = normalizeWorkItemType(data.workItemType, trackingMode);
+  const eventDriven = isEventDrivenFrequency(data.frequency);
+  const trackingMode = eventDriven ? "ITEMIZED" : normalizeTrackingMode(data.trackingMode);
+  const workItemType = eventDriven ? "GENERIC" : normalizeWorkItemType(data.workItemType, trackingMode);
   const quantityUnit = workItemType === "QUANTITY" ? clean(data.quantityUnit) : "";
   const deadlineConfig = validateDeadlineConfiguration(data.frequency, data.completionDeadline);
   const isCdtn = departmentId === "CDTN";
@@ -319,7 +320,7 @@ function taskPayload({ data, user, departmentId, code, sequence, existing = fals
     departmentId,
     organizationId: isCdtn ? "CDTN" : "",
     scopeType: isCdtn ? "ORGANIZATION" : "DEPARTMENT",
-    frequency: clean(data.frequency),
+    frequency: eventDriven ? "Khi phát sinh" : clean(data.frequency),
     completionDeadline: deadlineConfig.completionDeadline,
     deadlineRuleType: deadlineConfig.kind,
     workType,

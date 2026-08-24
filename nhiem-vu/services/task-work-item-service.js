@@ -1,15 +1,15 @@
 /** Quản lý các lượt công việc phát sinh bên trong một nhiệm vụ KPI. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_14_2";
-import { UserContext } from "../core/user-context.js?v=20260824.V1_14_2";
-import { Permissions } from "../core/permissions.js?v=20260824.V1_14_2";
-import { progressRateFromDates } from "../kpi-engine.js?v=20260824.V1_14_2";
+import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_15_0";
+import { UserContext } from "../core/user-context.js?v=20260824.V1_15_0";
+import { Permissions } from "../core/permissions.js?v=20260824.V1_15_0";
+import { progressRateFromDates } from "../kpi-engine.js?v=20260824.V1_15_0";
 import {
   ATTENDANCE_STATUSES,
   WORK_ITEM_TYPES,
   calculateWorkItemSummary,
   convertActualRate,
   normalizeWorkItemType
-} from "../work-item-score-engine.js?v=20260824.V1_14_2";
+} from "../work-item-score-engine.js?v=20260824.V1_15_0";
 
 const COLLECTION = "taskWorkItems";
 const ALLOWED_RATES = Object.freeze([100, 80, 60, 0]);
@@ -113,8 +113,9 @@ function normalizeItem(snapshot) {
   return normalized;
 }
 
-function calculateSummary(items, requestedType = "") {
-  return calculateWorkItemSummary(items, requestedType);
+function calculateSummary(items, requestedType = "", task = null) {
+  const eventDriven = Boolean(task && (task.deadlineMode === "EVENT_DRIVEN" || task.eventDrivenDeadline === true));
+  return calculateWorkItemSummary(items, requestedType, { excludeFutureIncomplete: eventDriven });
 }
 
 function validateDates(assignedDateKey, deadlineDateKey, completedDateKey) {
@@ -140,12 +141,23 @@ export const TaskWorkItemService = Object.freeze({
   convertActualRate,
   calculateSummary,
 
-  async list(taskId) {
+  async list(taskOrId) {
+    const user = UserContext.requireUser();
+    const task = taskOrId && typeof taskOrId === "object" ? taskOrId : null;
+    const taskId = clean(task?.id || taskOrId, 200);
     if (!taskId) return [];
+    const constraints = [FirebaseService.where("taskId", "==", taskId)];
+    if (task && clean(task.ownerUserId, 200) === clean(user.uid, 200)) {
+      constraints.push(FirebaseService.where("ownerUserId", "==", user.uid));
+    } else if (!(Permissions.isAdmin() || Permissions.isDirector())) {
+      const departmentId = clean(task?.primaryDepartmentId || task?.departmentId || user.departmentId, 40).toUpperCase();
+      if (departmentId) constraints.push(FirebaseService.where("departmentId", "==", departmentId));
+      else constraints.push(FirebaseService.where("ownerUserId", "==", user.uid));
+    }
     const snapshot = await FirebaseService.getDocs(
       FirebaseService.query(
         FirebaseService.collection(FirebaseService.db, COLLECTION),
-        FirebaseService.where("taskId", "==", taskId)
+        ...constraints
       )
     );
     return snapshot.docs

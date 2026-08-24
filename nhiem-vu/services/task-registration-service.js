@@ -1,11 +1,11 @@
-import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_14_2";
-import { UserContext } from "../core/user-context.js?v=20260824.V1_14_2";
-import { Permissions } from "../core/permissions.js?v=20260824.V1_14_2";
-import { TaskLogService } from "./task-log-service.js?v=20260824.V1_14_2";
-import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260824.V1_14_2";
-import { PeriodReadService } from "./period-read-service.js?v=20260824.V1_14_2";
-import { APP_VERSION } from "../core/app-version.js?v=20260824.V1_14_2";
-import { deriveDeadlinePlan, deadlineDateFromKey, isDateKey, requiresManualDeadline } from "../core/deadline-engine.js?v=20260824.V1_14_2";
+import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_15_0";
+import { UserContext } from "../core/user-context.js?v=20260824.V1_15_0";
+import { Permissions } from "../core/permissions.js?v=20260824.V1_15_0";
+import { TaskLogService } from "./task-log-service.js?v=20260824.V1_15_0";
+import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260824.V1_15_0";
+import { PeriodReadService } from "./period-read-service.js?v=20260824.V1_15_0";
+import { APP_VERSION } from "../core/app-version.js?v=20260824.V1_15_0";
+import { deriveDeadlinePlan, deadlineDateFromKey, isDateKey, requiresManualDeadline, isEventDrivenFrequency } from "../core/deadline-engine.js?v=20260824.V1_15_0";
 
 const clean = value => String(value ?? "").trim();
 const upper = value => clean(value).toUpperCase();
@@ -368,7 +368,7 @@ async function hydrateRegistrationForApproval(registration, options = {}, contex
   const currentFrequency = clean(result.frequency);
   const needsCatalog = (
     !currentFrequency
-    || (!requiresManualDeadline(currentFrequency) && !clean(result.completionDeadline))
+    || (!requiresManualDeadline(currentFrequency) && !isEventDrivenFrequency(currentFrequency) && !clean(result.completionDeadline))
     || !validAudienceForDepartment(result.audienceType, departmentId)
     || !clean(result.standardTaskDepartmentId)
   );
@@ -392,7 +392,7 @@ async function hydrateRegistrationForApproval(registration, options = {}, contex
     recovered = true;
     recoverySources.push("STANDARD_TASK_DEADLINE_RULE");
   }
-  if (clean(result.frequency) && !requiresManualDeadline(result.frequency) && !clean(result.completionDeadline)) {
+  if (clean(result.frequency) && !requiresManualDeadline(result.frequency) && !isEventDrivenFrequency(result.frequency) && !clean(result.completionDeadline)) {
     throw new Error(
       `Đầu việc ${result.standardTaskCode || result.standardTaskId || ""} trong Danh mục công việc chưa có “Thời hạn hoàn thành”. ` +
       "Hãy cập nhật Google Sheet và đồng bộ standardTasks trước khi duyệt."
@@ -429,6 +429,20 @@ async function hydrateRegistrationForApproval(registration, options = {}, contex
   }
   result.manualDeadlineDateKey = manualDeadlineDateKey;
 
+  if (isEventDrivenFrequency(result.frequency)) {
+    if (clean(result.frequency) !== "Khi phát sinh") {
+      result.frequency = "Khi phát sinh";
+      recovered = true;
+      recoverySources.push("EVENT_DRIVEN_FREQUENCY_CANONICAL");
+    }
+    if (String(result.trackingMode || "").toUpperCase() !== "ITEMIZED" || String(result.workItemType || "").toUpperCase() !== "GENERIC") {
+      result.trackingMode = "ITEMIZED";
+      result.workItemType = "GENERIC";
+      recovered = true;
+      recoverySources.push("EVENT_DRIVEN_TRACKING_MODE");
+    }
+  }
+
   const plan = registrationDeadlinePlan(result);
   if (!clean(result.deadlineMode)) result.deadlineMode = plan.deadlineMode;
   if (!clean(result.deadlineDateKey)) result.deadlineDateKey = plan.deadlineDateKey;
@@ -459,7 +473,9 @@ function approvalSnapshotPatch(registration, reviewer) {
     milestoneDateKeys: Array.isArray(registration.milestoneDateKeys) ? registration.milestoneDateKeys : [],
     manualDeadlineDateKey: clean(registration.manualDeadlineDateKey),
     audienceType: clean(registration.audienceType),
-    standardTaskDepartmentId: clean(registration.standardTaskDepartmentId || registrationDepartmentId(registration))
+    standardTaskDepartmentId: clean(registration.standardTaskDepartmentId || registrationDepartmentId(registration)),
+    trackingMode: clean(registration.trackingMode),
+    workItemType: clean(registration.workItemType)
   };
   if (registration._legacySnapshotRecovered === true) {
     patch.legacySnapshotRecovered = true;
@@ -503,13 +519,24 @@ function registrationDeadlinePlan(registration) {
     throw new Error(`Dữ liệu deadline của đăng ký ${code} không còn khớp snapshot nghiệp vụ. Vui lòng kiểm tra lại danh mục hoặc đăng ký.`);
   }
 
+  if (derived.mode === "EVENT_DRIVEN") {
+    return {
+      deadlineDateKey: "",
+      deadline: null,
+      milestoneDateKeys: [],
+      deadlineMode: "EVENT_DRIVEN",
+      eventDriven: true
+    };
+  }
+
   const deadline = deadlineDateFromKey(derived.deadlineDateKey);
   if (!deadline) throw new Error(`Hạn hoàn thành của ${code} không hợp lệ.`);
   return {
     deadlineDateKey: derived.deadlineDateKey,
     deadline,
     milestoneDateKeys: derived.milestoneDateKeys,
-    deadlineMode: derived.mode
+    deadlineMode: derived.mode,
+    eventDriven: false
   };
 }
 
@@ -536,7 +563,9 @@ function taskPayload(registration, reviewer, options = {}) {
   }
   const isUnexpected = workType === "DOT_XUAT";
   const deadlinePlan = registrationDeadlinePlan(registration);
-  const milestoneMode = deadlinePlan.milestoneDateKeys.length ? "MONTHLY" : "NONE";
+  const milestoneMode = deadlinePlan.eventDriven === true
+    ? "EVENT_DRIVEN"
+    : (deadlinePlan.milestoneDateKeys.length ? "MONTHLY" : "NONE");
   return {
     code,
     deadlinePlan,
@@ -573,9 +602,10 @@ function taskPayload(registration, reviewer, options = {}) {
       status: "MOI_TIEP_NHAN",
       progress: 0,
       priority: isUnexpected ? "DOT_XUAT" : "THUONG",
-      deadline: FirebaseService.Timestamp.fromDate(deadlinePlan.deadline),
+      deadline: deadlinePlan.eventDriven ? null : FirebaseService.Timestamp.fromDate(deadlinePlan.deadline),
       deadlineDateKey: deadlinePlan.deadlineDateKey,
       deadlineMode: deadlinePlan.deadlineMode,
+      eventDrivenDeadline: deadlinePlan.eventDriven === true,
       frequency: registration.frequency || "",
       completionDeadline: registration.completionDeadline || "",
       milestoneMode,
@@ -590,8 +620,12 @@ function taskPayload(registration, reviewer, options = {}) {
       difficultyCoefficient: Number(registration.difficultyCoefficient || 1),
       maximumConvertedScore: Number(registration.maximumConvertedScore || 0),
       mandatoryEvidence: registration.mandatoryEvidence || "",
-      trackingMode: String(registration.trackingMode || "FINAL_OUTPUT").toUpperCase() === "ITEMIZED" ? "ITEMIZED" : "FINAL_OUTPUT",
-      workItemType: String(registration.workItemType || "GENERIC").toUpperCase(),
+      trackingMode: deadlinePlan.eventDriven === true
+        ? "ITEMIZED"
+        : (String(registration.trackingMode || "FINAL_OUTPUT").toUpperCase() === "ITEMIZED" ? "ITEMIZED" : "FINAL_OUTPUT"),
+      workItemType: deadlinePlan.eventDriven === true
+        ? "GENERIC"
+        : String(registration.workItemType || "GENERIC").toUpperCase(),
       quantityUnit: String(registration.quantityUnit || "").trim(),
       confirmer: reviewer.fullName || "",
       scoringVersion: "KPI_2026_V1_13",
@@ -714,7 +748,9 @@ async function createApprovedTasks(registrations, reviewer, options = {}) {
       note: [
         milestoneIds.length
           ? `Duyệt ${registration.standardTaskCode || ""} của ${registration.userName || ""}; tạo ${milestoneIds.length} mốc định kỳ.`
-          : `Duyệt ${registration.standardTaskCode || ""} của ${registration.userName || ""}.`,
+          : (deadlinePlan.eventDriven === true
+            ? `Duyệt ${registration.standardTaskCode || ""} của ${registration.userName || ""}; thời hạn sẽ được nhập riêng khi từng lượt công việc thực tế phát sinh.`
+            : `Duyệt ${registration.standardTaskCode || ""} của ${registration.userName || ""}.`),
         registration._legacySnapshotRecovered === true
           ? "Đã phục hồi snapshot đăng ký cũ từ kỳ KPI và Danh mục công việc trước khi duyệt."
           : ""
@@ -859,8 +895,8 @@ export const TaskRegistrationService = Object.freeze({
         periodName: period.name || period.id,
         periodStartDate: period.startDate || "",
         periodEndDate: period.endDate || "",
-        frequency: item.frequency || "",
-        completionDeadline: item.completionDeadline || "",
+        frequency: deadlinePlan.mode === "EVENT_DRIVEN" ? "Khi phát sinh" : (item.frequency || ""),
+        completionDeadline: deadlinePlan.mode === "EVENT_DRIVEN" ? "" : (item.completionDeadline || ""),
         deadlineMode: deadlinePlan.mode,
         deadlineDateKey: deadlinePlan.deadlineDateKey,
         milestoneDateKeys: deadlinePlan.milestoneDateKeys,
@@ -892,8 +928,12 @@ export const TaskRegistrationService = Object.freeze({
         difficultyCoefficient: Number(item.difficultyCoefficient || 1),
         maximumConvertedScore: Number(item.maximumConvertedScore || item.baseScore || 0),
         mandatoryEvidence: item.mandatoryEvidence || "",
-        trackingMode: String(item.trackingMode || "FINAL_OUTPUT").toUpperCase() === "ITEMIZED" ? "ITEMIZED" : "FINAL_OUTPUT",
-        workItemType: String(item.workItemType || "GENERIC").toUpperCase(),
+        trackingMode: deadlinePlan.mode === "EVENT_DRIVEN"
+          ? "ITEMIZED"
+          : (String(item.trackingMode || "FINAL_OUTPUT").toUpperCase() === "ITEMIZED" ? "ITEMIZED" : "FINAL_OUTPUT"),
+        workItemType: deadlinePlan.mode === "EVENT_DRIVEN"
+          ? "GENERIC"
+          : String(item.workItemType || "GENERIC").toUpperCase(),
         quantityUnit: String(item.quantityUnit || "").trim(),
         status: "PENDING",
         taskId: null,
