@@ -1,22 +1,23 @@
-import { auth, db } from '../../firebase-config.js?v=20260824.V1_13_0';
+import { auth, db } from '../../firebase-config.js?v=20260824.V1_14_0';
 import {
   addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, query,
   serverTimestamp, setDoc, Timestamp, updateDoc, where, limit, writeBatch
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
-import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260824.V1_13_0';
-import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260824.V1_13_0';
-import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260824.V1_13_0';
-import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260824.V1_13_0';
-import { PeriodReadService } from '../../services/period-read-service.js?v=20260824.V1_13_0';
-import { TaskReadService } from '../../services/task-read-service.js?v=20260824.V1_13_0';
-import { Permissions } from '../../core/permissions.js?v=20260824.V1_13_0';
-import { APP_VERSION } from '../../core/app-version.js?v=20260824.V1_13_0';
-import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260824.V1_13_0';
-import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260824.V1_13_0';
+import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260824.V1_14_0';
+import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260824.V1_14_0';
+import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260824.V1_14_0';
+import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260824.V1_14_0';
+import { PeriodReadService } from '../../services/period-read-service.js?v=20260824.V1_14_0';
+import { TaskReadService } from '../../services/task-read-service.js?v=20260824.V1_14_0';
+import { Permissions } from '../../core/permissions.js?v=20260824.V1_14_0';
+import { UserContext } from '../../core/user-context.js?v=20260824.V1_14_0';
+import { APP_VERSION } from '../../core/app-version.js?v=20260824.V1_14_0';
+import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260824.V1_14_0';
+import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260824.V1_14_0';
 import {
   KPI2B as KPI2C, COMMON_CRITERIA, calculateTaskScore, calculateKpiSummary,
   proposedRating, ratingName, round2, progressRateFromDates, convertAppendix04Rate, calculateMilestoneProgress
-} from '../../kpi-engine.js?v=20260824.V1_13_0';
+} from '../../kpi-engine.js?v=20260824.V1_14_0';
 
 export const KpiWorkflowState = {
   user: null,
@@ -47,6 +48,8 @@ let kpiRealtimeCleanupBound = false;
 let kpiRealtimePrimed = false;
 let kpiRealtimeFingerprint = '';
 let kpiReloadPromise = null;
+let lastManualKpiRefreshAt = 0;
+const KPI_MANUAL_REFRESH_COOLDOWN_MS = 8000;
 
 const el = (id) => document.getElementById(id);
 const clean = (value) => String(value ?? '').trim();
@@ -128,9 +131,36 @@ function scheduleKpiRealtimeReload() {
   }, 450);
 }
 
+async function manualRefreshKpi() {
+  const now = Date.now();
+  if (kpiReloadPromise) return kpiReloadPromise;
+  if (now - lastManualKpiRefreshAt < KPI_MANUAL_REFRESH_COOLDOWN_MS) return null;
+
+  lastManualKpiRefreshAt = now;
+  const button = el('kpiRefresh');
+  if (button) button.disabled = true;
+
+  kpiReloadPromise = Promise.resolve(loadAll()).finally(() => {
+    kpiReloadPromise = null;
+    if (button?.isConnected) button.disabled = false;
+  });
+  return kpiReloadPromise;
+}
+
 function startKpiRealtime() {
   stopKpiRealtime();
   bindKpiRealtimeCleanup();
+
+  /* V1.14.0: Báo cáo/họp tải theo yêu cầu, không mở listener rộng cho toàn phòng/toàn Trung tâm. */
+  if (KpiWorkflowState.mode === 'reports') {
+    const state = el('kpiRealtimeState');
+    if (state) {
+      state.textContent = 'Đã tải · bấm ↻ để cập nhật';
+      state.classList.remove('is-live');
+    }
+    return;
+  }
+
   stopKpiTaskRealtime = TaskReadService.subscribe(
     tasks => {
       const fingerprint = realtimeTaskFingerprint(tasks);
@@ -148,7 +178,8 @@ function startKpiRealtime() {
       kpiRealtimeFingerprint = fingerprint;
       scheduleKpiRealtimeReload();
     },
-    error => console.warn('Theo dõi thay đổi nhiệm vụ cho KPI bị gián đoạn:', error)
+    error => console.warn('Theo dõi thay đổi nhiệm vụ cho KPI bị gián đoạn:', error),
+    { startDelayMs: 90 * 1000, jitterMs: 30 * 1000 }
   );
 }
 
@@ -444,7 +475,7 @@ function mount() {
         <div id="kpiPeriodLine" class="kpi-period-line"></div>
       </div>
       <div class="kpi-actions kpi-no-print">
-        <div class="kpi-header-sync"><small id="kpiRealtimeState" class="realtime-state">Đang kết nối đồng bộ trực tiếp…</small><button id="kpiRefresh" class="kpi-button secondary kpi-icon-sync" type="button" title="Cập nhật dữ liệu" aria-label="Cập nhật dữ liệu">↻</button></div>
+        <div class="kpi-header-sync"><small id="kpiRealtimeState" class="realtime-state">Đã tải dữ liệu · chế độ tiết kiệm</small><button id="kpiRefresh" class="kpi-button secondary kpi-icon-sync" type="button" title="Cập nhật dữ liệu" aria-label="Cập nhật dữ liệu">↻</button></div>
       </div>
     </div>
     <div id="kpiMessage"></div>
@@ -614,7 +645,7 @@ function modal(title, body, footer='') {
 function closeModal(){ el('kpiModalRoot')?.remove(); }
 
 function wireEvents() {
-  el('kpiRefresh')?.addEventListener('click', loadAll);
+  el('kpiRefresh')?.addEventListener('click', manualRefreshKpi);
   el('kpiInitPilot')?.addEventListener('click', initializePilotPeriod);
   el('kpiCompletePeriod')?.addEventListener('click', completePeriod);
   el('kpiDeletePeriod')?.addEventListener('click', deletePeriodData);
@@ -724,15 +755,17 @@ async function loadAll() {
   try {
     message('Đang tải dữ liệu đánh giá...');
     const canBrowseCompletedPeriods = Permissions.canManageEvaluationPeriods() || activeRole('ADMIN');
-    const periodSnapshot = await getDocs(
-      canBrowseCompletedPeriods
-        ? collection(db, 'evaluationPeriods')
-        : query(collection(db, 'evaluationPeriods'), where('active', '==', true), limit(1))
-    );
-    KpiWorkflowState.periods = periodSnapshot.docs.map(item => ({ id: item.id, ...item.data() }));
-    KpiWorkflowState.period = KpiWorkflowState.periods.find(period => period.active === true && period.status !== 'DELETED')
-      || (canBrowseCompletedPeriods ? KpiWorkflowState.periods.filter(period => period.status === 'COMPLETED').sort((a, b) => clean(b.endDate).localeCompare(clean(a.endDate)))[0] : null)
-      || null;
+    if (canBrowseCompletedPeriods) {
+      const periodSnapshot = await getDocs(collection(db, 'evaluationPeriods'));
+      KpiWorkflowState.periods = periodSnapshot.docs.map(item => ({ id: item.id, ...item.data() }));
+      KpiWorkflowState.period = KpiWorkflowState.periods.find(period => period.active === true && period.status !== 'DELETED')
+        || KpiWorkflowState.periods.filter(period => period.status === 'COMPLETED').sort((a, b) => clean(b.endDate).localeCompare(clean(a.endDate)))[0]
+        || null;
+    } else {
+      const activePeriod = await PeriodReadService.getActive({ force: false });
+      KpiWorkflowState.periods = activePeriod ? [activePeriod] : [];
+      KpiWorkflowState.period = activePeriod || null;
+    }
 
     if (!KpiWorkflowState.period) {
       KpiWorkflowState.users = [KpiWorkflowState.profile];
@@ -820,88 +853,88 @@ async function loadAll() {
       && taskDepartmentScope;
 
     const taskRequest = fullCenterScope
-      ? getDocs(query(collection(db, 'tasks'), where('periodId', '==', periodId)))
+      ? getDocs(query(collection(db, 'tasks'), where('periodId', '==', periodId), limit(5000)))
       : professionalCenterScope
         ? (KpiWorkflowState.mode === 'reports'
           ? mergeAvailableSnapshotRequests([
-              getDocs(query(collection(db, 'tasks'), where('periodId', '==', periodId), where('primaryDepartmentId', 'in', PROFESSIONAL_DEPARTMENT_IDS))),
-              getDocs(query(collection(db, 'tasks'), where('periodId', '==', periodId), where('primaryDepartmentId', '==', 'CDTN'))),
-              getDocs(query(collection(db, 'tasks'), where('periodId', '==', periodId), where('organizationId', '==', 'CDTN')))
+              getDocs(query(collection(db, 'tasks'), where('periodId', '==', periodId), where('primaryDepartmentId', 'in', PROFESSIONAL_DEPARTMENT_IDS), limit(5000))),
+              getDocs(query(collection(db, 'tasks'), where('periodId', '==', periodId), where('primaryDepartmentId', '==', 'CDTN'), limit(1000))),
+              getDocs(query(collection(db, 'tasks'), where('periodId', '==', periodId), where('organizationId', '==', 'CDTN'), limit(1000)))
             ], 'nhiệm vụ báo cáo toàn phạm vi được cấp')
-          : getDocs(query(collection(db, 'tasks'), where('periodId', '==', periodId), where('primaryDepartmentId', 'in', PROFESSIONAL_DEPARTMENT_IDS))))
+          : getDocs(query(collection(db, 'tasks'), where('periodId', '==', periodId), where('primaryDepartmentId', 'in', PROFESSIONAL_DEPARTMENT_IDS), limit(5000))))
         : departmentId === 'CDTN' && taskDepartmentScope
           ? mergeAvailableSnapshotRequests([
-              getDocs(query(collection(db, 'tasks'), where('periodId', '==', periodId), where('primaryDepartmentId', '==', 'CDTN'))),
-              getDocs(query(collection(db, 'tasks'), where('periodId', '==', periodId), where('organizationId', '==', 'CDTN')))
+              getDocs(query(collection(db, 'tasks'), where('periodId', '==', periodId), where('primaryDepartmentId', '==', 'CDTN'), limit(1000))),
+              getDocs(query(collection(db, 'tasks'), where('periodId', '==', periodId), where('organizationId', '==', 'CDTN'), limit(1000)))
             ], 'nhiệm vụ Chi đoàn')
           : combinedDepartmentReportScope
-            ? getDocs(query(collection(db, 'tasks'), where('periodId', '==', periodId), where('primaryDepartmentId', '==', departmentId)))
+            ? getDocs(query(collection(db, 'tasks'), where('periodId', '==', periodId), where('primaryDepartmentId', '==', departmentId), limit(2000)))
             : taskDepartmentScope
-              ? getDocs(query(collection(db, 'tasks'), where('periodId', '==', periodId), where('primaryDepartmentId', '==', departmentId)))
-              : getDocs(query(collection(db, 'tasks'), where('periodId', '==', periodId), where('ownerUserId', '==', KpiWorkflowState.user.uid)));
+              ? getDocs(query(collection(db, 'tasks'), where('periodId', '==', periodId), where('primaryDepartmentId', '==', departmentId), limit(2000)))
+              : getDocs(query(collection(db, 'tasks'), where('periodId', '==', periodId), where('ownerUserId', '==', KpiWorkflowState.user.uid), limit(300)));
 
     const registrationRequest = fullCenterScope
-      ? getDocs(query(collection(db, 'taskRegistrations'), where('periodId', '==', periodId)))
+      ? getDocs(query(collection(db, 'taskRegistrations'), where('periodId', '==', periodId), limit(5000)))
       : professionalCenterScope
-        ? getDocs(query(collection(db, 'taskRegistrations'), where('periodId', '==', periodId), where('departmentId', 'in', PROFESSIONAL_DEPARTMENT_IDS)))
+        ? getDocs(query(collection(db, 'taskRegistrations'), where('periodId', '==', periodId), where('departmentId', 'in', PROFESSIONAL_DEPARTMENT_IDS), limit(5000)))
         : departmentId === 'CDTN' && registrationDepartmentScope
           ? mergeAvailableSnapshotRequests([
-              getDocs(query(collection(db, 'taskRegistrations'), where('periodId', '==', periodId), where('departmentId', '==', 'CDTN'))),
-              getDocs(query(collection(db, 'taskRegistrations'), where('periodId', '==', periodId), where('organizationId', '==', 'CDTN')))
+              getDocs(query(collection(db, 'taskRegistrations'), where('periodId', '==', periodId), where('departmentId', '==', 'CDTN'), limit(1000))),
+              getDocs(query(collection(db, 'taskRegistrations'), where('periodId', '==', periodId), where('organizationId', '==', 'CDTN'), limit(1000)))
             ], 'đăng ký nhiệm vụ Chi đoàn')
           : registrationDepartmentScope
-            ? getDocs(query(collection(db, 'taskRegistrations'), where('periodId', '==', periodId), where('departmentId', '==', departmentId)))
-            : getDocs(query(collection(db, 'taskRegistrations'), where('periodId', '==', periodId), where('userId', '==', KpiWorkflowState.user.uid)));
+            ? getDocs(query(collection(db, 'taskRegistrations'), where('periodId', '==', periodId), where('departmentId', '==', departmentId), limit(2000)))
+            : getDocs(query(collection(db, 'taskRegistrations'), where('periodId', '==', periodId), where('userId', '==', KpiWorkflowState.user.uid), limit(300)));
 
     const evaluationRequest = fullCenterScope
-      ? getDocs(query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId)))
+      ? getDocs(query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId), limit(5000)))
       : professionalCenterScope
         ? (KpiWorkflowState.mode === 'reports'
           ? mergeAvailableSnapshotRequests([
-              getDocs(query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId), where('departmentId', 'in', PROFESSIONAL_DEPARTMENT_IDS))),
-              getDocs(query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId), where('departmentId', '==', 'CDTN'))),
-              getDocs(query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId), where('organizationId', '==', 'CDTN')))
+              getDocs(query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId), where('departmentId', 'in', PROFESSIONAL_DEPARTMENT_IDS), limit(5000))),
+              getDocs(query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId), where('departmentId', '==', 'CDTN'), limit(1000))),
+              getDocs(query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId), where('organizationId', '==', 'CDTN'), limit(1000)))
             ], 'đánh giá báo cáo toàn phạm vi được cấp')
-          : getDocs(query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId), where('departmentId', 'in', PROFESSIONAL_DEPARTMENT_IDS))))
+          : getDocs(query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId), where('departmentId', 'in', PROFESSIONAL_DEPARTMENT_IDS), limit(5000))))
         : departmentId === 'CDTN' && evaluationDepartmentScope
           ? mergeAvailableSnapshotRequests([
-              getDocs(query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId), where('departmentId', '==', 'CDTN'))),
-              getDocs(query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId), where('organizationId', '==', 'CDTN')))
+              getDocs(query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId), where('departmentId', '==', 'CDTN'), limit(1000))),
+              getDocs(query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId), where('organizationId', '==', 'CDTN'), limit(1000)))
             ], 'đánh giá nhiệm vụ Chi đoàn')
           : combinedDepartmentReportScope
-            ? getDocs(query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId), where('departmentId', '==', departmentId)))
+            ? getDocs(query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId), where('departmentId', '==', departmentId), limit(2000)))
             : evaluationDepartmentScope
-              ? getDocs(query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId), where('departmentId', '==', departmentId)))
-              : getDocs(query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId), where('ownerUserId', '==', KpiWorkflowState.user.uid)));
+              ? getDocs(query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId), where('departmentId', '==', departmentId), limit(2000)))
+              : getDocs(query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId), where('ownerUserId', '==', KpiWorkflowState.user.uid), limit(300)));
 
     const commonRequest = fullCenterScope
-      ? getDocs(query(collection(db, 'commonCriteriaAssessments'), where('periodId', '==', periodId)))
+      ? getDocs(query(collection(db, 'commonCriteriaAssessments'), where('periodId', '==', periodId), limit(2000)))
       : professionalCenterScope
-        ? getDocs(query(collection(db, 'commonCriteriaAssessments'), where('periodId', '==', periodId), where('departmentId', 'in', PROFESSIONAL_DEPARTMENT_IDS)))
+        ? getDocs(query(collection(db, 'commonCriteriaAssessments'), where('periodId', '==', periodId), where('departmentId', 'in', PROFESSIONAL_DEPARTMENT_IDS), limit(2000)))
         : departmentId === 'CDTN'
-          ? getDocs(query(collection(db, 'commonCriteriaAssessments'), where('periodId', '==', periodId), where('userId', '==', KpiWorkflowState.user.uid)))
+          ? getDocs(query(collection(db, 'commonCriteriaAssessments'), where('periodId', '==', periodId), where('userId', '==', KpiWorkflowState.user.uid), limit(10)))
           : evaluationDepartmentScope && departmentId !== 'CDTN'
-            ? getDocs(query(collection(db, 'commonCriteriaAssessments'), where('periodId', '==', periodId), where('departmentId', '==', departmentId)))
-            : getDocs(query(collection(db, 'commonCriteriaAssessments'), where('periodId', '==', periodId), where('userId', '==', KpiWorkflowState.user.uid)));
+            ? getDocs(query(collection(db, 'commonCriteriaAssessments'), where('periodId', '==', periodId), where('departmentId', '==', departmentId), limit(500)))
+            : getDocs(query(collection(db, 'commonCriteriaAssessments'), where('periodId', '==', periodId), where('userId', '==', KpiWorkflowState.user.uid), limit(10)));
 
     const milestoneRequest = fullCenterScope
-      ? getDocs(query(collection(db, 'taskMilestones'), where('periodId', '==', periodId)))
+      ? getDocs(query(collection(db, 'taskMilestones'), where('periodId', '==', periodId), limit(10000)))
       : professionalCenterScope
-        ? getDocs(query(collection(db, 'taskMilestones'), where('periodId', '==', periodId), where('departmentId', 'in', PROFESSIONAL_DEPARTMENT_IDS)))
+        ? getDocs(query(collection(db, 'taskMilestones'), where('periodId', '==', periodId), where('departmentId', 'in', PROFESSIONAL_DEPARTMENT_IDS), limit(10000)))
         : departmentId === 'CDTN' && taskDepartmentScope
-          ? getDocs(query(collection(db, 'taskMilestones'), where('periodId', '==', periodId), where('departmentId', '==', 'CDTN')))
+          ? getDocs(query(collection(db, 'taskMilestones'), where('periodId', '==', periodId), where('departmentId', '==', 'CDTN'), limit(2000)))
           : taskDepartmentScope
-            ? getDocs(query(collection(db, 'taskMilestones'), where('periodId', '==', periodId), where('departmentId', '==', departmentId)))
-            : getDocs(query(collection(db, 'taskMilestones'), where('periodId', '==', periodId), where('ownerUserId', '==', KpiWorkflowState.user.uid)));
+            ? getDocs(query(collection(db, 'taskMilestones'), where('periodId', '==', periodId), where('departmentId', '==', departmentId), limit(5000)))
+            : getDocs(query(collection(db, 'taskMilestones'), where('periodId', '==', periodId), where('ownerUserId', '==', KpiWorkflowState.user.uid), limit(1000)));
 
     const usersRequest = fullCenterScope
-      ? getDocs(collection(db, 'users'))
+      ? getDocs(query(collection(db, 'users'), limit(500)))
       : professionalCenterScope
-        ? getDocs(query(collection(db, 'users'), where('departmentId', 'in', PROFESSIONAL_DEPARTMENT_IDS)))
+        ? getDocs(query(collection(db, 'users'), where('departmentId', 'in', PROFESSIONAL_DEPARTMENT_IDS), limit(500)))
         : cdtnAggregateScope
           ? loadCdtnUsers()
           : userDepartmentScope
-            ? getDocs(query(collection(db, 'users'), where('departmentId', '==', departmentId)))
+            ? getDocs(query(collection(db, 'users'), where('departmentId', '==', departmentId), limit(300)))
             : Promise.resolve(null);
     const profileRequest = getDoc(doc(db, 'kpiProfiles', `${periodId}_${KpiWorkflowState.user.uid}`))
       .catch(error => {
@@ -2802,7 +2835,7 @@ export async function renderKpiWorkflow(outlet, options = {}) {
     outlet.innerHTML = '<section class="page-card error-card"><h2>Phiên đăng nhập không hợp lệ</h2></section>';
     return;
   }
-  KpiWorkflowState.profile = await readProfile(KpiWorkflowState.user.uid);
+  KpiWorkflowState.profile = normalizeUserRecord(UserContext.requireUser(), KpiWorkflowState.user.uid);
   if (!KpiWorkflowState.profile) {
     outlet.innerHTML = '<section class="page-card error-card"><h2>Không tìm thấy hồ sơ người dùng</h2></section>';
     return;
