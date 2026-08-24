@@ -1,23 +1,23 @@
-import { auth, db } from '../../firebase-config.js?v=20260824.V1_14_2';
+import { auth, db } from '../../firebase-config.js?v=20260824.V1_15_0';
 import {
   addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, query,
   serverTimestamp, setDoc, Timestamp, updateDoc, where, limit, writeBatch
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
-import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260824.V1_14_2';
-import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260824.V1_14_2';
-import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260824.V1_14_2';
-import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260824.V1_14_2';
-import { PeriodReadService } from '../../services/period-read-service.js?v=20260824.V1_14_2';
-import { TaskReadService } from '../../services/task-read-service.js?v=20260824.V1_14_2';
-import { Permissions } from '../../core/permissions.js?v=20260824.V1_14_2';
-import { UserContext } from '../../core/user-context.js?v=20260824.V1_14_2';
-import { APP_VERSION } from '../../core/app-version.js?v=20260824.V1_14_2';
-import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260824.V1_14_2';
-import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260824.V1_14_2';
+import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260824.V1_15_0';
+import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260824.V1_15_0';
+import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260824.V1_15_0';
+import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260824.V1_15_0';
+import { PeriodReadService } from '../../services/period-read-service.js?v=20260824.V1_15_0';
+import { TaskReadService } from '../../services/task-read-service.js?v=20260824.V1_15_0';
+import { Permissions } from '../../core/permissions.js?v=20260824.V1_15_0';
+import { UserContext } from '../../core/user-context.js?v=20260824.V1_15_0';
+import { APP_VERSION } from '../../core/app-version.js?v=20260824.V1_15_0';
+import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260824.V1_15_0';
+import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260824.V1_15_0';
 import {
   KPI2B as KPI2C, COMMON_CRITERIA, calculateTaskScore, calculateKpiSummary,
   proposedRating, ratingName, round2, progressRateFromDates, convertAppendix04Rate, calculateMilestoneProgress
-} from '../../kpi-engine.js?v=20260824.V1_14_2';
+} from '../../kpi-engine.js?v=20260824.V1_15_0';
 
 export const KpiWorkflowState = {
   user: null,
@@ -2155,14 +2155,18 @@ async function openSelfAssessment(taskId) {
   let workSummary = null;
   if (itemized) {
     try {
-      workItems = await TaskWorkItemService.list(task.id);
-      workSummary = TaskWorkItemService.calculateSummary(workItems, task.workItemType);
+      workItems = await TaskWorkItemService.list(task);
+      workSummary = TaskWorkItemService.calculateSummary(workItems, task.workItemType, task);
     } catch (error) {
       alert(friendlyErrorMessage(error, 'Không đọc được các công việc phát sinh trong kỳ.'));
       return;
     }
     if (!workSummary.count) {
-      alert('Đầu việc chưa có lượt phát sinh. Hãy cập nhật lượt chi tiết; nếu cả kỳ không phát sinh, gửi đề nghị “Không phát sinh” tại Chi tiết nhiệm vụ.');
+      if (Number(workSummary.totalRecordedCount || 0) > 0) {
+        alert('Đã có lượt phát sinh nhưng chưa có lượt nào đủ điều kiện tính KPI. Lượt chưa hoàn thành và chưa đến hạn chưa bị tính 0%; hãy đánh giá khi đã có lượt hoàn thành hoặc đã đến hạn.');
+      } else {
+        alert('Đầu việc chưa có lượt phát sinh. Hãy ghi nhận việc phát sinh khi có yêu cầu thực tế; nếu cả kỳ không phát sinh, gửi đề nghị “Không phát sinh” tại Chi tiết nhiệm vụ.');
+      }
       return;
     }
   }
