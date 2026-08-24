@@ -1,4 +1,4 @@
-import { friendlyErrorMessage } from "./friendly-error.js?v=20260824.V1_14_2";
+import { friendlyErrorMessage } from "./friendly-error.js?v=20260824.V1_15_0";
 
 /** Production 3B.2 - Toast Service */
 const CONTAINER_ID = "v3ToastContainer";

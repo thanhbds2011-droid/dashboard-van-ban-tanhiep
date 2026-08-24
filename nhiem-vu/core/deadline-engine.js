@@ -1,9 +1,10 @@
 /**
- * Quy tắc thời hạn KPI V1.13.0.
+ * Quy tắc thời hạn KPI V1.15.0.
  * - Theo tháng + DD: một nhiệm vụ trong kỳ, nhiều mốc DD của từng tháng.
  * - Theo quý + DD: hạn DD của tháng cuối quý tương ứng.
  * - Theo năm + DD/MM: hạn DD/MM của năm tương ứng.
- * - Các chu kỳ phát sinh/không có quy tắc tự động: bắt buộc nhập hạn cụ thể khi đăng ký/giao.
+ * - Khi phát sinh: được duyệt kế hoạch khi chưa có deadline task; từng lượt thực tế bắt buộc có hạn riêng.
+ * - Các chu kỳ manual khác: bắt buộc nhập hạn cụ thể khi đăng ký/giao.
  *
  * Mọi date-key dùng YYYY-MM-DD. Timestamp hạn được neo 23:59:59 múi giờ Việt Nam (+07:00)
  * để không phụ thuộc timezone của thiết bị người dùng.
@@ -31,6 +32,7 @@ export function frequencyKind(value) {
   if (key.includes("THEO THANG")) return "MONTHLY";
   if (key.includes("THEO QUY")) return "QUARTERLY";
   if (key.includes("THEO NAM")) return "YEARLY";
+  if (key === "KHI PHAT SINH" || key.includes(" KHI PHAT SINH")) return "ARISING";
   return "MANUAL";
 }
 
@@ -103,6 +105,10 @@ export function requiresManualDeadline(frequency) {
   return frequencyKind(frequency) === "MANUAL";
 }
 
+export function isEventDrivenFrequency(frequency) {
+  return frequencyKind(frequency) === "ARISING";
+}
+
 export function deadlineDateFromKey(dateKey) {
   if (!isDateKey(dateKey)) return null;
   return new Date(`${dateKey}T23:59:59${KPI_TIME_ZONE_OFFSET}`);
@@ -163,6 +169,16 @@ export function deriveDeadlinePlan({
     };
   }
 
+  if (kind === "ARISING") {
+    return {
+      mode: "EVENT_DRIVEN",
+      completionDeadline: "",
+      deadlineDateKey: "",
+      milestoneDateKeys: [],
+      eventDriven: true
+    };
+  }
+
   if (!isDateKey(manualDeadlineDateKey)) {
     throw new Error("Đầu việc này không có quy tắc hạn tự động. Hãy nhập Hạn hoàn thành cụ thể khi đăng ký/giao nhiệm vụ.");
   }
@@ -170,7 +186,8 @@ export function deriveDeadlinePlan({
     mode: "SINGLE_MANUAL",
     completionDeadline: normalized,
     deadlineDateKey: clean(manualDeadlineDateKey),
-    milestoneDateKeys: []
+    milestoneDateKeys: [],
+    eventDriven: false
   };
 }
 
@@ -180,5 +197,6 @@ export function deadlineRuleDescription(frequency, completionDeadline) {
   if (kind === "MONTHLY") return value ? `Ngày ${value} mỗi tháng trong kỳ` : "Thiếu ngày hoàn thành mỗi tháng";
   if (kind === "QUARTERLY") return value ? `Ngày ${value} của tháng cuối quý` : "Thiếu ngày hoàn thành quý";
   if (kind === "YEARLY") return value ? `Ngày ${value} của năm` : "Thiếu ngày/tháng hoàn thành năm";
+  if (kind === "ARISING") return "Không nhập hạn ở kế hoạch; khi có việc thực tế, từng lượt phát sinh bắt buộc nhập hạn cụ thể";
   return "Nhập hạn hoàn thành cụ thể khi đăng ký/giao nhiệm vụ";
 }
