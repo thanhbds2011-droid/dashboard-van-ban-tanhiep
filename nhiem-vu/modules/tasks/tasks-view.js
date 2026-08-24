@@ -1,9 +1,9 @@
-import { Permissions } from "../../core/permissions.js?v=20260824.V1_14_2";
-import { ToastService } from "../../core/toast-service.js?v=20260824.V1_14_2";
-import { TaskReadService } from "../../services/task-read-service.js?v=20260824.V1_14_2";
-import { openTaskCreateModal } from "./task-form-modal.js?v=20260824.V1_14_2";
-import { openTaskDetailModal } from "./task-detail-modal.js?v=20260824.V1_14_2";
-import { effectiveDepartmentAssignmentStatus } from "../../core/task-display-order.js?v=20260824.V1_14_2";
+import { Permissions } from "../../core/permissions.js?v=20260824.V1_15_0";
+import { ToastService } from "../../core/toast-service.js?v=20260824.V1_15_0";
+import { TaskReadService } from "../../services/task-read-service.js?v=20260824.V1_15_0";
+import { openTaskCreateModal } from "./task-form-modal.js?v=20260824.V1_15_0";
+import { openTaskDetailModal } from "./task-detail-modal.js?v=20260824.V1_15_0";
+import { effectiveDepartmentAssignmentStatus } from "../../core/task-display-order.js?v=20260824.V1_15_0";
 
 let renderSequence = 0;
 let currentTasks = [];
@@ -275,7 +275,7 @@ function renderTaskList(tasks, emptyTitle = "Không có nhiệm vụ trong phạ
   if (!tasks.length) return `<div class="empty-state compact-empty-state"><div class="empty-icon">📋</div><strong>${escapeHtml(emptyTitle)}</strong><p>Hãy thay đổi bộ lọc hoặc chờ nhiệm vụ được giao.</p></div>`;
   return `<div class="data-list">${tasks.slice(0, 500).map(task => {
     const status = taskStatusDescriptor(task);
-    return `<button type="button" class="data-row task-row-button" data-task-id="${escapeHtml(task.id)}"><div class="data-row-main"><strong>${escapeHtml(task.title || task.taskCode || "Nhiệm vụ không có tiêu đề")}</strong><small>${escapeHtml(task.taskCode || task.id)} • ${escapeHtml(DEPARTMENT_NAMES[taskWorkspaceId(task)] || taskWorkspaceId(task) || "-")} • ${escapeHtml(taskOwnerSummary(task))}</small><div class="progress-track"><span style="width:${Math.min(100, Math.max(0, Number(task.progress || 0)))}%"></span></div></div><div class="data-row-meta"><span class="status-pill ${status.className}">${status.label}</span><small>${formatDate(task._deadline)}</small><strong>${Number(task.progress || 0)}%</strong></div></button>`;
+    return `<button type="button" class="data-row task-row-button" data-task-id="${escapeHtml(task.id)}"><div class="data-row-main"><strong>${escapeHtml(task.title || task.taskCode || "Nhiệm vụ không có tiêu đề")}</strong><small>${escapeHtml(task.taskCode || task.id)} • ${escapeHtml(DEPARTMENT_NAMES[taskWorkspaceId(task)] || taskWorkspaceId(task) || "-")} • ${escapeHtml(taskOwnerSummary(task))}</small><div class="progress-track"><span style="width:${Math.min(100, Math.max(0, Number(task.progress || 0)))}%"></span></div></div><div class="data-row-meta"><span class="status-pill ${status.className}">${status.label}</span><small>${String(task.deadlineMode || "").toUpperCase() === "EVENT_DRIVEN" ? "Theo lượt phát sinh" : formatDate(task._deadline)}</small><strong>${Number(task.progress || 0)}%</strong></div></button>`;
   }).join("")}</div>`;
 }
 

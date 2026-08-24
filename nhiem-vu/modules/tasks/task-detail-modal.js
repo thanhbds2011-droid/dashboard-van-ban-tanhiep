@@ -1,15 +1,16 @@
 /** Chi tiết, phân công và các lượt công việc phát sinh của nhiệm vụ. */
-import { UserContext } from "../../core/user-context.js?v=20260824.V1_14_2";
-import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260824.V1_14_2";
-import { Permissions } from "../../core/permissions.js?v=20260824.V1_14_2";
-import { effectiveDepartmentAssignmentStatus, isTerminalTask } from "../../core/task-display-order.js?v=20260824.V1_14_2";
-import { UserReadService } from "../../services/user-read-service.js?v=20260824.V1_14_2";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260824.V1_14_2";
-import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260824.V1_14_2";
-import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260824.V1_14_2";
-import { openTaskProgressModal } from "./task-progress-modal.js?v=20260824.V1_14_2";
-import { mountTaskAdjustmentPanel } from "./task-adjustment-panel.js?v=20260824.V1_14_2";
-import { TaskLogService } from "../../services/task-log-service.js?v=20260824.V1_14_2";
+import { UserContext } from "../../core/user-context.js?v=20260824.V1_15_0";
+import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260824.V1_15_0";
+import { Permissions } from "../../core/permissions.js?v=20260824.V1_15_0";
+import { effectiveDepartmentAssignmentStatus, isTerminalTask } from "../../core/task-display-order.js?v=20260824.V1_15_0";
+import { UserReadService } from "../../services/user-read-service.js?v=20260824.V1_15_0";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260824.V1_15_0";
+import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260824.V1_15_0";
+import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260824.V1_15_0";
+import { TaskEvidenceService } from "../../services/task-evidence-service.js?v=20260824.V1_15_0";
+import { openTaskProgressModal } from "./task-progress-modal.js?v=20260824.V1_15_0";
+import { mountTaskAdjustmentPanel } from "./task-adjustment-panel.js?v=20260824.V1_15_0";
+import { TaskLogService } from "../../services/task-log-service.js?v=20260824.V1_15_0";
 
 const TEAM_LABELS = Object.freeze({
   BAO_VE: "Tổ Bảo vệ",
@@ -201,13 +202,17 @@ function attendanceBadge(status) {
   return `<span class="status-pill ${className}">${label}</span>`;
 }
 
-function evidenceHtml(item) {
+function evidenceHtml(item, evidenceFiles = []) {
   const url = safeExternalUrl(item.evidenceUrl);
-  return `${item.evidenceText ? `<small>Minh chứng: ${escapeHtml(item.evidenceText)}</small>` : ""}
-    ${url ? `<a class="primary-link" target="_blank" rel="noopener" href="${escapeHtml(url)}">📎 ${escapeHtml(item.evidenceFileName || "Mở minh chứng")}</a>` : ""}`;
+  const scoped = (evidenceFiles || []).filter(file => file.active !== false && file.scopeType === "WORK_ITEM" && file.scopeId === item.id);
+  const list = scoped.map(file => `<a class="primary-link" target="_blank" rel="noopener" href="${escapeHtml(safeExternalUrl(file.fileUrl) || "#")}">📎 ${escapeHtml(file.fileName || "Mở minh chứng")}</a>`).join("");
+  const legacy = url && !scoped.some(file => file.fileUrl === url)
+    ? `<a class="primary-link" target="_blank" rel="noopener" href="${escapeHtml(url)}">📎 ${escapeHtml(item.evidenceFileName || "Mở minh chứng")}</a>`
+    : "";
+  return `${item.evidenceText ? `<small>Minh chứng: ${escapeHtml(item.evidenceText)}</small>` : ""}${list}${legacy}`;
 }
 
-function workItemContent(item, type) {
+function workItemContent(item, type, evidenceFiles = []) {
   if (type === "ATTENDANCE") {
     return `
       <strong>${escapeHtml(item.title)}</strong>
@@ -218,7 +223,7 @@ function workItemContent(item, type) {
       <div class="task-work-item-badges">${rateBadge(item.resultRate, "result")}</div>
       ${item.participationNote ? `<p>${escapeHtml(item.participationNote)}</p>` : ""}
       ${item.resultNote ? `<p>${escapeHtml(item.resultNote)}</p>` : ""}
-      ${evidenceHtml(item)}`;
+      ${evidenceHtml(item, evidenceFiles)}`;
   }
 
   const quantity = type === "QUANTITY"
@@ -240,10 +245,10 @@ function workItemContent(item, type) {
     <div class="task-work-item-badges">${rateBadge(item.progressRate, "progress")}${rateBadge(item.resultRate, "result")}</div>
     ${item.reference ? `<small>Số/Ký hiệu hoặc căn cứ: ${escapeHtml(item.reference)}</small>` : ""}
     ${item.resultNote ? `<p>${escapeHtml(item.resultNote)}</p>` : ""}
-    ${evidenceHtml(item)}`;
+    ${evidenceHtml(item, evidenceFiles)}`;
 }
 
-function workItemRows(items, canEdit, task) {
+function workItemRows(items, canEdit, task, evidenceFiles = []) {
   const type = workItemType(task);
   if (!items.length) {
     return `<div class="task-work-item-empty">
@@ -255,14 +260,14 @@ function workItemRows(items, canEdit, task) {
   return `<div class="task-work-item-list">${items.map((item, index) => `
     <article class="task-work-item-card">
       <div class="task-work-item-index">${index + 1}</div>
-      <div class="task-work-item-main">${workItemContent(item, type)}</div>
+      <div class="task-work-item-main">${workItemContent(item, type, evidenceFiles)}</div>
       ${canEdit ? `<div class="task-work-item-actions"><button class="secondary-button compact-button" type="button" data-edit-work-item="${escapeHtml(item.id)}">Sửa</button><button class="danger-button compact-button" type="button" data-remove-work-item="${escapeHtml(item.id)}">Xóa</button></div>` : ""}
     </article>`).join("")}</div>`;
 }
 
 function workItemSummaryHtml(items, task) {
   const type = workItemType(task);
-  const summary = TaskWorkItemService.calculateSummary(items, type);
+  const summary = TaskWorkItemService.calculateSummary(items, type, task);
   if (!summary.count) return "";
 
   const typeSpecific = type === "ATTENDANCE"
@@ -285,8 +290,10 @@ function workItemSummaryHtml(items, task) {
   const actualResultLabel = type === "ATTENDANCE" ? "Tỷ lệ kết quả K/N" : "Kết quả trung bình";
 
   return `<div class="task-work-item-summary">
-    <div><span>Tổng lượt hợp lệ (N)</span><strong>${summary.count}</strong></div>
-    <div><span>Đã ghi nhận đầy đủ</span><strong>${summary.completedCount}/${summary.count}</strong></div>
+    ${Number(summary.totalRecordedCount || summary.count) !== Number(summary.count) ? `<div><span>Tổng lượt đã ghi nhận</span><strong>${summary.totalRecordedCount}</strong></div>` : ""}
+    <div><span>Lượt đang được tính KPI (N)</span><strong>${summary.count}</strong></div>
+    <div><span>Đã hoàn thành trong N</span><strong>${summary.completedCount}/${summary.count}</strong></div>
+    ${Number(summary.futurePendingCount || 0) > 0 ? `<div><span>Chưa đến hạn, chưa tính</span><strong>${summary.futurePendingCount}</strong></div>` : ""}
     ${incomplete}
     ${typeSpecific}
     <div><span>${actualProgressLabel}</span><strong>${numberVi(summary.actualProgressRate)}%</strong></div>
@@ -331,13 +338,14 @@ function resultRateOptions(selected) {
   )).join("");
 }
 
-function commonDateFields(item) {
+function commonDateFields(task, item) {
+  const eventDriven = String(task?.deadlineMode || "").toUpperCase() === "EVENT_DRIVEN";
   return `
     <label><span>Người giao</span><input id="workItemAssignedBy" maxlength="300" value="${escapeHtml(item?.assignedByName || UserContext.getUser()?.fullName || "")}"></label>
-    <label><span>Ngày giao</span><input id="workItemAssignedDate" type="date" value="${escapeHtml(item?.assignedDateKey || localToday())}"></label>
-    <label><span>Hạn hoàn thành</span><input id="workItemDeadline" type="date" value="${escapeHtml(item?.deadlineDateKey || "")}"></label>
+    <label><span>${eventDriven ? "Ngày phát sinh/nhận yêu cầu" : "Ngày giao"}</span><input id="workItemAssignedDate" type="date" value="${escapeHtml(item?.assignedDateKey || localToday())}"></label>
+    <label><span>Hạn hoàn thành cụ thể</span><input id="workItemDeadline" type="date" value="${escapeHtml(item?.deadlineDateKey || "")}" required></label>
     <label><span>Ngày hoàn thành thực tế</span><input id="workItemCompletedDate" type="date" value="${escapeHtml(item?.completedDateKey || "")}"></label>
-    <div class="field-full info-banner compact-info-banner"><strong>Tiến độ được tính tự động</strong><span>Hệ thống đối chiếu ngày hoàn thành với hạn xử lý theo hướng dẫn KPI; người dùng không phải tự chọn mức tiến độ.</span></div>`;
+    <div class="field-full info-banner compact-info-banner"><strong>Tiến độ được tính tự động</strong><span>${eventDriven ? "Mỗi lượt phát sinh bắt buộc có hạn riêng. " : ""}Hệ thống đối chiếu ngày hoàn thành với hạn xử lý theo hướng dẫn KPI; người dùng không phải tự chọn mức tiến độ.</span></div>`;
 }
 
 function editorFields(task, item) {
@@ -346,7 +354,7 @@ function editorFields(task, item) {
     return `
       <label class="field-full"><span>Trích yếu văn bản/hồ sơ được giao</span><input id="workItemTitle" maxlength="500" value="${escapeHtml(item?.title || "")}" placeholder="Ví dụ: Soạn thảo Thông báo triển khai kế hoạch quý III"></label>
       <label><span>Số/Ký hiệu hoặc căn cứ</span><input id="workItemReference" maxlength="500" value="${escapeHtml(item?.reference || "")}" placeholder="Ví dụ: 15/KH-TTBTXH"></label>
-      ${commonDateFields(item)}
+      ${commonDateFields(task, item)}
       <label class="field-full"><span>Mức kết quả</span><select id="workItemResultRate">${resultRateOptions(item?.resultRate)}</select><small>Chọn theo chất lượng văn bản/hồ sơ và mức độ phải chỉnh sửa.</small></label>`;
   }
   if (type === "QUANTITY") {
@@ -357,7 +365,7 @@ function editorFields(task, item) {
       <label><span>Sản lượng thực tế</span><input id="workItemActualQuantity" type="number" min="0" step="0.01" value="${escapeHtml(item?.actualQuantity ?? "")}"></label>
       <label class="field-full"><span>Đơn vị tính</span><input id="workItemQuantityUnit" maxlength="80" value="${escapeHtml(item?.quantityUnit || task.quantityUnit || "")}" placeholder="Ví dụ: kg rau"></label>
       <input id="workItemTitle" type="hidden" value="${escapeHtml(item?.title || "")}">
-      ${commonDateFields(item)}
+      ${commonDateFields(task, item)}
       <label class="field-full"><span>Chất lượng kết quả</span><select id="workItemResultRate">${resultRateOptions(item?.resultRate)}</select><small>Một tháng được tính K khi sản lượng thực tế đạt kế hoạch và chất lượng từ 80% trở lên.</small></label>`;
   }
   if (type === "ATTENDANCE") {
@@ -375,7 +383,7 @@ function editorFields(task, item) {
   return `
     <label class="field-full"><span>Nội dung công việc được giao</span><input id="workItemTitle" maxlength="500" value="${escapeHtml(item?.title || "")}" placeholder="Nhập nội dung công việc"></label>
     <label><span>Số/Ký hiệu hoặc căn cứ</span><input id="workItemReference" maxlength="500" value="${escapeHtml(item?.reference || "")}" placeholder="Không bắt buộc"></label>
-    ${commonDateFields(item)}
+    ${commonDateFields(task, item)}
     <label class="field-full"><span>Mức kết quả</span><select id="workItemResultRate">${resultRateOptions(item?.resultRate)}</select><small>Chọn theo chất lượng sản phẩm và mức độ chỉnh sửa.</small></label>`;
 }
 
@@ -393,7 +401,7 @@ function openWorkItemEditor(task, item, onSaved) {
         ${editorFields(task, item)}
         <label class="field-full"><span>Kết quả/Ghi chú</span><textarea id="workItemResultNote" rows="3" maxlength="3000" placeholder="Nêu kết quả, tình trạng chỉnh sửa hoặc nguyên nhân chưa hoàn thành">${escapeHtml(item?.resultNote || "")}</textarea></label>
         <label class="field-full"><span>Mô tả minh chứng/liên kết</span><textarea id="workItemEvidence" rows="2" maxlength="3000" placeholder="Nêu số văn bản, biên bản, hình ảnh hoặc mô tả minh chứng">${escapeHtml(item?.evidenceText || "")}</textarea></label>
-        <label class="field-full"><span>Tệp minh chứng trên Google Drive</span><input id="workItemEvidenceFile" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"><small>${item?.evidenceFileName ? `Đang lưu: ${escapeHtml(item.evidenceFileName)}. Chọn tệp mới nếu cần thay thế.` : "Tối đa 8 MB; hỗ trợ PDF, ảnh, Word, Excel, PowerPoint và TXT."}</small></label>
+        <label class="field-full"><span>Tệp minh chứng trên Google Drive</span><input id="workItemEvidenceFile" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"><small>${item?.evidenceFileName ? `Đang lưu: ${escapeHtml(item.evidenceFileName)}. Có thể chọn thêm nhiều tệp; tệp mới không làm mất tệp cũ.` : "Tối đa 8 MB; hỗ trợ PDF, ảnh, Word, Excel, PowerPoint và TXT."}</small></label>
         <div id="workItemUploadStatus" class="field-full task-work-item-upload-status" aria-live="polite"></div>
       </div>
       <div class="modal-footer"><button class="secondary-button" type="button" data-close-work-item>Hủy</button><button id="saveWorkItemButton" class="primary-button" type="button">Lưu thông tin</button></div>
@@ -416,22 +424,32 @@ function openWorkItemEditor(task, item, onSaved) {
     try {
       button.disabled = true;
       button.textContent = "Đang lưu…";
-      const selectedFile = overlay.querySelector("#workItemEvidenceFile")?.files?.[0] || null;
+      const selectedFiles = Array.from(overlay.querySelector("#workItemEvidenceFile")?.files || []);
+      if (selectedFiles.length > TaskEvidenceService.MAX_PER_SELECTION) throw new Error(`Mỗi lần chỉ được chọn tối đa ${TaskEvidenceService.MAX_PER_SELECTION} tệp.`);
+      selectedFiles.forEach(file => DriveEvidenceService.validateFile(file));
+      const existingEvidence = selectedFiles.length ? await TaskEvidenceService.list(task) : [];
+      if (existingEvidence.length + selectedFiles.length > TaskEvidenceService.MAX_PER_TASK) {
+        throw new Error(`Nhiệm vụ được lưu tối đa ${TaskEvidenceService.MAX_PER_TASK} tệp minh chứng. Hiện đã có ${existingEvidence.length} tệp.`);
+      }
       let evidence = {
         evidenceUrl: item?.evidenceUrl || "",
         evidenceFileName: item?.evidenceFileName || "",
         evidenceStoragePath: item?.evidenceStoragePath || ""
       };
-      if (selectedFile) {
-        evidence = await DriveEvidenceService.upload(selectedFile, task, {
+      const uploadedFiles = [];
+      for (let index = 0; index < selectedFiles.length; index += 1) {
+        const selectedFile = selectedFiles[index];
+        const uploaded = await DriveEvidenceService.upload(selectedFile, task, {
           onProgress: state => {
             const target = overlay.querySelector("#workItemUploadStatus");
-            if (target) target.textContent = state.message || "Đang tải minh chứng…";
+            if (target) target.textContent = `[${index + 1}/${selectedFiles.length}] ${state.message || "Đang tải minh chứng…"}`;
           }
         });
+        uploadedFiles.push({ ...uploaded, mimeType: selectedFile.type || "", uploadedSize: uploaded.uploadedSize || selectedFile.size });
+        evidence = uploaded;
       }
 
-      await TaskWorkItemService.save(task, {
+      const savedWorkItem = await TaskWorkItemService.save(task, {
         workItemType: type,
         title: overlay.querySelector("#workItemTitle")?.value,
         reference: overlay.querySelector("#workItemReference")?.value,
@@ -451,9 +469,16 @@ function openWorkItemEditor(task, item, onSaved) {
         resultNote: overlay.querySelector("#workItemResultNote")?.value,
         evidenceText: overlay.querySelector("#workItemEvidence")?.value,
         evidenceUrl: evidence.fileUrl || evidence.evidenceUrl || "",
-        evidenceFileName: evidence.fileName || evidence.evidenceFileName || selectedFile?.name || "",
+        evidenceFileName: evidence.fileName || evidence.evidenceFileName || selectedFiles.at(-1)?.name || "",
         evidenceStoragePath: evidence.storagePath || evidence.fileId || evidence.evidenceStoragePath || ""
       }, item);
+      if (uploadedFiles.length) {
+        await TaskEvidenceService.addUploadedFiles(task, uploadedFiles, {
+          scopeType: "WORK_ITEM",
+          scopeId: savedWorkItem.id,
+          existingFiles: existingEvidence
+        });
+      }
       close();
       await onSaved?.();
     } catch (error) {
@@ -499,10 +524,16 @@ export async function openTaskDetailModal(task, { onSaved }) {
   let workItems = [];
   if (isItemizedTask(task)) {
     try {
-      workItems = await TaskWorkItemService.list(task.id);
+      workItems = await TaskWorkItemService.list(task);
     } catch (error) {
       console.warn("Không tải được dữ liệu lượt công việc:", error);
     }
+  }
+  let evidenceFiles = [];
+  try {
+    evidenceFiles = await TaskEvidenceService.list(task);
+  } catch (error) {
+    console.warn("Không tải được danh sách minh chứng:", error);
   }
   let taskLogs = [];
   try {
@@ -542,7 +573,7 @@ export async function openTaskDetailModal(task, { onSaved }) {
             ${detail("Tiếp nhận Phòng/Khu", departmentAcceptanceLabel(task))}
             ${detail("Tổ/Nhóm", task.teamId ? teamLabel(task.teamId) : "Không áp dụng")}
             ${detail("Tiến độ", `${Number(task.progress || 0)}%`)}
-            ${detail("Hạn xử lý", formatDate(task._deadline || task.deadline))}
+            ${detail("Hạn xử lý", String(task.deadlineMode || "").toUpperCase() === "EVENT_DRIVEN" ? "Theo từng lượt phát sinh" : formatDate(task._deadline || task.deadline))}
             ${detail("Loại công việc", task.workType === "DOT_XUAT" ? "Đột xuất" : "Thường xuyên")}
             ${detail("Cách theo dõi", trackingModeLabel(task))}
             ${detail("Điểm chuẩn", numberVi(task.baseScore || 0))}
@@ -568,11 +599,12 @@ export async function openTaskDetailModal(task, { onSaved }) {
         <section class="task-detail-tab-panel" data-task-panel="progress">
           ${isOwner && !accepted && !completed ? '<div class="info-banner">Bạn cần xác nhận đã nhận nhiệm vụ trước khi cập nhật tiến độ, kết quả hoặc minh chứng.</div>' : ""}
           ${isItemizedTask(task) ? `<section class="detail-section task-work-items-section">
-            <div class="detail-section-heading"><div><h3>${labels.name}</h3><p>Mỗi văn bản/lượt được chấm riêng; hệ thống tính trung bình, quy về mức 100%–80%–60%–0% rồi mới áp dụng Phụ lục 04.</p></div>${canEditWorkItems ? `<button id="addWorkItemButton" class="primary-button compact-button" type="button">+ ${labels.add}</button>` : ""}</div>
+            <div class="detail-section-heading"><div><h3>${String(task.deadlineMode || "").toUpperCase() === "EVENT_DRIVEN" ? "Lượt công việc phát sinh thực tế" : labels.name}</h3><p>${String(task.deadlineMode || "").toUpperCase() === "EVENT_DRIVEN" ? "Kế hoạch được duyệt trước mà chưa gắn ngày hạn. Mỗi khi có yêu cầu thực tế, hãy ghi nhận một lượt và bắt buộc nhập Hạn hoàn thành cụ thể cho lượt đó." : "Mỗi văn bản/lượt được chấm riêng; hệ thống tính trung bình, quy về mức 100%–80%–60%–0% rồi mới áp dụng Phụ lục 04."}</p></div>${canEditWorkItems ? `<button id="addWorkItemButton" class="primary-button compact-button" type="button">+ ${String(task.deadlineMode || "").toUpperCase() === "EVENT_DRIVEN" ? "Ghi nhận việc phát sinh" : labels.add}</button>` : ""}</div>
+            ${String(task.deadlineMode || "").toUpperCase() === "EVENT_DRIVEN" ? `<div class="info-banner event-driven-deadline-banner"><strong>Deadline được nhập khi việc thực tế phát sinh</strong><span>Không dùng ngày cuối kỳ làm hạn. Mỗi lượt phải có Ngày phát sinh/Ngày giao và Hạn hoàn thành riêng trước khi lưu.</span></div>` : ""}
             ${scoringMethodHtml(task)}
             <div id="taskNoOccurrence">${noOccurrenceHtml(task, workItems, isOwner)}</div>
             <div id="taskWorkItemSummary">${workItemSummaryHtml(workItems, task)}</div>
-            <div id="taskWorkItemList">${workItemRows(workItems, canEditWorkItems, task)}</div>
+            <div id="taskWorkItemList">${workItemRows(workItems, canEditWorkItems, task, evidenceFiles)}</div>
           </section>` : `<div class="info-banner final-output-banner"><strong>Đánh giá trực tiếp theo Phụ lục 04</strong><span>Đầu việc có một sản phẩm cuối cùng và áp dụng trực tiếp các mức 100%–80%–60%–0% của Phụ lục 04.</span></div>`}
         </section>
 
@@ -594,7 +626,7 @@ export async function openTaskDetailModal(task, { onSaved }) {
         </section>
 
         <section class="task-detail-tab-panel" data-task-panel="history">
-          <section class="detail-section"><h3>Minh chứng</h3>${safeExternalUrl(task.evidenceUrl) ? `<a class="primary-link" target="_blank" rel="noopener" href="${escapeHtml(safeExternalUrl(task.evidenceUrl))}">📎 ${escapeHtml(task.evidenceFileName || "Mở tệp minh chứng")}</a>` : '<p>Chưa có tệp minh chứng cuối cùng.</p>'}${task.evidenceText ? `<p>${escapeHtml(task.evidenceText)}</p>` : ""}</section>
+          <section class="detail-section"><h3>Minh chứng</h3>${evidenceFiles.length ? `<div class="task-evidence-file-list">${evidenceFiles.map((file,index)=>`<div class="task-evidence-file-row"><span class="task-evidence-file-index">${index+1}</span><div><strong>${escapeHtml(file.fileName || "Tệp minh chứng")}</strong><small>${file.scopeType === "WORK_ITEM" ? "Lượt phát sinh" : file.scopeType === "MILESTONE" ? "Mốc định kỳ" : "Nhiệm vụ"}</small></div><a class="secondary-button compact-button" target="_blank" rel="noopener" href="${escapeHtml(safeExternalUrl(file.fileUrl) || "#")}">Mở</a></div>`).join("")}</div>` : (safeExternalUrl(task.evidenceUrl) ? `<a class="primary-link" target="_blank" rel="noopener" href="${escapeHtml(safeExternalUrl(task.evidenceUrl))}">📎 ${escapeHtml(task.evidenceFileName || "Mở tệp minh chứng")}</a>` : '<p>Chưa có tệp minh chứng.</p>')}${task.evidenceText ? `<p>${escapeHtml(task.evidenceText)}</p>` : ""}</section>
           <section class="detail-section"><h3>Lịch sử thao tác</h3>${renderTaskLogs(taskLogs)}</section>
         </section>
       </div>
@@ -628,11 +660,14 @@ export async function openTaskDetailModal(task, { onSaved }) {
   });
 
   const refreshWorkItems = async () => {
-    workItems = await TaskWorkItemService.list(task.id);
+    [workItems, evidenceFiles] = await Promise.all([
+      TaskWorkItemService.list(task),
+      TaskEvidenceService.list(task).catch(() => evidenceFiles)
+    ]);
     const list = overlay.querySelector("#taskWorkItemList");
     const summary = overlay.querySelector("#taskWorkItemSummary");
     const noOccurrence = overlay.querySelector("#taskNoOccurrence");
-    if (list) list.innerHTML = workItemRows(workItems, canEditWorkItems, task);
+    if (list) list.innerHTML = workItemRows(workItems, canEditWorkItems, task, evidenceFiles);
     if (summary) summary.innerHTML = workItemSummaryHtml(workItems, task);
     if (noOccurrence) noOccurrence.innerHTML = noOccurrenceHtml(task, workItems, isOwner);
     bindWorkItemActions();
