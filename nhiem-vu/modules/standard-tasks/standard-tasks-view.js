@@ -1,11 +1,11 @@
-import { UserContext } from "../../core/user-context.js?v=20260824.V1_14_2";
-import { Permissions } from "../../core/permissions.js?v=20260824.V1_14_2";
-import { ToastService } from "../../core/toast-service.js?v=20260824.V1_14_2";
-import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260824.V1_14_2";
-import { PeriodReadService } from "../../services/period-read-service.js?v=20260824.V1_14_2";
-import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260824.V1_14_2";
-import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260824.V1_14_2";
-import { deriveDeadlinePlan, deadlineRuleDescription, requiresManualDeadline } from "../../core/deadline-engine.js?v=20260824.V1_14_2";
+import { UserContext } from "../../core/user-context.js?v=20260824.V1_15_0";
+import { Permissions } from "../../core/permissions.js?v=20260824.V1_15_0";
+import { ToastService } from "../../core/toast-service.js?v=20260824.V1_15_0";
+import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260824.V1_15_0";
+import { PeriodReadService } from "../../services/period-read-service.js?v=20260824.V1_15_0";
+import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260824.V1_15_0";
+import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260824.V1_15_0";
+import { deriveDeadlinePlan, deadlineRuleDescription, requiresManualDeadline, isEventDrivenFrequency } from "../../core/deadline-engine.js?v=20260824.V1_15_0";
 
 let currentCatalogAccess = {
   canManage: false,
@@ -545,7 +545,7 @@ async function openTaskEditor(item) {
       <label class="kpi-field full"><span>Tên đầu việc</span><input id="catalogTaskName" maxlength="1000" value="${escapeHtml(item?.name || "")}" placeholder="Nhập tên đầu việc"><small class="field-help">Tối đa 1.000 ký tự; nội dung được lưu đầy đủ trên Firestore.</small></label>
       <label class="kpi-field full"><span>Kết quả đầu ra/Yêu cầu hoàn thành</span><textarea id="catalogTaskOutput" rows="3" placeholder="Nêu sản phẩm hoặc kết quả phải đạt">${escapeHtml(item?.outputRequirement || "")}</textarea></label>
       <label class="kpi-field full"><span>Chu kỳ/Tần suất</span><input id="catalogTaskFrequency" value="${escapeHtml(item?.frequency || "")}" placeholder="Ví dụ: Theo tháng, Theo quý, Theo năm, Khi phát sinh"></label>
-      <label class="kpi-field full"><span>Thời hạn hoàn thành</span><input id="catalogTaskCompletionDeadline" value="${escapeHtml(item?.completionDeadline || "")}" placeholder="Theo tháng/quý: 05 hoặc 25 · Theo năm: 31/12"><small id="catalogTaskDeadlineHelp" class="field-help">${escapeHtml(deadlineRuleDescription(item?.frequency || "", item?.completionDeadline || ""))}</small></label>
+      <label class="kpi-field full"><span>Thời hạn hoàn thành</span><input id="catalogTaskCompletionDeadline" value="${escapeHtml(item?.completionDeadline || "")}" placeholder="Theo tháng/quý: 05 hoặc 25 · Theo năm: 31/12 · Khi phát sinh: để trống"><small id="catalogTaskDeadlineHelp" class="field-help">${escapeHtml(deadlineRuleDescription(item?.frequency || "", item?.completionDeadline || ""))}</small></label>
       <div class="standard-form-section-title full"><span>2</span><div><strong>Cách theo dõi và căn cứ đánh giá</strong><small>Chọn theo sản phẩm cuối cùng hoặc theo nhiều lượt phát sinh trong kỳ.</small></div></div>
       <label class="kpi-field full"><span>Cách theo dõi trong kỳ</span><select id="catalogTaskTrackingMode">
         <option value="FINAL_OUTPUT" ${currentTrackingMode === "FINAL_OUTPUT" ? "selected" : ""}>Theo sản phẩm/kết quả cuối cùng</option>
@@ -601,6 +601,16 @@ async function openTaskEditor(item) {
 
   const refreshDeadlineHelp = () => {
     if (!deadlineHelp) return;
+    const eventDriven = isEventDrivenFrequency(frequencyInput?.value || "");
+    if (completionDeadlineInput) {
+      completionDeadlineInput.disabled = eventDriven;
+      if (eventDriven) completionDeadlineInput.value = "";
+    }
+    if (eventDriven && trackingModeInput) {
+      trackingModeInput.value = "ITEMIZED";
+      if (workItemTypeInput) workItemTypeInput.value = "GENERIC";
+      syncTrackingFields();
+    }
     deadlineHelp.textContent = deadlineRuleDescription(frequencyInput?.value || "", completionDeadlineInput?.value || "");
   };
 
@@ -762,7 +772,9 @@ function audienceBadge(item) {
 
 function deadlineBadge(item) {
   const description = deadlineRuleDescription(item?.frequency || "", item?.completionDeadline || "");
-  const missingAutoRule = !requiresManualDeadline(item?.frequency) && !String(item?.completionDeadline || "").trim();
+  const missingAutoRule = !requiresManualDeadline(item?.frequency)
+    && !isEventDrivenFrequency(item?.frequency)
+    && !String(item?.completionDeadline || "").trim();
   return `<span class="status-pill ${missingAutoRule ? "danger" : "info"}" title="Quy tắc hạn KPI">⏱ ${escapeHtml(description)}</span>`;
 }
 
@@ -799,7 +811,7 @@ function requestManualRegistrationDeadlines(items, period) {
       resolve(value);
     };
     const body = `<div class="kpi-form-grid">
-      <div class="info-banner full"><strong>Nhập hạn hoàn thành cụ thể</strong><span>Các đầu việc Khi phát sinh/chu kỳ không có quy tắc tự động bắt buộc có deadline trước khi gửi duyệt. Hệ thống không tự lấy ngày đăng ký, ngày giao hoặc ngày cuối kỳ.</span></div>
+      <div class="info-banner full"><strong>Nhập hạn hoàn thành cụ thể</strong><span>Các chu kỳ không có quy tắc tự động phải nhập deadline trước khi gửi duyệt. Riêng <strong>Khi phát sinh</strong> được duyệt kế hoạch khi chưa có hạn; deadline sẽ bắt buộc ở từng lượt thực tế.</span></div>
       ${(items || []).map((item, index) => `<label class="kpi-field full"><span>${escapeHtml(item.code || item.id || `Đầu việc ${index + 1}`)} — ${escapeHtml(item.name || "")}</span><input type="date" data-registration-manual-deadline="${escapeHtml(taskKey(item))}" required><small>Hạn cụ thể của nhiệm vụ trong kỳ ${escapeHtml(period?.name || period?.id || "")}</small></label>`).join("")}
     </div>`;
     const root = openStandardModal(
