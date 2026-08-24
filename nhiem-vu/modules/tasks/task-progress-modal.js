@@ -4,13 +4,13 @@
  * Các field legacy progressNote/resultSummary/difficulties/proposal vẫn được giữ trong Firestore
  * để đọc lịch sử, nhưng không còn được nhập mới tại đây.
  */
-import { UserContext } from "../../core/user-context.js?v=20260824.V1_13_0";
-import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260824.V1_13_0";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260824.V1_13_0";
-import { TaskMilestoneService } from "../../services/task-milestone-service.js?v=20260824.V1_13_0";
-import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260824.V1_13_0";
-import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260824.V1_13_0";
-import { validateProgressInput, cleanText } from "./task-form-validator.js?v=20260824.V1_13_0";
+import { UserContext } from "../../core/user-context.js?v=20260824.V1_14_0";
+import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260824.V1_14_0";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260824.V1_14_0";
+import { TaskMilestoneService } from "../../services/task-milestone-service.js?v=20260824.V1_14_0";
+import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260824.V1_14_0";
+import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260824.V1_14_0";
+import { validateProgressInput, cleanText } from "./task-form-validator.js?v=20260824.V1_14_0";
 
 function mayUpdate(task) {
   const user = UserContext.requireUser();

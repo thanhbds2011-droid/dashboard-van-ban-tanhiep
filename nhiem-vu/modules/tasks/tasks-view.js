@@ -1,9 +1,9 @@
-import { Permissions } from "../../core/permissions.js?v=20260824.V1_13_0";
-import { ToastService } from "../../core/toast-service.js?v=20260824.V1_13_0";
-import { TaskReadService } from "../../services/task-read-service.js?v=20260824.V1_13_0";
-import { openTaskCreateModal } from "./task-form-modal.js?v=20260824.V1_13_0";
-import { openTaskDetailModal } from "./task-detail-modal.js?v=20260824.V1_13_0";
-import { effectiveDepartmentAssignmentStatus } from "../../core/task-display-order.js?v=20260824.V1_13_0";
+import { Permissions } from "../../core/permissions.js?v=20260824.V1_14_0";
+import { ToastService } from "../../core/toast-service.js?v=20260824.V1_14_0";
+import { TaskReadService } from "../../services/task-read-service.js?v=20260824.V1_14_0";
+import { openTaskCreateModal } from "./task-form-modal.js?v=20260824.V1_14_0";
+import { openTaskDetailModal } from "./task-detail-modal.js?v=20260824.V1_14_0";
+import { effectiveDepartmentAssignmentStatus } from "../../core/task-display-order.js?v=20260824.V1_14_0";
 
 let renderSequence = 0;
 let currentTasks = [];
@@ -67,7 +67,8 @@ function startTasksRealtime(outlet, sequence) {
         taskRealtimeErrorShown = true;
         ToastService.error("Đồng bộ trực tiếp tạm gián đoạn; nút Cập nhật vẫn sử dụng được.");
       }
-    }
+    },
+    { startDelayMs: 90 * 1000, jitterMs: 30 * 1000 }
   );
 }
 
@@ -112,7 +113,7 @@ function userFacingLoadError(error) {
 
 function mountTasksPage(outlet) {
   outlet.innerHTML = `<section class="page-card tasks-page-card">
-    <div class="page-header"><div><h2>Nhiệm vụ</h2><p>Theo dõi nhiệm vụ được giao, tiến độ thực hiện và kết quả hoàn thành.</p><small id="taskRealtimeState" class="realtime-state">Đang kết nối đồng bộ trực tiếp…</small></div>${Permissions.canCreateUnexpectedTask() ? '<button id="btnCreateTask" class="primary-button" type="button">＋ Giao nhiệm vụ đột xuất</button>' : ""}</div>
+    <div class="page-header"><div><h2>Nhiệm vụ</h2><p>Theo dõi nhiệm vụ được giao, tiến độ thực hiện và kết quả hoàn thành.</p><small id="taskRealtimeState" class="realtime-state">Đã tải dữ liệu · đồng bộ nền sau ít phút…</small></div>${Permissions.canCreateUnexpectedTask() ? '<button id="btnCreateTask" class="primary-button" type="button">＋ Giao nhiệm vụ đột xuất</button>' : ""}</div>
     <div class="summary-grid compact-grid tasks-summary-grid">
       ${card("Tất cả", 0, "taskMetricTotal")}
       ${card("Đang xử lý", 0, "taskMetricInProgress")}
