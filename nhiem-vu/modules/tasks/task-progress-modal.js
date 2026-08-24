@@ -4,13 +4,13 @@
  * Các field legacy progressNote/resultSummary/difficulties/proposal vẫn được giữ trong Firestore
  * để đọc lịch sử, nhưng không còn được nhập mới tại đây.
  */
-import { UserContext } from "../../core/user-context.js?v=20260824.V1_14_0";
-import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260824.V1_14_0";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260824.V1_14_0";
-import { TaskMilestoneService } from "../../services/task-milestone-service.js?v=20260824.V1_14_0";
-import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260824.V1_14_0";
-import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260824.V1_14_0";
-import { validateProgressInput, cleanText } from "./task-form-validator.js?v=20260824.V1_14_0";
+import { UserContext } from "../../core/user-context.js?v=20260824.V1_14_1";
+import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260824.V1_14_1";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260824.V1_14_1";
+import { TaskMilestoneService } from "../../services/task-milestone-service.js?v=20260824.V1_14_1";
+import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260824.V1_14_1";
+import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260824.V1_14_1";
+import { validateProgressInput, cleanText } from "./task-form-validator.js?v=20260824.V1_14_1";
 
 function mayUpdate(task) {
   const user = UserContext.requireUser();
@@ -49,7 +49,7 @@ export async function openTaskProgressModal(task, { onSaved }) {
   const monthlyMilestones = String(task.milestoneMode || "").toUpperCase() === "MONTHLY";
   const [workItems, milestones] = await Promise.all([
     itemized ? TaskWorkItemService.list(task.id) : Promise.resolve([]),
-    monthlyMilestones ? TaskMilestoneService.list(task.id) : Promise.resolve([])
+    monthlyMilestones ? TaskMilestoneService.list(task) : Promise.resolve([])
   ]);
   const workItemSummary = TaskWorkItemService.calculateSummary(workItems, task.workItemType);
   const currentMilestone = monthlyMilestones ? TaskMilestoneService.firstIncomplete(milestones) : null;

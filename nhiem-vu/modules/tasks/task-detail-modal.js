@@ -1,15 +1,15 @@
 /** Chi tiết, phân công và các lượt công việc phát sinh của nhiệm vụ. */
-import { UserContext } from "../../core/user-context.js?v=20260824.V1_14_0";
-import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260824.V1_14_0";
-import { Permissions } from "../../core/permissions.js?v=20260824.V1_14_0";
-import { effectiveDepartmentAssignmentStatus, isTerminalTask } from "../../core/task-display-order.js?v=20260824.V1_14_0";
-import { UserReadService } from "../../services/user-read-service.js?v=20260824.V1_14_0";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260824.V1_14_0";
-import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260824.V1_14_0";
-import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260824.V1_14_0";
-import { openTaskProgressModal } from "./task-progress-modal.js?v=20260824.V1_14_0";
-import { mountTaskAdjustmentPanel } from "./task-adjustment-panel.js?v=20260824.V1_14_0";
-import { TaskLogService } from "../../services/task-log-service.js?v=20260824.V1_14_0";
+import { UserContext } from "../../core/user-context.js?v=20260824.V1_14_1";
+import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260824.V1_14_1";
+import { Permissions } from "../../core/permissions.js?v=20260824.V1_14_1";
+import { effectiveDepartmentAssignmentStatus, isTerminalTask } from "../../core/task-display-order.js?v=20260824.V1_14_1";
+import { UserReadService } from "../../services/user-read-service.js?v=20260824.V1_14_1";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260824.V1_14_1";
+import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260824.V1_14_1";
+import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260824.V1_14_1";
+import { openTaskProgressModal } from "./task-progress-modal.js?v=20260824.V1_14_1";
+import { mountTaskAdjustmentPanel } from "./task-adjustment-panel.js?v=20260824.V1_14_1";
+import { TaskLogService } from "../../services/task-log-service.js?v=20260824.V1_14_1";
 
 const TEAM_LABELS = Object.freeze({
   BAO_VE: "Tổ Bảo vệ",
@@ -788,8 +788,34 @@ export async function openTaskDetailModal(task, { onSaved }) {
   });
 
   overlay.querySelector("#updateTaskButton")?.addEventListener("click", async () => {
-    close();
-    await openTaskProgressModal(task, { onSaved });
+    const button = overlay.querySelector("#updateTaskButton");
+    try {
+      if (button) {
+        button.disabled = true;
+        button.textContent = "Đang mở...";
+      }
+      // openTaskProgressModal chỉ gắn modal sau khi đã tải xong dữ liệu phụ thuộc.
+      // Vì vậy giữ modal chi tiết hiện tại cho đến khi màn hình cập nhật mở thành công.
+      await openTaskProgressModal(task, { onSaved });
+      close();
+    } catch (error) {
+      console.error("TASK_PROGRESS_MODAL_OPEN_FAILED", {
+        taskId: task?.id || "",
+        taskCode: task?.taskCode || "",
+        ownerUserId: task?.ownerUserId || "",
+        currentUserId: currentUser?.uid || "",
+        errorCode: error?.code || "",
+        errorMessage: error?.message || String(error),
+        error
+      });
+      window.alert(
+        friendlyErrorMessage(error, "Không mở được chức năng cập nhật nhiệm vụ.")
+      );
+      if (button) {
+        button.disabled = false;
+        button.textContent = "Cập nhật nhiệm vụ";
+      }
+    }
   });
 }
 
