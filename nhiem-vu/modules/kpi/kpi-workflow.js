@@ -1,23 +1,23 @@
-import { auth, db } from '../../firebase-config.js?v=20260824.V1_14_1';
+import { auth, db } from '../../firebase-config.js?v=20260824.V1_14_2';
 import {
   addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, query,
   serverTimestamp, setDoc, Timestamp, updateDoc, where, limit, writeBatch
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
-import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260824.V1_14_1';
-import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260824.V1_14_1';
-import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260824.V1_14_1';
-import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260824.V1_14_1';
-import { PeriodReadService } from '../../services/period-read-service.js?v=20260824.V1_14_1';
-import { TaskReadService } from '../../services/task-read-service.js?v=20260824.V1_14_1';
-import { Permissions } from '../../core/permissions.js?v=20260824.V1_14_1';
-import { UserContext } from '../../core/user-context.js?v=20260824.V1_14_1';
-import { APP_VERSION } from '../../core/app-version.js?v=20260824.V1_14_1';
-import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260824.V1_14_1';
-import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260824.V1_14_1';
+import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260824.V1_14_2';
+import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260824.V1_14_2';
+import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260824.V1_14_2';
+import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260824.V1_14_2';
+import { PeriodReadService } from '../../services/period-read-service.js?v=20260824.V1_14_2';
+import { TaskReadService } from '../../services/task-read-service.js?v=20260824.V1_14_2';
+import { Permissions } from '../../core/permissions.js?v=20260824.V1_14_2';
+import { UserContext } from '../../core/user-context.js?v=20260824.V1_14_2';
+import { APP_VERSION } from '../../core/app-version.js?v=20260824.V1_14_2';
+import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260824.V1_14_2';
+import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260824.V1_14_2';
 import {
   KPI2B as KPI2C, COMMON_CRITERIA, calculateTaskScore, calculateKpiSummary,
   proposedRating, ratingName, round2, progressRateFromDates, convertAppendix04Rate, calculateMilestoneProgress
-} from '../../kpi-engine.js?v=20260824.V1_14_1';
+} from '../../kpi-engine.js?v=20260824.V1_14_2';
 
 export const KpiWorkflowState = {
   user: null,
@@ -252,11 +252,42 @@ function assessmentRate(value, label) {
 function appendixRateOptions(selected) {
   const current = Number(selected);
   return [
-    [100, '100% — Đúng hạn/đạt đầy đủ yêu cầu'],
-    [80, '80% — Chậm 1–3 ngày/chỉnh sửa nhỏ'],
-    [60, '60% — Chậm 4–5 ngày/hoàn thành cơ bản'],
-    [0, '0% — Trên 5 ngày/không đạt yêu cầu']
+    [100, '100% — Hoàn thành đầy đủ yêu cầu'],
+    [80, '80% — Hoàn thành phần lớn yêu cầu'],
+    [60, '60% — Hoàn thành một phần/yêu cầu cơ bản'],
+    [0, '0% — Không đạt yêu cầu']
   ].map(([value, label]) => `<option value="${value}" ${current === value ? 'selected' : ''}>${label}</option>`).join('');
+}
+
+function milestoneTimingText(detail = {}) {
+  if (!detail.completed) {
+    return detail.dueNow ? 'Quá hạn/chưa hoàn thành' : 'Chưa đến hạn';
+  }
+  if (Number(detail.dayDelta) === 0) return 'Đúng hạn';
+  if (Number(detail.dayDelta) < 0) return `Sớm ${Math.abs(Number(detail.dayDelta))} ngày`;
+  return `Trễ ${Number(detail.dayDelta)} ngày`;
+}
+
+function milestoneStatusClass(detail = {}) {
+  if (!detail.included) return 'is-pending';
+  if (!detail.completed) return 'is-overdue';
+  if (Number(detail.rate) === 100) return 'is-good';
+  if (Number(detail.rate) === 80) return 'is-warning';
+  if (Number(detail.rate) === 60) return 'is-warning-strong';
+  return 'is-bad';
+}
+
+function milestoneDetailsHtml(summary) {
+  const details = Array.isArray(summary?.details) ? summary.details : [];
+  if (!details.length) return '';
+  return `<details class="kpi-milestone-details"><summary>Xem chi tiết cách tính</summary><div class="kpi-milestone-detail-list">${details.map((detail, index) => {
+    const completedText = detail.completedDateKey ? dateVi(detail.completedDateKey) : 'Chưa hoàn thành';
+    const scoreText = detail.included ? `${Number(detail.rate || 0)}%` : 'Chưa tính';
+    const inclusionText = detail.included
+      ? (detail.completed && !detail.dueNow ? 'Đã hoàn thành sớm nên được tính ngay' : 'Đang tính')
+      : 'Chưa đến hạn và chưa hoàn thành';
+    return `<div class="kpi-milestone-detail ${milestoneStatusClass(detail)}"><div class="kpi-milestone-detail-index">${index + 1}</div><div class="kpi-milestone-detail-main"><strong>Mốc ${dateVi(detail.dueDateKey)}</strong><span>Hoàn thành: ${esc(completedText)} · ${esc(milestoneTimingText(detail))}</span><small>${esc(inclusionText)}</small></div><div class="kpi-milestone-detail-score">${scoreText}</div></div>`;
+  }).join('')}</div></details>`;
 }
 const normalizeUserRecord = (data = {}, documentId = '') => {
   const id = clean(documentId || data.id || data.uid);
@@ -1529,8 +1560,10 @@ function openPersonPlanDetail(uid) {
     const button = event.currentTarget;
     const ids = [...root.querySelectorAll('[data-reg-review]:checked')].map(input => input.value);
     const selected = pending.filter(item => ids.includes(item.id));
-    const unselected = pending.filter(item => !ids.includes(item.id));
-    if (!selected.length && !unselected.length) return;
+    if (!selected.length) {
+      alert('Chưa chọn đầu việc để duyệt.');
+      return;
+    }
 
     try {
       button.disabled = true;
@@ -1543,9 +1576,8 @@ function openPersonPlanDetail(uid) {
           return;
         }
       }
-      if (unselected.length) {
-        await TaskRegistrationService.rejectMany(unselected, 'Không được duyệt trong đợt xét kế hoạch này.');
-      }
+      // V1.14.2: "Duyệt mục đã chọn" chỉ xử lý checkbox được chọn.
+      // Mục không chọn tiếp tục ở trạng thái PENDING; không tự động trả lại.
       closeModal();
       await loadAll();
     } catch (error) {
@@ -1931,7 +1963,6 @@ function openRegistrationGroup(userId) {
     const ids = [...document.querySelectorAll('[data-reg-review]:checked')].map(x => x.value);
     const selected = items.filter(r => ids.includes(r.id));
     if (!selected.length) return alert('Chưa chọn đầu việc để duyệt.');
-    const unselected = items.filter(r => !ids.includes(r.id));
     try {
       button.disabled = true;
       button.textContent = 'Đang duyệt...';
@@ -1941,7 +1972,7 @@ function openRegistrationGroup(userId) {
         button.textContent = 'Duyệt các mục đã chọn';
         return;
       }
-      if (unselected.length) await TaskRegistrationService.rejectMany(unselected, 'Không được duyệt trong đợt xét kế hoạch này.');
+      // V1.14.2: các mục không được chọn vẫn giữ nguyên trạng thái chờ duyệt.
       closeModal();
       await loadAll();
     } catch (error) {
@@ -2146,8 +2177,8 @@ async function openSelfAssessment(taskId) {
     }
   }
   const milestoneSummary = monthly ? calculateMilestoneProgress(milestoneItems, new Date()) : null;
-  if (monthly && !milestoneSummary?.dueMilestones) {
-    alert('Chưa có mốc tháng nào đến hạn nên chưa có cơ sở tính Tiến độ áp dụng.');
+  if (monthly && !milestoneSummary?.eligibleMilestones) {
+    alert('Chưa có mốc nào đủ điều kiện tính tiến độ: các mốc tương lai chưa hoàn thành sẽ chưa được đưa vào mẫu số.');
     return;
   }
 
@@ -2177,23 +2208,21 @@ async function openSelfAssessment(taskId) {
     <div><span>Kết quả N–T–K tham khảo</span><strong>${fmt(workSummary.actualResultRate)}%</strong></div>
   </div>${incompleteWarning}<p class="kpi-small">N–T–K tiếp tục được lưu để theo dõi chi tiết. Nhân viên chỉ tự chấm <strong>Kết quả áp dụng</strong>; Tiến độ áp dụng không chỉnh thủ công.</p></div>` : '';
 
-  const milestoneSummaryHtml = monthly ? `<div class="kpi-field full"><div class="kpi-work-item-evaluation-summary">
-    <div><span>Tổng mốc trong kỳ</span><strong>${milestoneSummary.totalMilestones}</strong></div>
-    <div><span>Mốc đã đến hạn</span><strong>${milestoneSummary.dueMilestones}</strong></div>
-    <div><span>Đã hoàn thành trong số mốc đến hạn</span><strong>${milestoneSummary.completedDueMilestones}/${milestoneSummary.dueMilestones}</strong></div>
-    <div><span>Điểm từng mốc</span><strong>${milestoneSummary.rates.join(' · ') || '—'}</strong></div>
-    <div><span>Trung bình</span><strong>${milestoneSummary.averageRate === null ? '—' : fmt(milestoneSummary.averageRate)}%</strong></div>
-    <div class="is-applied"><span>Tiến độ áp dụng sau quy xuống</span><strong>${initialProgress}%</strong></div>
-  </div><p class="kpi-small">Chỉ mốc đã đến hạn được tính; mốc đến hạn chưa hoàn thành = 0; mốc chưa đến hạn chưa đưa vào mẫu số. Trung bình được quy xuống đúng 100/80/60/0.</p></div>` : '';
+  const milestoneSummaryHtml = monthly ? `<div class="kpi-field full kpi-milestone-summary-card">
+    <div class="kpi-milestone-score-hero"><div><span>Điểm tiến độ KPI do hệ thống tính</span><strong>${initialProgress}%</strong><small>Tạm tính theo ${milestoneSummary.eligibleMilestones}/${milestoneSummary.totalMilestones} mốc đủ điều kiện.</small></div><div class="kpi-milestone-average"><span>Trung bình trước quy đổi</span><strong>${milestoneSummary.averageRate === null ? '—' : fmt(milestoneSummary.averageRate)}%</strong></div></div>
+    <div class="kpi-milestone-rule-note"><strong>Cách tính:</strong> Mốc đã hoàn thành được tính ngay, kể cả hoàn thành sớm. Đúng/sớm hạn = 100%; trễ 1–3 ngày = 80%; trễ 4–5 ngày = 60%; trễ trên 5 ngày = 0%. Mốc chưa hoàn thành và chưa đến hạn chưa tính; mốc đã đến hạn mà chưa hoàn thành = 0%.</div>
+    ${milestoneDetailsHtml(milestoneSummary)}
+  </div>` : '';
 
-  modal('Tự đánh giá nhiệm vụ', `<form id="kpiSelfForm" class="kpi-form-grid">
+  const selfModalRoot = modal('Tự đánh giá nhiệm vụ', `<form id="kpiSelfForm" class="kpi-form-grid">
     <div class="kpi-field full kpi-assessment-task-heading"><strong>${esc(task.taskCode || '')} — ${esc(task.title)}</strong><span>Điểm tối đa: ${fmt(task.maximumConvertedScore)} · Minh chứng bắt buộc: ${esc(task.standardTaskMandatoryEvidence || task.mandatoryEvidence || 'Theo nhiệm vụ')}</span></div>
     ${milestoneSummaryHtml}
     ${workSummaryHtml}
     <input id="kpiSelfProgress" type="hidden" value="${initialProgress}">
-    <div class="kpi-field"><label>Tiến độ áp dụng</label><div class="kpi-readonly-value"><strong>${initialProgress}%</strong></div><small>${monthly ? 'Tự động từ các mốc tháng đã đến hạn.' : 'Tự động từ deadline và completedAt theo ngày lịch thực tế.'} Nhân viên không được sửa.</small></div>
-    <div class="kpi-field"><label>Kết quả áp dụng</label><select id="kpiSelfResult">${appendixRateOptions(initialResult)}</select><small>Nhân viên tự chấm kết quả ở một trong bốn mức 100%, 80%, 60% hoặc 0% và nêu căn cứ trong nhận xét.</small></div>
-    <div class="kpi-field full"><label>Nhận xét kết quả, thành tích và hạn chế</label><textarea id="kpiSelfComment" rows="5" required>${esc(ev.selfComment || '')}</textarea></div>
+    <div class="kpi-field"><label>Tiến độ áp dụng</label><div class="kpi-readonly-value"><strong>${initialProgress}%</strong></div><small>${monthly ? 'Tự động từ các mốc đủ điều kiện tính.' : 'Tự động từ hạn hoàn thành và thời điểm hoàn thành theo ngày lịch thực tế.'} Người dùng không được sửa.</small></div>
+    <div class="kpi-field"><label>Kết quả áp dụng</label><select id="kpiSelfResult">${appendixRateOptions(initialResult)}</select><small>Đánh giá mức độ hoàn thành yêu cầu công việc. Yếu tố đúng/trễ hạn đã được hệ thống tính riêng ở Tiến độ áp dụng.</small></div>
+    <div class="kpi-field full" id="kpiSelfCommentField"><label>Nhận xét kết quả, thành tích và hạn chế <span class="kpi-required-mark">*</span></label><textarea id="kpiSelfComment" rows="5" required aria-describedby="kpiSelfCommentHelp">${esc(ev.selfComment || '')}</textarea><small id="kpiSelfCommentHelp">Bắt buộc. Nêu ngắn gọn kết quả đạt được, hạn chế hoặc căn cứ tự đánh giá.</small><div id="kpiSelfCommentError" class="kpi-inline-field-error" hidden>Vui lòng nhập nhận xét trước khi gửi tự đánh giá.</div></div>
+    <div id="kpiSelfFormError" class="kpi-field full kpi-form-error" hidden role="alert"></div>
     <div class="kpi-field full"><label class="kpi-checkbox-line"><input id="kpiExceeded" type="checkbox" ${ev.isExceededRequirement===true?'checked':''}> Đề nghị ghi nhận hoàn thành vượt mức yêu cầu</label><textarea id="kpiExceededText" rows="3" placeholder="Nêu rõ sản phẩm, khối lượng, chất lượng hoặc giá trị bổ sung...">${esc(ev.exceededRequirementDescription || '')}</textarea></div>
     <div class="kpi-field full"><div id="kpiSelfScore"></div></div>
   </form>`, '<button class="kpi-button secondary" data-kpi-close type="button">Hủy</button><button id="kpiSubmitSelf" class="kpi-button" type="button">Gửi xác nhận</button>');
@@ -2209,17 +2238,45 @@ async function openSelfAssessment(taskId) {
   el('kpiSelfResult').addEventListener('change', recalc);
   recalc();
 
+  const showSelfFormError = (message, field = null) => {
+    const box = selfModalRoot?.querySelector('#kpiSelfFormError');
+    if (box) { box.hidden = !message; box.textContent = message || ''; }
+    selfModalRoot?.querySelectorAll('.kpi-field.is-invalid').forEach(node => node.classList.remove('is-invalid'));
+    if (field) {
+      const wrapper = field.closest('.kpi-field');
+      wrapper?.classList.add('is-invalid');
+      field.focus({ preventScroll: true });
+      field.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  };
+  el('kpiSelfComment')?.addEventListener('input', () => {
+    const error = el('kpiSelfCommentError');
+    if (error) error.hidden = true;
+    el('kpiSelfComment')?.closest('.kpi-field')?.classList.remove('is-invalid');
+  });
+
   el('kpiSubmitSelf').addEventListener('click', async () => {
-    const comment = clean(el('kpiSelfComment').value); if (!comment) { alert('Vui lòng nhập nhận xét.'); return; }
+    showSelfFormError('');
+    const commentField = el('kpiSelfComment');
+    const comment = clean(commentField.value);
+    if (!comment) {
+      const error = el('kpiSelfCommentError');
+      if (error) error.hidden = false;
+      showSelfFormError('Vui lòng hoàn thiện trường bắt buộc trước khi gửi.', commentField);
+      return;
+    }
     let progress, result;
     try {
       progress = assessmentRate(initialProgress, 'Tiến độ áp dụng');
       result = assessmentRate(el('kpiSelfResult').value, 'Kết quả áp dụng');
-    } catch (error) { alert(friendlyErrorMessage(error)); return; }
+    } catch (error) { showSelfFormError(friendlyErrorMessage(error)); return; }
     const score = calculateTaskScore(task.baseScore, task.difficultyCoefficient, progress, result);
     const reviewer = reviewerForOwner(KpiWorkflowState.user.uid, task);
     const exceeded = el('kpiExceeded').checked, exceededText = clean(el('kpiExceededText').value);
-    if (exceeded && !exceededText) { alert('Vui lòng nêu căn cứ vượt mức yêu cầu.'); return; }
+    if (exceeded && !exceededText) {
+      showSelfFormError('Vui lòng nêu căn cứ khi đề nghị ghi nhận hoàn thành vượt mức yêu cầu.', el('kpiExceededText'));
+      return;
+    }
     const evaluationScope = taskScopeDepartmentId(task) || KpiWorkflowState.profile.departmentId || '';
     const evaluationPayload = {
       periodId: KpiWorkflowState.period.id, taskId: task.id, taskCode: task.taskCode || '', ownerUserId: KpiWorkflowState.user.uid, ownerName: KpiWorkflowState.profile.fullName || '', ownerRole: KpiWorkflowState.profile.role || '', departmentId: clean(ev.departmentId) || evaluationScope,
@@ -2230,7 +2287,7 @@ async function openSelfAssessment(taskId) {
       progressCalculatedAt: serverTimestamp(),
       selfProgressRate: progress, selfResultRate: result, selfExecutionScore: score.execution, selfActualScore: score.actual, selfComment: comment,
       confirmedProgressRate: null, confirmedResultRate: null, confirmedExecutionScore: null, confirmedActualScore: null, reviewerEmail: reviewer.email, reviewerUserId: reviewer.uid, reviewerName: reviewer.name,
-      isExceededRequirement: exceeded, exceededRequirementDescription: exceededText, status: 'PENDING_REVIEW', formulaVersion: 'KPI_2026_PHU_LUC_4_AUTO_PROGRESS_V4', updatedAt: serverTimestamp(), createdAt: ev.createdAt || serverTimestamp()
+      isExceededRequirement: exceeded, exceededRequirementDescription: exceededText, status: 'PENDING_REVIEW', formulaVersion: 'KPI_2026_PHU_LUC_4_AUTO_PROGRESS_V5', updatedAt: serverTimestamp(), createdAt: ev.createdAt || serverTimestamp()
     };
     if (!ev.id && evaluationScope === 'CDTN') evaluationPayload.organizationId = 'CDTN';
     try {
@@ -2251,7 +2308,7 @@ async function openSelfAssessment(taskId) {
         errorCode: error?.code || '',
         errorMessage: error?.message || String(error)
       });
-      alert(friendlyErrorMessage(error, 'Không lưu được tự đánh giá.'));
+      showSelfFormError(friendlyErrorMessage(error, 'Không lưu được tự đánh giá.'));
       return;
     }
     try {
