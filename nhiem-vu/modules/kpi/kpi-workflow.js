@@ -1,23 +1,23 @@
-import { auth, db } from '../../firebase-config.js?v=20260824.V1_14_0';
+import { auth, db } from '../../firebase-config.js?v=20260824.V1_14_1';
 import {
   addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, query,
   serverTimestamp, setDoc, Timestamp, updateDoc, where, limit, writeBatch
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
-import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260824.V1_14_0';
-import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260824.V1_14_0';
-import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260824.V1_14_0';
-import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260824.V1_14_0';
-import { PeriodReadService } from '../../services/period-read-service.js?v=20260824.V1_14_0';
-import { TaskReadService } from '../../services/task-read-service.js?v=20260824.V1_14_0';
-import { Permissions } from '../../core/permissions.js?v=20260824.V1_14_0';
-import { UserContext } from '../../core/user-context.js?v=20260824.V1_14_0';
-import { APP_VERSION } from '../../core/app-version.js?v=20260824.V1_14_0';
-import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260824.V1_14_0';
-import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260824.V1_14_0';
+import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260824.V1_14_1';
+import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260824.V1_14_1';
+import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260824.V1_14_1';
+import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260824.V1_14_1';
+import { PeriodReadService } from '../../services/period-read-service.js?v=20260824.V1_14_1';
+import { TaskReadService } from '../../services/task-read-service.js?v=20260824.V1_14_1';
+import { Permissions } from '../../core/permissions.js?v=20260824.V1_14_1';
+import { UserContext } from '../../core/user-context.js?v=20260824.V1_14_1';
+import { APP_VERSION } from '../../core/app-version.js?v=20260824.V1_14_1';
+import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260824.V1_14_1';
+import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260824.V1_14_1';
 import {
   KPI2B as KPI2C, COMMON_CRITERIA, calculateTaskScore, calculateKpiSummary,
   proposedRating, ratingName, round2, progressRateFromDates, convertAppendix04Rate, calculateMilestoneProgress
-} from '../../kpi-engine.js?v=20260824.V1_14_0';
+} from '../../kpi-engine.js?v=20260824.V1_14_1';
 
 export const KpiWorkflowState = {
   user: null,
@@ -58,6 +58,64 @@ const fmt = (n) => Number(n || 0).toLocaleString('vi-VN', { maximumFractionDigit
 const coefficientPercent = (value) => `${Math.round(Number(value || 1) * 100)}%`;
 const dateVi = (key) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(clean(key)); return m ? `${m[3]}/${m[2]}/${m[1]}` : clean(key); };
 const normalizeDepartment = (value) => clean(value).toUpperCase();
+
+function manualDeadlineDateKey(value) {
+  const text = clean(value);
+  let match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
+  if (match) {
+    const date = new Date(`${text}T12:00:00+07:00`);
+    return Number.isNaN(date.getTime()) ? '' : text;
+  }
+  match = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(text);
+  if (!match) return '';
+  const day = String(Number(match[1])).padStart(2, '0');
+  const month = String(Number(match[2])).padStart(2, '0');
+  const key = `${match[3]}-${month}-${day}`;
+  const date = new Date(`${key}T12:00:00+07:00`);
+  if (Number.isNaN(date.getTime())) return '';
+  const [yearValue, monthValue, dayValue] = key.split('-').map(Number);
+  if (
+    date.getUTCFullYear() !== yearValue
+    || date.getUTCMonth() + 1 !== monthValue
+    || date.getUTCDate() !== dayValue
+  ) return '';
+  return key;
+}
+
+async function approveRegistrationsWithLegacyRecovery(registrations = []) {
+  const selected = (registrations || []).filter(Boolean);
+  if (!selected.length) return [];
+  const manualDeadlines = {};
+
+  while (true) {
+    try {
+      return await TaskRegistrationService.approveMany(selected, {
+        period: KpiWorkflowState.period,
+        manualDeadlines
+      });
+    } catch (error) {
+      if (String(error?.code || '') !== 'LEGACY_MANUAL_DEADLINE_REQUIRED') throw error;
+
+      const code = clean(error?.standardTaskCode || error?.standardTaskId || 'đầu việc');
+      const input = window.prompt(
+        `Đăng ký cũ ${code} chưa có Hạn hoàn thành cụ thể.\n`
+        + 'Nhập hạn để Trưởng phòng duyệt (DD/MM/YYYY hoặc YYYY-MM-DD).\n'
+        + 'Hệ thống sẽ lưu hạn này vào snapshot đăng ký và không dùng ngày cuối kỳ.'
+      );
+      if (input === null) return null;
+
+      const key = manualDeadlineDateKey(input);
+      if (!key) {
+        window.alert('Ngày không hợp lệ. Ví dụ: 25/08/2026.');
+        continue;
+      }
+
+      const mapKey = clean(error?.registrationId || error?.standardTaskId || error?.standardTaskCode);
+      if (!mapKey) throw error;
+      manualDeadlines[mapKey] = key;
+    }
+  }
+}
 
 function realtimeTimestampKey(value) {
   if (!value) return '';
@@ -1467,15 +1525,37 @@ function openPersonPlanDetail(uid) {
       }
     });
   });
-  root.querySelector('#regApproveSelected')?.addEventListener('click', async () => {
+  root.querySelector('#regApproveSelected')?.addEventListener('click', async (event) => {
+    const button = event.currentTarget;
     const ids = [...root.querySelectorAll('[data-reg-review]:checked')].map(input => input.value);
     const selected = pending.filter(item => ids.includes(item.id));
     const unselected = pending.filter(item => !ids.includes(item.id));
     if (!selected.length && !unselected.length) return;
-    if (selected.length) await TaskRegistrationService.approveMany(selected, { periodEndDate: KpiWorkflowState.period?.endDate });
-    if (unselected.length) await TaskRegistrationService.rejectMany(unselected, 'Không được duyệt trong đợt xét kế hoạch này.');
-    closeModal();
-    await loadAll();
+
+    try {
+      button.disabled = true;
+      button.textContent = 'Đang duyệt...';
+      if (selected.length) {
+        const approved = await approveRegistrationsWithLegacyRecovery(selected);
+        if (approved === null) {
+          button.disabled = false;
+          button.textContent = 'Duyệt mục đã chọn';
+          return;
+        }
+      }
+      if (unselected.length) {
+        await TaskRegistrationService.rejectMany(unselected, 'Không được duyệt trong đợt xét kế hoạch này.');
+      }
+      closeModal();
+      await loadAll();
+    } catch (error) {
+      console.error('TASK_REGISTRATION_BATCH_APPROVE_FAILED', error);
+      alert(friendlyErrorMessage(error, 'Không duyệt được các đầu việc đã chọn.'));
+      if (button?.isConnected) {
+        button.disabled = false;
+        button.textContent = 'Duyệt mục đã chọn';
+      }
+    }
   });
 }
 function renderEvaluationDashboard() {
@@ -1846,7 +1926,33 @@ function openRegistrationGroup(userId) {
   modal(`Đăng ký của ${items[0].userName || ''}`, body, footer);
   el('regSelectAll')?.addEventListener('click',()=>document.querySelectorAll('[data-reg-review]:not(:disabled)').forEach(x=>x.checked=true));
   el('regClearAll')?.addEventListener('click',()=>document.querySelectorAll('[data-reg-review]:not(:disabled)').forEach(x=>x.checked=false));
-  el('regApproveSelected')?.addEventListener('click', async()=>{ const ids=[...document.querySelectorAll('[data-reg-review]:checked')].map(x=>x.value); const selected=items.filter(r=>ids.includes(r.id)); if(!selected.length)return alert('Chưa chọn đầu việc để duyệt.'); await TaskRegistrationService.approveMany(selected,{periodEndDate:KpiWorkflowState.period?.endDate}); const unselected=items.filter(r=>!ids.includes(r.id)); if(unselected.length) await TaskRegistrationService.rejectMany(unselected,'Không được duyệt trong đợt xét kế hoạch này.'); closeModal(); await loadAll(); });
+  el('regApproveSelected')?.addEventListener('click', async (event) => {
+    const button = event.currentTarget;
+    const ids = [...document.querySelectorAll('[data-reg-review]:checked')].map(x => x.value);
+    const selected = items.filter(r => ids.includes(r.id));
+    if (!selected.length) return alert('Chưa chọn đầu việc để duyệt.');
+    const unselected = items.filter(r => !ids.includes(r.id));
+    try {
+      button.disabled = true;
+      button.textContent = 'Đang duyệt...';
+      const approved = await approveRegistrationsWithLegacyRecovery(selected);
+      if (approved === null) {
+        button.disabled = false;
+        button.textContent = 'Duyệt các mục đã chọn';
+        return;
+      }
+      if (unselected.length) await TaskRegistrationService.rejectMany(unselected, 'Không được duyệt trong đợt xét kế hoạch này.');
+      closeModal();
+      await loadAll();
+    } catch (error) {
+      console.error('TASK_REGISTRATION_GROUP_APPROVE_FAILED', error);
+      alert(friendlyErrorMessage(error, 'Không duyệt được các đầu việc đã chọn.'));
+      if (button?.isConnected) {
+        button.disabled = false;
+        button.textContent = 'Duyệt các mục đã chọn';
+      }
+    }
+  });
   el('regRejectAll')?.addEventListener('click', async()=>{ const reason=prompt('Nhập lý do trả lại toàn bộ:'); if(!clean(reason))return; await TaskRegistrationService.rejectMany(items,reason); closeModal(); await loadAll(); });
 }
 
@@ -1859,7 +1965,8 @@ async function handleRegistrationAction(event) {
   if (!registration) return true;
   if (approve) {
     const core = window.confirm('Chọn OK nếu đây là đầu việc cốt lõi của cá nhân; chọn Cancel nếu không phải.');
-    await TaskRegistrationService.approve(registration, { isCoreTask: core });
+    const approved = await approveRegistrationsWithLegacyRecovery([registration]);
+    if (approved === null) return true;
   } else {
     const reason = prompt('Nhập lý do trả lại đăng ký:');
     if (!clean(reason)) return true;
@@ -2032,7 +2139,7 @@ async function openSelfAssessment(taskId) {
   let milestoneItems = monthly ? milestonesForTask(task.id) : [];
   if (monthly && !milestoneItems.length) {
     try {
-      milestoneItems = await TaskMilestoneService.list(task.id);
+      milestoneItems = await TaskMilestoneService.list(task);
     } catch (error) {
       alert(friendlyErrorMessage(error, 'Không đọc được mốc tiến độ của nhiệm vụ.'));
       return;
