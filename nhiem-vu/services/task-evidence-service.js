@@ -2,9 +2,9 @@
  * Nhiều tệp minh chứng cho nhiệm vụ KPI - V1.16.0.
  * Mỗi tệp là một document riêng để có thể bổ sung dần mà không ghi đè tệp cũ.
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260825.V1_16_1";
-import { UserContext } from "../core/user-context.js?v=20260825.V1_16_1";
-import { Permissions } from "../core/permissions.js?v=20260825.V1_16_1";
+import { FirebaseService } from "../core/firebase-service.js?v=20260825.V1_17_0";
+import { UserContext } from "../core/user-context.js?v=20260825.V1_17_0";
+import { Permissions } from "../core/permissions.js?v=20260825.V1_17_0";
 
 const COLLECTION = "taskEvidenceFiles";
 export const MAX_EVIDENCE_FILES_PER_TASK = 20;
@@ -23,6 +23,7 @@ function mayManage(task) {
       task.ownerUserId === user.uid
       || Permissions.isAdmin()
       || Permissions.isDirector()
+      || (taskDepartmentId(task) === "CDTN" && Permissions.isCdtnLeadership(user))
       || (Permissions.isDepartmentLeader() && taskDepartmentId(task) === clean(user.departmentId, 40).toUpperCase())
     )
   );
@@ -40,7 +41,13 @@ function scopedQuery(task) {
   } else {
     const departmentId = taskDepartmentId(task);
     if (!departmentId) return null;
-    constraints.push(FirebaseService.where("departmentId", "==", departmentId));
+    if (departmentId === "CDTN" && Permissions.isCdtnMember(user)) {
+      // Thành viên Chi đoàn được đọc nhiệm vụ Chi đoàn; taskId đã giới hạn đúng một nhiệm vụ.
+    } else if (departmentId === "CDTN" && Permissions.isDepartmentLeader(user)) {
+      constraints.push(FirebaseService.where("homeDepartmentId", "==", clean(user.departmentId, 40).toUpperCase()));
+    } else {
+      constraints.push(FirebaseService.where("departmentId", "==", departmentId));
+    }
   }
 
   return FirebaseService.query(
@@ -63,6 +70,8 @@ function filePayload(task, uploaded, meta, user) {
     taskCode: clean(task.taskCode, 100),
     periodId: clean(task.periodId, 100),
     departmentId: taskDepartmentId(task),
+    homeDepartmentId: clean(task?.homeDepartmentId || (taskDepartmentId(task) === "CDTN" ? user.departmentId : taskDepartmentId(task)), 40).toUpperCase(),
+    organizationId: taskDepartmentId(task) === "CDTN" ? "CDTN" : "",
     ownerUserId: clean(task.ownerUserId, 200),
     ownerName: clean(task.ownerName, 300),
     scopeType,

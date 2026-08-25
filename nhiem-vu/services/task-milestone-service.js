@@ -5,10 +5,10 @@
  * Các hạn nội bộ được lưu tại taskMilestones; hoàn thành một mốc không tự kết thúc
  * nhiệm vụ, trừ khi đó là mốc cuối cùng và mọi mốc trước đã hoàn thành.
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260825.V1_16_1";
-import { UserContext } from "../core/user-context.js?v=20260825.V1_16_1";
-import { TaskLogService } from "./task-log-service.js?v=20260825.V1_16_1";
-import { TaskNotificationService } from "./task-notification-service.js?v=20260825.V1_16_1";
+import { FirebaseService } from "../core/firebase-service.js?v=20260825.V1_17_0";
+import { UserContext } from "../core/user-context.js?v=20260825.V1_17_0";
+import { TaskLogService } from "./task-log-service.js?v=20260825.V1_17_0";
+import { TaskNotificationService } from "./task-notification-service.js?v=20260825.V1_17_0";
 
 function clean(value) {
   return String(value ?? "").trim();
@@ -97,6 +97,12 @@ function scopedMilestoneQuery(taskOrId) {
     FirebaseService.collection(FirebaseService.db, "taskMilestones"),
     ...constraints
   );
+}
+
+
+function displayDateKey(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ""));
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : String(value || "");
 }
 
 export const TaskMilestoneService = Object.freeze({
@@ -208,8 +214,8 @@ export const TaskMilestoneService = Object.freeze({
           finalMilestone
         },
         note: finalMilestone
-          ? `Hoàn thành mốc cuối ${milestone.dueDateKey || ""}; nhiệm vụ được ghi nhận hoàn thành.`
-          : `Hoàn thành mốc ${milestone.dueDateKey || ""}; nhiệm vụ tiếp tục đến mốc kế tiếp.`
+          ? `Đã hoàn thành mốc cuối ngày ${displayDateKey(milestone.dueDateKey)}.`
+          : `Đã hoàn thành mốc ngày ${displayDateKey(milestone.dueDateKey)}.`
       }));
     });
 

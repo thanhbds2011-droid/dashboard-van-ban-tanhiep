@@ -1,7 +1,7 @@
 /** Đọc danh mục đầu việc theo đơn vị, vai trò và vai trò kiêm nhiệm. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260825.V1_16_1";
-import { UserContext } from "../core/user-context.js?v=20260825.V1_16_1";
-import { Permissions } from "../core/permissions.js?v=20260825.V1_16_1";
+import { FirebaseService } from "../core/firebase-service.js?v=20260825.V1_17_0";
+import { UserContext } from "../core/user-context.js?v=20260825.V1_17_0";
+import { Permissions } from "../core/permissions.js?v=20260825.V1_17_0";
 
 const CATALOG_CACHE_MS = 5 * 60 * 1000;
 const PROFESSIONAL_DEPARTMENT_IDS = Object.freeze(["BGD", "TCHC", "CTXH", "KHTC", "YT", "KI", "KII", "KIII"]);
@@ -74,7 +74,7 @@ function canViewItem(item, user = UserContext.requireUser()) {
   const departmentId = upper(item?.departmentId);
   if (Permissions.canViewAllScopes()) return true;
   if (Permissions.canViewAllDepartments() && PROFESSIONAL_DEPARTMENT_IDS.includes(departmentId)) return true;
-  if (departmentId === "CDTN") return Permissions.isDepartmentLeader() || canRegisterCdtnItem(item) || Permissions.isCdtnCatalogManager();
+  if (departmentId === "CDTN") return canRegisterCdtnItem(item) || Permissions.isCdtnCatalogManager();
   if (departmentId !== upper(user.departmentId)) return false;
   if (Permissions.isDepartmentLeader()) return true;
   return canRegisterItem(item, user);
@@ -114,20 +114,21 @@ function sourceReferences() {
   }
 
   if (Permissions.isTchcDepartmentLeader()) {
-    // Trưởng/Phó TCHC có phạm vi xem toàn Trung tâm theo baseline V1.10.1.
-    // V1.10.2 tải đúng danh mục của từng đơn vị để bộ lọc Phòng/Khu có dữ liệu thật.
-    return [
-      FirebaseService.query(
-        reference,
-        FirebaseService.where("departmentId", "in", PROFESSIONAL_DEPARTMENT_IDS),
-        FirebaseService.limit(2000)
-      ),
-      FirebaseService.query(
-        reference,
-        FirebaseService.where("departmentId", "==", "CDTN"),
-        FirebaseService.limit(500)
-      )
-    ];
+    // Trưởng/Phó TCHC xem toàn bộ danh mục chuyên môn; Chi đoàn chỉ tải nếu có additionalRoles phù hợp.
+    const queries = [FirebaseService.query(
+      reference,
+      FirebaseService.where("departmentId", "in", PROFESSIONAL_DEPARTMENT_IDS),
+      FirebaseService.limit(2000)
+    )];
+    if (Permissions.isCdtnLeadership()) {
+      queries.push(FirebaseService.query(reference, FirebaseService.where("departmentId", "==", "CDTN"), FirebaseService.limit(500)));
+    } else if (Permissions.isCdtnExecutiveMember()) {
+      queries.push(audienceQuery(reference, "CDTN", "CDTN_EXECUTIVE"));
+      queries.push(audienceQuery(reference, "CDTN", "CDTN_MEMBER"));
+    } else if (Permissions.isCdtnMember()) {
+      queries.push(audienceQuery(reference, "CDTN", "CDTN_MEMBER"));
+    }
+    return queries;
   }
 
   const queries = [];
@@ -136,12 +137,6 @@ function sourceReferences() {
       reference,
       FirebaseService.where("departmentId", "==", upper(user.departmentId)),
       FirebaseService.limit(1000)
-    ));
-    /* Trưởng/Phó Phòng/Khu được theo dõi danh mục Chi đoàn nhưng không được đăng ký nếu không có vai trò Chi đoàn. */
-    queries.push(FirebaseService.query(
-      reference,
-      FirebaseService.where("departmentId", "==", "CDTN"),
-      FirebaseService.limit(500)
     ));
   } else {
     /*

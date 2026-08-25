@@ -1,5 +1,5 @@
 /** Production 3D - đọc danh mục phòng/khu. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260825.V1_16_1";
+import { FirebaseService } from "../core/firebase-service.js?v=20260825.V1_17_0";
 
 const FALLBACK = [
   ["BGD", "Ban Giám đốc"], ["TCHC", "Phòng Tổ chức - Hành chính"],

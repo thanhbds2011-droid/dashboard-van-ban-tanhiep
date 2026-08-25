@@ -8,10 +8,10 @@
  * - executiveDirectiveStates (trạng thái hiện hành theo Phòng/Khu)
  * - executiveWeeklyReports
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260825.V1_16_1";
-import { UserContext } from "../core/user-context.js?v=20260825.V1_16_1";
-import { Permissions } from "../core/permissions.js?v=20260825.V1_16_1";
-import { ExecutiveNotificationService } from "./executive-notification-service.js?v=20260825.V1_16_1";
+import { FirebaseService } from "../core/firebase-service.js?v=20260825.V1_17_0";
+import { UserContext } from "../core/user-context.js?v=20260825.V1_17_0";
+import { Permissions } from "../core/permissions.js?v=20260825.V1_17_0";
+import { ExecutiveNotificationService } from "./executive-notification-service.js?v=20260825.V1_17_0";
 
 const DIRECTIVES = "executiveDirectives";
 const UPDATES = "executiveDirectiveUpdates";

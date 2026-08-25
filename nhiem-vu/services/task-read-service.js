@@ -1,8 +1,8 @@
 /** Đọc nhiệm vụ theo kỳ hiện hành, phạm vi tài khoản và bộ nhớ đệm ngắn. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260825.V1_16_1";
-import { UserContext } from "../core/user-context.js?v=20260825.V1_16_1";
-import { Permissions } from "../core/permissions.js?v=20260825.V1_16_1";
-import { PeriodReadService } from "./period-read-service.js?v=20260825.V1_16_1";
+import { FirebaseService } from "../core/firebase-service.js?v=20260825.V1_17_0";
+import { UserContext } from "../core/user-context.js?v=20260825.V1_17_0";
+import { Permissions } from "../core/permissions.js?v=20260825.V1_17_0";
+import { PeriodReadService } from "./period-read-service.js?v=20260825.V1_17_0";
 
 const TASK_CACHE_MS = 2 * 60 * 1000;
 const PROFESSIONAL_DEPARTMENT_IDS = Object.freeze(["BGD", "TCHC", "CTXH", "KHTC", "YT", "KI", "KII", "KIII"]);
@@ -42,8 +42,8 @@ function scopedReferences(periodId) {
       FirebaseService.where("primaryDepartmentId", "in", PROFESSIONAL_DEPARTMENT_IDS),
       FirebaseService.limit(5000)
     )];
-    /* Trưởng/Phó TCHC cũng theo dõi Chi đoàn ở vùng riêng; TCHC_COORDINATOR không tự có quyền này. */
-    if (Permissions.isTchcDepartmentLeader()) {
+    /* Scope Chi đoàn độc lập: chỉ tải thêm khi chính tài khoản có vai trò Chi đoàn. */
+    if (Permissions.isCdtnMember()) {
       references.push(
         FirebaseService.query(reference, periodFilter, FirebaseService.where("primaryDepartmentId", "==", "CDTN"), FirebaseService.limit(1000)),
         FirebaseService.query(reference, periodFilter, FirebaseService.where("organizationId", "==", "CDTN"), FirebaseService.limit(1000))
@@ -59,6 +59,12 @@ function scopedReferences(periodId) {
         reference,
         periodFilter,
         FirebaseService.where("primaryDepartmentId", "==", departmentId),
+        FirebaseService.limit(1000)
+      ),
+      FirebaseService.query(
+        reference,
+        periodFilter,
+        FirebaseService.where("homeDepartmentId", "==", departmentId),
         FirebaseService.limit(1000)
       ),
       FirebaseService.query(
@@ -95,7 +101,7 @@ function scopedReferences(periodId) {
     return references;
   }
 
-  return [
+  const references = [
     FirebaseService.query(
       reference,
       periodFilter,
@@ -103,6 +109,13 @@ function scopedReferences(periodId) {
       FirebaseService.limit(300)
     )
   ];
+  if (Permissions.isCdtnMember()) {
+    references.push(
+      FirebaseService.query(reference, periodFilter, FirebaseService.where("primaryDepartmentId", "==", "CDTN"), FirebaseService.limit(1000)),
+      FirebaseService.query(reference, periodFilter, FirebaseService.where("organizationId", "==", "CDTN"), FirebaseService.limit(1000))
+    );
+  }
+  return references;
 }
 
 function cacheKey(periodId) {

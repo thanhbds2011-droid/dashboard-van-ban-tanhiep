@@ -1,15 +1,15 @@
 /** Quản lý các lượt công việc phát sinh bên trong một nhiệm vụ KPI. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260825.V1_16_1";
-import { UserContext } from "../core/user-context.js?v=20260825.V1_16_1";
-import { Permissions } from "../core/permissions.js?v=20260825.V1_16_1";
-import { progressRateFromDates } from "../kpi-engine.js?v=20260825.V1_16_1";
+import { FirebaseService } from "../core/firebase-service.js?v=20260825.V1_17_0";
+import { UserContext } from "../core/user-context.js?v=20260825.V1_17_0";
+import { Permissions } from "../core/permissions.js?v=20260825.V1_17_0";
+import { progressRateFromDates } from "../kpi-engine.js?v=20260825.V1_17_0";
 import {
   ATTENDANCE_STATUSES,
   WORK_ITEM_TYPES,
   calculateWorkItemSummary,
   convertActualRate,
   normalizeWorkItemType
-} from "../work-item-score-engine.js?v=20260825.V1_16_1";
+} from "../work-item-score-engine.js?v=20260825.V1_17_0";
 
 const COLLECTION = "taskWorkItems";
 const ALLOWED_RATES = Object.freeze([100, 80, 60, 0]);
@@ -53,6 +53,7 @@ function mayManage(task) {
       task.ownerUserId === user.uid ||
       Permissions.isAdmin() ||
       Permissions.isDirector() ||
+      (String(task.primaryDepartmentId || "").toUpperCase() === "CDTN" && Permissions.isCdtnLeadership(user)) ||
       (Permissions.isDepartmentLeader() && String(task.primaryDepartmentId || "") === String(user.departmentId || ""))
     )
   );
@@ -61,7 +62,7 @@ function mayManage(task) {
 function mayEditItem(task, item) {
   const user = UserContext.requireUser();
   if (!mayManage(task)) return false;
-  if (Permissions.isAdmin() || Permissions.isDirector() || Permissions.isDepartmentLeader()) return true;
+  if (Permissions.isAdmin() || Permissions.isDirector() || Permissions.isDepartmentLeader() || (String(task?.primaryDepartmentId || "").toUpperCase() === "CDTN" && Permissions.isCdtnLeadership(user))) return true;
   return task.ownerUserId === user.uid && (!item || item.ownerUserId === user.uid);
 }
 
@@ -127,6 +128,27 @@ function validateDates(assignedDateKey, deadlineDateKey, completedDateKey) {
   if (completedDateKey && completedDateKey < assignedDateKey) {
     throw new Error("Ngày hoàn thành không được trước ngày giao.");
   }
+}
+
+async function syncEventDrivenParentSummary(task) {
+  if (!task?.id || String(task.deadlineMode || "").toUpperCase() !== "EVENT_DRIVEN") return;
+  const items = await TaskWorkItemService.list(task);
+  const summary = calculateSummary(items, task.workItemType, task);
+  const user = UserContext.requireUser();
+  await FirebaseService.updateDoc(
+    FirebaseService.doc(FirebaseService.db, "tasks", task.id),
+    {
+      eventWorkItemCount: Number(summary.totalRecordedCount ?? summary.count ?? 0),
+      eventEligibleCount: Number(summary.eligibleCount ?? summary.count ?? 0),
+      eventCompletedCount: Number(summary.completedCount || 0),
+      eventProgressRate: summary.appliedProgressRate === null ? null : Number(summary.appliedProgressRate),
+      eventResultRate: summary.appliedResultRate === null ? null : Number(summary.appliedResultRate),
+      eventSummaryUpdatedAt: FirebaseService.serverTimestamp(),
+      updatedAt: FirebaseService.serverTimestamp(),
+      updatedByUserId: user.uid,
+      updatedByName: user.fullName || ""
+    }
+  );
 }
 
 export const TaskWorkItemService = Object.freeze({
@@ -219,6 +241,8 @@ export const TaskWorkItemService = Object.freeze({
       taskCode: task.taskCode || "",
       periodId: task.periodId || "",
       departmentId: task.primaryDepartmentId || "",
+      homeDepartmentId: task.homeDepartmentId || (String(task.primaryDepartmentId || "").toUpperCase() === "CDTN" ? (user.departmentId || "") : (task.primaryDepartmentId || "")),
+      organizationId: String(task.organizationId || "").toUpperCase() === "CDTN" || String(task.primaryDepartmentId || "").toUpperCase() === "CDTN" ? "CDTN" : "",
       ownerUserId: task.ownerUserId || "",
       ownerName: task.ownerName || "",
       workItemType,
@@ -259,6 +283,7 @@ export const TaskWorkItemService = Object.freeze({
     };
 
     await FirebaseService.setDoc(reference, payload, { merge: true });
+    await syncEventDrivenParentSummary(task);
     return { id: reference.id, ...payload };
   },
 
@@ -279,5 +304,6 @@ export const TaskWorkItemService = Object.freeze({
         updatedByName: user.fullName || ""
       }
     );
+    await syncEventDrivenParentSummary(task);
   }
 });
