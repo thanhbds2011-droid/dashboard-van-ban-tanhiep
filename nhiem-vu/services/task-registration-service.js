@@ -1,11 +1,11 @@
-import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_16_0";
-import { UserContext } from "../core/user-context.js?v=20260824.V1_16_0";
-import { Permissions } from "../core/permissions.js?v=20260824.V1_16_0";
-import { TaskLogService } from "./task-log-service.js?v=20260824.V1_16_0";
-import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260824.V1_16_0";
-import { PeriodReadService } from "./period-read-service.js?v=20260824.V1_16_0";
-import { APP_VERSION } from "../core/app-version.js?v=20260824.V1_16_0";
-import { deriveDeadlinePlan, deadlineDateFromKey, isDateKey, requiresManualDeadline, isEventDrivenFrequency, canonicalFrequency } from "../core/deadline-engine.js?v=20260824.V1_16_0";
+import { FirebaseService } from "../core/firebase-service.js?v=20260825.V1_16_1";
+import { UserContext } from "../core/user-context.js?v=20260825.V1_16_1";
+import { Permissions } from "../core/permissions.js?v=20260825.V1_16_1";
+import { TaskLogService } from "./task-log-service.js?v=20260825.V1_16_1";
+import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260825.V1_16_1";
+import { PeriodReadService } from "./period-read-service.js?v=20260825.V1_16_1";
+import { APP_VERSION } from "../core/app-version.js?v=20260825.V1_16_1";
+import { deriveDeadlinePlan, deadlineDateFromKey, isDateKey, requiresManualDeadline, isEventDrivenFrequency, canonicalFrequency } from "../core/deadline-engine.js?v=20260825.V1_16_1";
 
 const clean = value => String(value ?? "").trim();
 const upper = value => clean(value).toUpperCase();

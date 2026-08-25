@@ -4,8 +4,8 @@
  * - Có thể gỡ từng tệp trước khi Lưu; tệp đã tải sẽ được đưa vào Thùng rác Drive.
  * - Nếu Lưu nghiệp vụ lỗi, tệp đã tải vẫn giữ trong hàng đợi để người dùng thử Lưu lại mà không upload lần hai.
  */
-import { DriveEvidenceService } from "./drive-evidence-service.js?v=20260824.V1_16_0";
-import { TaskEvidenceService } from "./task-evidence-service.js?v=20260824.V1_16_0";
+import { DriveEvidenceService } from "./drive-evidence-service.js?v=20260825.V1_16_1";
+import { TaskEvidenceService } from "./task-evidence-service.js?v=20260825.V1_16_1";
 
 function id() {
   return `STAGED_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
