@@ -1,9 +1,9 @@
-import { UserContext } from "../../core/user-context.js?v=20260825.V1_16_1";
-import { Permissions } from "../../core/permissions.js?v=20260825.V1_16_1";
-import { ToastService } from "../../core/toast-service.js?v=20260825.V1_16_1";
-import { DepartmentReadService } from "../../services/department-read-service.js?v=20260825.V1_16_1";
-import { UserReadService } from "../../services/user-read-service.js?v=20260825.V1_16_1";
-import { ExecutiveDirectiveService } from "../../services/executive-directive-service.js?v=20260825.V1_16_1";
+import { UserContext } from "../../core/user-context.js?v=20260825.V1_17_0";
+import { Permissions } from "../../core/permissions.js?v=20260825.V1_17_0";
+import { ToastService } from "../../core/toast-service.js?v=20260825.V1_17_0";
+import { DepartmentReadService } from "../../services/department-read-service.js?v=20260825.V1_17_0";
+import { UserReadService } from "../../services/user-read-service.js?v=20260825.V1_17_0";
+import { ExecutiveDirectiveService } from "../../services/executive-directive-service.js?v=20260825.V1_17_0";
 
 let state = {
   directives: [],
@@ -282,7 +282,7 @@ function mountShell(outlet) {
   outlet.innerHTML = `
     <section class="directive-shell page-card">
       <header class="directive-page-header">
-        <div class="directive-header-copy"><h2>Chỉ đạo của Ban Giám đốc</h2><p>Giao việc, tiếp nhận, theo dõi và đôn đốc thực hiện.</p><small id="directiveRealtimeState">Đã tải dữ liệu · đồng bộ nền sau ít phút</small></div>
+        <div class="directive-header-copy"><h2>Chỉ đạo của Ban Giám đốc</h2><p>Giao việc, tiếp nhận, theo dõi và đôn đốc thực hiện.</p><small id="directiveRealtimeState" class="kpi-hidden"></small></div>
         <div class="directive-header-actions">${manager ? '<button id="btnCreateDirective" class="primary-button directive-main-action" type="button">＋ Thêm chỉ đạo</button>' : ""}${oralRecorder ? '<button id="btnRecordOralDirective" class="primary-button directive-main-action" type="button">🗣 Ghi nhận BGĐ</button>' : ""}<button id="btnDirectiveRefresh" class="secondary-button directive-sync-button" type="button" aria-label="Cập nhật dữ liệu" title="Cập nhật dữ liệu">↻</button></div>
       </header>
       <nav class="directive-tabs" aria-label="Chỉ đạo điều hành">
