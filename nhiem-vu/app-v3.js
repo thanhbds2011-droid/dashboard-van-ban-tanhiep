@@ -1,13 +1,13 @@
 /** Ứng dụng quản lý nhiệm vụ và đánh giá KPI. */
-import { Router } from "./core/router.js?v=20260824.V1_14_2";
-import { APP_VERSION_LABEL, BUILD_VERSION } from "./core/app-version.js?v=20260824.V1_14_2";
-import { AuthService } from "./core/auth-service.js?v=20260824.V1_14_2";
-import { Permissions } from "./core/permissions.js?v=20260824.V1_14_2";
-import { ToastService } from "./core/toast-service.js?v=20260824.V1_14_2";
-import { FirebaseService } from "./core/firebase-service.js?v=20260824.V1_14_2";
-import { PeriodReadService } from "./services/period-read-service.js?v=20260824.V1_14_2";
-import { ExecutivePushSubscriptionService } from "./services/executive-push-subscription-service.js?v=20260824.V1_14_2";
-import { ExecutiveInAppAlertService } from "./services/executive-in-app-alert-service.js?v=20260824.V1_14_2";
+import { Router } from "./core/router.js?v=20260824.V1_16_0";
+import { APP_VERSION_LABEL, BUILD_VERSION } from "./core/app-version.js?v=20260824.V1_16_0";
+import { AuthService } from "./core/auth-service.js?v=20260824.V1_16_0";
+import { Permissions } from "./core/permissions.js?v=20260824.V1_16_0";
+import { ToastService } from "./core/toast-service.js?v=20260824.V1_16_0";
+import { FirebaseService } from "./core/firebase-service.js?v=20260824.V1_16_0";
+import { PeriodReadService } from "./services/period-read-service.js?v=20260824.V1_16_0";
+import { ExecutivePushSubscriptionService } from "./services/executive-push-subscription-service.js?v=20260824.V1_16_0";
+import { ExecutiveInAppAlertService } from "./services/executive-in-app-alert-service.js?v=20260824.V1_16_0";
 
 let currentPushUser = null;
 let saveCurrentPushSnapshot = null;
@@ -32,15 +32,15 @@ function lazyRoute(modulePath, exportName) {
   };
 }
 
-const renderDashboardView = lazyRoute("./modules/dashboard/dashboard-view.js?v=20260824.V1_14_2", "renderDashboardView");
-const renderExecutiveDirectivesView = lazyRoute("./modules/executive-directives/executive-directives-view.js?v=20260824.V1_14_2", "renderExecutiveDirectivesView");
-const renderTasksView = lazyRoute("./modules/tasks/tasks-view.js?v=20260824.V1_14_2", "renderTasksView");
-const renderStandardTasksView = lazyRoute("./modules/standard-tasks/standard-tasks-view.js?v=20260824.V1_14_2", "renderStandardTasksView");
-const renderPeriodsView = lazyRoute("./modules/periods/periods-view.js?v=20260824.V1_14_2", "renderPeriodsView");
-const renderPlansView = lazyRoute("./modules/plans/plans-view.js?v=20260824.V1_14_2", "renderPlansView");
-const renderEvaluationsView = lazyRoute("./modules/evaluations/evaluations-view.js?v=20260824.V1_14_2", "renderEvaluationsView");
-const renderReportsView = lazyRoute("./modules/reports/reports-view.js?v=20260824.V1_14_2", "renderReportsView");
-const renderAdminView = lazyRoute("./modules/admin/admin-view.js?v=20260824.V1_14_2", "renderAdminView");
+const renderDashboardView = lazyRoute("./modules/dashboard/dashboard-view.js?v=20260824.V1_16_0", "renderDashboardView");
+const renderExecutiveDirectivesView = lazyRoute("./modules/executive-directives/executive-directives-view.js?v=20260824.V1_16_0", "renderExecutiveDirectivesView");
+const renderTasksView = lazyRoute("./modules/tasks/tasks-view.js?v=20260824.V1_16_0", "renderTasksView");
+const renderStandardTasksView = lazyRoute("./modules/standard-tasks/standard-tasks-view.js?v=20260824.V1_16_0", "renderStandardTasksView");
+const renderPeriodsView = lazyRoute("./modules/periods/periods-view.js?v=20260824.V1_16_0", "renderPeriodsView");
+const renderPlansView = lazyRoute("./modules/plans/plans-view.js?v=20260824.V1_16_0", "renderPlansView");
+const renderEvaluationsView = lazyRoute("./modules/evaluations/evaluations-view.js?v=20260824.V1_16_0", "renderEvaluationsView");
+const renderReportsView = lazyRoute("./modules/reports/reports-view.js?v=20260824.V1_16_0", "renderReportsView");
+const renderAdminView = lazyRoute("./modules/admin/admin-view.js?v=20260824.V1_16_0", "renderAdminView");
 
 async function bootstrap() {
   const outlet = document.getElementById("appOutlet");

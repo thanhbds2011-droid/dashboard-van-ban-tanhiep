@@ -1,12 +1,14 @@
 /**
  * Bộ tính điểm cho đầu việc có nhiều văn bản/lượt và hoạt động điểm danh.
  *
- * Quy tắc nghiệp vụ Production V1.7.1:
+ * Quy tắc nghiệp vụ Production V1.15.0:
  * - Mỗi văn bản/lượt được chấm riêng ở bốn mức 100/80/60/0.
  * - Với văn bản/lượt thông thường: lấy trung bình chính xác từng mức, sau đó
  *   quy trung bình về thang Phụ lục 04: 100; 80–<100 => 80; 60–<80 => 60; <60 => 0.
  * - Với hoạt động điểm danh: tiến độ = T/N, kết quả = K/N, sau đó quy về cùng thang.
  * - Mỗi lượt chỉ là căn cứ; toàn đầu việc chỉ được tính điểm một lần.
+ * - Riêng nhiệm vụ EVENT_DRIVEN: lượt đã hoàn thành được tính ngay; lượt chưa hoàn thành và chưa đến hạn chưa vào mẫu số; quá hạn chưa hoàn thành = 0.
+ * - Các đầu việc ITEMIZED cũ giữ cách tính trước đây để tương thích ngược.
  */
 
 export const WORK_ITEM_TYPES = Object.freeze({
@@ -36,6 +38,21 @@ function round2(value) {
 function normalizedItemRate(value) {
   const rate = Number(value);
   return APPENDIX_04_RATES.includes(rate) ? rate : 0;
+}
+
+function todayDateKey() {
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function eligibleItem(item, asOfDateKey) {
+  if (!item || item.active === false) return false;
+  if (item.completedDateKey) return true;
+  const deadline = String(item.deadlineDateKey || "").trim();
+  return Boolean(deadline && deadline <= asOfDateKey);
 }
 
 export function normalizeWorkItemType(value) {
@@ -202,14 +219,52 @@ function calculateItemAverageSummary(activeItems, workItemType) {
  *   K = số buổi có mặt và đạt yêu cầu; tính T/N và K/N.
  * - Các loại còn lại: lấy trung bình mức tiến độ và kết quả của từng lượt.
  */
-export function calculateWorkItemSummary(items, requestedType = "") {
-  const activeItems = (items || []).filter(item => item?.active !== false);
+export function calculateWorkItemSummary(items, requestedType = "", options = {}) {
+  const allActiveItems = (items || []).filter(item => item?.active !== false);
   const workItemType = normalizeWorkItemType(
-    requestedType || activeItems[0]?.workItemType || WORK_ITEM_TYPES.GENERIC
+    requestedType || allActiveItems[0]?.workItemType || WORK_ITEM_TYPES.GENERIC
   );
 
-  if (!activeItems.length) return emptySummary(workItemType);
-  return workItemType === WORK_ITEM_TYPES.ATTENDANCE
-    ? calculateAttendanceSummary(activeItems, workItemType)
-    : calculateItemAverageSummary(activeItems, workItemType);
+  if (!allActiveItems.length) return emptySummary(workItemType);
+  if (workItemType === WORK_ITEM_TYPES.ATTENDANCE) {
+    return calculateAttendanceSummary(allActiveItems, workItemType);
+  }
+
+  /*
+   * Backward compatibility:
+   * - đầu việc ITEMIZED cũ tiếp tục tính toàn bộ lượt như trước;
+   * - chỉ nhiệm vụ EVENT_DRIVEN mới loại lượt tương lai chưa hoàn thành khỏi mẫu số.
+   * Có thể truyền chuỗi YYYY-MM-DD ở tham số 3 để tương thích test/hàm gọi V1.15.0.
+   */
+  const config = typeof options === "string"
+    ? { asOfDateKey: options, excludeFutureIncomplete: true }
+    : (options || {});
+  const excludeFutureIncomplete = config.excludeFutureIncomplete === true;
+  const asOf = /^\d{4}-\d{2}-\d{2}$/.test(String(config.asOfDateKey || ""))
+    ? String(config.asOfDateKey)
+    : todayDateKey();
+
+  if (!excludeFutureIncomplete) {
+    const summary = calculateItemAverageSummary(allActiveItems, workItemType);
+    summary.totalRecordedCount = allActiveItems.length;
+    summary.futurePendingCount = 0;
+    summary.eligibleCount = allActiveItems.length;
+    return summary;
+  }
+
+  const eligibleItems = allActiveItems.filter(item => eligibleItem(item, asOf));
+  if (!eligibleItems.length) {
+    const summary = emptySummary(workItemType);
+    summary.totalRecordedCount = allActiveItems.length;
+    summary.futurePendingCount = allActiveItems.filter(item => !item.completedDateKey && String(item.deadlineDateKey || "") > asOf).length;
+    summary.eligibleCount = 0;
+    summary.scoringBasis = "NO_ELIGIBLE_OCCURRENCE_YET";
+    return summary;
+  }
+
+  const summary = calculateItemAverageSummary(eligibleItems, workItemType);
+  summary.totalRecordedCount = allActiveItems.length;
+  summary.futurePendingCount = allActiveItems.filter(item => !item.completedDateKey && String(item.deadlineDateKey || "") > asOf).length;
+  summary.eligibleCount = eligibleItems.length;
+  return summary;
 }
