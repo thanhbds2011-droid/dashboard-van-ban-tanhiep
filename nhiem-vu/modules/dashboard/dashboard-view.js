@@ -1,8 +1,8 @@
-import { UserContext } from "../../core/user-context.js?v=20260825.V1_16_1";
-import { Permissions } from "../../core/permissions.js?v=20260825.V1_16_1";
-import { ToastService } from "../../core/toast-service.js?v=20260825.V1_16_1";
-import { DashboardReadService } from "../../services/dashboard-read-service.js?v=20260825.V1_16_1";
-import { TaskReadService } from "../../services/task-read-service.js?v=20260825.V1_16_1";
+import { UserContext } from "../../core/user-context.js?v=20260825.V1_17_0";
+import { Permissions } from "../../core/permissions.js?v=20260825.V1_17_0";
+import { ToastService } from "../../core/toast-service.js?v=20260825.V1_17_0";
+import { DashboardReadService } from "../../services/dashboard-read-service.js?v=20260825.V1_17_0";
+import { TaskReadService } from "../../services/task-read-service.js?v=20260825.V1_17_0";
 let currentData = null;
 let dashboardRenderSequence = 0;
 let dashboardDepartmentScope = "ALL";
@@ -90,7 +90,7 @@ export async function renderDashboardView(outlet) {
 function mountDashboard(outlet, user) {
   outlet.innerHTML = `
     <section class="page-card">
-      <div class="page-header"><div><h2>Tổng quan</h2><p>Theo dõi nhiệm vụ và kỳ đánh giá theo phạm vi tài khoản.</p><small id="dashboardRealtimeState" class="realtime-state">Đã tải dữ liệu · đồng bộ nền sau ít phút…</small></div><div class="dashboard-header-actions">${Permissions.canViewAllDepartments() ? '<label class="dashboard-department-filter"><span>Phòng/Khu</span><select id="dashboardDepartmentFilter"><option value="ALL">Toàn Trung tâm</option></select></label>' : ''}<button id="btnDashboardRefresh" class="secondary-button compact-sync-button" type="button" title="Cập nhật dữ liệu" aria-label="Cập nhật dữ liệu">↻</button></div></div>
+      <div class="page-header"><div><h2>Tổng quan</h2><p>Theo dõi nhiệm vụ và kỳ đánh giá theo phạm vi tài khoản.</p><small id="dashboardRealtimeState" class="realtime-state kpi-hidden"></small></div><div class="dashboard-header-actions">${Permissions.canViewAllDepartments() ? '<label class="dashboard-department-filter"><span>Phòng/Khu</span><select id="dashboardDepartmentFilter"><option value="ALL">Toàn Trung tâm</option></select></label>' : ''}<button id="btnDashboardRefresh" class="secondary-button compact-sync-button" type="button" title="Cập nhật dữ liệu" aria-label="Cập nhật dữ liệu">↻</button></div></div>
       <section class="welcome-panel"><div><span class="welcome-label">Xin chào</span><h3>Đồng chí ${escapeHtml(user.fullName || "Người dùng")}</h3><p>${escapeHtml(professionalLine(user))}</p></div><span class="role-badge">${escapeHtml(formatRole(user.role))}</span></section>
       <div class="dashboard-period-inline"><span>Kỳ KPI hiện tại</span><strong id="dashboardPeriod">—</strong><small id="dashboardPeriodNote">Chưa có kỳ hoạt động</small></div>
       <div class="summary-grid dashboard-summary-grid">
