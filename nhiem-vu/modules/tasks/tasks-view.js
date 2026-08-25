@@ -1,9 +1,9 @@
-import { Permissions } from "../../core/permissions.js?v=20260825.V1_16_1";
-import { ToastService } from "../../core/toast-service.js?v=20260825.V1_16_1";
-import { TaskReadService } from "../../services/task-read-service.js?v=20260825.V1_16_1";
-import { openTaskCreateModal } from "./task-form-modal.js?v=20260825.V1_16_1";
-import { openTaskDetailModal } from "./task-detail-modal.js?v=20260825.V1_16_1";
-import { effectiveDepartmentAssignmentStatus } from "../../core/task-display-order.js?v=20260825.V1_16_1";
+import { Permissions } from "../../core/permissions.js?v=20260825.V1_17_0";
+import { ToastService } from "../../core/toast-service.js?v=20260825.V1_17_0";
+import { TaskReadService } from "../../services/task-read-service.js?v=20260825.V1_17_0";
+import { openTaskCreateModal } from "./task-form-modal.js?v=20260825.V1_17_0";
+import { openTaskDetailModal } from "./task-detail-modal.js?v=20260825.V1_17_0";
+import { effectiveDepartmentAssignmentStatus } from "../../core/task-display-order.js?v=20260825.V1_17_0";
 
 let renderSequence = 0;
 let currentTasks = [];
@@ -57,8 +57,8 @@ function startTasksRealtime(outlet, sequence) {
       updateTasksPage(currentTasks);
       const live = document.getElementById("taskRealtimeState");
       if (live) {
-        live.textContent = "Đang đồng bộ trực tiếp";
-        live.classList.add("is-live");
+        live.textContent = "";
+        live.hidden = true;
       }
     },
     error => {
@@ -113,7 +113,7 @@ function userFacingLoadError(error) {
 
 function mountTasksPage(outlet) {
   outlet.innerHTML = `<section class="page-card tasks-page-card">
-    <div class="page-header"><div><h2>Nhiệm vụ</h2><p>Theo dõi nhiệm vụ được giao, tiến độ thực hiện và kết quả hoàn thành.</p><small id="taskRealtimeState" class="realtime-state">Đã tải dữ liệu · đồng bộ nền sau ít phút…</small></div>${Permissions.canCreateUnexpectedTask() ? '<button id="btnCreateTask" class="primary-button" type="button">＋ Giao nhiệm vụ đột xuất</button>' : ""}</div>
+    <div class="page-header"><div><h2>Nhiệm vụ</h2><p>Theo dõi nhiệm vụ được giao, tiến độ thực hiện và kết quả hoàn thành.</p><small id="taskRealtimeState" class="realtime-state" hidden></small></div>${Permissions.canCreateUnexpectedTask() ? '<button id="btnCreateTask" class="primary-button" type="button">＋ Giao nhiệm vụ đột xuất</button>' : ""}</div>
     <div class="summary-grid compact-grid tasks-summary-grid">
       ${card("Tất cả", 0, "taskMetricTotal")}
       ${card("Đang xử lý", 0, "taskMetricInProgress")}
@@ -247,6 +247,7 @@ function taskStatusDescriptor(task) {
   if (adjustmentStatus === "REQUESTED") return { label: "Chờ duyệt điều chỉnh", className: "warning" };
   if (task._overdue) return { label: "Trễ hạn", className: "danger" };
   if (task._completed) return { label: "Hoàn thành", className: "success" };
+  if (String(task.deadlineMode || "").toUpperCase() === "EVENT_DRIVEN") return { label: "Theo dõi phát sinh", className: "info" };
   if (departmentStatus === "PENDING_ACCEPTANCE" || status === "CHO_PHONG_KHU_TIEP_NHAN") {
     return { label: "Chờ Phòng/Khu tiếp nhận", className: "warning" };
   }
@@ -275,7 +276,18 @@ function renderTaskList(tasks, emptyTitle = "Không có nhiệm vụ trong phạ
   if (!tasks.length) return `<div class="empty-state compact-empty-state"><div class="empty-icon">📋</div><strong>${escapeHtml(emptyTitle)}</strong><p>Hãy thay đổi bộ lọc hoặc chờ nhiệm vụ được giao.</p></div>`;
   return `<div class="data-list">${tasks.slice(0, 500).map(task => {
     const status = taskStatusDescriptor(task);
-    return `<button type="button" class="data-row task-row-button" data-task-id="${escapeHtml(task.id)}"><div class="data-row-main"><strong>${escapeHtml(task.title || task.taskCode || "Nhiệm vụ không có tiêu đề")}</strong><small>${escapeHtml(task.taskCode || task.id)} • ${escapeHtml(DEPARTMENT_NAMES[taskWorkspaceId(task)] || taskWorkspaceId(task) || "-")} • ${escapeHtml(taskOwnerSummary(task))}</small><div class="progress-track"><span style="width:${Math.min(100, Math.max(0, Number(task.progress || 0)))}%"></span></div></div><div class="data-row-meta"><span class="status-pill ${status.className}">${status.label}</span><small>${String(task.deadlineMode || "").toUpperCase() === "EVENT_DRIVEN" ? "Theo lượt phát sinh" : formatDate(task._deadline)}</small><strong>${Number(task.progress || 0)}%</strong></div></button>`;
+    const eventDriven = String(task.deadlineMode || "").toUpperCase() === "EVENT_DRIVEN";
+    const eventCount = Math.max(0, Number(task.eventWorkItemCount || 0));
+    const eventEligible = Math.max(0, Number(task.eventEligibleCount || 0));
+    const eventProgress = task.eventProgressRate === null || task.eventProgressRate === undefined ? null : Number(task.eventProgressRate);
+    const progressValue = eventDriven ? (eventProgress ?? 0) : Number(task.progress || 0);
+    const progressLabel = eventDriven
+      ? (eventCount === 0 ? "Chưa phát sinh" : eventEligible === 0 ? `${eventCount} lượt · chưa đến hạn` : `${eventProgress ?? 0}%`)
+      : `${Number(task.progress || 0)}%`;
+    const secondary = eventDriven
+      ? (eventCount ? `${eventCount} lượt đã ghi nhận` : "Theo từng lượt phát sinh")
+      : formatDate(task._deadline);
+    return `<button type="button" class="data-row task-row-button" data-task-id="${escapeHtml(task.id)}"><div class="data-row-main"><strong>${escapeHtml(task.title || task.taskCode || "Nhiệm vụ không có tiêu đề")}</strong><small>${escapeHtml(task.taskCode || task.id)} • ${escapeHtml(DEPARTMENT_NAMES[taskWorkspaceId(task)] || taskWorkspaceId(task) || "-")} • ${escapeHtml(taskOwnerSummary(task))}</small><div class="progress-track"><span style="width:${Math.min(100, Math.max(0, progressValue))}%"></span></div></div><div class="data-row-meta"><span class="status-pill ${status.className}">${status.label}</span><small>${escapeHtml(secondary)}</small><strong>${escapeHtml(progressLabel)}</strong></div></button>`;
   }).join("")}</div>`;
 }
 

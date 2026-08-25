@@ -1,16 +1,16 @@
 /** Chi tiết, phân công và các lượt công việc phát sinh của nhiệm vụ. */
-import { UserContext } from "../../core/user-context.js?v=20260825.V1_16_1";
-import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260825.V1_16_1";
-import { Permissions } from "../../core/permissions.js?v=20260825.V1_16_1";
-import { effectiveDepartmentAssignmentStatus, isTerminalTask } from "../../core/task-display-order.js?v=20260825.V1_16_1";
-import { UserReadService } from "../../services/user-read-service.js?v=20260825.V1_16_1";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260825.V1_16_1";
-import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260825.V1_16_1";
-import { TaskEvidenceService } from "../../services/task-evidence-service.js?v=20260825.V1_16_1";
-import { StagedEvidenceUploader } from "../../services/staged-evidence-uploader.js?v=20260825.V1_16_1";
-import { openTaskProgressModal } from "./task-progress-modal.js?v=20260825.V1_16_1";
-import { mountTaskAdjustmentPanel } from "./task-adjustment-panel.js?v=20260825.V1_16_1";
-import { TaskLogService } from "../../services/task-log-service.js?v=20260825.V1_16_1";
+import { UserContext } from "../../core/user-context.js?v=20260825.V1_17_0";
+import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260825.V1_17_0";
+import { Permissions } from "../../core/permissions.js?v=20260825.V1_17_0";
+import { effectiveDepartmentAssignmentStatus, isTerminalTask } from "../../core/task-display-order.js?v=20260825.V1_17_0";
+import { UserReadService } from "../../services/user-read-service.js?v=20260825.V1_17_0";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260825.V1_17_0";
+import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260825.V1_17_0";
+import { TaskEvidenceService } from "../../services/task-evidence-service.js?v=20260825.V1_17_0";
+import { StagedEvidenceUploader } from "../../services/staged-evidence-uploader.js?v=20260825.V1_17_0";
+import { openTaskProgressModal } from "./task-progress-modal.js?v=20260825.V1_17_0";
+import { mountTaskAdjustmentPanel } from "./task-adjustment-panel.js?v=20260825.V1_17_0";
+import { TaskLogService } from "../../services/task-log-service.js?v=20260825.V1_17_0";
 
 const TEAM_LABELS = Object.freeze({
   BAO_VE: "Tổ Bảo vệ",
@@ -298,7 +298,7 @@ function workItemSummaryHtml(items, task) {
     ${typeSpecific}
     <div><span>${actualProgressLabel}</span><strong>${numberVi(summary.actualProgressRate)}%</strong></div>
     <div><span>${actualResultLabel}</span><strong>${numberVi(summary.actualResultRate)}%</strong></div>
-    <div class="is-applied"><span>Mức Phụ lục 04 áp dụng</span><strong>${summary.appliedProgressRate}% tiến độ · ${summary.appliedResultRate}% kết quả</strong></div>
+    <div class="is-applied"><span>Mức áp dụng</span><strong>${summary.appliedProgressRate}% tiến độ · ${summary.appliedResultRate}% kết quả</strong></div>
   </div>`;
 }
 
@@ -389,12 +389,13 @@ function editorFields(task, item) {
 
 function workItemStagedEvidenceHtml(items = []) {
   const visible = (items || []).filter(entry => entry.committed !== true && !["DISCARDED", "REMOVED"].includes(entry.status));
-  if (!visible.length) return `<div class="task-evidence-empty staged-evidence-empty">Chọn tệp để tải lên Google Drive ngay.</div>`;
+  if (!visible.length) return `<div class="task-evidence-empty staged-evidence-empty">Chưa chọn tệp bổ sung.</div>`;
   return `<div class="staged-evidence-list">${visible.map(entry => {
     const uploaded = entry.status === "UPLOADED";
+    const selected = entry.status === "SELECTED";
     const error = entry.status === "ERROR";
-    const busy = ["QUEUED", "UPLOADING", "REMOVING"].includes(entry.status);
-    const statusText = uploaded ? "Đã tải lên Drive · Chưa lưu" : (entry.message || "Đang xử lý…");
+    const busy = ["UPLOADING", "ROLLING_BACK"].includes(entry.status);
+    const statusText = selected ? "Đã chọn · Chưa lưu" : uploaded ? "Đã tải · Đang hoàn tất lưu" : (entry.message || "Đang xử lý…");
     return `<div class="staged-evidence-row ${uploaded ? "is-uploaded" : error ? "is-error" : busy ? "is-busy" : ""}" data-work-item-staged-id="${escapeHtml(entry.id)}">
       <div class="staged-evidence-main"><strong>${escapeHtml(entry.originalName || entry.uploaded?.fileName || "Tệp minh chứng")}</strong><small>${escapeHtml(statusText)}</small>${busy ? `<div class="staged-evidence-progress"><span style="width:${Math.max(2, Math.min(100, Number(entry.percent || 0)))}%"></span></div>` : ""}</div>
       <div class="staged-evidence-actions">${error ? `<button type="button" class="secondary-button compact-button" data-retry-work-item-staged="${escapeHtml(entry.id)}">Thử lại</button>` : ""}<button type="button" class="evidence-remove-button" data-remove-work-item-staged="${escapeHtml(entry.id)}" title="Bỏ tệp" aria-label="Bỏ tệp">×</button></div>
@@ -410,16 +411,16 @@ function openWorkItemEditor(task, item, onSaved, existingEvidenceFiles = []) {
   overlay.innerHTML = `
     <section class="modal-panel modal-medium" role="dialog" aria-modal="true">
       <div class="modal-header">
-        <div><span class="page-eyebrow">${escapeHtml(task.taskCode || task.id)}</span><h2>${item ? "Cập nhật" : "Thêm"} ${WORK_ITEM_LABELS[type].name.toLowerCase()}</h2><p>Các số liệu này là căn cứ tính N, T, K và điểm KPI cuối kỳ.</p></div>
+        <div><span class="page-eyebrow">${escapeHtml(task.taskCode || task.id)}</span><h2>${item ? "Cập nhật" : "Thêm"} ${WORK_ITEM_LABELS[type].name.toLowerCase()}</h2><p>Ghi nhận thông tin thực tế của lượt công việc.</p></div>
         <button class="icon-button" type="button" data-close-work-item>✕</button>
       </div>
       <div class="modal-body task-form-grid">
         ${editorFields(task, item)}
         <label class="field-full"><span>Kết quả/Ghi chú</span><textarea id="workItemResultNote" rows="3" maxlength="3000" placeholder="Nêu kết quả, tình trạng chỉnh sửa hoặc nguyên nhân chưa hoàn thành">${escapeHtml(item?.resultNote || "")}</textarea></label>
         <label class="field-full"><span>Mô tả minh chứng/liên kết</span><textarea id="workItemEvidence" rows="2" maxlength="3000" placeholder="Nêu số văn bản, biên bản, hình ảnh hoặc mô tả minh chứng">${escapeHtml(item?.evidenceText || "")}</textarea></label>
-        <label class="field-full"><span>Bổ sung tệp/hình ảnh minh chứng lên Google Drive</span><input id="workItemEvidenceFile" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"><small>Chọn tệp là hệ thống tải lên Drive ngay. Tối đa 10 tệp/lần, 20 tệp/nhiệm vụ, 8 MB/tệp. Bấm × để bỏ tệp tải nhầm trước khi Lưu.</small></label>
+        <label class="field-full"><span>Bổ sung tệp/hình ảnh minh chứng</span><input id="workItemEvidenceFile" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"><small>Tệp chỉ được tải lên khi bấm Lưu thông tin. Tối đa 10 tệp/lần, 20 tệp/nhiệm vụ, 8 MB/tệp.</small></label>
         <div id="workItemFormError" class="field-full task-progress-form-error" hidden role="alert"></div>
-        <div class="field-full task-evidence-staged"><div class="task-evidence-existing-head"><strong>Tệp đang bổ sung</strong><span>Tệp “Đã tải lên Drive · Chưa lưu” sẽ được gắn vào lượt khi bấm Lưu.</span></div><div id="workItemUploadStatus">${workItemStagedEvidenceHtml([])}</div></div>
+        <div class="field-full task-evidence-staged"><div class="task-evidence-existing-head"><strong>Tệp đang bổ sung</strong><span>Có thể bấm × để bỏ tệp chọn nhầm trước khi lưu.</span></div><div id="workItemUploadStatus">${workItemStagedEvidenceHtml([])}</div></div>
       </div>
       <div class="modal-footer"><button class="secondary-button" type="button" data-close-work-item>Hủy</button><button id="saveWorkItemButton" class="primary-button" type="button">Lưu thông tin</button></div>
     </section>`;
@@ -448,7 +449,7 @@ function openWorkItemEditor(task, item, onSaved, existingEvidenceFiles = []) {
     if (!button) return;
     const hasError = staged.snapshot().some(entry => entry.status === "ERROR");
     button.disabled = saving || staged.busy || hasError;
-    button.textContent = saving ? "Đang lưu…" : staged.busy ? "Đang tải minh chứng…" : hasError ? "Xử lý tệp lỗi trước khi lưu" : "Lưu thông tin";
+    button.textContent = saving ? "Đang lưu…" : staged.busy ? "Đang xử lý minh chứng…" : hasError ? "Xử lý tệp lỗi trước khi lưu" : "Lưu thông tin";
   };
   const close = async () => {
     if (saving || closing) return;
@@ -504,12 +505,12 @@ function openWorkItemEditor(task, item, onSaved, existingEvidenceFiles = []) {
     const button = event.currentTarget;
     try {
       setError("");
-      if (staged.busy) throw new Error("Vui lòng chờ các tệp tải xong trước khi lưu.");
-      if (staged.snapshot().some(entry => entry.status === "ERROR")) throw new Error("Có tệp tải lỗi. Hãy Thử lại hoặc bấm × để bỏ tệp trước khi lưu.");
+      if (staged.busy) throw new Error("Vui lòng chờ minh chứng đang xử lý hoàn tất.");
+      if (staged.snapshot().some(entry => entry.status === "ERROR")) throw new Error("Có tệp lỗi. Hãy Thử lại hoặc bấm × để bỏ tệp trước khi lưu.");
       saving = true;
       refreshSaveState();
 
-      const uploadedFiles = staged.uploaded;
+      const uploadedFiles = await staged.uploadPending();
       const lastUploaded = uploadedFiles.at(-1) || null;
       const evidence = lastUploaded || {
         evidenceUrl: currentItem?.evidenceUrl || "",
@@ -542,6 +543,9 @@ function openWorkItemEditor(task, item, onSaved, existingEvidenceFiles = []) {
       }, currentItem);
       currentItem = savedWorkItem;
 
+      // Work item đã lưu và đang tham chiếu file cuối; giữ file cuối an toàn ngay cả khi batch metadata nhiều file gặp lỗi.
+      if (uploadedFiles.length) staged.markCommitted([uploadedFiles.at(-1)]);
+
       if (uploadedFiles.length) {
         const added = await TaskEvidenceService.addUploadedFiles(task, uploadedFiles, {
           scopeType: "WORK_ITEM",
@@ -552,8 +556,9 @@ function openWorkItemEditor(task, item, onSaved, existingEvidenceFiles = []) {
       }
       staged.markCommitted(uploadedFiles);
       overlay.remove();
-      await onSaved?.();
+      try { await onSaved?.(); } catch (refreshError) { console.warn("Đã lưu lượt công việc nhưng chưa làm mới được giao diện:", refreshError); }
     } catch (error) {
+      try { await staged.rollbackUncommitted(); } catch (_) { /* rollback best effort */ }
       setError(friendlyErrorMessage(error, "Không lưu được thông tin chi tiết."));
       saving = false;
       refreshSaveState();
@@ -640,17 +645,12 @@ export async function openTaskDetailModal(task, { onSaved }) {
       </nav>
       <div class="modal-body task-detail-tab-body">
         <section class="task-detail-tab-panel is-active" data-task-panel="overview">
-          <div class="detail-grid task-detail-summary">
-            ${detail("Người giao", task.createdByName || task.assignedByName || "—")}
-            ${detail("Người phụ trách", ownerDisplayName(task))}
-            ${detail("Tiếp nhận Phòng/Khu", departmentAcceptanceLabel(task))}
-            ${detail("Tổ/Nhóm", task.teamId ? teamLabel(task.teamId) : "Không áp dụng")}
-            ${detail("Tiến độ", `${Number(task.progress || 0)}%`)}
-            ${detail("Hạn xử lý", String(task.deadlineMode || "").toUpperCase() === "EVENT_DRIVEN" ? "Theo từng lượt phát sinh" : formatDate(task._deadline || task.deadline))}
-            ${detail("Loại công việc", task.workType === "DOT_XUAT" ? "Đột xuất" : "Thường xuyên")}
-            ${detail("Cách theo dõi", trackingModeLabel(task))}
-            ${detail("Điểm chuẩn", numberVi(task.baseScore || 0))}
-            ${detail("Hệ số độ khó", coefficientLabel(task.difficultyCoefficient))}
+          <div class="detail-grid task-detail-summary task-detail-summary-compact">
+            ${detail("Người thực hiện", ownerDisplayName(task))}
+            ${detail("Trạng thái", statusName(task))}
+            ${detail("Hạn hoàn thành", String(task.deadlineMode || "").toUpperCase() === "EVENT_DRIVEN" ? "Theo từng lượt phát sinh" : formatDate(task._deadline || task.deadline))}
+            ${detail("Tiến độ", taskProgressDisplay(task))}
+            ${task.teamId ? detail("Tổ/Nhóm", teamLabel(task.teamId)) : ""}
             ${detail("Điểm tối đa", numberVi(task.maximumConvertedScore || 0))}
           </div>
           <section class="detail-section"><h3>Nội dung thực hiện</h3><p>${escapeHtml(task.description || "Chưa có nội dung chi tiết.")}</p></section>
@@ -662,7 +662,7 @@ export async function openTaskDetailModal(task, { onSaved }) {
             <div><span>Rõ sản phẩm</span><strong>${escapeHtml(task.sixClearDirective?.product || task.expectedOutput || "Chưa ghi")}</strong></div>
             <div><span>Rõ kết quả</span><strong>${escapeHtml(task.sixClearDirective?.result || task.resultRequirement || "Chưa ghi")}</strong></div>
           </div></section>` : ""}
-          ${isSelfRegisteredTask(task) ? `<div class="info-banner"><strong>Đầu việc do chính người đăng ký thực hiện</strong><span>Đầu việc đăng ký kế hoạch không được phân công lại cho người khác.</span></div>` : ""}${mayAssign ? `<section class="detail-section"><h3>Phân công nội bộ</h3><div class="inline-form assignment-inline-form">
+          ${mayAssign ? `<section class="detail-section"><h3>Phân công nội bộ</h3><div class="inline-form assignment-inline-form">
             <select id="assignTeam"><option value="">— Không chọn Tổ/Nhóm —</option>${teams.map(team => `<option value="${escapeHtml(team.id)}" ${team.id === normalizeTeamId(task.teamId) ? "selected" : ""}>${escapeHtml(team.label)}</option>`).join("")}</select>
             <select id="assignOwner"><option value="">— Chưa phân công cá nhân —</option></select>
             <button id="assignTaskButton" class="secondary-button" type="button">Lưu phân công</button>
@@ -672,13 +672,11 @@ export async function openTaskDetailModal(task, { onSaved }) {
         <section class="task-detail-tab-panel" data-task-panel="progress">
           ${isOwner && !accepted && !completed ? '<div class="info-banner">Bạn cần xác nhận đã nhận nhiệm vụ trước khi cập nhật tiến độ, kết quả hoặc minh chứng.</div>' : ""}
           ${isItemizedTask(task) ? `<section class="detail-section task-work-items-section">
-            <div class="detail-section-heading"><div><h3>${String(task.deadlineMode || "").toUpperCase() === "EVENT_DRIVEN" ? "Lượt công việc phát sinh thực tế" : labels.name}</h3><p>${String(task.deadlineMode || "").toUpperCase() === "EVENT_DRIVEN" ? "Kế hoạch được duyệt trước mà chưa gắn ngày hạn. Mỗi khi có yêu cầu thực tế, hãy ghi nhận một lượt và bắt buộc nhập Hạn hoàn thành cụ thể cho lượt đó." : "Mỗi văn bản/lượt được chấm riêng; hệ thống tính trung bình, quy về mức 100%–80%–60%–0% rồi mới áp dụng Phụ lục 04."}</p></div>${canEditWorkItems ? `<button id="addWorkItemButton" class="primary-button compact-button" type="button">+ ${String(task.deadlineMode || "").toUpperCase() === "EVENT_DRIVEN" ? "Ghi nhận việc phát sinh" : labels.add}</button>` : ""}</div>
-            ${String(task.deadlineMode || "").toUpperCase() === "EVENT_DRIVEN" ? `<div class="info-banner event-driven-deadline-banner"><strong>Deadline được nhập khi việc thực tế phát sinh</strong><span>Không dùng ngày cuối kỳ làm hạn. Mỗi lượt phải có Ngày phát sinh/Ngày giao và Hạn hoàn thành riêng trước khi lưu.</span></div>` : ""}
-            ${scoringMethodHtml(task)}
+            <div class="detail-section-heading"><div><h3>${String(task.deadlineMode || "").toUpperCase() === "EVENT_DRIVEN" ? "Các lượt phát sinh" : labels.name}</h3></div>${canEditWorkItems ? `<button id="addWorkItemButton" class="primary-button compact-button" type="button">+ ${String(task.deadlineMode || "").toUpperCase() === "EVENT_DRIVEN" ? "Ghi nhận phát sinh" : labels.add}</button>` : ""}</div>
             <div id="taskNoOccurrence">${noOccurrenceHtml(task, workItems, isOwner)}</div>
             <div id="taskWorkItemSummary">${workItemSummaryHtml(workItems, task)}</div>
             <div id="taskWorkItemList">${workItemRows(workItems, canEditWorkItems, task, evidenceFiles)}</div>
-          </section>` : `<div class="info-banner final-output-banner"><strong>Đánh giá trực tiếp theo Phụ lục 04</strong><span>Đầu việc có một sản phẩm cuối cùng và áp dụng trực tiếp các mức 100%–80%–60%–0% của Phụ lục 04.</span></div>`}
+          </section>` : ``}
         </section>
 
         <section class="task-detail-tab-panel" data-task-panel="adjustment">
@@ -687,8 +685,6 @@ export async function openTaskDetailModal(task, { onSaved }) {
 
         <section class="task-detail-tab-panel" data-task-panel="evaluation">
           <div class="detail-grid task-evaluation-summary">
-            ${detail("Điểm chuẩn", numberVi(task.baseScore || 0))}
-            ${detail("Hệ số độ khó", coefficientLabel(task.difficultyCoefficient))}
             ${detail("Điểm tối đa", numberVi(task.maximumConvertedScore || 0))}
             ${detail("Trạng thái chấm điểm", scoringStatusName(task.scoringStatus))}
             ${detail("Điểm tự đánh giá", numberVi(task.selfActualScore))}
@@ -927,6 +923,15 @@ export async function openTaskDetailModal(task, { onSaved }) {
   });
 }
 
+function taskProgressDisplay(task) {
+  if (String(task?.deadlineMode || "").toUpperCase() !== "EVENT_DRIVEN") return `${Number(task?.progress || 0)}%`;
+  const total = Math.max(0, Number(task?.eventWorkItemCount || 0));
+  const eligible = Math.max(0, Number(task?.eventEligibleCount || 0));
+  if (!total) return "Chưa phát sinh";
+  if (!eligible) return `${total} lượt · chưa đến hạn`;
+  return `${Number(task?.eventProgressRate ?? 0)}%`;
+}
+
 function detail(label, value) {
   return `<div class="detail-item"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`;
 }
@@ -936,6 +941,7 @@ function statusName(task) {
   if (String(task.noOccurrenceStatus || "").toUpperCase() === "CONFIRMED") return "Không phát sinh";
   if (task._overdue) return "Trễ hạn";
   if (task._completed) return "Hoàn thành";
+  if (String(task.deadlineMode || "").toUpperCase() === "EVENT_DRIVEN") return "Theo dõi phát sinh";
   const map = {
     CHO_PHONG_KHU_TIEP_NHAN: "Chờ Phòng/Khu tiếp nhận",
     CHO_PHAN_CONG: "Phòng/Khu đã nhận — Chờ phân công",
@@ -974,6 +980,7 @@ function logActionName(action) {
     TASK_PERSONAL_ACCEPTED: "Cá nhân xác nhận đã nhận",
     TASK_UPDATED: "Cập nhật nhiệm vụ",
     TASK_COMPLETED: "Hoàn thành nhiệm vụ",
+    TASK_MILESTONE_COMPLETED: "Hoàn thành mốc công việc",
     TASK_ADJUSTMENT_REQUESTED: "Gửi đề nghị điều chỉnh",
     TASK_ADJUSTMENT_APPROVED: "Duyệt điều chỉnh",
     TASK_ADJUSTMENT_REJECTED: "Không chấp thuận điều chỉnh",

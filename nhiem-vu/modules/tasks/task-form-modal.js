@@ -6,15 +6,15 @@
  * - Có chọn Tổ/Nhóm: bắt buộc chọn đúng một cá nhân thuộc Tổ/Nhóm đó.
  * - Phòng/Khu phối hợp chỉ theo dõi, không phải tiếp nhận/phân công.
  */
-import { UserContext } from "../../core/user-context.js?v=20260825.V1_16_1";
-import { Permissions } from "../../core/permissions.js?v=20260825.V1_16_1";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260825.V1_16_1";
-import { DirectorTaskService } from "../../services/director-task-service.js?v=20260825.V1_16_1";
-import { UserReadService } from "../../services/user-read-service.js?v=20260825.V1_16_1";
-import { DepartmentReadService } from "../../services/department-read-service.js?v=20260825.V1_16_1";
-import { validateTaskCreateInput, cleanTaskSentence } from "./task-form-validator.js?v=20260825.V1_16_1";
-import { mountTaskAiAssistant } from "../../ai-assistant.js?v=20260825.V1_16_1";
-import { ToastService } from "../../core/toast-service.js?v=20260825.V1_16_1";
+import { UserContext } from "../../core/user-context.js?v=20260825.V1_17_0";
+import { Permissions } from "../../core/permissions.js?v=20260825.V1_17_0";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260825.V1_17_0";
+import { DirectorTaskService } from "../../services/director-task-service.js?v=20260825.V1_17_0";
+import { UserReadService } from "../../services/user-read-service.js?v=20260825.V1_17_0";
+import { DepartmentReadService } from "../../services/department-read-service.js?v=20260825.V1_17_0";
+import { validateTaskCreateInput, cleanTaskSentence } from "./task-form-validator.js?v=20260825.V1_17_0";
+import { mountTaskAiAssistant } from "../../ai-assistant.js?v=20260825.V1_17_0";
+import { ToastService } from "../../core/toast-service.js?v=20260825.V1_17_0";
 
 const DIRECT_TASK_BASE_SCORE = 12;
 const DIFFICULTY_OPTIONS = Object.freeze([
