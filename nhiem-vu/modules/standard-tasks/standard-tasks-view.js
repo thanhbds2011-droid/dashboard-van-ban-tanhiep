@@ -1,11 +1,11 @@
-import { UserContext } from "../../core/user-context.js?v=20260825.V1_16_1";
-import { Permissions } from "../../core/permissions.js?v=20260825.V1_16_1";
-import { ToastService } from "../../core/toast-service.js?v=20260825.V1_16_1";
-import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260825.V1_16_1";
-import { PeriodReadService } from "../../services/period-read-service.js?v=20260825.V1_16_1";
-import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260825.V1_16_1";
-import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260825.V1_16_1";
-import { deriveDeadlinePlan, deadlineRuleDescription, requiresManualDeadline, isEventDrivenFrequency, canonicalFrequency, STANDARD_FREQUENCIES, WEEKDAY_OPTIONS } from "../../core/deadline-engine.js?v=20260825.V1_16_1";
+import { UserContext } from "../../core/user-context.js?v=20260825.V1_17_0";
+import { Permissions } from "../../core/permissions.js?v=20260825.V1_17_0";
+import { ToastService } from "../../core/toast-service.js?v=20260825.V1_17_0";
+import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260825.V1_17_0";
+import { PeriodReadService } from "../../services/period-read-service.js?v=20260825.V1_17_0";
+import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260825.V1_17_0";
+import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260825.V1_17_0";
+import { deriveDeadlinePlan, deadlineRuleDescription, requiresManualDeadline, isEventDrivenFrequency, canonicalFrequency, STANDARD_FREQUENCIES, WEEKDAY_OPTIONS } from "../../core/deadline-engine.js?v=20260825.V1_17_0";
 
 let currentCatalogAccess = {
   canManage: false,
@@ -70,7 +70,7 @@ export async function renderStandardTasksView(outlet) {
         <div>
           <h2>${registrationMode ? "Đăng ký kế hoạch công việc" : "Danh mục công việc"}</h2>
           <p>${registrationMode
-            ? "Danh mục Phòng/Khu và Chi đoàn được tách riêng; đầu việc đã gửi tự chuyển sang cột Đã đăng ký."
+            ? "Chọn các đầu việc thực hiện trong kỳ."
             : "Tra cứu danh mục công việc theo vị trí việc làm."}</p>
         </div>
         <div class="standard-task-header-actions">
@@ -82,10 +82,9 @@ export async function renderStandardTasksView(outlet) {
       </div>
 
       <div class="info-banner standard-task-period-banner">
-        <span>Đơn vị chính: <strong>${escapeHtml(user.departmentId || "Toàn hệ thống")}</strong></span>
-        <span>${period ? `Kỳ hiện tại: <strong>${escapeHtml(period.name || period.id)}</strong>` : "<strong>Chưa có kỳ hoạt động.</strong>"}</span>
-        ${workspaceIds.map(id => `<span>${escapeHtml(workspaceName(id))}: <strong>${workspacePlans[id]?.locked === true ? "Đã khóa" : "Đang mở"}</strong></span>`).join("")}
-        ${catalogAccess.canCreate ? `<span>Quyền thêm danh mục: <strong>${catalogAccess.isDepartmentHead ? "Trưởng phòng" : catalogAccess.isDepartmentDeputy ? "Phó Trưởng phòng" : catalogAccess.isCdtnCatalogManager ? "Ban Chấp hành Chi đoàn" : "Được ủy quyền"}</strong></span>` : ""}
+        ${registrationMode
+          ? `<span><strong>${period ? escapeHtml(period.name || period.id) : "Chưa có kỳ hoạt động"}</strong></span><span>${period ? (workspacePlans[userDepartmentId]?.locked === true ? "Đã khóa đăng ký" : "Đang mở đăng ký") : ""}</span>`
+          : `<span>Đơn vị chính: <strong>${escapeHtml(user.departmentId || "Toàn hệ thống")}</strong></span><span>${period ? `Kỳ hiện tại: <strong>${escapeHtml(period.name || period.id)}</strong>` : "<strong>Chưa có kỳ hoạt động.</strong>"}</span>`}
       </div>
 
       <div class="summary-grid compact-grid standard-task-summary">
@@ -298,7 +297,6 @@ function renderRegistrationWorkspace(items, registeredMap, registrationOpen, cat
         <div class="registration-column-icon" aria-hidden="true">📚</div>
         <div>
           <h3>Danh mục công việc</h3>
-          <p>Danh mục luôn hiển thị đầy đủ; nhiều người có thể đăng ký cùng một đầu việc.</p>
         </div>
         <span class="registration-column-count">${items.length}</span>
       </header>
@@ -319,7 +317,6 @@ function renderRegistrationWorkspace(items, registeredMap, registrationOpen, cat
         <div class="registration-column-icon" aria-hidden="true">✅</div>
         <div>
           <h3>Đăng ký của tôi</h3>
-          <p>Theo dõi nhanh các đầu việc chính bạn đã đăng ký trong kỳ.</p>
         </div>
         <span class="registration-column-count">${registeredItems.length}</span>
       </header>
@@ -343,7 +340,7 @@ function renderAvailableTask(item, registrationOpen, catalogAccess) {
     <div class="data-row-main">
       <strong>${escapeHtml(item.code || item.id)} — ${escapeHtml(item.name || "")}</strong>
       <small>${escapeHtml(item.outputRequirement || "")}</small>
-      <div class="standard-task-tags">${workTypeBadge(item)}${trackingModeBadge(item)}${workItemTypeBadge(item)}${classificationBadge(item)}${audienceBadge(item)}${item.frequency ? `<span class="status-pill neutral">${escapeHtml(item.frequency)}</span>` : ""}${deadlineBadge(item)}</div>
+      <div class="standard-task-tags">${workTypeBadge(item)}${item.frequency ? `<span class="status-pill neutral">${escapeHtml(item.frequency)}</span>` : ""}</div>
       ${registrationEligible ? "" : '<small class="registration-restriction">Đầu việc này chỉ hiển thị để tra cứu; vai trò hiện tại không thuộc đối tượng đăng ký.</small>'}
     </div>
     <div class="data-row-meta">
@@ -381,7 +378,7 @@ function renderRegisteredTask(item, registration, registrationOpen, catalogAcces
     <div class="data-row-main">
       <strong>${escapeHtml(item.code || item.id)} — ${escapeHtml(item.name || "")}</strong>
       <small>${escapeHtml(item.outputRequirement || "")}</small>
-      <div class="standard-task-tags">${workTypeBadge(item)}${trackingModeBadge(item)}${workItemTypeBadge(item)}${classificationBadge(item)}${audienceBadge(item)}${item.frequency ? `<span class="status-pill neutral">${escapeHtml(item.frequency)}</span>` : ""}${deadlineBadge(item)}</div>
+      <div class="standard-task-tags">${workTypeBadge(item)}${item.frequency ? `<span class="status-pill neutral">${escapeHtml(item.frequency)}</span>` : ""}</div>
       ${registration?.rejectionReason ? `<small class="text-danger">Lý do trả lại: ${escapeHtml(registration.rejectionReason)}</small>` : ""}
     </div>
     <div class="data-row-meta">
