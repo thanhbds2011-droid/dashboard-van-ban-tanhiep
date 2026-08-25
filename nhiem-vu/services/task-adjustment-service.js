@@ -2,12 +2,12 @@
  * Quy trình đề nghị và phê duyệt điều chỉnh nhiệm vụ.
  * Không chuyển điểm giữa nhân sự; mọi thay đổi được lưu trong kpiAdjustments và taskLogs.
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_15_0";
-import { UserContext } from "../core/user-context.js?v=20260824.V1_15_0";
-import { TaskLogService } from "./task-log-service.js?v=20260824.V1_15_0";
-import { TaskNotificationService } from "./task-notification-service.js?v=20260824.V1_15_0";
-import { TaskMilestoneService } from "./task-milestone-service.js?v=20260824.V1_15_0";
-import { daysInMonth, deadlineDateFromKey } from "../core/deadline-engine.js?v=20260824.V1_15_0";
+import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_16_0";
+import { UserContext } from "../core/user-context.js?v=20260824.V1_16_0";
+import { TaskLogService } from "./task-log-service.js?v=20260824.V1_16_0";
+import { TaskNotificationService } from "./task-notification-service.js?v=20260824.V1_16_0";
+import { TaskMilestoneService } from "./task-milestone-service.js?v=20260824.V1_16_0";
+import { daysInMonth, deadlineDateFromKey } from "../core/deadline-engine.js?v=20260824.V1_16_0";
 
 const COLLECTION = "kpiAdjustments";
 const TYPES = Object.freeze({
@@ -65,6 +65,10 @@ function logRef() {
 
 function monthlyTask(task) {
   return String(task?.milestoneMode || "").toUpperCase() === "MONTHLY";
+}
+
+function dailyOrWeeklyTask(task) {
+  return ["DAILY", "WEEKLY"].includes(String(task?.milestoneMode || "").toUpperCase());
 }
 
 function adjustedMonthDateKey(existingDateKey, newDay) {
@@ -132,6 +136,9 @@ function proposedSnapshot(task, data, type) {
   const description = clean(data.description || task.description, 5000);
   const adjustedWorkload = clean(data.adjustedWorkload, 1000);
   const deadlineDateKey = validDateKey(data.deadlineDateKey);
+  if (dailyOrWeeklyTask(task) && deadlineDateKey && deadlineDateKey !== task.deadlineDateKey) {
+    throw new Error("Đầu việc Theo ngày/Theo tuần dùng quy tắc mốc tự động trong cả kỳ. Không thể đổi chỉ ngày mốc cuối; hãy điều chỉnh chu kỳ/thời hạn ở danh mục cho kỳ tiếp theo để tránh làm sai toàn bộ các mốc đã duyệt.");
+  }
   if (monthlyTask(task) && deadlineDateKey && deadlineDateKey !== task.deadlineDateKey) {
     const currentFinal = validDateKey(task.deadlineDateKey);
     if (!currentFinal || deadlineDateKey.slice(0, 7) !== currentFinal.slice(0, 7)) {

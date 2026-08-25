@@ -1,11 +1,11 @@
-import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_15_0";
-import { UserContext } from "../core/user-context.js?v=20260824.V1_15_0";
-import { Permissions } from "../core/permissions.js?v=20260824.V1_15_0";
-import { TaskLogService } from "./task-log-service.js?v=20260824.V1_15_0";
-import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260824.V1_15_0";
-import { PeriodReadService } from "./period-read-service.js?v=20260824.V1_15_0";
-import { APP_VERSION } from "../core/app-version.js?v=20260824.V1_15_0";
-import { deriveDeadlinePlan, deadlineDateFromKey, isDateKey, requiresManualDeadline, isEventDrivenFrequency } from "../core/deadline-engine.js?v=20260824.V1_15_0";
+import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_16_0";
+import { UserContext } from "../core/user-context.js?v=20260824.V1_16_0";
+import { Permissions } from "../core/permissions.js?v=20260824.V1_16_0";
+import { TaskLogService } from "./task-log-service.js?v=20260824.V1_16_0";
+import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260824.V1_16_0";
+import { PeriodReadService } from "./period-read-service.js?v=20260824.V1_16_0";
+import { APP_VERSION } from "../core/app-version.js?v=20260824.V1_16_0";
+import { deriveDeadlinePlan, deadlineDateFromKey, isDateKey, requiresManualDeadline, isEventDrivenFrequency, canonicalFrequency } from "../core/deadline-engine.js?v=20260824.V1_16_0";
 
 const clean = value => String(value ?? "").trim();
 const upper = value => clean(value).toUpperCase();
@@ -429,18 +429,16 @@ async function hydrateRegistrationForApproval(registration, options = {}, contex
   }
   result.manualDeadlineDateKey = manualDeadlineDateKey;
 
-  if (isEventDrivenFrequency(result.frequency)) {
-    if (clean(result.frequency) !== "Khi phát sinh") {
-      result.frequency = "Khi phát sinh";
-      recovered = true;
-      recoverySources.push("EVENT_DRIVEN_FREQUENCY_CANONICAL");
-    }
-    if (String(result.trackingMode || "").toUpperCase() !== "ITEMIZED" || String(result.workItemType || "").toUpperCase() !== "GENERIC") {
-      result.trackingMode = "ITEMIZED";
-      result.workItemType = "GENERIC";
-      recovered = true;
-      recoverySources.push("EVENT_DRIVEN_TRACKING_MODE");
-    }
+  const canonicalFrequencyValue = canonicalFrequency(result.frequency);
+  if (canonicalFrequencyValue && clean(result.frequency) !== canonicalFrequencyValue) {
+    result.frequency = canonicalFrequencyValue;
+    recovered = true;
+    recoverySources.push("FREQUENCY_CANONICAL");
+  }
+  if (isEventDrivenFrequency(result.frequency) && String(result.trackingMode || "").toUpperCase() !== "ITEMIZED") {
+    result.trackingMode = "ITEMIZED";
+    recovered = true;
+    recoverySources.push("EVENT_DRIVEN_TRACKING_MODE");
   }
 
   const plan = registrationDeadlinePlan(result);
@@ -565,7 +563,7 @@ function taskPayload(registration, reviewer, options = {}) {
   const deadlinePlan = registrationDeadlinePlan(registration);
   const milestoneMode = deadlinePlan.eventDriven === true
     ? "EVENT_DRIVEN"
-    : (deadlinePlan.milestoneDateKeys.length ? "MONTHLY" : "NONE");
+    : (deadlinePlan.recurringKind || (deadlinePlan.milestoneDateKeys.length ? "MONTHLY" : "NONE"));
   return {
     code,
     deadlinePlan,
@@ -606,7 +604,7 @@ function taskPayload(registration, reviewer, options = {}) {
       deadlineDateKey: deadlinePlan.deadlineDateKey,
       deadlineMode: deadlinePlan.deadlineMode,
       eventDrivenDeadline: deadlinePlan.eventDriven === true,
-      frequency: registration.frequency || "",
+      frequency: canonicalFrequency(registration.frequency) || registration.frequency || "",
       completionDeadline: registration.completionDeadline || "",
       milestoneMode,
       milestoneCount: deadlinePlan.milestoneDateKeys.length,
@@ -623,9 +621,7 @@ function taskPayload(registration, reviewer, options = {}) {
       trackingMode: deadlinePlan.eventDriven === true
         ? "ITEMIZED"
         : (String(registration.trackingMode || "FINAL_OUTPUT").toUpperCase() === "ITEMIZED" ? "ITEMIZED" : "FINAL_OUTPUT"),
-      workItemType: deadlinePlan.eventDriven === true
-        ? "GENERIC"
-        : String(registration.workItemType || "GENERIC").toUpperCase(),
+      workItemType: String(registration.workItemType || "GENERIC").toUpperCase(),
       quantityUnit: String(registration.quantityUnit || "").trim(),
       confirmer: reviewer.fullName || "",
       scoringVersion: "KPI_2026_V1_13",
@@ -895,8 +891,8 @@ export const TaskRegistrationService = Object.freeze({
         periodName: period.name || period.id,
         periodStartDate: period.startDate || "",
         periodEndDate: period.endDate || "",
-        frequency: deadlinePlan.mode === "EVENT_DRIVEN" ? "Khi phát sinh" : (item.frequency || ""),
-        completionDeadline: deadlinePlan.mode === "EVENT_DRIVEN" ? "" : (item.completionDeadline || ""),
+        frequency: canonicalFrequency(item.frequency) || (deadlinePlan.mode === "EVENT_DRIVEN" ? "Khi phát sinh" : (item.frequency || "")),
+        completionDeadline: deadlinePlan.mode === "EVENT_DRIVEN" ? "" : deadlinePlan.completionDeadline,
         deadlineMode: deadlinePlan.mode,
         deadlineDateKey: deadlinePlan.deadlineDateKey,
         milestoneDateKeys: deadlinePlan.milestoneDateKeys,
@@ -931,9 +927,7 @@ export const TaskRegistrationService = Object.freeze({
         trackingMode: deadlinePlan.mode === "EVENT_DRIVEN"
           ? "ITEMIZED"
           : (String(item.trackingMode || "FINAL_OUTPUT").toUpperCase() === "ITEMIZED" ? "ITEMIZED" : "FINAL_OUTPUT"),
-        workItemType: deadlinePlan.mode === "EVENT_DRIVEN"
-          ? "GENERIC"
-          : String(item.workItemType || "GENERIC").toUpperCase(),
+        workItemType: String(item.workItemType || "GENERIC").toUpperCase(),
         quantityUnit: String(item.quantityUnit || "").trim(),
         status: "PENDING",
         taskId: null,

@@ -1,13 +1,13 @@
 /** Tạo, phân công, tiếp nhận, cập nhật tiến độ và hoàn thành nhiệm vụ. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_15_0";
-import { UserContext } from "../core/user-context.js?v=20260824.V1_15_0";
-import { Permissions } from "../core/permissions.js?v=20260824.V1_15_0";
-import { TaskLogService } from "./task-log-service.js?v=20260824.V1_15_0";
-import { TaskWorkItemService } from "./task-work-item-service.js?v=20260824.V1_15_0";
-import { PeriodReadService } from "./period-read-service.js?v=20260824.V1_15_0";
-import { TaskNotificationService } from "./task-notification-service.js?v=20260824.V1_15_0";
-import { APP_VERSION, BUILD_VERSION } from "../core/app-version.js?v=20260824.V1_15_0";
-import { deadlineDateFromKey, isDateKey } from "../core/deadline-engine.js?v=20260824.V1_15_0";
+import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_16_0";
+import { UserContext } from "../core/user-context.js?v=20260824.V1_16_0";
+import { Permissions } from "../core/permissions.js?v=20260824.V1_16_0";
+import { TaskLogService } from "./task-log-service.js?v=20260824.V1_16_0";
+import { TaskWorkItemService } from "./task-work-item-service.js?v=20260824.V1_16_0";
+import { PeriodReadService } from "./period-read-service.js?v=20260824.V1_16_0";
+import { TaskNotificationService } from "./task-notification-service.js?v=20260824.V1_16_0";
+import { APP_VERSION, BUILD_VERSION } from "../core/app-version.js?v=20260824.V1_16_0";
+import { deadlineDateFromKey, isDateKey } from "../core/deadline-engine.js?v=20260824.V1_16_0";
 
 const TASK_WRITE_BUILD_VERSION = BUILD_VERSION;
 const MAX_CODE_SCAN = 1000;
@@ -683,8 +683,8 @@ export const TaskWriteService = Object.freeze({
     if (!["DANG_XU_LY", "TAM_DUNG", "HOAN_THANH"].includes(status)) {
       throw new Error("Trạng thái cập nhật chưa hợp lệ.");
     }
-    if (String(task.milestoneMode || "").toUpperCase() === "MONTHLY" && status === "HOAN_THANH") {
-      throw new Error("Nhiệm vụ Theo tháng chỉ kết thúc sau khi hoàn thành mốc cuối cùng.");
+    if (["DAILY", "WEEKLY", "MONTHLY"].includes(String(task.milestoneMode || "").toUpperCase()) && status === "HOAN_THANH") {
+      throw new Error("Nhiệm vụ định kỳ chỉ kết thúc sau khi hoàn thành mốc cuối cùng.");
     }
 
     const evidenceUrl = changes.evidenceUrl || "";

@@ -6,9 +6,9 @@
  * councilReviewRounds/{periodId}/departments/{departmentId}
  * councilReviewRounds/{periodId}/departments/{departmentId}/requests/{userId}_{targetId}
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_15_0";
-import { UserContext } from "../core/user-context.js?v=20260824.V1_15_0";
-import { Permissions } from "../core/permissions.js?v=20260824.V1_15_0";
+import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_16_0";
+import { UserContext } from "../core/user-context.js?v=20260824.V1_16_0";
+import { Permissions } from "../core/permissions.js?v=20260824.V1_16_0";
 
 const REQUEST_TYPES = Object.freeze(["SCORE", "EVIDENCE", "SCORE_AND_EVIDENCE"]);
 const OPEN_REQUEST_STATUSES = Object.freeze(["OPEN", "RETURNED"]);

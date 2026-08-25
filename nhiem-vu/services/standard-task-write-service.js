@@ -5,12 +5,12 @@
  * - Bí thư, Phó Bí thư và Ủy viên BCH được tạo đầu việc trong phạm vi Chi đoàn.
  * - Quyền tạo, sửa và xóa được tách riêng; Firestore Rules là lớp bảo vệ cuối cùng.
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_15_0";
-import { UserContext } from "../core/user-context.js?v=20260824.V1_15_0";
-import { Permissions } from "../core/permissions.js?v=20260824.V1_15_0";
-import { validateDeadlineConfiguration, isEventDrivenFrequency } from "../core/deadline-engine.js?v=20260824.V1_15_0";
+import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_16_0";
+import { UserContext } from "../core/user-context.js?v=20260824.V1_16_0";
+import { Permissions } from "../core/permissions.js?v=20260824.V1_16_0";
+import { validateDeadlineConfiguration, isEventDrivenFrequency, canonicalFrequency, isStandardFrequency } from "../core/deadline-engine.js?v=20260824.V1_16_0";
 
-const SYNC_VERSION = "20260824.V1_15_0";
+const SYNC_VERSION = "20260824.V1_16_0";
 const MAX_STANDARD_TASK_NAME_LENGTH = 1000;
 const STANDARD_TASK_COLLECTION = "standardTasks";
 const SEQUENCE_COLLECTION = "standardTaskSequences";
@@ -303,11 +303,12 @@ function taskPayload({ data, user, departmentId, code, sequence, existing = fals
   const isManagementTask = data.isManagementTask === true;
   const isCoreTaskDefault = data.isCoreTaskDefault === true;
   const maximumConvertedScore = Math.round(baseScore * difficultyCoefficient * 10) / 10;
-  const eventDriven = isEventDrivenFrequency(data.frequency);
+  const canonicalFrequencyValue = canonicalFrequency(data.frequency);
+  const eventDriven = isEventDrivenFrequency(canonicalFrequencyValue);
   const trackingMode = eventDriven ? "ITEMIZED" : normalizeTrackingMode(data.trackingMode);
-  const workItemType = eventDriven ? "GENERIC" : normalizeWorkItemType(data.workItemType, trackingMode);
+  const workItemType = normalizeWorkItemType(data.workItemType, trackingMode);
   const quantityUnit = workItemType === "QUANTITY" ? clean(data.quantityUnit) : "";
-  const deadlineConfig = validateDeadlineConfiguration(data.frequency, data.completionDeadline);
+  const deadlineConfig = validateDeadlineConfiguration(canonicalFrequencyValue, data.completionDeadline);
   const isCdtn = departmentId === "CDTN";
 
   if (workItemType === "QUANTITY" && !quantityUnit) {
@@ -320,7 +321,7 @@ function taskPayload({ data, user, departmentId, code, sequence, existing = fals
     departmentId,
     organizationId: isCdtn ? "CDTN" : "",
     scopeType: isCdtn ? "ORGANIZATION" : "DEPARTMENT",
-    frequency: eventDriven ? "Khi phát sinh" : clean(data.frequency),
+    frequency: canonicalFrequencyValue,
     completionDeadline: deadlineConfig.completionDeadline,
     deadlineRuleType: deadlineConfig.kind,
     workType,
@@ -542,15 +543,16 @@ export const StandardTaskWriteService = Object.freeze({
       throw new Error(`Tên đầu việc không được vượt quá ${MAX_STANDARD_TASK_NAME_LENGTH} ký tự.`);
     }
     if (!clean(data.outputRequirement)) throw new Error("Hãy nhập kết quả đầu ra hoặc yêu cầu hoàn thành.");
-    if (!clean(data.frequency)) throw new Error("Hãy nhập chu kỳ hoặc tần suất thực hiện.");
+    if (!clean(data.frequency)) throw new Error("Hãy chọn Chu kỳ/Tần suất.");
+    if (!isStandardFrequency(data.frequency)) throw new Error("Chu kỳ/Tần suất phải chọn từ danh sách chuẩn: Theo ngày, Theo tuần, Theo tháng, Theo quý, Theo năm hoặc Khi phát sinh.");
     const audienceType = normalizeAudienceType(data.audienceType, departmentId);
     if (!audienceType) {
       throw new Error(departmentId === "CDTN"
         ? "Hãy chọn Đối tượng áp dụng Chi đoàn."
         : "Hãy chọn Đối tượng áp dụng: ALL_DEPARTMENT hoặc MANAGEMENT.");
     }
-    // Theo tháng/quý/năm phải có cấu hình hạn; các chu kỳ phát sinh/khác nhập deadline cụ thể khi đăng ký/giao.
-    validateDeadlineConfiguration(data.frequency, data.completionDeadline);
+    // Bộ chu kỳ chuẩn dùng đúng một quy tắc deadline thống nhất; Khi phát sinh luôn để trống ở danh mục.
+    validateDeadlineConfiguration(canonicalFrequency(data.frequency), data.completionDeadline);
     if (!clean(data.mandatoryEvidence)) throw new Error("Hãy nhập loại minh chứng bắt buộc.");
     if (!VALID_COEFFICIENTS.some(value => Math.abs(value - difficultyCoefficient) < 0.000001)) {
       throw new Error("Hệ số độ khó chỉ được dùng 100%, 110% hoặc 120%.");

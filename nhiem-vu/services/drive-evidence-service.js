@@ -1,6 +1,6 @@
 /** Tải minh chứng lên Google Drive qua Google Apps Script Web App. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_15_0";
-import { NOTIFICATION_WEB_APP_URL } from "../notification-config.js?v=20260824.V1_15_0";
+import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_16_0";
+import { NOTIFICATION_WEB_APP_URL } from "../notification-config.js?v=20260824.V1_16_0";
 
 const MAX_BYTES = 8 * 1024 * 1024;
 const TIMEOUT_MS = 180000;
@@ -315,6 +315,129 @@ async function performUpload(originalFile, task, options = {}) {
   });
 }
 
+
+async function performTrash(evidence, task, options = {}) {
+  const fileId = String(evidence?.driveFileId || evidence?.fileId || evidence?.storagePath || evidence?.evidenceStoragePath || "").trim();
+  if (!fileId) throw new Error("Không xác định được tệp Google Drive cần gỡ.");
+  if (!NOTIFICATION_WEB_APP_URL || NOTIFICATION_WEB_APP_URL.includes("DAN_LINK_WEB_APP")) {
+    throw new Error("Chưa cấu hình URL Apps Script quản lý minh chứng Google Drive.");
+  }
+  if (!FirebaseService.auth.currentUser || !task?.id) {
+    throw new Error("Phiên đăng nhập hoặc nhiệm vụ không hợp lệ.");
+  }
+
+  const idToken = await FirebaseService.auth.currentUser.getIdToken(false);
+  const currentRequestId = `TASK_TRASH_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+  const pollToken = randomToken();
+  report(options.onProgress, "REMOVING", 10, "Đang gỡ tệp khỏi Google Drive…");
+
+  return new Promise((resolve, reject) => {
+    const frameName = `evidenceTrashFrame_${currentRequestId}`;
+    const iframe = document.createElement("iframe");
+    const form = document.createElement("form");
+    const input = document.createElement("input");
+    const pendingScripts = new Set();
+    const pendingCallbacks = new Set();
+    let settled = false;
+    let pollTimer = null;
+    let pollDelay = 1200;
+    const startedAt = Date.now();
+
+    iframe.name = frameName;
+    iframe.className = "hidden-upload-frame";
+    iframe.setAttribute("aria-hidden", "true");
+    form.method = "POST";
+    form.action = NOTIFICATION_WEB_APP_URL;
+    form.target = frameName;
+    form.acceptCharset = "UTF-8";
+    form.style.display = "none";
+    input.type = "hidden";
+    input.name = "payload";
+    input.value = JSON.stringify({
+      action: "TRASH_TASK_EVIDENCE",
+      requestId: currentRequestId,
+      pollToken,
+      taskId: task.id,
+      taskCode: task.taskCode || "",
+      idToken,
+      fileId
+    });
+    form.appendChild(input);
+
+    const cleanup = () => {
+      window.removeEventListener("message", onMessage);
+      window.clearTimeout(timeoutTimer);
+      window.clearTimeout(pollTimer);
+      pendingScripts.forEach(script => script.remove());
+      pendingCallbacks.forEach(name => { try { delete window[name]; } catch (_) { window[name] = undefined; } });
+      form.remove();
+      iframe.remove();
+    };
+    const finish = callback => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      callback();
+    };
+    const finishFromData = data => {
+      if (data?.ok === true) {
+        report(options.onProgress, "REMOVED", 100, "Đã gỡ tệp khỏi Google Drive.");
+        finish(() => resolve(data));
+      } else {
+        finish(() => reject(new Error(data?.error || "Không gỡ được tệp khỏi Google Drive.")));
+      }
+    };
+    const onMessage = event => {
+      const data = event?.data;
+      if (!data || data.source !== "TASK_EVIDENCE_UPLOAD" || data.requestId !== currentRequestId) return;
+      finishFromData(data);
+    };
+    const poll = () => {
+      if (settled) return;
+      if (Date.now() - startedAt > TIMEOUT_MS) {
+        finish(() => reject(new Error("Quá thời gian gỡ tệp khỏi Google Drive.")));
+        return;
+      }
+      const callbackName = `taskEvidenceTrashCallback_${currentRequestId.replace(/[^A-Za-z0-9_$]/g, "_")}_${Date.now()}`;
+      const script = document.createElement("script");
+      pendingScripts.add(script);
+      pendingCallbacks.add(callbackName);
+      const release = () => {
+        pendingScripts.delete(script);
+        pendingCallbacks.delete(callbackName);
+        script.remove();
+        try { delete window[callbackName]; } catch (_) { window[callbackName] = undefined; }
+      };
+      window[callbackName] = data => {
+        release();
+        if (data?.ready === true) {
+          finishFromData(data);
+          return;
+        }
+        if (!settled) {
+          pollDelay = Math.min(4000, Math.round(pollDelay * 1.4));
+          pollTimer = window.setTimeout(poll, pollDelay);
+        }
+      };
+      script.onerror = () => {
+        release();
+        if (!settled) pollTimer = window.setTimeout(poll, Math.min(4000, Math.round(pollDelay * 1.5)));
+      };
+      script.src = `${NOTIFICATION_WEB_APP_URL}?action=TASK_EVIDENCE_GET_RESULT&requestId=${encodeURIComponent(currentRequestId)}&pollToken=${encodeURIComponent(pollToken)}&callback=${encodeURIComponent(callbackName)}&_=${Date.now()}`;
+      document.head.appendChild(script);
+    };
+
+    window.addEventListener("message", onMessage);
+    const timeoutTimer = window.setTimeout(
+      () => finish(() => reject(new Error("Quá thời gian gỡ tệp khỏi Google Drive."))),
+      TIMEOUT_MS
+    );
+    document.body.append(iframe, form);
+    form.submit();
+    pollTimer = window.setTimeout(poll, 1200);
+  });
+}
+
 export const DriveEvidenceService = Object.freeze({
   validateFile,
   prepare,
@@ -326,5 +449,9 @@ export const DriveEvidenceService = Object.freeze({
     const promise = performUpload(file, task, options).finally(() => activeUploads.delete(key));
     activeUploads.set(key, promise);
     return promise;
+  },
+
+  async trash(evidence, task, options = {}) {
+    return performTrash(evidence, task, options);
   }
 });

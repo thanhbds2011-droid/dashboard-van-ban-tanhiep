@@ -1,10 +1,10 @@
 /**
- * Nhiều tệp minh chứng cho nhiệm vụ KPI - V1.15.0.
+ * Nhiều tệp minh chứng cho nhiệm vụ KPI - V1.16.0.
  * Mỗi tệp là một document riêng để có thể bổ sung dần mà không ghi đè tệp cũ.
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_15_0";
-import { UserContext } from "../core/user-context.js?v=20260824.V1_15_0";
-import { Permissions } from "../core/permissions.js?v=20260824.V1_15_0";
+import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_16_0";
+import { UserContext } from "../core/user-context.js?v=20260824.V1_16_0";
+import { Permissions } from "../core/permissions.js?v=20260824.V1_16_0";
 
 const COLLECTION = "taskEvidenceFiles";
 export const MAX_EVIDENCE_FILES_PER_TASK = 20;
@@ -107,13 +107,26 @@ export const TaskEvidenceService = Object.freeze({
   async addUploadedFiles(task, uploadedFiles = [], options = {}) {
     const user = UserContext.requireUser();
     if (!mayManage(task)) throw new Error("Tài khoản không có quyền bổ sung minh chứng cho nhiệm vụ này.");
-    const files = (uploadedFiles || []).filter(item => item?.fileUrl || item?.evidenceUrl);
-    if (!files.length) return [];
-    if (files.length > MAX_EVIDENCE_FILES_PER_SELECTION) {
+    const candidates = (uploadedFiles || []).filter(item => item?.fileUrl || item?.evidenceUrl);
+    if (!candidates.length) return [];
+    if (candidates.length > MAX_EVIDENCE_FILES_PER_SELECTION) {
       throw new Error(`Mỗi lần chỉ được bổ sung tối đa ${MAX_EVIDENCE_FILES_PER_SELECTION} tệp.`);
     }
 
     const existing = Array.isArray(options.existingFiles) ? options.existingFiles : await this.list(task);
+    // Retry-safe: nếu nghiệp vụ lưu nhiệm vụ lỗi sau khi record minh chứng đã được ghi,
+    // lần bấm Lưu lại không được tạo document trùng cho cùng một file Drive.
+    const existingKeys = new Set((existing || []).map(item =>
+      clean(item?.driveFileId || item?.fileUrl, 2000)
+    ).filter(Boolean));
+    const seen = new Set(existingKeys);
+    const files = candidates.filter(item => {
+      const key = clean(item?.fileId || item?.driveFileId || item?.storagePath || item?.fileUrl || item?.evidenceUrl, 2000);
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    if (!files.length) return [];
     if (existing.length + files.length > MAX_EVIDENCE_FILES_PER_TASK) {
       throw new Error(`Mỗi nhiệm vụ được lưu tối đa ${MAX_EVIDENCE_FILES_PER_TASK} tệp minh chứng. Hiện đã có ${existing.length} tệp.`);
     }

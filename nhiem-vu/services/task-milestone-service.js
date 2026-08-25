@@ -5,10 +5,10 @@
  * Các hạn nội bộ được lưu tại taskMilestones; hoàn thành một mốc không tự kết thúc
  * nhiệm vụ, trừ khi đó là mốc cuối cùng và mọi mốc trước đã hoàn thành.
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_15_0";
-import { UserContext } from "../core/user-context.js?v=20260824.V1_15_0";
-import { TaskLogService } from "./task-log-service.js?v=20260824.V1_15_0";
-import { TaskNotificationService } from "./task-notification-service.js?v=20260824.V1_15_0";
+import { FirebaseService } from "../core/firebase-service.js?v=20260824.V1_16_0";
+import { UserContext } from "../core/user-context.js?v=20260824.V1_16_0";
+import { TaskLogService } from "./task-log-service.js?v=20260824.V1_16_0";
+import { TaskNotificationService } from "./task-notification-service.js?v=20260824.V1_16_0";
 
 function clean(value) {
   return String(value ?? "").trim();
@@ -121,7 +121,7 @@ export const TaskMilestoneService = Object.freeze({
     if (task.ownerUserId !== user.uid) throw new Error("Chỉ người thực hiện nhiệm vụ mới được hoàn thành mốc KPI.");
     if (task.assignmentStatus !== "DA_TIEP_NHAN") throw new Error("Bạn cần xác nhận đã nhận nhiệm vụ trước khi hoàn thành mốc KPI.");
     if (task.active === false || String(task.status || "").toUpperCase() === "HUY") throw new Error("Nhiệm vụ không còn hoạt động.");
-    if (String(task.milestoneMode || "").toUpperCase() !== "MONTHLY") throw new Error("Nhiệm vụ này không sử dụng mốc tiến độ theo tháng.");
+    if (!["DAILY", "WEEKLY", "MONTHLY"].includes(String(task.milestoneMode || "").toUpperCase())) throw new Error("Nhiệm vụ này không sử dụng mốc tiến độ định kỳ.");
 
     const all = await this.list(task);
     const current = this.firstIncomplete(all);
