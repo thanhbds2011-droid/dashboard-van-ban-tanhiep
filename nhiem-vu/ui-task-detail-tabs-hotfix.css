@@ -114,3 +114,16 @@
     grid-column: auto;
   }
 }
+
+/* V1.17.0 — compact task detail */
+.task-detail-modal .task-detail-content,
+.task-detail-modal-content { padding: 20px 24px 24px; }
+.task-detail-modal .detail-summary-grid,
+.task-detail-summary-grid { gap: 12px; }
+.task-detail-modal .detail-summary-card,
+.task-detail-summary-card { min-height: 84px; padding: 14px 16px; }
+.task-detail-modal .task-detail-section + .task-detail-section { margin-top: 22px; }
+@media (max-width: 760px) {
+  .task-detail-modal .task-detail-content,
+  .task-detail-modal-content { padding: 16px; }
+}

@@ -1699,3 +1699,35 @@
   .kpi-milestone-detail { grid-template-columns: 28px minmax(0, 1fr); }
   .kpi-milestone-detail-score { grid-column: 2; text-align: left; }
 }
+
+/* =========================================================
+   V1.17.0 — User-facing UX refinement
+   ========================================================= */
+.kpi-header,
+.page-header { gap: 20px; }
+.kpi-card,
+.page-card { border-radius: 16px; }
+.kpi-card { padding: 20px; }
+.kpi-form-grid { gap: 16px; }
+.kpi-field { gap: 6px; }
+.kpi-field > label { font-size: 13px; }
+.kpi-scope-switch-options { gap: 8px; }
+.kpi-scope-option { min-height: 52px; padding: 9px 14px; }
+.kpi-scope-option small:empty { display:none; }
+.kpi-bonus-box {
+  border: 1px solid #dbe7ef;
+  border-radius: 14px;
+  padding: 14px 16px;
+  background: #f8fbfd;
+}
+.kpi-bonus-fields { margin-top: 12px; display:grid; gap:8px; }
+.kpi-bonus-preview { display:flex; flex-wrap:wrap; gap:8px 12px; align-items:center; padding:10px 12px; border-radius:10px; background:#eef8f1; }
+.kpi-bonus-preview strong { color:#166534; }
+.m01-bonus-row td { background:#fffbea; }
+.m01-bonus-row strong { color:#8a5b00; }
+.realtime-state.kpi-hidden { display:none !important; }
+@media (max-width: 760px) {
+  .kpi-card { padding: 16px; }
+  .kpi-form-grid { gap: 12px; }
+  .kpi-metrics { gap: 10px; }
+}

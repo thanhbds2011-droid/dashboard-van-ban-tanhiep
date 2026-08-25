@@ -91,6 +91,12 @@ export function calculateTaskScore(baseScore, coefficient, progressRate, resultR
   };
 }
 
+export function calculateBonusScore(actualTaskScore, rate = 0.05) {
+  const actual = Math.max(0, Number(actualTaskScore || 0));
+  const bonusRate = Math.max(0, Math.min(Number(rate || 0), 0.05));
+  return round2(actual * bonusRate);
+}
+
 export function calculateKpiSummary(tasks, commonScore) {
   const all = (tasks || []).filter((item) => item.active !== false && item.status !== 'HUY' && item.status !== 'CANCELLED');
   const eligible = all.filter((item) => {
@@ -103,13 +109,15 @@ export function calculateKpiSummary(tasks, commonScore) {
   const recognized = eligible.filter((item) => item.recognized === true);
   const A = round2(plan.reduce((sum, item) => sum + Number(item.maximumConvertedScore || item.maximumScore || 0), 0));
   const B = round2(recognized.reduce((sum, item) => sum + Number(item.confirmedActualScore || 0), 0));
+  const bonusRaw = round2(recognized.reduce((sum, item) => sum + Math.max(0, Number(item.bonusScore || 0)), 0));
   const hasCalculationBasis = A > 0;
   const kpi70 = hasCalculationBasis ? round2(Math.min((B / A) * 70, 70)) : null;
+  const bonus70 = hasCalculationBasis ? round2((bonusRaw / A) * 70) : null;
   const common30 = round2(Math.max(0, Math.min(Number(commonScore || 0), 30)));
-  const total100 = hasCalculationBasis
-    ? round2(Math.min(kpi70 + common30, 100))
-    : null;
-  return { A, B, kpi70, common30, total100, hasCalculationBasis };
+  const baseTotal100 = hasCalculationBasis ? round2(Math.min(kpi70 + common30, 100)) : null;
+  const totalBeforeCap = hasCalculationBasis ? round2(baseTotal100 + Number(bonus70 || 0)) : null;
+  const total100 = hasCalculationBasis ? round2(Math.min(totalBeforeCap, 100)) : null;
+  return { A, B, bonusRaw, bonus70, kpi70, common30, baseTotal100, totalBeforeCap, total100, hasCalculationBasis };
 }
 
 export function parseDate(value) {
