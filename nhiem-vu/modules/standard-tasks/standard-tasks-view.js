@@ -1,11 +1,11 @@
-import { UserContext } from "../../core/user-context.js?v=20260824.V1_15_0";
-import { Permissions } from "../../core/permissions.js?v=20260824.V1_15_0";
-import { ToastService } from "../../core/toast-service.js?v=20260824.V1_15_0";
-import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260824.V1_15_0";
-import { PeriodReadService } from "../../services/period-read-service.js?v=20260824.V1_15_0";
-import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260824.V1_15_0";
-import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260824.V1_15_0";
-import { deriveDeadlinePlan, deadlineRuleDescription, requiresManualDeadline, isEventDrivenFrequency } from "../../core/deadline-engine.js?v=20260824.V1_15_0";
+import { UserContext } from "../../core/user-context.js?v=20260824.V1_16_0";
+import { Permissions } from "../../core/permissions.js?v=20260824.V1_16_0";
+import { ToastService } from "../../core/toast-service.js?v=20260824.V1_16_0";
+import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260824.V1_16_0";
+import { PeriodReadService } from "../../services/period-read-service.js?v=20260824.V1_16_0";
+import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260824.V1_16_0";
+import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260824.V1_16_0";
+import { deriveDeadlinePlan, deadlineRuleDescription, requiresManualDeadline, isEventDrivenFrequency, canonicalFrequency, STANDARD_FREQUENCIES, WEEKDAY_OPTIONS } from "../../core/deadline-engine.js?v=20260824.V1_16_0";
 
 let currentCatalogAccess = {
   canManage: false,
@@ -481,6 +481,49 @@ async function confirmAndRemoveStandardTask(item, button = null, modalRoot = nul
   }
 }
 
+function catalogFrequencyOptions(currentValue = "") {
+  const current = canonicalFrequency(currentValue);
+  const placeholder = current ? "" : `<option value="" selected disabled>Chọn chu kỳ/tần suất chuẩn</option>`;
+  return placeholder + STANDARD_FREQUENCIES.map(value => `<option value="${escapeHtml(value)}" ${current === value ? "selected" : ""}>${escapeHtml(value)}</option>`).join("");
+}
+
+function dayOptions(selected = "", placeholder = "Chọn ngày") {
+  const digits = String(selected || "").replace(/\D/g, "");
+  const normalized = digits ? String(Number(digits)).padStart(2, "0") : "";
+  const first = `<option value="" ${normalized ? "" : "selected"} disabled>${escapeHtml(placeholder)}</option>`;
+  return first + Array.from({ length: 31 }, (_, index) => String(index + 1).padStart(2, "0"))
+    .map(day => `<option value="${day}" ${day === normalized ? "selected" : ""}>Ngày ${day}</option>`).join("");
+}
+
+function yearlyParts(value = "") {
+  const match = /^(\d{1,2})\/(\d{1,2})$/.exec(String(value || "").trim());
+  return { day: match ? String(Number(match[1])).padStart(2, "0") : "", month: match ? String(Number(match[2])).padStart(2, "0") : "" };
+}
+
+function catalogDeadlineControlHtml(frequency, currentValue = "") {
+  const canonical = canonicalFrequency(frequency);
+  if (canonical === "Theo ngày") {
+    return `<input id="catalogDeadlineFixedDisplay" value="Trong ngày" disabled><input id="catalogTaskCompletionDeadline" type="hidden" value="Trong ngày">`;
+  }
+  if (canonical === "Theo tuần") {
+    const current = WEEKDAY_OPTIONS.includes(currentValue) ? currentValue : "";
+    return `<select id="catalogTaskCompletionDeadline"><option value="" ${current ? "" : "selected"} disabled>Chọn thứ hoàn thành</option>${WEEKDAY_OPTIONS.map(value => `<option value="${escapeHtml(value)}" ${value === current ? "selected" : ""}>${escapeHtml(value)}</option>`).join("")}</select>`;
+  }
+  if (canonical === "Theo tháng" || canonical === "Theo quý") {
+    return `<select id="catalogTaskCompletionDeadline">${dayOptions(currentValue, canonical === "Theo tháng" ? "Chọn ngày hằng tháng" : "Chọn ngày tháng cuối quý")}</select>`;
+  }
+  if (canonical === "Theo năm") {
+    const parts = yearlyParts(currentValue);
+    const monthOptions = `<option value="" ${parts.month ? "" : "selected"} disabled>Chọn tháng</option>` + Array.from({ length: 12 }, (_, index) => String(index + 1).padStart(2, "0")).map(month => `<option value="${month}" ${month === parts.month ? "selected" : ""}>Tháng ${month}</option>`).join("");
+    const hiddenValue = parts.day && parts.month ? `${parts.day}/${parts.month}` : "";
+    return `<div class="deadline-year-selects"><select id="catalogDeadlineYearDay">${dayOptions(parts.day, "Chọn ngày")}</select><select id="catalogDeadlineYearMonth">${monthOptions}</select></div><input id="catalogTaskCompletionDeadline" type="hidden" value="${escapeHtml(hiddenValue)}">`;
+  }
+  if (canonical === "Khi phát sinh") {
+    return `<input id="catalogDeadlineFixedDisplay" value="Nhập tại từng lượt phát sinh" disabled><input id="catalogTaskCompletionDeadline" type="hidden" value="">`;
+  }
+  return `<input id="catalogDeadlineFixedDisplay" value="Hãy chọn Chu kỳ/Tần suất" disabled><input id="catalogTaskCompletionDeadline" type="hidden" value="">`;
+}
+
 async function openTaskEditor(item) {
   const editing = Boolean(item?.id);
   if (editing && !mayEditCatalogItem(item)) {
@@ -544,8 +587,8 @@ async function openTaskEditor(item) {
       <label class="kpi-field"><span>Tính chất</span><select id="catalogTaskWorkType"><option value="THUONG_XUYEN" ${currentWorkType === "THUONG_XUYEN" ? "selected" : ""}>Thường xuyên</option><option value="DOT_XUAT" ${currentWorkType === "DOT_XUAT" ? "selected" : ""}>Đột xuất</option></select></label>
       <label class="kpi-field full"><span>Tên đầu việc</span><input id="catalogTaskName" maxlength="1000" value="${escapeHtml(item?.name || "")}" placeholder="Nhập tên đầu việc"><small class="field-help">Tối đa 1.000 ký tự; nội dung được lưu đầy đủ trên Firestore.</small></label>
       <label class="kpi-field full"><span>Kết quả đầu ra/Yêu cầu hoàn thành</span><textarea id="catalogTaskOutput" rows="3" placeholder="Nêu sản phẩm hoặc kết quả phải đạt">${escapeHtml(item?.outputRequirement || "")}</textarea></label>
-      <label class="kpi-field full"><span>Chu kỳ/Tần suất</span><input id="catalogTaskFrequency" value="${escapeHtml(item?.frequency || "")}" placeholder="Ví dụ: Theo tháng, Theo quý, Theo năm, Khi phát sinh"></label>
-      <label class="kpi-field full"><span>Thời hạn hoàn thành</span><input id="catalogTaskCompletionDeadline" value="${escapeHtml(item?.completionDeadline || "")}" placeholder="Theo tháng/quý: 05 hoặc 25 · Theo năm: 31/12 · Khi phát sinh: để trống"><small id="catalogTaskDeadlineHelp" class="field-help">${escapeHtml(deadlineRuleDescription(item?.frequency || "", item?.completionDeadline || ""))}</small></label>
+      <label class="kpi-field full"><span>Chu kỳ/Tần suất</span><select id="catalogTaskFrequency">${catalogFrequencyOptions(item?.frequency || "")}</select><small class="field-help">Chỉ sử dụng bộ giá trị chuẩn toàn hệ thống; không nhập tên chu kỳ tùy ý.</small></label>
+      <label class="kpi-field full"><span>Thời hạn hoàn thành</span><div id="catalogTaskCompletionDeadlineHost">${catalogDeadlineControlHtml(item?.frequency || "", item?.completionDeadline || "")}</div><small id="catalogTaskDeadlineHelp" class="field-help">${escapeHtml(deadlineRuleDescription(item?.frequency || "", item?.completionDeadline || ""))}</small></label>
       <div class="standard-form-section-title full"><span>2</span><div><strong>Cách theo dõi và căn cứ đánh giá</strong><small>Chọn theo sản phẩm cuối cùng hoặc theo nhiều lượt phát sinh trong kỳ.</small></div></div>
       <label class="kpi-field full"><span>Cách theo dõi trong kỳ</span><select id="catalogTaskTrackingMode">
         <option value="FINAL_OUTPUT" ${currentTrackingMode === "FINAL_OUTPUT" ? "selected" : ""}>Theo sản phẩm/kết quả cuối cùng</option>
@@ -596,22 +639,38 @@ async function openTaskEditor(item) {
   const quantityUnitField = document.getElementById("catalogQuantityUnitField");
   const scoringMethodPreview = document.getElementById("catalogScoringMethodPreview");
   const frequencyInput = document.getElementById("catalogTaskFrequency");
-  const completionDeadlineInput = document.getElementById("catalogTaskCompletionDeadline");
+  const deadlineHost = document.getElementById("catalogTaskCompletionDeadlineHost");
   const deadlineHelp = document.getElementById("catalogTaskDeadlineHelp");
 
-  const refreshDeadlineHelp = () => {
-    if (!deadlineHelp) return;
-    const eventDriven = isEventDrivenFrequency(frequencyInput?.value || "");
-    if (completionDeadlineInput) {
-      completionDeadlineInput.disabled = eventDriven;
-      if (eventDriven) completionDeadlineInput.value = "";
+  const currentDeadlineValue = () => document.getElementById("catalogTaskCompletionDeadline")?.value || "";
+
+  const bindDeadlinePartListeners = () => {
+    const hidden = document.getElementById("catalogTaskCompletionDeadline");
+    const day = document.getElementById("catalogDeadlineYearDay");
+    const month = document.getElementById("catalogDeadlineYearMonth");
+    const syncYear = () => {
+      if (hidden && day && month) hidden.value = day.value && month.value ? `${day.value}/${month.value}` : "";
+      if (deadlineHelp) deadlineHelp.textContent = deadlineRuleDescription(frequencyInput?.value || "", currentDeadlineValue());
+    };
+    day?.addEventListener("change", syncYear);
+    month?.addEventListener("change", syncYear);
+    document.getElementById("catalogTaskCompletionDeadline")?.addEventListener("change", () => {
+      if (deadlineHelp) deadlineHelp.textContent = deadlineRuleDescription(frequencyInput?.value || "", currentDeadlineValue());
+    });
+  };
+
+  const refreshDeadlineHelp = ({ rebuild = false } = {}) => {
+    if (rebuild && deadlineHost) {
+      deadlineHost.innerHTML = catalogDeadlineControlHtml(frequencyInput?.value || "", "");
+      bindDeadlinePartListeners();
     }
+    const eventDriven = isEventDrivenFrequency(frequencyInput?.value || "");
     if (eventDriven && trackingModeInput) {
       trackingModeInput.value = "ITEMIZED";
-      if (workItemTypeInput) workItemTypeInput.value = "GENERIC";
+      // Không ép GENERIC: người dùng có thể chọn Công việc / Văn bản-hồ sơ / Hoạt động.
       syncTrackingFields();
     }
-    deadlineHelp.textContent = deadlineRuleDescription(frequencyInput?.value || "", completionDeadlineInput?.value || "");
+    if (deadlineHelp) deadlineHelp.textContent = deadlineRuleDescription(frequencyInput?.value || "", currentDeadlineValue());
   };
 
   const recalculate = () => {
@@ -668,13 +727,12 @@ async function openTaskEditor(item) {
     if (!editing) await syncAudienceFields(true);
   });
   document.getElementById("catalogTaskCoefficient")?.addEventListener("change", recalculate);
-  frequencyInput?.addEventListener("input", refreshDeadlineHelp);
-  frequencyInput?.addEventListener("change", refreshDeadlineHelp);
-  completionDeadlineInput?.addEventListener("input", refreshDeadlineHelp);
+  frequencyInput?.addEventListener("change", () => refreshDeadlineHelp({ rebuild: true }));
   trackingModeInput?.addEventListener("change", syncTrackingFields);
   workItemTypeInput?.addEventListener("change", syncTrackingFields);
   await syncAudienceFields(false);
   syncTrackingFields();
+  bindDeadlinePartListeners();
   refreshDeadlineHelp();
   recalculate();
 
