@@ -1,23 +1,23 @@
-import { auth, db } from '../../firebase-config.js?v=20260824.V1_15_0';
+import { auth, db } from '../../firebase-config.js?v=20260824.V1_16_0';
 import {
   addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, query,
   serverTimestamp, setDoc, Timestamp, updateDoc, where, limit, writeBatch
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
-import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260824.V1_15_0';
-import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260824.V1_15_0';
-import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260824.V1_15_0';
-import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260824.V1_15_0';
-import { PeriodReadService } from '../../services/period-read-service.js?v=20260824.V1_15_0';
-import { TaskReadService } from '../../services/task-read-service.js?v=20260824.V1_15_0';
-import { Permissions } from '../../core/permissions.js?v=20260824.V1_15_0';
-import { UserContext } from '../../core/user-context.js?v=20260824.V1_15_0';
-import { APP_VERSION } from '../../core/app-version.js?v=20260824.V1_15_0';
-import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260824.V1_15_0';
-import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260824.V1_15_0';
+import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260824.V1_16_0';
+import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260824.V1_16_0';
+import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260824.V1_16_0';
+import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260824.V1_16_0';
+import { PeriodReadService } from '../../services/period-read-service.js?v=20260824.V1_16_0';
+import { TaskReadService } from '../../services/task-read-service.js?v=20260824.V1_16_0';
+import { Permissions } from '../../core/permissions.js?v=20260824.V1_16_0';
+import { UserContext } from '../../core/user-context.js?v=20260824.V1_16_0';
+import { APP_VERSION } from '../../core/app-version.js?v=20260824.V1_16_0';
+import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260824.V1_16_0';
+import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260824.V1_16_0';
 import {
   KPI2B as KPI2C, COMMON_CRITERIA, calculateTaskScore, calculateKpiSummary,
   proposedRating, ratingName, round2, progressRateFromDates, convertAppendix04Rate, calculateMilestoneProgress
-} from '../../kpi-engine.js?v=20260824.V1_15_0';
+} from '../../kpi-engine.js?v=20260824.V1_16_0';
 
 export const KpiWorkflowState = {
   user: null,
@@ -2150,7 +2150,7 @@ async function openSelfAssessment(taskId) {
   }
 
   const itemized = String(task.trackingMode || 'FINAL_OUTPUT').toUpperCase() === 'ITEMIZED';
-  const monthly = String(task.milestoneMode || '').toUpperCase() === 'MONTHLY';
+  const recurring = ['DAILY','WEEKLY','MONTHLY'].includes(String(task.milestoneMode || '').toUpperCase());
   let workItems = [];
   let workSummary = null;
   if (itemized) {
@@ -2171,8 +2171,8 @@ async function openSelfAssessment(taskId) {
     }
   }
 
-  let milestoneItems = monthly ? milestonesForTask(task.id) : [];
-  if (monthly && !milestoneItems.length) {
+  let milestoneItems = recurring ? milestonesForTask(task.id) : [];
+  if (recurring && !milestoneItems.length) {
     try {
       milestoneItems = await TaskMilestoneService.list(task);
     } catch (error) {
@@ -2180,14 +2180,14 @@ async function openSelfAssessment(taskId) {
       return;
     }
   }
-  const milestoneSummary = monthly ? calculateMilestoneProgress(milestoneItems, new Date()) : null;
-  if (monthly && !milestoneSummary?.eligibleMilestones) {
+  const milestoneSummary = recurring ? calculateMilestoneProgress(milestoneItems, new Date()) : null;
+  if (recurring && !milestoneSummary?.eligibleMilestones) {
     alert('Chưa có mốc nào đủ điều kiện tính tiến độ: các mốc tương lai chưa hoàn thành sẽ chưa được đưa vào mẫu số.');
     return;
   }
 
   // V1.13.0: tiến độ KPI là dữ liệu hệ thống, người dùng không tự chọn.
-  const automaticProgress = monthly
+  const automaticProgress = recurring
     ? Number(milestoneSummary.appliedProgressRate ?? 0)
     : progressRateFromDates(
         task.deadline || task.dueDate,
@@ -2212,7 +2212,7 @@ async function openSelfAssessment(taskId) {
     <div><span>Kết quả N–T–K tham khảo</span><strong>${fmt(workSummary.actualResultRate)}%</strong></div>
   </div>${incompleteWarning}<p class="kpi-small">N–T–K tiếp tục được lưu để theo dõi chi tiết. Nhân viên chỉ tự chấm <strong>Kết quả áp dụng</strong>; Tiến độ áp dụng không chỉnh thủ công.</p></div>` : '';
 
-  const milestoneSummaryHtml = monthly ? `<div class="kpi-field full kpi-milestone-summary-card">
+  const milestoneSummaryHtml = recurring ? `<div class="kpi-field full kpi-milestone-summary-card">
     <div class="kpi-milestone-score-hero"><div><span>Điểm tiến độ KPI do hệ thống tính</span><strong>${initialProgress}%</strong><small>Tạm tính theo ${milestoneSummary.eligibleMilestones}/${milestoneSummary.totalMilestones} mốc đủ điều kiện.</small></div><div class="kpi-milestone-average"><span>Trung bình trước quy đổi</span><strong>${milestoneSummary.averageRate === null ? '—' : fmt(milestoneSummary.averageRate)}%</strong></div></div>
     <div class="kpi-milestone-rule-note"><strong>Cách tính:</strong> Mốc đã hoàn thành được tính ngay, kể cả hoàn thành sớm. Đúng/sớm hạn = 100%; trễ 1–3 ngày = 80%; trễ 4–5 ngày = 60%; trễ trên 5 ngày = 0%. Mốc chưa hoàn thành và chưa đến hạn chưa tính; mốc đã đến hạn mà chưa hoàn thành = 0%.</div>
     ${milestoneDetailsHtml(milestoneSummary)}
@@ -2223,7 +2223,7 @@ async function openSelfAssessment(taskId) {
     ${milestoneSummaryHtml}
     ${workSummaryHtml}
     <input id="kpiSelfProgress" type="hidden" value="${initialProgress}">
-    <div class="kpi-field"><label>Tiến độ áp dụng</label><div class="kpi-readonly-value"><strong>${initialProgress}%</strong></div><small>${monthly ? 'Tự động từ các mốc đủ điều kiện tính.' : 'Tự động từ hạn hoàn thành và thời điểm hoàn thành theo ngày lịch thực tế.'} Người dùng không được sửa.</small></div>
+    <div class="kpi-field"><label>Tiến độ áp dụng</label><div class="kpi-readonly-value"><strong>${initialProgress}%</strong></div><small>${recurring ? 'Tự động từ các mốc định kỳ đủ điều kiện tính.' : 'Tự động từ hạn hoàn thành và thời điểm hoàn thành theo ngày lịch thực tế.'} Người dùng không được sửa.</small></div>
     <div class="kpi-field"><label>Kết quả áp dụng</label><select id="kpiSelfResult">${appendixRateOptions(initialResult)}</select><small>Đánh giá mức độ hoàn thành yêu cầu công việc. Yếu tố đúng/trễ hạn đã được hệ thống tính riêng ở Tiến độ áp dụng.</small></div>
     <div class="kpi-field full" id="kpiSelfCommentField"><label>Nhận xét kết quả, thành tích và hạn chế <span class="kpi-required-mark">*</span></label><textarea id="kpiSelfComment" rows="5" required aria-describedby="kpiSelfCommentHelp">${esc(ev.selfComment || '')}</textarea><small id="kpiSelfCommentHelp">Bắt buộc. Nêu ngắn gọn kết quả đạt được, hạn chế hoặc căn cứ tự đánh giá.</small><div id="kpiSelfCommentError" class="kpi-inline-field-error" hidden>Vui lòng nhập nhận xét trước khi gửi tự đánh giá.</div></div>
     <div id="kpiSelfFormError" class="kpi-field full kpi-form-error" hidden role="alert"></div>
@@ -2235,7 +2235,7 @@ async function openSelfAssessment(taskId) {
     const x = calculateTaskScore(task.baseScore, task.difficultyCoefficient, el('kpiSelfProgress').value, el('kpiSelfResult').value);
     el('kpiSelfScore').innerHTML = scoreBreakdownHtml(task, x, {
       title: 'Điểm tự đánh giá',
-      actualProgressRate: monthly ? milestoneSummary.averageRate : (itemized ? workSummary.actualProgressRate : x.progressRate),
+      actualProgressRate: recurring ? milestoneSummary.averageRate : (itemized ? workSummary.actualProgressRate : x.progressRate),
       actualResultRate: itemized ? workSummary.actualResultRate : x.resultRate
     });
   };
@@ -2285,9 +2285,9 @@ async function openSelfAssessment(taskId) {
     const evaluationPayload = {
       periodId: KpiWorkflowState.period.id, taskId: task.id, taskCode: task.taskCode || '', ownerUserId: KpiWorkflowState.user.uid, ownerName: KpiWorkflowState.profile.fullName || '', ownerRole: KpiWorkflowState.profile.role || '', departmentId: clean(ev.departmentId) || evaluationScope,
       trackingMode: itemized ? 'ITEMIZED' : 'FINAL_OUTPUT', actualWorkItemCount: itemized ? workSummary.count : null, actualCompletedCount: itemized ? workSummary.completedCount : null, actualOnTimeCount: itemized ? workSummary.onTimeCount : null, actualQualifiedCount: itemized ? workSummary.qualifiedCount : null, actualProgressRate: itemized ? workSummary.actualProgressRate : null, actualResultRate: itemized ? workSummary.actualResultRate : null,
-      progressCalculationMode: monthly ? 'MILESTONE_AUTO' : 'DEADLINE_AUTO',
-      progressMilestoneDueCount: monthly ? milestoneSummary.dueMilestones : null,
-      progressMilestoneAverageRate: monthly ? milestoneSummary.averageRate : null,
+      progressCalculationMode: recurring ? 'MILESTONE_AUTO' : 'DEADLINE_AUTO',
+      progressMilestoneDueCount: recurring ? milestoneSummary.dueMilestones : null,
+      progressMilestoneAverageRate: recurring ? milestoneSummary.averageRate : null,
       progressCalculatedAt: serverTimestamp(),
       selfProgressRate: progress, selfResultRate: result, selfExecutionScore: score.execution, selfActualScore: score.actual, selfComment: comment,
       confirmedProgressRate: null, confirmedResultRate: null, confirmedExecutionScore: null, confirmedActualScore: null, reviewerEmail: reviewer.email, reviewerUserId: reviewer.uid, reviewerName: reviewer.name,
