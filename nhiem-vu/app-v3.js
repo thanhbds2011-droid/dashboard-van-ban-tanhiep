@@ -1,18 +1,23 @@
 /** Ứng dụng quản lý nhiệm vụ và đánh giá KPI. */
-import { Router } from "./core/router.js?v=20260824.V1_16_0";
-import { APP_VERSION_LABEL, BUILD_VERSION } from "./core/app-version.js?v=20260824.V1_16_0";
-import { AuthService } from "./core/auth-service.js?v=20260824.V1_16_0";
-import { Permissions } from "./core/permissions.js?v=20260824.V1_16_0";
-import { ToastService } from "./core/toast-service.js?v=20260824.V1_16_0";
-import { FirebaseService } from "./core/firebase-service.js?v=20260824.V1_16_0";
-import { PeriodReadService } from "./services/period-read-service.js?v=20260824.V1_16_0";
-import { ExecutivePushSubscriptionService } from "./services/executive-push-subscription-service.js?v=20260824.V1_16_0";
-import { ExecutiveInAppAlertService } from "./services/executive-in-app-alert-service.js?v=20260824.V1_16_0";
+import { Router } from "./core/router.js?v=20260825.V1_16_1";
+import { APP_VERSION_LABEL, BUILD_VERSION } from "./core/app-version.js?v=20260825.V1_16_1";
+import { AuthService } from "./core/auth-service.js?v=20260825.V1_16_1";
+import { Permissions } from "./core/permissions.js?v=20260825.V1_16_1";
+import { ToastService } from "./core/toast-service.js?v=20260825.V1_16_1";
+import { FirebaseService } from "./core/firebase-service.js?v=20260825.V1_16_1";
+import { UserContext } from "./core/user-context.js?v=20260825.V1_16_1";
+import { PeriodReadService } from "./services/period-read-service.js?v=20260825.V1_16_1";
+import { ExecutivePushSubscriptionService } from "./services/executive-push-subscription-service.js?v=20260825.V1_16_1";
+import { ExecutiveInAppAlertService } from "./services/executive-in-app-alert-service.js?v=20260825.V1_16_1";
 
 let currentPushUser = null;
 let saveCurrentPushSnapshot = null;
 let stopInAppTaskAlerts = null;
+let activeRouter = null;
+let sessionRecoveryInProgress = false;
+let appLifecycleState = "BOOTSTRAP";
 
+const SESSION_RECOVERY_KEY = `nhiem-vu:session-recovery:${BUILD_VERSION}`;
 const routeModuleCache = new Map();
 
 function lazyRoute(modulePath, exportName) {
@@ -32,17 +37,130 @@ function lazyRoute(modulePath, exportName) {
   };
 }
 
-const renderDashboardView = lazyRoute("./modules/dashboard/dashboard-view.js?v=20260824.V1_16_0", "renderDashboardView");
-const renderExecutiveDirectivesView = lazyRoute("./modules/executive-directives/executive-directives-view.js?v=20260824.V1_16_0", "renderExecutiveDirectivesView");
-const renderTasksView = lazyRoute("./modules/tasks/tasks-view.js?v=20260824.V1_16_0", "renderTasksView");
-const renderStandardTasksView = lazyRoute("./modules/standard-tasks/standard-tasks-view.js?v=20260824.V1_16_0", "renderStandardTasksView");
-const renderPeriodsView = lazyRoute("./modules/periods/periods-view.js?v=20260824.V1_16_0", "renderPeriodsView");
-const renderPlansView = lazyRoute("./modules/plans/plans-view.js?v=20260824.V1_16_0", "renderPlansView");
-const renderEvaluationsView = lazyRoute("./modules/evaluations/evaluations-view.js?v=20260824.V1_16_0", "renderEvaluationsView");
-const renderReportsView = lazyRoute("./modules/reports/reports-view.js?v=20260824.V1_16_0", "renderReportsView");
-const renderAdminView = lazyRoute("./modules/admin/admin-view.js?v=20260824.V1_16_0", "renderAdminView");
+const renderDashboardView = lazyRoute("./modules/dashboard/dashboard-view.js?v=20260825.V1_16_1", "renderDashboardView");
+const renderExecutiveDirectivesView = lazyRoute("./modules/executive-directives/executive-directives-view.js?v=20260825.V1_16_1", "renderExecutiveDirectivesView");
+const renderTasksView = lazyRoute("./modules/tasks/tasks-view.js?v=20260825.V1_16_1", "renderTasksView");
+const renderStandardTasksView = lazyRoute("./modules/standard-tasks/standard-tasks-view.js?v=20260825.V1_16_1", "renderStandardTasksView");
+const renderPeriodsView = lazyRoute("./modules/periods/periods-view.js?v=20260825.V1_16_1", "renderPeriodsView");
+const renderPlansView = lazyRoute("./modules/plans/plans-view.js?v=20260825.V1_16_1", "renderPlansView");
+const renderEvaluationsView = lazyRoute("./modules/evaluations/evaluations-view.js?v=20260825.V1_16_1", "renderEvaluationsView");
+const renderReportsView = lazyRoute("./modules/reports/reports-view.js?v=20260825.V1_16_1", "renderReportsView");
+const renderAdminView = lazyRoute("./modules/admin/admin-view.js?v=20260825.V1_16_1", "renderAdminView");
+
+async function purgeRuntimeCaches() {
+  if (!("caches" in window)) return;
+  try {
+    const keys = await caches.keys();
+    await Promise.all(keys.filter(key => key.startsWith("nhiem-vu-")).map(key => caches.delete(key)));
+  } catch (error) {
+    console.warn("Không xóa được cache phiên cũ:", error);
+  }
+}
+
+async function refreshServiceWorkerRegistration() {
+  if (!("serviceWorker" in navigator)) return;
+  try {
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(registrations
+      .filter(item => String(item.scope || "").includes("/nhiem-vu/"))
+      .map(item => item.update().catch(() => null)));
+  } catch (error) {
+    console.warn("Không kiểm tra được Service Worker khi phục hồi phiên:", error);
+  }
+}
+
+function sessionRecoveryRecord() {
+  try {
+    return JSON.parse(sessionStorage.getItem(SESSION_RECOVERY_KEY) || "null") || null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function saveSessionRecoveryRecord(reason) {
+  try {
+    sessionStorage.setItem(SESSION_RECOVERY_KEY, JSON.stringify({ at: Date.now(), reason }));
+  } catch (_) { /* sessionStorage có thể bị chặn */ }
+}
+
+function clearSessionRecoveryRecord() {
+  try { sessionStorage.removeItem(SESSION_RECOVERY_KEY); } catch (_) { /* no-op */ }
+}
+
+async function recoverSession(reason = "SESSION_MISMATCH") {
+  if (sessionRecoveryInProgress || appLifecycleState === "LOGGING_OUT") return;
+  sessionRecoveryInProgress = true;
+  appLifecycleState = "RECOVERING";
+  activeRouter?.stop();
+  UserContext.beginTransition("RECOVERY");
+
+  const previous = sessionRecoveryRecord();
+  const repeated = previous?.at && Date.now() - Number(previous.at) < 20000;
+  saveSessionRecoveryRecord(reason);
+
+  try {
+    try { stopInAppTaskAlerts?.(); } catch (_) { /* listener đã đóng */ }
+    stopInAppTaskAlerts = null;
+    ExecutiveInAppAlertService.stop();
+    await ExecutivePushSubscriptionService.stop({ deactivate: false }).catch(() => null);
+
+    if (repeated) {
+      // Nếu tự reload một lần vẫn không đồng bộ được, kết thúc phiên sạch để tránh vòng lặp vô hạn.
+      await AuthService.logout();
+      return;
+    }
+
+    await Promise.all([purgeRuntimeCaches(), refreshServiceWorkerRegistration()]);
+    window.location.reload();
+  } catch (error) {
+    console.error("Không phục hồi được phiên đăng nhập:", error);
+    try { await AuthService.logout(); } catch (_) { window.location.replace("./login.html"); }
+  }
+}
+
+async function verifySessionConsistency(reason = "VERIFY") {
+  if (sessionRecoveryInProgress || appLifecycleState !== "READY" || UserContext.isTransitioning()) return true;
+  const contextUid = String(UserContext.getUser()?.uid || "").trim();
+  const authUid = String(FirebaseService.auth.currentUser?.uid || "").trim();
+  if (authUid && contextUid && authUid === contextUid) return true;
+  console.warn("Phát hiện phiên không đồng nhất:", { reason, authUid, contextUid, build: BUILD_VERSION });
+  await recoverSession(reason);
+  return false;
+}
+
+function bindSessionConsistencyGuard() {
+  window.addEventListener("app:session-recovery-needed", event => {
+    void recoverSession(event.detail?.reason || "SESSION_RECOVERY_EVENT");
+  });
+  window.addEventListener("app:auth-transition-start", () => {
+    appLifecycleState = "LOGGING_OUT";
+    activeRouter?.stop();
+  });
+  window.addEventListener("app:bfcache-restored", () => {
+    void verifySessionConsistency("BFCACHE_RESTORED");
+  });
+  window.addEventListener("pageshow", event => {
+    if (event.persisted) void verifySessionConsistency("PAGESHOW_BFCACHE");
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") void verifySessionConsistency("TAB_VISIBLE");
+  });
+}
+
+async function verifyBuildConsistency() {
+  const htmlBuild = String(window.__APP_HTML_BUILD__ || document.querySelector('meta[name="app-build"]')?.content || "").trim();
+  if (!htmlBuild || htmlBuild === BUILD_VERSION) return true;
+  console.warn("Phát hiện mixed release:", { htmlBuild, moduleBuild: BUILD_VERSION });
+  await purgeRuntimeCaches();
+  await refreshServiceWorkerRegistration();
+  window.location.reload();
+  return false;
+}
+
+bindSessionConsistencyGuard();
 
 async function bootstrap() {
+  if (!await verifyBuildConsistency()) return;
   const outlet = document.getElementById("appOutlet");
   if (!outlet) throw new Error("Không tìm thấy vùng hiển thị appOutlet.");
 
@@ -83,7 +201,10 @@ async function bootstrap() {
       "#/admin": renderAdminView
     }
   });
+  activeRouter = router;
   router.start();
+  appLifecycleState = "READY";
+  clearSessionRecoveryRecord();
   ToastService.success("Ứng dụng đã sẵn sàng.", 1800);
 }
 
@@ -128,6 +249,10 @@ function bindLogout() {
   if (!buttons.length) return;
 
   const logout = async () => {
+    if (appLifecycleState === "LOGGING_OUT") return;
+    appLifecycleState = "LOGGING_OUT";
+    activeRouter?.stop();
+    UserContext.beginTransition("LOGOUT");
     buttons.forEach(button => { button.disabled = true; });
     try {
       /* Tắt đúng bản ghi thiết bị của tài khoản hiện tại trước khi Firebase logout. */
@@ -152,8 +277,9 @@ function bindLogout() {
       await AuthService.logout();
     } catch (error) {
       console.error("Logout error:", error);
-      ToastService.error("Không thể đăng xuất. Vui lòng thử lại.");
-      buttons.forEach(button => { button.disabled = false; });
+      ToastService.error("Không thể đăng xuất. Ứng dụng sẽ tải lại phiên hiện tại.");
+      appLifecycleState = "RECOVERING";
+      window.location.reload();
     }
   };
 

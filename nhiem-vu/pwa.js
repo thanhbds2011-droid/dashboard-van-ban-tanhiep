@@ -1,4 +1,4 @@
-import { BUILD_VERSION } from "./core/app-version.js?v=20260824.V1_16_0";
+import { BUILD_VERSION } from "./core/app-version.js?v=20260825.V1_16_1";
 
 let deferredInstallPrompt = null;
 let refreshing = false;
@@ -6,7 +6,9 @@ let registration = null;
 let lastHiddenAt = 0;
 let lastUpdateCheckAt = 0;
 let updateCheckPromise = null;
+let buildRepairing = false;
 const UPDATE_CHECK_MIN_MS = 30 * 60 * 1000;
+const BUILD_MESSAGE_TIMEOUT_MS = 1500;
 
 function isStandalone() { return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true; }
 function isIos() { return /iphone|ipad|ipod/i.test(navigator.userAgent || ""); }
@@ -16,6 +18,62 @@ function setOnlineState() {
   const offline = !navigator.onLine;
   document.body.classList.toggle("is-offline", offline);
   document.getElementById("offlineBanner")?.classList.toggle("hidden", !offline);
+}
+
+async function purgeAppCaches() {
+  if (!("caches" in window)) return;
+  const keys = await caches.keys();
+  await Promise.all(keys.filter(key => key.startsWith("nhiem-vu-")).map(key => caches.delete(key)));
+}
+
+function controllerBuildVersion() {
+  const controller = navigator.serviceWorker?.controller;
+  if (!controller) return Promise.resolve("");
+  return new Promise(resolve => {
+    let timer = null;
+    const onMessage = event => {
+      if (event.data?.type !== "APP_BUILD_VERSION") return;
+      navigator.serviceWorker.removeEventListener("message", onMessage);
+      if (timer) window.clearTimeout(timer);
+      resolve(String(event.data?.buildVersion || ""));
+    };
+    navigator.serviceWorker.addEventListener("message", onMessage);
+    timer = window.setTimeout(() => {
+      navigator.serviceWorker.removeEventListener("message", onMessage);
+      resolve("");
+    }, BUILD_MESSAGE_TIMEOUT_MS);
+    controller.postMessage({ type: "GET_BUILD_VERSION" });
+  });
+}
+
+async function repairMixedBuild(reason = "MIXED_BUILD") {
+  if (buildRepairing) return;
+  buildRepairing = true;
+  console.warn("Đang tự phục hồi bộ nhớ đệm ứng dụng:", reason);
+  try {
+    await purgeAppCaches();
+    const regs = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(regs.filter(reg => String(reg.scope || "").includes("/nhiem-vu/")).map(reg => reg.update().catch(() => null)));
+    const current = regs.find(reg => String(reg.scope || "").includes("/nhiem-vu/"));
+    current?.waiting?.postMessage({ type: "SKIP_WAITING" });
+  } catch (error) {
+    console.warn("Không tự phục hồi được build ứng dụng:", error);
+  }
+  window.setTimeout(() => window.location.reload(), 150);
+}
+
+async function verifyControllerBuild() {
+  const htmlBuild = String(window.__APP_HTML_BUILD__ || document.querySelector('meta[name="app-build"]')?.content || "").trim();
+  if (htmlBuild && htmlBuild !== BUILD_VERSION) {
+    await repairMixedBuild("HTML_MODULE_BUILD_MISMATCH");
+    return false;
+  }
+  const swBuild = await controllerBuildVersion();
+  if (swBuild && swBuild !== BUILD_VERSION) {
+    await repairMixedBuild("SERVICE_WORKER_BUILD_MISMATCH");
+    return false;
+  }
+  return true;
 }
 function showUpdate(reg) {
   const bar = document.getElementById("appUpdateBanner");
@@ -60,6 +118,7 @@ async function registerPwa() {
       window.location.reload();
     });
     await checkForUpdate({ force: true });
+    await verifyControllerBuild();
     window.setInterval(checkForUpdate, UPDATE_CHECK_MIN_MS);
   } catch (error) {
     console.warn("Không đăng ký được chế độ ứng dụng:", error);
@@ -72,9 +131,14 @@ window.addEventListener("appinstalled", () => { deferredInstallPrompt = null; hi
 window.addEventListener("online", () => { setOnlineState(); void checkForUpdate(); });
 window.addEventListener("offline", setOnlineState);
 window.addEventListener("pageshow", event => {
-  /* iOS PWA có thể khôi phục nguyên process từ BFCache. Reload để bootstrap lại quyền/profile. */
-  if (event.persisted && isStandalone()) { window.location.reload(); return; }
+  /* BFCache có thể giữ nguyên memory của tài khoản trước trên cả Chrome lẫn PWA. */
+  if (event.persisted) {
+    try { window.dispatchEvent(new CustomEvent("app:bfcache-restored")); } catch (_) { /* no-op */ }
+    window.location.reload();
+    return;
+  }
   void checkForUpdate();
+  void verifyControllerBuild();
 });
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") { lastHiddenAt = Date.now(); return; }
@@ -83,6 +147,14 @@ document.addEventListener("visibilitychange", () => {
     window.dispatchEvent(new CustomEvent("app:pwa-resumed", { detail: { hiddenMs: Date.now() - lastHiddenAt } }));
   }
   lastHiddenAt = 0;
+});
+
+
+window.AppPwaRuntime = Object.freeze({
+  buildVersion: BUILD_VERSION,
+  verifyControllerBuild,
+  repairMixedBuild,
+  purgeAppCaches
 });
 
 document.addEventListener("DOMContentLoaded", () => {

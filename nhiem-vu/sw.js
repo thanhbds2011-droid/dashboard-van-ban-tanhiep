@@ -1,4 +1,4 @@
-const BUILD_VERSION = "20260824.V1_16_0";
+const BUILD_VERSION = "20260825.V1_16_1";
 const CACHE_NAME = "nhiem-vu-" + BUILD_VERSION.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 const versioned = path => `${path}?v=${BUILD_VERSION}`;
 const SHELL = [
@@ -32,7 +32,15 @@ self.addEventListener("install", event => {
 });
 
 self.addEventListener("message", event => {
-  if (event.data?.type === "SKIP_WAITING") self.skipWaiting();
+  if (event.data?.type === "SKIP_WAITING") {
+    self.skipWaiting();
+    return;
+  }
+  if (event.data?.type === "GET_BUILD_VERSION") {
+    try {
+      event.source?.postMessage?.({ type: "APP_BUILD_VERSION", buildVersion: BUILD_VERSION });
+    } catch (_) { /* no-op */ }
+  }
 });
 
 self.addEventListener("activate", event => {
