@@ -1,5 +1,5 @@
 /** Chuẩn hóa và kiểm tra dữ liệu form nhiệm vụ. */
-import { normalizeSentenceText } from "../../core/text-normalizer.js?v=20260824.V1_15_0";
+import { normalizeSentenceText } from "../../core/text-normalizer.js?v=20260824.V1_16_0";
 
 export function cleanText(value, maxLength = 5000) {
   return String(value || "").replace(/\s+/g, " ").trim().slice(0, maxLength);
@@ -50,9 +50,9 @@ export function validateProgressInput(data, task) {
     throw new Error("Trạng thái cập nhật chưa hợp lệ.");
   }
 
-  const monthlyMilestones = String(task?.milestoneMode || "").toUpperCase() === "MONTHLY";
-  if (monthlyMilestones && status === "HOAN_THANH") {
-    throw new Error("Nhiệm vụ Theo tháng chỉ được hoàn thành qua mốc cuối cùng; không được kết thúc trực tiếp cả kỳ.");
+  const recurringMilestones = ["DAILY", "WEEKLY", "MONTHLY"].includes(String(task?.milestoneMode || "").toUpperCase());
+  if (recurringMilestones && status === "HOAN_THANH") {
+    throw new Error("Nhiệm vụ định kỳ chỉ được hoàn thành qua mốc cuối cùng; không được kết thúc trực tiếp cả kỳ.");
   }
 
   if (["HOAN_THANH", "MILESTONE_COMPLETED"].includes(status)) {

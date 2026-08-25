@@ -1,16 +1,16 @@
 /** Chi tiết, phân công và các lượt công việc phát sinh của nhiệm vụ. */
-import { UserContext } from "../../core/user-context.js?v=20260824.V1_15_0";
-import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260824.V1_15_0";
-import { Permissions } from "../../core/permissions.js?v=20260824.V1_15_0";
-import { effectiveDepartmentAssignmentStatus, isTerminalTask } from "../../core/task-display-order.js?v=20260824.V1_15_0";
-import { UserReadService } from "../../services/user-read-service.js?v=20260824.V1_15_0";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260824.V1_15_0";
-import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260824.V1_15_0";
-import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260824.V1_15_0";
-import { TaskEvidenceService } from "../../services/task-evidence-service.js?v=20260824.V1_15_0";
-import { openTaskProgressModal } from "./task-progress-modal.js?v=20260824.V1_15_0";
-import { mountTaskAdjustmentPanel } from "./task-adjustment-panel.js?v=20260824.V1_15_0";
-import { TaskLogService } from "../../services/task-log-service.js?v=20260824.V1_15_0";
+import { UserContext } from "../../core/user-context.js?v=20260824.V1_16_0";
+import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260824.V1_16_0";
+import { Permissions } from "../../core/permissions.js?v=20260824.V1_16_0";
+import { effectiveDepartmentAssignmentStatus, isTerminalTask } from "../../core/task-display-order.js?v=20260824.V1_16_0";
+import { UserReadService } from "../../services/user-read-service.js?v=20260824.V1_16_0";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260824.V1_16_0";
+import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260824.V1_16_0";
+import { TaskEvidenceService } from "../../services/task-evidence-service.js?v=20260824.V1_16_0";
+import { StagedEvidenceUploader } from "../../services/staged-evidence-uploader.js?v=20260824.V1_16_0";
+import { openTaskProgressModal } from "./task-progress-modal.js?v=20260824.V1_16_0";
+import { mountTaskAdjustmentPanel } from "./task-adjustment-panel.js?v=20260824.V1_16_0";
+import { TaskLogService } from "../../services/task-log-service.js?v=20260824.V1_16_0";
 
 const TEAM_LABELS = Object.freeze({
   BAO_VE: "Tổ Bảo vệ",
@@ -387,8 +387,24 @@ function editorFields(task, item) {
     <label class="field-full"><span>Mức kết quả</span><select id="workItemResultRate">${resultRateOptions(item?.resultRate)}</select><small>Chọn theo chất lượng sản phẩm và mức độ chỉnh sửa.</small></label>`;
 }
 
-function openWorkItemEditor(task, item, onSaved) {
+function workItemStagedEvidenceHtml(items = []) {
+  const visible = (items || []).filter(entry => entry.committed !== true && !["DISCARDED", "REMOVED"].includes(entry.status));
+  if (!visible.length) return `<div class="task-evidence-empty staged-evidence-empty">Chọn tệp để tải lên Google Drive ngay.</div>`;
+  return `<div class="staged-evidence-list">${visible.map(entry => {
+    const uploaded = entry.status === "UPLOADED";
+    const error = entry.status === "ERROR";
+    const busy = ["QUEUED", "UPLOADING", "REMOVING"].includes(entry.status);
+    const statusText = uploaded ? "Đã tải lên Drive · Chưa lưu" : (entry.message || "Đang xử lý…");
+    return `<div class="staged-evidence-row ${uploaded ? "is-uploaded" : error ? "is-error" : busy ? "is-busy" : ""}" data-work-item-staged-id="${escapeHtml(entry.id)}">
+      <div class="staged-evidence-main"><strong>${escapeHtml(entry.originalName || entry.uploaded?.fileName || "Tệp minh chứng")}</strong><small>${escapeHtml(statusText)}</small>${busy ? `<div class="staged-evidence-progress"><span style="width:${Math.max(2, Math.min(100, Number(entry.percent || 0)))}%"></span></div>` : ""}</div>
+      <div class="staged-evidence-actions">${error ? `<button type="button" class="secondary-button compact-button" data-retry-work-item-staged="${escapeHtml(entry.id)}">Thử lại</button>` : ""}<button type="button" class="evidence-remove-button" data-remove-work-item-staged="${escapeHtml(entry.id)}" title="Bỏ tệp" aria-label="Bỏ tệp">×</button></div>
+    </div>`;
+  }).join("")}</div>`;
+}
+
+function openWorkItemEditor(task, item, onSaved, existingEvidenceFiles = []) {
   const type = workItemType(task);
+  let currentItem = item || null;
   const overlay = document.createElement("div");
   overlay.className = "modal-backdrop nested-modal-backdrop";
   overlay.innerHTML = `
@@ -401,14 +417,48 @@ function openWorkItemEditor(task, item, onSaved) {
         ${editorFields(task, item)}
         <label class="field-full"><span>Kết quả/Ghi chú</span><textarea id="workItemResultNote" rows="3" maxlength="3000" placeholder="Nêu kết quả, tình trạng chỉnh sửa hoặc nguyên nhân chưa hoàn thành">${escapeHtml(item?.resultNote || "")}</textarea></label>
         <label class="field-full"><span>Mô tả minh chứng/liên kết</span><textarea id="workItemEvidence" rows="2" maxlength="3000" placeholder="Nêu số văn bản, biên bản, hình ảnh hoặc mô tả minh chứng">${escapeHtml(item?.evidenceText || "")}</textarea></label>
-        <label class="field-full"><span>Tệp minh chứng trên Google Drive</span><input id="workItemEvidenceFile" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"><small>${item?.evidenceFileName ? `Đang lưu: ${escapeHtml(item.evidenceFileName)}. Có thể chọn thêm nhiều tệp; tệp mới không làm mất tệp cũ.` : "Tối đa 8 MB; hỗ trợ PDF, ảnh, Word, Excel, PowerPoint và TXT."}</small></label>
-        <div id="workItemUploadStatus" class="field-full task-work-item-upload-status" aria-live="polite"></div>
+        <label class="field-full"><span>Bổ sung tệp/hình ảnh minh chứng lên Google Drive</span><input id="workItemEvidenceFile" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"><small>Chọn tệp là hệ thống tải lên Drive ngay. Tối đa 10 tệp/lần, 20 tệp/nhiệm vụ, 8 MB/tệp. Bấm × để bỏ tệp tải nhầm trước khi Lưu.</small></label>
+        <div id="workItemFormError" class="field-full task-progress-form-error" hidden role="alert"></div>
+        <div class="field-full task-evidence-staged"><div class="task-evidence-existing-head"><strong>Tệp đang bổ sung</strong><span>Tệp “Đã tải lên Drive · Chưa lưu” sẽ được gắn vào lượt khi bấm Lưu.</span></div><div id="workItemUploadStatus">${workItemStagedEvidenceHtml([])}</div></div>
       </div>
       <div class="modal-footer"><button class="secondary-button" type="button" data-close-work-item>Hủy</button><button id="saveWorkItemButton" class="primary-button" type="button">Lưu thông tin</button></div>
     </section>`;
   document.body.appendChild(overlay);
-  const close = () => overlay.remove();
-  overlay.querySelectorAll("[data-close-work-item]").forEach(button => button.addEventListener("click", close));
+
+  let saving = false;
+  let closing = false;
+  const existingEvidence = Array.isArray(existingEvidenceFiles) ? existingEvidenceFiles : [];
+  const staged = new StagedEvidenceUploader(task, {
+    existingCount: existingEvidence.filter(file => file.active !== false).length,
+    onChange: () => { renderStaged(); refreshSaveState(); }
+  });
+
+  const setError = message => {
+    const box = overlay.querySelector("#workItemFormError");
+    if (!box) return;
+    box.hidden = !message;
+    box.textContent = message || "";
+  };
+  const renderStaged = () => {
+    const target = overlay.querySelector("#workItemUploadStatus");
+    if (target) target.innerHTML = workItemStagedEvidenceHtml(staged.snapshot());
+  };
+  const refreshSaveState = () => {
+    const button = overlay.querySelector("#saveWorkItemButton");
+    if (!button) return;
+    const hasError = staged.snapshot().some(entry => entry.status === "ERROR");
+    button.disabled = saving || staged.busy || hasError;
+    button.textContent = saving ? "Đang lưu…" : staged.busy ? "Đang tải minh chứng…" : hasError ? "Xử lý tệp lỗi trước khi lưu" : "Lưu thông tin";
+  };
+  const close = async () => {
+    if (saving || closing) return;
+    closing = true;
+    overlay.querySelectorAll("[data-close-work-item]").forEach(button => { button.disabled = true; });
+    try { await staged.cleanup(); } catch (_) { /* best effort */ }
+    overlay.remove();
+  };
+  overlay.querySelectorAll("[data-close-work-item]").forEach(button => button.addEventListener("click", () => { void close(); }));
+
   const attendanceStatus = overlay.querySelector("#workItemAttendanceStatus");
   const resultRate = overlay.querySelector("#workItemResultRate");
   const syncAttendanceResult = () => {
@@ -419,35 +469,53 @@ function openWorkItemEditor(task, item, onSaved) {
   };
   attendanceStatus?.addEventListener("change", syncAttendanceResult);
   syncAttendanceResult();
+
+  overlay.querySelector("#workItemEvidenceFile")?.addEventListener("change", async event => {
+    setError("");
+    const input = event.currentTarget;
+    const files = Array.from(input.files || []);
+    input.value = "";
+    try { await staged.addFiles(files); }
+    catch (error) { setError(friendlyErrorMessage(error, "Tệp minh chứng không hợp lệ.")); }
+    refreshSaveState();
+  });
+
+  overlay.addEventListener("click", async event => {
+    const removeButton = event.target.closest("[data-remove-work-item-staged]");
+    if (removeButton) {
+      setError("");
+      removeButton.disabled = true;
+      try { await staged.remove(removeButton.dataset.removeWorkItemStaged); }
+      catch (error) { setError(friendlyErrorMessage(error, "Không gỡ được tệp.")); }
+      refreshSaveState();
+      return;
+    }
+    const retryButton = event.target.closest("[data-retry-work-item-staged]");
+    if (retryButton) {
+      setError("");
+      retryButton.disabled = true;
+      try { await staged.retry(retryButton.dataset.retryWorkItemStaged); }
+      catch (error) { setError(friendlyErrorMessage(error, "Không tải lại được tệp.")); }
+      refreshSaveState();
+    }
+  });
+
   overlay.querySelector("#saveWorkItemButton")?.addEventListener("click", async event => {
     const button = event.currentTarget;
     try {
-      button.disabled = true;
-      button.textContent = "Đang lưu…";
-      const selectedFiles = Array.from(overlay.querySelector("#workItemEvidenceFile")?.files || []);
-      if (selectedFiles.length > TaskEvidenceService.MAX_PER_SELECTION) throw new Error(`Mỗi lần chỉ được chọn tối đa ${TaskEvidenceService.MAX_PER_SELECTION} tệp.`);
-      selectedFiles.forEach(file => DriveEvidenceService.validateFile(file));
-      const existingEvidence = selectedFiles.length ? await TaskEvidenceService.list(task) : [];
-      if (existingEvidence.length + selectedFiles.length > TaskEvidenceService.MAX_PER_TASK) {
-        throw new Error(`Nhiệm vụ được lưu tối đa ${TaskEvidenceService.MAX_PER_TASK} tệp minh chứng. Hiện đã có ${existingEvidence.length} tệp.`);
-      }
-      let evidence = {
-        evidenceUrl: item?.evidenceUrl || "",
-        evidenceFileName: item?.evidenceFileName || "",
-        evidenceStoragePath: item?.evidenceStoragePath || ""
+      setError("");
+      if (staged.busy) throw new Error("Vui lòng chờ các tệp tải xong trước khi lưu.");
+      if (staged.snapshot().some(entry => entry.status === "ERROR")) throw new Error("Có tệp tải lỗi. Hãy Thử lại hoặc bấm × để bỏ tệp trước khi lưu.");
+      saving = true;
+      refreshSaveState();
+
+      const uploadedFiles = staged.uploaded;
+      const lastUploaded = uploadedFiles.at(-1) || null;
+      const evidence = lastUploaded || {
+        evidenceUrl: currentItem?.evidenceUrl || "",
+        evidenceFileName: currentItem?.evidenceFileName || "",
+        evidenceStoragePath: currentItem?.evidenceStoragePath || ""
       };
-      const uploadedFiles = [];
-      for (let index = 0; index < selectedFiles.length; index += 1) {
-        const selectedFile = selectedFiles[index];
-        const uploaded = await DriveEvidenceService.upload(selectedFile, task, {
-          onProgress: state => {
-            const target = overlay.querySelector("#workItemUploadStatus");
-            if (target) target.textContent = `[${index + 1}/${selectedFiles.length}] ${state.message || "Đang tải minh chứng…"}`;
-          }
-        });
-        uploadedFiles.push({ ...uploaded, mimeType: selectedFile.type || "", uploadedSize: uploaded.uploadedSize || selectedFile.size });
-        evidence = uploaded;
-      }
 
       const savedWorkItem = await TaskWorkItemService.save(task, {
         workItemType: type,
@@ -469,24 +537,29 @@ function openWorkItemEditor(task, item, onSaved) {
         resultNote: overlay.querySelector("#workItemResultNote")?.value,
         evidenceText: overlay.querySelector("#workItemEvidence")?.value,
         evidenceUrl: evidence.fileUrl || evidence.evidenceUrl || "",
-        evidenceFileName: evidence.fileName || evidence.evidenceFileName || selectedFiles.at(-1)?.name || "",
+        evidenceFileName: evidence.fileName || evidence.evidenceFileName || "",
         evidenceStoragePath: evidence.storagePath || evidence.fileId || evidence.evidenceStoragePath || ""
-      }, item);
+      }, currentItem);
+      currentItem = savedWorkItem;
+
       if (uploadedFiles.length) {
-        await TaskEvidenceService.addUploadedFiles(task, uploadedFiles, {
+        const added = await TaskEvidenceService.addUploadedFiles(task, uploadedFiles, {
           scopeType: "WORK_ITEM",
           scopeId: savedWorkItem.id,
           existingFiles: existingEvidence
         });
+        existingEvidence.push(...added);
       }
-      close();
+      staged.markCommitted(uploadedFiles);
+      overlay.remove();
       await onSaved?.();
     } catch (error) {
-      window.alert(friendlyErrorMessage(error, "Không lưu được thông tin chi tiết."));
-      button.disabled = false;
-      button.textContent = "Lưu thông tin";
+      setError(friendlyErrorMessage(error, "Không lưu được thông tin chi tiết."));
+      saving = false;
+      refreshSaveState();
     }
   });
+  refreshSaveState();
 }
 
 function noOccurrenceHtml(task, workItems, isOwner) {
@@ -676,7 +749,7 @@ export async function openTaskDetailModal(task, { onSaved }) {
   const bindWorkItemActions = () => {
     overlay.querySelectorAll("[data-edit-work-item]").forEach(button => button.addEventListener("click", () => {
       const item = workItems.find(entry => entry.id === button.dataset.editWorkItem);
-      if (item) openWorkItemEditor(task, item, refreshWorkItems);
+      if (item) openWorkItemEditor(task, item, refreshWorkItems, evidenceFiles);
     }));
     overlay.querySelectorAll("[data-remove-work-item]").forEach(button => button.addEventListener("click", async () => {
       const item = workItems.find(entry => entry.id === button.dataset.removeWorkItem);
@@ -692,7 +765,7 @@ export async function openTaskDetailModal(task, { onSaved }) {
     }));
   };
 
-  overlay.querySelector("#addWorkItemButton")?.addEventListener("click", () => openWorkItemEditor(task, null, refreshWorkItems));
+  overlay.querySelector("#addWorkItemButton")?.addEventListener("click", () => openWorkItemEditor(task, null, refreshWorkItems, evidenceFiles));
   bindWorkItemActions();
 
   overlay.querySelector("#requestNoOccurrenceButton")?.addEventListener("click", async () => {
