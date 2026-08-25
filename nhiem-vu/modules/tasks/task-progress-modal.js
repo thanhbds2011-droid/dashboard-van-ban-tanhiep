@@ -5,15 +5,15 @@
  * - Có thể gỡ tệp staged bằng dấu ×; tệp được đưa vào Thùng rác Drive.
  * - Mốc định kỳ hỗ trợ Theo ngày / Theo tuần / Theo tháng.
  */
-import { UserContext } from "../../core/user-context.js?v=20260824.V1_16_0";
-import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260824.V1_16_0";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260824.V1_16_0";
-import { TaskMilestoneService } from "../../services/task-milestone-service.js?v=20260824.V1_16_0";
-import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260824.V1_16_0";
-import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260824.V1_16_0";
-import { TaskEvidenceService } from "../../services/task-evidence-service.js?v=20260824.V1_16_0";
-import { StagedEvidenceUploader } from "../../services/staged-evidence-uploader.js?v=20260824.V1_16_0";
-import { validateProgressInput, cleanText } from "./task-form-validator.js?v=20260824.V1_16_0";
+import { UserContext } from "../../core/user-context.js?v=20260825.V1_16_1";
+import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260825.V1_16_1";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260825.V1_16_1";
+import { TaskMilestoneService } from "../../services/task-milestone-service.js?v=20260825.V1_16_1";
+import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260825.V1_16_1";
+import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260825.V1_16_1";
+import { TaskEvidenceService } from "../../services/task-evidence-service.js?v=20260825.V1_16_1";
+import { StagedEvidenceUploader } from "../../services/staged-evidence-uploader.js?v=20260825.V1_16_1";
+import { validateProgressInput, cleanText } from "./task-form-validator.js?v=20260825.V1_16_1";
 
 function mayUpdate(task) {
   const user = UserContext.requireUser();
