@@ -22,6 +22,9 @@ export class Router {
     if (!this.started) return;
     window.removeEventListener("hashchange", this.boundResolve);
     this.started = false;
+    // Hủy hiệu lực mọi render async đang chạy để logout/chuyển tài khoản không ghi UI sau khi teardown.
+    this.resolveSequence += 1;
+    this.outlet.removeAttribute("aria-busy");
   }
 
   normalizeRoute(hash) {
@@ -49,6 +52,18 @@ export class Router {
       document.dispatchEvent(new CustomEvent("v3:route-changed", { detail: { route } }));
     } catch (error) {
       if (sequence !== this.resolveSequence) return;
+      if (String(error?.code || "") === "USER_CONTEXT_MISSING") {
+        console.warn("Router tạm dừng vì ngữ cảnh phiên chưa đồng bộ:", error);
+        this.outlet.innerHTML = `<section class="page-card"><h2>Đang đồng bộ phiên đăng nhập…</h2><p>Ứng dụng đang xác nhận tài khoản hiện tại. Màn hình sẽ tự tải lại nếu cần.</p></section>`;
+        if (error?.transient !== true) {
+          try {
+            window.dispatchEvent(new CustomEvent("app:session-recovery-needed", {
+              detail: { reason: "ROUTER_USER_CONTEXT_MISSING", at: Date.now() }
+            }));
+          } catch (_) { /* no-op */ }
+        }
+        return;
+      }
       console.error("Router render error:", error);
       this.outlet.innerHTML = `<section class="page-card error-card"><h2>Không thể hiển thị màn hình</h2><p>${escapeHtml(error?.message || "Lỗi không xác định.")}</p></section>`;
     } finally {

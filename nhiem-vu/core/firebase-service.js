@@ -4,7 +4,7 @@
  * Không khởi tạo Firebase lần thứ hai.
  */
 
-import { app, auth, db } from "../firebase-config.js?v=20260824.V1_16_0";
+import { app, auth, db } from "../firebase-config.js?v=20260825.V1_16_1";
 
 import {
   onAuthStateChanged,
@@ -63,6 +63,12 @@ export const FirebaseService = Object.freeze({
         }
       );
     });
+  },
+
+  watchAuthState(next, error) {
+    assertFirebaseReady();
+    if (typeof next !== "function") throw new Error("watchAuthState cần callback hợp lệ.");
+    return onAuthStateChanged(auth, user => next(user || null), error);
   },
 
   async logout() {

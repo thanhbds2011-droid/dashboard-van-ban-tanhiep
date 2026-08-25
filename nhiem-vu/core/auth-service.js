@@ -13,8 +13,8 @@
  * - Giữ nguyên UID Firebase và mô hình accessAccounts hiện hữu.
  */
 
-import { FirebaseService } from "./firebase-service.js?v=20260824.V1_16_0";
-import { UserContext } from "./user-context.js?v=20260824.V1_16_0";
+import { FirebaseService } from "./firebase-service.js?v=20260825.V1_16_1";
+import { UserContext } from "./user-context.js?v=20260825.V1_16_1";
 
 const LOGIN_URL = "./login.html";
 const AUTH_TIMEOUT_MS = 10000;
@@ -29,6 +29,7 @@ let profileVisibilityBound = false;
 let profileReloadTimer = null;
 let lastProfileServerCheckAt = 0;
 let profileServerCheckPromise = null;
+let stopAuthSessionGuard = null;
 
 function clean(value) { return String(value ?? "").trim(); }
 function normalizeEmail(value) { return clean(value).toLowerCase(); }
@@ -88,6 +89,46 @@ function stopProfileScopeWatcher() {
   stopProfileWatcher = null;
   if (profileReloadTimer) window.clearTimeout(profileReloadTimer);
   profileReloadTimer = null;
+}
+
+function stopAuthGuard() {
+  try { stopAuthSessionGuard?.(); } catch (_) { /* listener đã đóng */ }
+  stopAuthSessionGuard = null;
+}
+
+function dispatchSessionRecovery(reason, detail = {}) {
+  try {
+    window.dispatchEvent(new CustomEvent("app:session-recovery-needed", {
+      detail: { reason, ...detail, at: Date.now() }
+    }));
+  } catch (_) { /* sự kiện phục hồi không được làm hỏng auth */ }
+}
+
+function startAuthSessionGuard(expectedUid) {
+  stopAuthGuard();
+  const expected = clean(expectedUid);
+  if (!expected) return;
+
+  let firstEmission = true;
+  stopAuthSessionGuard = FirebaseService.watchAuthState(user => {
+    const authUid = clean(user?.uid);
+    const contextUid = clean(UserContext.getUser()?.uid);
+
+    if (firstEmission) {
+      firstEmission = false;
+      if (authUid === expected && contextUid === expected) return;
+    }
+    if (UserContext.isTransitioning()) return;
+    if (authUid === expected && contextUid === expected) return;
+
+    dispatchSessionRecovery("AUTH_CONTEXT_MISMATCH", {
+      expectedUid: expected,
+      authUid,
+      contextUid
+    });
+  }, error => {
+    console.warn("Theo dõi phiên Firebase Auth bị gián đoạn:", error);
+  });
 }
 
 function announceProfileReload(beforeProfile, afterProfile) {
@@ -373,6 +414,7 @@ export const AuthService = Object.freeze({
     lastDiagnostic = { startedAt, lastStage: "START", lastMessage: "Bắt đầu xác thực" };
 
     try {
+      UserContext.beginTransition("BOOTSTRAP");
       FirebaseService.assertReady();
       emitProgress(progress, "AUTH_STATE", "Đang xác thực phiên đăng nhập…");
       const firebaseUser = FirebaseService.auth.currentUser || await withTimeout(
@@ -384,6 +426,8 @@ export const AuthService = Object.freeze({
 
       if (!firebaseUser) {
         lastDiagnostic = { ...lastDiagnostic, finishedAt: Date.now(), result: "NO_USER" };
+        stopAuthGuard();
+        UserContext.clear({ keepTransition: true });
         this.redirectToLogin();
         return null;
       }
@@ -396,6 +440,7 @@ export const AuthService = Object.freeze({
       emitProgress(progress, "READY", "Đã tải tài khoản. Đang mở ứng dụng…");
       const context = UserContext.setUser(contextPayload(firebaseUser, profile));
       startProfileScopeWatcher(firebaseUser, profile);
+      startAuthSessionGuard(firebaseUser.uid);
       lastDiagnostic = { ...lastDiagnostic, finishedAt: Date.now(), durationMs: Date.now() - startedAt, result: "READY" };
       return context;
     } catch (error) {
@@ -417,9 +462,14 @@ export const AuthService = Object.freeze({
   },
 
   async logout() {
+    UserContext.beginTransition("LOGOUT");
+    try {
+      window.dispatchEvent(new CustomEvent("app:auth-transition-start", { detail: { type: "LOGOUT" } }));
+    } catch (_) { /* no-op */ }
     stopProfileScopeWatcher();
-    UserContext.clear();
+    stopAuthGuard();
     await FirebaseService.logout();
+    UserContext.clear({ keepTransition: true });
     this.redirectToLogin();
   },
 
