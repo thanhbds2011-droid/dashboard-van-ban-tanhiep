@@ -156,12 +156,12 @@ test('V1.16.0: direct progress upload commit-safe, file đã có record không b
   assert.ok(taskUpdatePos > commitPos, 'markCommitted phải xảy ra trước task update để tránh cleanup xóa file đã có record');
 });
 
-test('V1.16.0: build/PWA đã bump đồng bộ', () => {
+test('V1.16.x: build/PWA hiện tại đồng bộ sau hotfix', () => {
   const version = readApp('core/app-version.js');
   const sw = readApp('sw.js');
   const index = readApp('index.html');
-  assert.match(version, /APP_VERSION = "1\.16\.0"/);
-  assert.match(version, /BUILD_VERSION = "20260824\.V1_16_0"/);
-  assert.match(sw, /20260824\.V1_16_0/);
-  assert.match(index, /release-v1\.16\.0\.js\?v=20260824\.V1_16_0/);
+  assert.match(version, /APP_VERSION = "1\.16\.1"/);
+  assert.match(version, /BUILD_VERSION = "20260825\.V1_16_1"/);
+  assert.match(sw, /20260825\.V1_16_1/);
+  assert.match(index, /release-v1\.16\.1\.js\?v=20260825\.V1_16_1/);
 });
