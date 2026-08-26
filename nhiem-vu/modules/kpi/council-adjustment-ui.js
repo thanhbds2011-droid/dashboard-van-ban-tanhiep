@@ -1,13 +1,13 @@
 /** Giao diện quy trình điều chỉnh sau Hội đồng - V1.10.0. */
-import { UserContext } from "../../core/user-context.js?v=20260826.V1_18_3";
-import { Permissions } from "../../core/permissions.js?v=20260826.V1_18_3";
-import { FirebaseService } from "../../core/firebase-service.js?v=20260826.V1_18_3";
-import { PeriodReadService } from "../../services/period-read-service.js?v=20260826.V1_18_3";
-import { DepartmentReadService } from "../../services/department-read-service.js?v=20260826.V1_18_3";
-import { UserReadService } from "../../services/user-read-service.js?v=20260826.V1_18_3";
-import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260826.V1_18_3";
-import { CouncilAdjustmentService } from "../../services/council-adjustment-service.js?v=20260826.V1_18_3";
-import { ModalService } from "../../core/modal-service.js?v=20260826.V1_18_3";
+import { UserContext } from "../../core/user-context.js?v=20260826.V1_18_5";
+import { Permissions } from "../../core/permissions.js?v=20260826.V1_18_5";
+import { FirebaseService } from "../../core/firebase-service.js?v=20260826.V1_18_5";
+import { PeriodReadService } from "../../services/period-read-service.js?v=20260826.V1_18_5";
+import { DepartmentReadService } from "../../services/department-read-service.js?v=20260826.V1_18_5";
+import { UserReadService } from "../../services/user-read-service.js?v=20260826.V1_18_5";
+import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260826.V1_18_5";
+import { CouncilAdjustmentService } from "../../services/council-adjustment-service.js?v=20260826.V1_18_5";
+import { ModalService } from "../../core/modal-service.js?v=20260826.V1_18_5";
 
 const PROFESSIONAL_DEPARTMENTS = Object.freeze(["TCHC", "CTXH", "KHTC", "YT", "KI", "KII", "KIII"]);
 
