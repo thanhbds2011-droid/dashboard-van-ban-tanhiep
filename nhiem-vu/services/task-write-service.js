@@ -1,14 +1,14 @@
 /** Tạo, phân công, tiếp nhận, cập nhật tiến độ và hoàn thành nhiệm vụ. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260826.V1_18_5";
-import { UserContext } from "../core/user-context.js?v=20260826.V1_18_5";
-import { Permissions } from "../core/permissions.js?v=20260826.V1_18_5";
-import { TaskLogService } from "./task-log-service.js?v=20260826.V1_18_5";
-import { TaskWorkItemService } from "./task-work-item-service.js?v=20260826.V1_18_5";
-import { PeriodReadService } from "./period-read-service.js?v=20260826.V1_18_5";
-import { TaskNotificationService } from "./task-notification-service.js?v=20260826.V1_18_5";
-import { APP_VERSION, BUILD_VERSION } from "../core/app-version.js?v=20260826.V1_18_5";
-import { deadlineDateFromKey, isDateKey } from "../core/deadline-engine.js?v=20260826.V1_18_5";
-import { confirmWriteWithServerRecovery } from "./firestore-write-recovery.js?v=20260826.V1_18_5";
+import { FirebaseService } from "../core/firebase-service.js?v=20260826.V1_18_6";
+import { UserContext } from "../core/user-context.js?v=20260826.V1_18_6";
+import { Permissions } from "../core/permissions.js?v=20260826.V1_18_6";
+import { TaskLogService } from "./task-log-service.js?v=20260826.V1_18_6";
+import { TaskWorkItemService } from "./task-work-item-service.js?v=20260826.V1_18_6";
+import { PeriodReadService } from "./period-read-service.js?v=20260826.V1_18_6";
+import { TaskNotificationService } from "./task-notification-service.js?v=20260826.V1_18_6";
+import { APP_VERSION, BUILD_VERSION } from "../core/app-version.js?v=20260826.V1_18_6";
+import { deadlineDateFromKey, isDateKey } from "../core/deadline-engine.js?v=20260826.V1_18_6";
+import { confirmWriteWithServerRecovery } from "./firestore-write-recovery.js?v=20260826.V1_18_6";
 
 const TASK_WRITE_BUILD_VERSION = BUILD_VERSION;
 const MAX_CODE_SCAN = 1000;
@@ -38,7 +38,35 @@ async function taskUpdateConfirmedOnServer(taskId, logId, userId, expected = {})
   return true;
 }
 
-async function eventTrackingClosedOnServer(taskId, logId, userId) {
+function firestoreRestString(document, fieldName) {
+  return cleanWriteValue(document?.fields?.[fieldName]?.stringValue);
+}
+
+function firestoreRestHasTimestamp(document, fieldName) {
+  return Boolean(document?.fields?.[fieldName]?.timestampValue);
+}
+
+async function readFirestoreDocumentViaRest(collectionName, documentId, idToken) {
+  const projectId = cleanWriteValue(FirebaseService.app?.options?.projectId);
+  if (!projectId || !idToken) return null;
+  const path = [collectionName, documentId].map(part => encodeURIComponent(cleanWriteValue(part))).join("/");
+  const url = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/databases/(default)/documents/${path}`;
+  const response = await fetch(url, {
+    method: "GET",
+    cache: "no-store",
+    credentials: "omit",
+    headers: { Authorization: `Bearer ${idToken}` }
+  });
+  if (response.status === 404) return null;
+  if (!response.ok) {
+    const error = new Error(`Không đọc được xác nhận Firestore REST (${response.status}).`);
+    error.code = response.status === 401 ? "unauthenticated" : `firestore-rest-${response.status}`;
+    throw error;
+  }
+  return response.json();
+}
+
+async function eventTrackingClosedOnServerViaSdk(taskId, logId, userId) {
   const [snapshot, logSnapshot] = await Promise.all([
     FirebaseService.getDocFromServer(taskRef(taskId)),
     FirebaseService.getDocFromServer(FirebaseService.doc(FirebaseService.db, "taskLogs", logId))
@@ -48,8 +76,37 @@ async function eventTrackingClosedOnServer(taskId, logId, userId) {
   if (cleanWriteValue(log.performedByUserId) !== cleanWriteValue(userId)) return false;
   const data = snapshot.data() || {};
   return String(data.status || "").toUpperCase() === "HOAN_THANH"
+    && Number(data.progress || 0) === 100
     && Boolean(data.eventTrackingClosedAt || data.completedAt)
     && String(data.eventTrackingClosedByUserId || data.completedByUserId || "") === String(userId || "");
+}
+
+async function eventTrackingClosedOnServer(taskId, logId, userId) {
+  /*
+   * V1.18.6: ưu tiên REST GET để xác nhận server. Đây là HTTPS request ngắn,
+   * không phụ thuộc ACK của WebChannel đang có thể bị proxy/QUIC giữ lâu.
+   */
+  try {
+    const currentUser = FirebaseService.auth.currentUser;
+    if (!currentUser || cleanWriteValue(currentUser.uid) !== cleanWriteValue(userId)) return false;
+    const idToken = await currentUser.getIdToken();
+    const [taskDocument, logDocument] = await Promise.all([
+      readFirestoreDocumentViaRest("tasks", taskId, idToken),
+      readFirestoreDocumentViaRest("taskLogs", logId, idToken)
+    ]);
+    if (!taskDocument || !logDocument) return false;
+    return firestoreRestString(logDocument, "performedByUserId") === cleanWriteValue(userId)
+      && firestoreRestString(taskDocument, "status").toUpperCase() === "HOAN_THANH"
+      && Number(taskDocument?.fields?.progress?.integerValue ?? taskDocument?.fields?.progress?.doubleValue ?? 0) === 100
+      && (firestoreRestHasTimestamp(taskDocument, "eventTrackingClosedAt") || firestoreRestHasTimestamp(taskDocument, "completedAt"))
+      && cleanWriteValue(
+        firestoreRestString(taskDocument, "eventTrackingClosedByUserId")
+        || firestoreRestString(taskDocument, "completedByUserId")
+      ) === cleanWriteValue(userId);
+  } catch (restError) {
+    console.warn("Xác nhận REST tạm thời không dùng được; thử lại bằng Firestore SDK:", restError);
+    return eventTrackingClosedOnServerViaSdk(taskId, logId, userId);
+  }
 }
 
 function dateKey(date) {
@@ -805,12 +862,13 @@ export const TaskWriteService = Object.freeze({
     const completed = Number(summary?.completedCount ?? task.eventCompletedCount ?? 0);
     if (total <= 0) throw new Error("Chưa có lượt phát sinh. Nếu cả kỳ không phát sinh, hãy dùng quy trình Đề nghị Không phát sinh.");
     if (completed < total) throw new Error(`Còn ${total - completed} lượt chưa hoàn thành. Hãy xử lý hết các lượt trước khi kết thúc theo dõi trong kỳ.`);
-    const progress = Number(summary?.appliedProgressRate ?? task.eventProgressRate ?? 0);
+    const kpiProgress = Number(summary?.appliedProgressRate ?? task.eventProgressRate ?? 0);
     const resultRate = summary?.appliedResultRate == null ? null : Number(summary.appliedResultRate);
     const payload = {
       status: "HOAN_THANH",
-      progress,
-      eventProgressRate: progress,
+      // Hoàn thành nghiệp vụ = 100%; KPI đúng/trễ hạn được giữ riêng ở eventProgressRate.
+      progress: 100,
+      eventProgressRate: kpiProgress,
       eventResultRate: resultRate,
       eventWorkItemCount: total,
       eventCompletedCount: completed,
@@ -837,15 +895,33 @@ export const TaskWriteService = Object.freeze({
       taskId: task.id, taskCode: task.taskCode, periodId: task.periodId || "",
       action: "EVENT_TRACKING_CLOSED", before: snapshotTask(task),
       after: { ...snapshotTask(task), ...payload, updatedAt: null, completedAt: null, eventTrackingClosedAt: null },
-      note: `Kết thúc theo dõi phát sinh trong kỳ; giữ nguyên tiến độ KPI ${progress}%.`
+      note: `Kết thúc theo dõi phát sinh trong kỳ: hoàn thành nghiệp vụ ${completed}/${total} = 100%; KPI tiến độ ${kpiProgress}%${resultRate == null ? "" : `; KPI kết quả ${resultRate}%`}.`
     }));
-    const commitResult = await confirmWriteWithServerRecovery(batch.commit(), () => eventTrackingClosedOnServer(task.id, notificationLogReference.id, user.uid));
+    const commitResult = await confirmWriteWithServerRecovery(
+      batch.commit(),
+      () => eventTrackingClosedOnServer(task.id, notificationLogReference.id, user.uid),
+      {
+        earlyVerifyAfterMs: 1500,
+        overallTimeoutMs: 12000,
+        verifyAttempts: 6,
+        verifyDelayMs: 900,
+        verifyReadTimeoutMs: 3000
+      }
+    );
     await TaskNotificationService.send("TASK_COMPLETED", task.id, {
       sourceAction: "EVENT_TRACKING_CLOSED", taskCode: task.taskCode || "", periodId: task.periodId || "",
-      oldStatus: task.status || "", newStatus: "HOAN_THANH", oldProgress: Number(task.progress || 0), newProgress: progress,
+      oldStatus: task.status || "", newStatus: "HOAN_THANH", oldProgress: Number(task.progress || 0), newProgress: 100,
+      eventProgressRate: kpiProgress, eventResultRate: resultRate, eventWorkItemCount: total, eventCompletedCount: completed,
       performedByUserId: user.uid, performedByName: user.fullName || "", performedByRole: user.role || "", performedByDepartmentId: user.departmentId || ""
     }, { eventId: `TASKLOG_${notificationLogReference.id}` });
-    return { closed: true, recoveredFromTimeout: commitResult.recovered === true };
+    return {
+      closed: true,
+      operationalProgress: 100,
+      kpiProgressRate: kpiProgress,
+      kpiResultRate: resultRate,
+      recoveredFromTimeout: commitResult.recovered === true,
+      earlyVerified: commitResult.earlyVerified === true
+    };
   },
 
   async requestNoOccurrence(task, reason) {
