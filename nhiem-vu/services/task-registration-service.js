@@ -1,11 +1,11 @@
-import { FirebaseService } from "../core/firebase-service.js?v=20260825.V1_18_0";
-import { UserContext } from "../core/user-context.js?v=20260825.V1_18_0";
-import { Permissions } from "../core/permissions.js?v=20260825.V1_18_0";
-import { TaskLogService } from "./task-log-service.js?v=20260825.V1_18_0";
-import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260825.V1_18_0";
-import { PeriodReadService } from "./period-read-service.js?v=20260825.V1_18_0";
-import { APP_VERSION } from "../core/app-version.js?v=20260825.V1_18_0";
-import { deriveDeadlinePlan, deadlineDateFromKey, isDateKey, requiresManualDeadline, isEventDrivenFrequency, canonicalFrequency } from "../core/deadline-engine.js?v=20260825.V1_18_0";
+import { FirebaseService } from "../core/firebase-service.js?v=20260826.V1_18_1";
+import { UserContext } from "../core/user-context.js?v=20260826.V1_18_1";
+import { Permissions } from "../core/permissions.js?v=20260826.V1_18_1";
+import { TaskLogService } from "./task-log-service.js?v=20260826.V1_18_1";
+import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260826.V1_18_1";
+import { PeriodReadService } from "./period-read-service.js?v=20260826.V1_18_1";
+import { APP_VERSION } from "../core/app-version.js?v=20260826.V1_18_1";
+import { deriveDeadlinePlan, deadlineDateFromKey, isDateKey, requiresManualDeadline, isEventDrivenFrequency, canonicalFrequency } from "../core/deadline-engine.js?v=20260826.V1_18_1";
 
 const clean = value => String(value ?? "").trim();
 const upper = value => clean(value).toUpperCase();
@@ -96,7 +96,9 @@ async function hasDelegation(reviewer, departmentId, permissionName = "APPROVE_R
   const department = upper(departmentId);
   const isCdtn = department === "CDTN";
   if (isCdtn) {
-    if (!Permissions.isCdtnMember()) return false;
+    if (!Permissions.isCdtnMember(reviewer)) return false;
+  } else if (department === "BGD") {
+    if (!Permissions.isDirectorDeputy(reviewer)) return false;
   } else if (!Permissions.isDepartmentDeputy(reviewer)) {
     return false;
   }
@@ -128,6 +130,8 @@ function canApprove(registration, reviewer) {
       && reviewer.additionalRoles.map(upper).some(role => ["CDTN_BI_THU", "CDTN_PHO_BI_THU"].includes(role));
   }
 
+  if (Permissions.isDirectorHead(reviewer)) return registrationDepartment !== "CDTN";
+
   if (registration.userRole === "DEPARTMENT_LEADER") {
     if (Permissions.isDepartmentDeputy({
       uid: registration.userId,
@@ -139,7 +143,8 @@ function canApprove(registration, reviewer) {
     })) {
       return Permissions.isDepartmentHead(reviewer) && upper(reviewer.departmentId) === registrationDepartment;
     }
-    return reviewer.role === "DIRECTOR";
+    /* Trưởng/Phụ trách đơn vị chỉ do Giám đốc hoặc Phó Giám đốc được ủy quyền duyệt. */
+    return false;
   }
 
   return Permissions.isDepartmentHead(reviewer) && upper(reviewer.departmentId) === registrationDepartment;
@@ -1048,8 +1053,11 @@ export const TaskRegistrationService = Object.freeze({
     const prepared = [];
     for (const item of selected) {
       const delegated = await hasDelegation(reviewer, registrationDepartmentId(item), "APPROVE_REGISTRATIONS");
+      const directorDelegated = registrationDepartmentId(item) !== "CDTN"
+        ? await hasDelegation(reviewer, "BGD", "APPROVE_REGISTRATIONS")
+        : false;
       const directAuthority = canApprove(item, reviewer);
-      if (!directAuthority && (!delegated || item.userId === reviewer.uid)) {
+      if (!directAuthority && (!(delegated || directorDelegated) || item.userId === reviewer.uid)) {
         throw new Error(`Bạn không có quyền duyệt đăng ký của ${item.userName || "người dùng"}.`);
       }
       prepared.push(await hydrateRegistrationForApproval(item, options, context));
@@ -1064,8 +1072,11 @@ export const TaskRegistrationService = Object.freeze({
 
     for (const item of selected) {
       const delegated = await hasDelegation(reviewer, registrationDepartmentId(item), "APPROVE_REGISTRATIONS");
+      const directorDelegated = registrationDepartmentId(item) !== "CDTN"
+        ? await hasDelegation(reviewer, "BGD", "APPROVE_REGISTRATIONS")
+        : false;
       const directAuthority = canApprove(item, reviewer);
-      if (!directAuthority && (!delegated || item.userId === reviewer.uid)) {
+      if (!directAuthority && (!(delegated || directorDelegated) || item.userId === reviewer.uid)) {
         throw new Error("Bạn không có quyền trả lại đăng ký này.");
       }
     }

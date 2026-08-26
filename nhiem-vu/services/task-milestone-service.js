@@ -5,10 +5,10 @@
  * Các hạn nội bộ được lưu tại taskMilestones; hoàn thành một mốc không tự kết thúc
  * nhiệm vụ, trừ khi đó là mốc cuối cùng và mọi mốc trước đã hoàn thành.
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260825.V1_18_0";
-import { UserContext } from "../core/user-context.js?v=20260825.V1_18_0";
-import { TaskLogService } from "./task-log-service.js?v=20260825.V1_18_0";
-import { TaskNotificationService } from "./task-notification-service.js?v=20260825.V1_18_0";
+import { FirebaseService } from "../core/firebase-service.js?v=20260826.V1_18_1";
+import { UserContext } from "../core/user-context.js?v=20260826.V1_18_1";
+import { TaskLogService } from "./task-log-service.js?v=20260826.V1_18_1";
+import { TaskNotificationService } from "./task-notification-service.js?v=20260826.V1_18_1";
 
 function clean(value) {
   return String(value ?? "").trim();
