@@ -2,7 +2,7 @@
  * Lớp kiểm tra quyền dùng thống nhất cho giao diện.
  * Firestore Security Rules vẫn là lớp kiểm soát bắt buộc ở phía dữ liệu.
  */
-import { UserContext } from "./user-context.js?v=20260826.V1_18_3";
+import { UserContext } from "./user-context.js?v=20260826.V1_18_5";
 
 function clean(value) {
   return String(value ?? "").trim();
