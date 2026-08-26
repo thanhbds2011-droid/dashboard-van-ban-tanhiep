@@ -1,13 +1,13 @@
 /** Tạo, phân công, tiếp nhận, cập nhật tiến độ và hoàn thành nhiệm vụ. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260825.V1_17_0";
-import { UserContext } from "../core/user-context.js?v=20260825.V1_17_0";
-import { Permissions } from "../core/permissions.js?v=20260825.V1_17_0";
-import { TaskLogService } from "./task-log-service.js?v=20260825.V1_17_0";
-import { TaskWorkItemService } from "./task-work-item-service.js?v=20260825.V1_17_0";
-import { PeriodReadService } from "./period-read-service.js?v=20260825.V1_17_0";
-import { TaskNotificationService } from "./task-notification-service.js?v=20260825.V1_17_0";
-import { APP_VERSION, BUILD_VERSION } from "../core/app-version.js?v=20260825.V1_17_0";
-import { deadlineDateFromKey, isDateKey } from "../core/deadline-engine.js?v=20260825.V1_17_0";
+import { FirebaseService } from "../core/firebase-service.js?v=20260825.V1_18_0";
+import { UserContext } from "../core/user-context.js?v=20260825.V1_18_0";
+import { Permissions } from "../core/permissions.js?v=20260825.V1_18_0";
+import { TaskLogService } from "./task-log-service.js?v=20260825.V1_18_0";
+import { TaskWorkItemService } from "./task-work-item-service.js?v=20260825.V1_18_0";
+import { PeriodReadService } from "./period-read-service.js?v=20260825.V1_18_0";
+import { TaskNotificationService } from "./task-notification-service.js?v=20260825.V1_18_0";
+import { APP_VERSION, BUILD_VERSION } from "../core/app-version.js?v=20260825.V1_18_0";
+import { deadlineDateFromKey, isDateKey } from "../core/deadline-engine.js?v=20260825.V1_18_0";
 
 const TASK_WRITE_BUILD_VERSION = BUILD_VERSION;
 const MAX_CODE_SCAN = 1000;
@@ -744,6 +744,60 @@ export const TaskWriteService = Object.freeze({
       },
       { eventId: `TASKLOG_${notificationLogReference.id}` }
     );
+  },
+
+  async endEventDrivenTracking(task, summary, changes = {}) {
+    const user = UserContext.requireUser();
+    if (task.ownerUserId !== user.uid) throw new Error("Chỉ người thực hiện mới được kết thúc theo dõi phát sinh.");
+    if (String(task.deadlineMode || "").toUpperCase() !== "EVENT_DRIVEN" || String(task.trackingMode || "").toUpperCase() !== "ITEMIZED") {
+      throw new Error("Thao tác này chỉ áp dụng cho nhiệm vụ Khi phát sinh.");
+    }
+    if (task.active === false || String(task.status || "").toUpperCase() === "HUY") throw new Error("Nhiệm vụ không còn hoạt động.");
+    if (String(task.status || "").toUpperCase() === "HOAN_THANH" || task.completedAt) throw new Error("Nhiệm vụ đã kết thúc theo dõi.");
+    const total = Number(summary?.totalRecordedCount ?? summary?.count ?? task.eventWorkItemCount ?? 0);
+    const completed = Number(summary?.completedCount ?? task.eventCompletedCount ?? 0);
+    if (total <= 0) throw new Error("Chưa có lượt phát sinh. Nếu cả kỳ không phát sinh, hãy dùng quy trình Đề nghị Không phát sinh.");
+    if (completed < total) throw new Error(`Còn ${total - completed} lượt chưa hoàn thành. Hãy xử lý hết các lượt trước khi kết thúc theo dõi trong kỳ.`);
+    const progress = Number(summary?.appliedProgressRate ?? task.eventProgressRate ?? 0);
+    const resultRate = summary?.appliedResultRate == null ? null : Number(summary.appliedResultRate);
+    const payload = {
+      status: "HOAN_THANH",
+      progress,
+      eventProgressRate: progress,
+      eventResultRate: resultRate,
+      eventWorkItemCount: total,
+      eventCompletedCount: completed,
+      eventTrackingClosedAt: FirebaseService.serverTimestamp(),
+      eventTrackingClosedByUserId: user.uid,
+      eventTrackingClosedByName: user.fullName || "",
+      completedAt: FirebaseService.serverTimestamp(),
+      completedByUserId: user.uid,
+      completedByName: user.fullName || "",
+      evidenceType: changes.evidenceType || task.evidenceType || "",
+      evidenceUrl: changes.evidenceUrl || task.evidenceUrl || "",
+      evidenceLink: changes.evidenceUrl || task.evidenceUrl || "",
+      evidenceText: changes.evidenceText ?? task.evidenceText ?? "",
+      evidenceFileName: changes.evidenceFileName || task.evidenceFileName || "",
+      evidenceStoragePath: changes.evidenceStoragePath || task.evidenceStoragePath || "",
+      updatedAt: FirebaseService.serverTimestamp(),
+      updatedByUserId: user.uid,
+      updatedByName: user.fullName || ""
+    };
+    const notificationLogReference = logRef();
+    const batch = FirebaseService.writeBatch(FirebaseService.db);
+    batch.update(taskRef(task.id), payload);
+    batch.set(notificationLogReference, TaskLogService.buildTaskLog({
+      taskId: task.id, taskCode: task.taskCode, periodId: task.periodId || "",
+      action: "EVENT_TRACKING_CLOSED", before: snapshotTask(task),
+      after: { ...snapshotTask(task), ...payload, updatedAt: null, completedAt: null, eventTrackingClosedAt: null },
+      note: `Kết thúc theo dõi phát sinh trong kỳ; giữ nguyên tiến độ KPI ${progress}%.`
+    }));
+    await batch.commit();
+    await TaskNotificationService.send("TASK_COMPLETED", task.id, {
+      sourceAction: "EVENT_TRACKING_CLOSED", taskCode: task.taskCode || "", periodId: task.periodId || "",
+      oldStatus: task.status || "", newStatus: "HOAN_THANH", oldProgress: Number(task.progress || 0), newProgress: progress,
+      performedByUserId: user.uid, performedByName: user.fullName || "", performedByRole: user.role || "", performedByDepartmentId: user.departmentId || ""
+    }, { eventId: `TASKLOG_${notificationLogReference.id}` });
   },
 
   async requestNoOccurrence(task, reason) {

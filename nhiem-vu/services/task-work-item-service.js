@@ -1,15 +1,15 @@
 /** Quản lý các lượt công việc phát sinh bên trong một nhiệm vụ KPI. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260825.V1_17_0";
-import { UserContext } from "../core/user-context.js?v=20260825.V1_17_0";
-import { Permissions } from "../core/permissions.js?v=20260825.V1_17_0";
-import { progressRateFromDates } from "../kpi-engine.js?v=20260825.V1_17_0";
+import { FirebaseService } from "../core/firebase-service.js?v=20260825.V1_18_0";
+import { UserContext } from "../core/user-context.js?v=20260825.V1_18_0";
+import { Permissions } from "../core/permissions.js?v=20260825.V1_18_0";
+import { progressRateFromDates } from "../kpi-engine.js?v=20260825.V1_18_0";
 import {
   ATTENDANCE_STATUSES,
   WORK_ITEM_TYPES,
   calculateWorkItemSummary,
   convertActualRate,
   normalizeWorkItemType
-} from "../work-item-score-engine.js?v=20260825.V1_17_0";
+} from "../work-item-score-engine.js?v=20260825.V1_18_0";
 
 const COLLECTION = "taskWorkItems";
 const ALLOWED_RATES = Object.freeze([100, 80, 60, 0]);
@@ -44,11 +44,20 @@ function normalizeRate(value) {
   return ALLOWED_RATES.includes(rate) ? rate : 0;
 }
 
+function taskIsClosed(task) {
+  return Boolean(task && (
+    String(task.status || "").toUpperCase() === "HOAN_THANH"
+    || task.completedAt
+    || task.eventTrackingClosedAt
+  ));
+}
+
 function mayManage(task) {
   const user = UserContext.requireUser();
   return Boolean(
     task &&
     task.active !== false &&
+    !taskIsClosed(task) &&
     (
       task.ownerUserId === user.uid ||
       Permissions.isAdmin() ||

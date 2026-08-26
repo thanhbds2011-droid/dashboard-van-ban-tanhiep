@@ -2,10 +2,10 @@
  * Toast realtime riêng cho Chỉ đạo điều hành V1.10.6.
  * Không phụ thuộc Nhiệm vụ/KPI và không thay thế OneSignal Push.
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260825.V1_17_0";
-import { UserContext } from "../core/user-context.js?v=20260825.V1_17_0";
-import { Permissions } from "../core/permissions.js?v=20260825.V1_17_0";
-import { ToastService } from "../core/toast-service.js?v=20260825.V1_17_0";
+import { FirebaseService } from "../core/firebase-service.js?v=20260825.V1_18_0";
+import { UserContext } from "../core/user-context.js?v=20260825.V1_18_0";
+import { Permissions } from "../core/permissions.js?v=20260825.V1_18_0";
+import { ToastService } from "../core/toast-service.js?v=20260825.V1_18_0";
 
 const MAX_LIST = 200;
 const ALERT_LOOKBACK_MS = 48 * 60 * 60 * 1000;

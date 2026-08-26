@@ -1,11 +1,11 @@
-import { FirebaseService } from "../core/firebase-service.js?v=20260825.V1_17_0";
-import { UserContext } from "../core/user-context.js?v=20260825.V1_17_0";
-import { Permissions } from "../core/permissions.js?v=20260825.V1_17_0";
-import { TaskLogService } from "./task-log-service.js?v=20260825.V1_17_0";
-import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260825.V1_17_0";
-import { PeriodReadService } from "./period-read-service.js?v=20260825.V1_17_0";
-import { APP_VERSION } from "../core/app-version.js?v=20260825.V1_17_0";
-import { deriveDeadlinePlan, deadlineDateFromKey, isDateKey, requiresManualDeadline, isEventDrivenFrequency, canonicalFrequency } from "../core/deadline-engine.js?v=20260825.V1_17_0";
+import { FirebaseService } from "../core/firebase-service.js?v=20260825.V1_18_0";
+import { UserContext } from "../core/user-context.js?v=20260825.V1_18_0";
+import { Permissions } from "../core/permissions.js?v=20260825.V1_18_0";
+import { TaskLogService } from "./task-log-service.js?v=20260825.V1_18_0";
+import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260825.V1_18_0";
+import { PeriodReadService } from "./period-read-service.js?v=20260825.V1_18_0";
+import { APP_VERSION } from "../core/app-version.js?v=20260825.V1_18_0";
+import { deriveDeadlinePlan, deadlineDateFromKey, isDateKey, requiresManualDeadline, isEventDrivenFrequency, canonicalFrequency } from "../core/deadline-engine.js?v=20260825.V1_18_0";
 
 const clean = value => String(value ?? "").trim();
 const upper = value => clean(value).toUpperCase();
@@ -965,8 +965,8 @@ export const TaskRegistrationService = Object.freeze({
   },
 
   async listCdtnApprovalCandidates() {
-    if (!Permissions.isCdtnLeadership()) return [];
-    const roles = ["CDTN_BI_THU", "CDTN_PHO_BI_THU", "CDTN_UY_VIEN_BCH", "CDTN_DOAN_VIEN"];
+    if (!Permissions.canDelegateCdtnApproval()) return [];
+    const roles = ["CDTN_PHO_BI_THU"];
     const snapshot = await FirebaseService.getDocs(
       FirebaseService.query(
         FirebaseService.collection(FirebaseService.db, "cdtnMembers"),
@@ -981,14 +981,14 @@ export const TaskRegistrationService = Object.freeze({
       .sort((a, b) => clean(a.fullName).localeCompare(clean(b.fullName), "vi"));
 
     if (!candidates.length) {
-      throw new Error("Chưa có danh sách thành viên Chi đoàn để ủy quyền. Quản trị viên cần đồng bộ lại Google Sheet tài khoản bằng Apps Script V3.2.2.");
+      throw new Error("Chưa tìm thấy Phó Bí thư Chi đoàn đang hoạt động để nhận ủy quyền. Hãy kiểm tra lại vai trò kiêm nhiệm trong danh mục nhân sự.");
     }
     return candidates;
   },
 
   async saveCdtnApprovalDelegation({ delegateUserId, startDate, endDate, reason }) {
     const user = UserContext.requireUser();
-    if (!Permissions.isCdtnLeadership()) throw new Error("Chỉ Bí thư hoặc Phó Bí thư Chi đoàn được ủy quyền duyệt nhiệm vụ Chi đoàn.");
+    if (!Permissions.canDelegateCdtnApproval()) throw new Error("Chỉ Bí thư Chi đoàn được ủy quyền cho Phó Bí thư.");
     const candidates = await this.listCdtnApprovalCandidates();
     const delegate = candidates.find(item => item.id === delegateUserId);
     if (!delegate) throw new Error("Người được chọn không đủ điều kiện nhận ủy quyền Chi đoàn.");
@@ -1025,7 +1025,7 @@ export const TaskRegistrationService = Object.freeze({
 
   async revokeCdtnApprovalDelegation() {
     const user = UserContext.requireUser();
-    if (!Permissions.isCdtnLeadership()) throw new Error("Chỉ Bí thư hoặc Phó Bí thư Chi đoàn được hủy ủy quyền.");
+    if (!Permissions.canDelegateCdtnApproval()) throw new Error("Chỉ Bí thư Chi đoàn được hủy ủy quyền.");
     await FirebaseService.updateDoc(
       FirebaseService.doc(FirebaseService.db, "approvalDelegations", "CDTN_APPROVAL_ACTIVE"),
       {
