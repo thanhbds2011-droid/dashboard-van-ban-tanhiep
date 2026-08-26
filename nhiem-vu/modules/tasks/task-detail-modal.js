@@ -1,16 +1,16 @@
 /** Chi tiết, phân công và các lượt công việc phát sinh của nhiệm vụ. */
-import { UserContext } from "../../core/user-context.js?v=20260825.V1_17_0";
-import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260825.V1_17_0";
-import { Permissions } from "../../core/permissions.js?v=20260825.V1_17_0";
-import { effectiveDepartmentAssignmentStatus, isTerminalTask } from "../../core/task-display-order.js?v=20260825.V1_17_0";
-import { UserReadService } from "../../services/user-read-service.js?v=20260825.V1_17_0";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260825.V1_17_0";
-import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260825.V1_17_0";
-import { TaskEvidenceService } from "../../services/task-evidence-service.js?v=20260825.V1_17_0";
-import { StagedEvidenceUploader } from "../../services/staged-evidence-uploader.js?v=20260825.V1_17_0";
-import { openTaskProgressModal } from "./task-progress-modal.js?v=20260825.V1_17_0";
-import { mountTaskAdjustmentPanel } from "./task-adjustment-panel.js?v=20260825.V1_17_0";
-import { TaskLogService } from "../../services/task-log-service.js?v=20260825.V1_17_0";
+import { UserContext } from "../../core/user-context.js?v=20260825.V1_18_0";
+import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260825.V1_18_0";
+import { Permissions } from "../../core/permissions.js?v=20260825.V1_18_0";
+import { effectiveDepartmentAssignmentStatus, isTerminalTask } from "../../core/task-display-order.js?v=20260825.V1_18_0";
+import { UserReadService } from "../../services/user-read-service.js?v=20260825.V1_18_0";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260825.V1_18_0";
+import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260825.V1_18_0";
+import { TaskEvidenceService } from "../../services/task-evidence-service.js?v=20260825.V1_18_0";
+import { StagedEvidenceUploader } from "../../services/staged-evidence-uploader.js?v=20260825.V1_18_0";
+import { openTaskProgressModal } from "./task-progress-modal.js?v=20260825.V1_18_0";
+import { mountTaskAdjustmentPanel } from "./task-adjustment-panel.js?v=20260825.V1_18_0";
+import { TaskLogService } from "../../services/task-log-service.js?v=20260825.V1_18_0";
 
 const TEAM_LABELS = Object.freeze({
   BAO_VE: "Tổ Bảo vệ",
@@ -676,7 +676,7 @@ export async function openTaskDetailModal(task, { onSaved }) {
             <div id="taskNoOccurrence">${noOccurrenceHtml(task, workItems, isOwner)}</div>
             <div id="taskWorkItemSummary">${workItemSummaryHtml(workItems, task)}</div>
             <div id="taskWorkItemList">${workItemRows(workItems, canEditWorkItems, task, evidenceFiles)}</div>
-          </section>` : ``}
+          </section>` : ["DAILY","WEEKLY","MONTHLY"].includes(String(task.milestoneMode || "").toUpperCase()) ? `<section class="detail-section"><h3>Tiến độ định kỳ</h3><div class="detail-grid task-evaluation-summary">${detail("Tiến độ", `${Number(task.progress || 0)}%`)}${detail("Mốc đã hoàn thành", `${Number(task.milestoneCompletedCount || 0)}/${Number(task.milestoneCount || 0)}`)}${detail("Trạng thái", statusName(task))}${detail("Mốc cuối", formatDate(task.deadline || task._deadline))}</div></section>` : `<div class="info-banner"><strong>Tiến độ nhiệm vụ</strong><span>${escapeHtml(statusName(task))} · ${Number(task.progress || 0)}%</span></div>`}
         </section>
 
         <section class="task-detail-tab-panel" data-task-panel="adjustment">
@@ -940,8 +940,11 @@ function statusName(task) {
   if (String(task.scoringStatus || "").toUpperCase() === "ADJUSTMENT_EXEMPT") return "Miễn đánh giá";
   if (String(task.noOccurrenceStatus || "").toUpperCase() === "CONFIRMED") return "Không phát sinh";
   if (task._overdue) return "Trễ hạn";
+  const eventDriven = String(task.deadlineMode || "").toUpperCase() === "EVENT_DRIVEN";
+  if (eventDriven && task._completed) return "Đã kết thúc theo dõi";
   if (task._completed) return "Hoàn thành";
-  if (String(task.deadlineMode || "").toUpperCase() === "EVENT_DRIVEN") return "Theo dõi phát sinh";
+  if (eventDriven && String(task.status || "").toUpperCase() === "TAM_DUNG") return "Tạm dừng";
+  if (eventDriven) return "Theo dõi phát sinh";
   const map = {
     CHO_PHONG_KHU_TIEP_NHAN: "Chờ Phòng/Khu tiếp nhận",
     CHO_PHAN_CONG: "Phòng/Khu đã nhận — Chờ phân công",

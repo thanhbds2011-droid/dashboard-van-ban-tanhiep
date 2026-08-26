@@ -1,9 +1,9 @@
-import { Permissions } from "../../core/permissions.js?v=20260825.V1_17_0";
-import { ToastService } from "../../core/toast-service.js?v=20260825.V1_17_0";
-import { TaskReadService } from "../../services/task-read-service.js?v=20260825.V1_17_0";
-import { openTaskCreateModal } from "./task-form-modal.js?v=20260825.V1_17_0";
-import { openTaskDetailModal } from "./task-detail-modal.js?v=20260825.V1_17_0";
-import { effectiveDepartmentAssignmentStatus } from "../../core/task-display-order.js?v=20260825.V1_17_0";
+import { Permissions } from "../../core/permissions.js?v=20260825.V1_18_0";
+import { ToastService } from "../../core/toast-service.js?v=20260825.V1_18_0";
+import { TaskReadService } from "../../services/task-read-service.js?v=20260825.V1_18_0";
+import { openTaskCreateModal } from "./task-form-modal.js?v=20260825.V1_18_0";
+import { openTaskDetailModal } from "./task-detail-modal.js?v=20260825.V1_18_0";
+import { effectiveDepartmentAssignmentStatus } from "../../core/task-display-order.js?v=20260825.V1_18_0";
 
 let renderSequence = 0;
 let currentTasks = [];
@@ -246,8 +246,11 @@ function taskStatusDescriptor(task) {
   if (scoringStatus === "ADJUSTMENT_EXEMPT") return { label: "Miễn đánh giá", className: "info" };
   if (adjustmentStatus === "REQUESTED") return { label: "Chờ duyệt điều chỉnh", className: "warning" };
   if (task._overdue) return { label: "Trễ hạn", className: "danger" };
+  const eventDriven = String(task.deadlineMode || "").toUpperCase() === "EVENT_DRIVEN";
+  if (eventDriven && task._completed) return { label: "Đã kết thúc theo dõi", className: "success" };
   if (task._completed) return { label: "Hoàn thành", className: "success" };
-  if (String(task.deadlineMode || "").toUpperCase() === "EVENT_DRIVEN") return { label: "Theo dõi phát sinh", className: "info" };
+  if (eventDriven && status === "TAM_DUNG") return { label: "Tạm dừng", className: "warning" };
+  if (eventDriven) return { label: "Theo dõi phát sinh", className: "info" };
   if (departmentStatus === "PENDING_ACCEPTANCE" || status === "CHO_PHONG_KHU_TIEP_NHAN") {
     return { label: "Chờ Phòng/Khu tiếp nhận", className: "warning" };
   }

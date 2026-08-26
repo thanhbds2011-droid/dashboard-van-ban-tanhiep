@@ -1,19 +1,19 @@
 /**
- * Cập nhật nhiệm vụ V1.17.0.
+ * Cập nhật nhiệm vụ V1.18.0.
  * - Trạng thái + minh chứng nội dung/liên kết + nhiều tệp Drive.
  * - Tệp chỉ được giữ cục bộ khi chọn; chỉ upload Drive sau khi người dùng bấm Lưu.
  * - Bấm × trước khi Lưu chỉ bỏ tệp khỏi danh sách, không phát sinh thao tác Drive.
  * - Mốc định kỳ hỗ trợ Theo ngày / Theo tuần / Theo tháng.
  */
-import { UserContext } from "../../core/user-context.js?v=20260825.V1_17_0";
-import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260825.V1_17_0";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260825.V1_17_0";
-import { TaskMilestoneService } from "../../services/task-milestone-service.js?v=20260825.V1_17_0";
-import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260825.V1_17_0";
-import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260825.V1_17_0";
-import { TaskEvidenceService } from "../../services/task-evidence-service.js?v=20260825.V1_17_0";
-import { StagedEvidenceUploader } from "../../services/staged-evidence-uploader.js?v=20260825.V1_17_0";
-import { validateProgressInput, cleanText } from "./task-form-validator.js?v=20260825.V1_17_0";
+import { UserContext } from "../../core/user-context.js?v=20260825.V1_18_0";
+import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260825.V1_18_0";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260825.V1_18_0";
+import { TaskMilestoneService } from "../../services/task-milestone-service.js?v=20260825.V1_18_0";
+import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260825.V1_18_0";
+import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260825.V1_18_0";
+import { TaskEvidenceService } from "../../services/task-evidence-service.js?v=20260825.V1_18_0";
+import { StagedEvidenceUploader } from "../../services/staged-evidence-uploader.js?v=20260825.V1_18_0";
+import { validateProgressInput, cleanText } from "./task-form-validator.js?v=20260825.V1_18_0";
 
 function mayUpdate(task) {
   const user = UserContext.requireUser();
@@ -118,7 +118,9 @@ export async function openTaskProgressModal(task, { onSaved }) {
           ${statusOption("DANG_XU_LY", eventDriven ? "Theo dõi phát sinh" : "Đang thực hiện", task.status)}
           ${statusOption("TAM_DUNG", "Tạm dừng", task.status)}
           ${recurringMilestones || eventDriven ? "" : statusOption("HOAN_THANH", "Hoàn thành", task.status)}
+          ${eventDriven ? '<option value="KET_THUC_THEO_DOI">Kết thúc theo dõi trong kỳ</option>' : ''}
         </select></label>
+        ${eventDriven ? `<div class="field-full info-banner compact-info-banner"><strong>Kết thúc theo dõi</strong><span>Chỉ kết thúc khi đã có ít nhất 01 lượt và tất cả lượt đã hoàn thành. Điểm tiến độ vẫn giữ theo kết quả từng lượt, không tự chuyển thành 100%.</span></div>` : ''}
         ${recurringMilestones && currentMilestone ? `<label class="field-full check-row task-milestone-complete-action"><input id="completeCurrentMilestone" type="checkbox"><span><strong>Xác nhận đã hoàn thành mốc ${formatDateKey(currentMilestone.dueDateKey)}</strong><small>Thời điểm hoàn thành được hệ thống ghi tự động. ${currentMilestone.id === task.finalMilestoneId ? "Đây là mốc cuối; sau khi xác nhận, nhiệm vụ sẽ tự chuyển sang Hoàn thành." : "Sau khi xác nhận, nhiệm vụ vẫn tiếp tục đến mốc kế tiếp."}</small></span></label>` : ""}
         <label class="field-full"><span>Minh chứng dạng nội dung/liên kết</span><textarea id="evidenceText" rows="3" maxlength="3000" placeholder="Mô tả kết quả, số văn bản hoặc dán liên kết minh chứng">${escapeHtml(task.evidenceText || "")}</textarea></label>
         <label class="field-full evidence-file-field"><span>Bổ sung tệp/hình ảnh minh chứng</span><input id="evidenceFile" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"><small>Tệp chỉ được tải lên khi bấm Lưu cập nhật. Tối đa 10 tệp/lần, 20 tệp/nhiệm vụ, 8 MB/tệp.</small></label>
@@ -294,6 +296,16 @@ export async function openTaskProgressModal(task, { onSaved }) {
           validateProgressInput({ ...changes, status: "MILESTONE_COMPLETED" }, task);
           button.textContent = "Đang hoàn tất mốc…";
           await TaskMilestoneService.complete(task, currentMilestone, changes);
+        } else if (eventDriven && changes.status === "KET_THUC_THEO_DOI") {
+          const total = Number(workItemSummary.totalRecordedCount ?? workItemSummary.count ?? 0);
+          const completedCount = Number(workItemSummary.completedCount || 0);
+          if (total <= 0) throw new Error("Chưa có lượt phát sinh. Nếu cả kỳ không phát sinh, hãy dùng quy trình Đề nghị Không phát sinh.");
+          if (completedCount < total) throw new Error(`Còn ${total - completedCount} lượt chưa hoàn thành. Hãy hoàn tất các lượt trước khi kết thúc theo dõi.`);
+          if (!window.confirm(`Kết thúc theo dõi phát sinh trong kỳ?\n\nĐã ghi nhận: ${total} lượt\nĐã hoàn thành: ${completedCount}/${total}\nTiến độ KPI: ${Number(workItemSummary.appliedProgressRate ?? 0)}%\n\nSau khi kết thúc sẽ không thể thêm/sửa/xóa lượt phát sinh.`)) {
+            button.disabled = false; button.textContent = "Lưu cập nhật"; saving = false; return;
+          }
+          button.textContent = "Đang kết thúc theo dõi…";
+          await TaskWriteService.endEventDrivenTracking(task, workItemSummary, changes);
         } else {
           validateProgressInput(changes, task);
           button.textContent = "Đang hoàn tất cập nhật…";
