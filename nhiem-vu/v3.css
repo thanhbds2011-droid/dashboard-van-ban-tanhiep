@@ -248,7 +248,7 @@ button,input,select,textarea{font-size:16px}
 .m01-table{table-layout:fixed;font-size:10.5px!important;line-height:1.2}
 .m01-table th,.m01-table td{padding:4px!important;vertical-align:top;border:1px solid #8fb1c8!important}
 .m01-table th{font-weight:700;text-align:center;vertical-align:middle}
-.m01-col-stt{width:5%}.m01-col-content{width:51%}.m01-col-check{width:8%}.m01-col-score{width:8%}.m01-col-note{width:12%}
+.m01-col-stt{width:5%}.m01-col-content{width:43%}.m01-col-max{width:10%}.m01-col-self{width:12%}.m01-col-authority{width:18%}.m01-col-note{width:12%}
 .m01-center{text-align:center!important;vertical-align:middle!important}
 .m01-check{font-weight:700;font-size:13px}
 .m01-part-row,.m01-group-row{font-weight:700;background:#d7eaf6}
@@ -1140,3 +1140,11 @@ button,input,select,textarea{font-size:16px}
   .staged-evidence-actions { justify-content: flex-end; }
   .task-evidence-row-actions { grid-column: 2; justify-self: start; }
 }
+
+/* V1.18.1 - Hộp thoại nội bộ thay thế alert/confirm/prompt của trình duyệt. */
+.app-dialog-field{display:grid;gap:7px;margin-top:12px}.app-dialog-field>span{font-size:12px;font-weight:800;color:var(--text)}
+.app-dialog-input{width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:10px;padding:10px 11px;font:inherit;color:var(--text);background:#fff;resize:vertical;min-height:42px}
+textarea.app-dialog-input{min-height:104px}.app-dialog-input:focus{outline:2px solid rgba(23,121,170,.16);border-color:#4d9fc8}
+.app-dialog-error{margin-top:8px;padding:8px 10px;border-radius:8px;background:var(--danger-bg);color:var(--danger);font-size:12px;font-weight:700}
+.modal-body .app-dialog-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0}.modal-body .app-dialog-summary>div{border:1px solid var(--border);border-radius:10px;padding:10px;background:#f8fbfd}.modal-body .app-dialog-summary span,.modal-body .app-dialog-summary strong{display:block}.modal-body .app-dialog-summary span{font-size:11px;color:var(--muted);margin-bottom:3px}
+@media(max-width:560px){.modal-body .app-dialog-summary{grid-template-columns:1fr}}
