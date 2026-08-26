@@ -1,16 +1,17 @@
 /** Chi tiết, phân công và các lượt công việc phát sinh của nhiệm vụ. */
-import { UserContext } from "../../core/user-context.js?v=20260825.V1_18_0";
-import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260825.V1_18_0";
-import { Permissions } from "../../core/permissions.js?v=20260825.V1_18_0";
-import { effectiveDepartmentAssignmentStatus, isTerminalTask } from "../../core/task-display-order.js?v=20260825.V1_18_0";
-import { UserReadService } from "../../services/user-read-service.js?v=20260825.V1_18_0";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260825.V1_18_0";
-import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260825.V1_18_0";
-import { TaskEvidenceService } from "../../services/task-evidence-service.js?v=20260825.V1_18_0";
-import { StagedEvidenceUploader } from "../../services/staged-evidence-uploader.js?v=20260825.V1_18_0";
-import { openTaskProgressModal } from "./task-progress-modal.js?v=20260825.V1_18_0";
-import { mountTaskAdjustmentPanel } from "./task-adjustment-panel.js?v=20260825.V1_18_0";
-import { TaskLogService } from "../../services/task-log-service.js?v=20260825.V1_18_0";
+import { UserContext } from "../../core/user-context.js?v=20260826.V1_18_1";
+import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260826.V1_18_1";
+import { ModalService } from "../../core/modal-service.js?v=20260826.V1_18_1";
+import { Permissions } from "../../core/permissions.js?v=20260826.V1_18_1";
+import { effectiveDepartmentAssignmentStatus, isTerminalTask } from "../../core/task-display-order.js?v=20260826.V1_18_1";
+import { UserReadService } from "../../services/user-read-service.js?v=20260826.V1_18_1";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260826.V1_18_1";
+import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260826.V1_18_1";
+import { TaskEvidenceService } from "../../services/task-evidence-service.js?v=20260826.V1_18_1";
+import { StagedEvidenceUploader } from "../../services/staged-evidence-uploader.js?v=20260826.V1_18_1";
+import { openTaskProgressModal } from "./task-progress-modal.js?v=20260826.V1_18_1";
+import { mountTaskAdjustmentPanel } from "./task-adjustment-panel.js?v=20260826.V1_18_1";
+import { TaskLogService } from "../../services/task-log-service.js?v=20260826.V1_18_1";
 
 const TEAM_LABELS = Object.freeze({
   BAO_VE: "Tổ Bảo vệ",
@@ -749,13 +750,14 @@ export async function openTaskDetailModal(task, { onSaved }) {
     }));
     overlay.querySelectorAll("[data-remove-work-item]").forEach(button => button.addEventListener("click", async () => {
       const item = workItems.find(entry => entry.id === button.dataset.removeWorkItem);
-      if (!item || !window.confirm(`Xóa lượt công việc “${item.title}”?`)) return;
+      if (!item) return;
+      if (!await ModalService.confirm(`Xóa lượt công việc “${item.title}”?`, { title: "Xóa lượt phát sinh", confirmText: "Xóa lượt", danger: true })) return;
       try {
         button.disabled = true;
         await TaskWorkItemService.remove(task, item);
         await refreshWorkItems();
       } catch (error) {
-        window.alert(friendlyErrorMessage(error, "Không xóa được công việc phát sinh."));
+        await ModalService.alert(friendlyErrorMessage(error, "Không xóa được công việc phát sinh."), { title: "Không thể xóa lượt", danger: true });
         button.disabled = false;
       }
     }));
@@ -765,35 +767,35 @@ export async function openTaskDetailModal(task, { onSaved }) {
   bindWorkItemActions();
 
   overlay.querySelector("#requestNoOccurrenceButton")?.addEventListener("click", async () => {
-    const reason = window.prompt("Nêu lý do đầu việc không phát sinh trong kỳ:");
+    const reason = await ModalService.prompt("Nêu lý do đầu việc không phát sinh trong kỳ:", { title: "Đề nghị không phát sinh", label: "Lý do", required: true, confirmText: "Gửi đề nghị" });
     if (reason === null) return;
     try {
       await TaskWriteService.requestNoOccurrence(task, reason);
       close();
       await onSaved?.();
     } catch (error) {
-      window.alert(friendlyErrorMessage(error, "Không gửi được đề nghị."));
+      await ModalService.alert(friendlyErrorMessage(error, "Không gửi được đề nghị."), { title: "Không gửi được đề nghị", danger: true });
     }
   });
   overlay.querySelector("#confirmNoOccurrenceButton")?.addEventListener("click", async () => {
-    if (!window.confirm("Xác nhận không phát sinh và loại đầu việc này khỏi điểm A của kỳ?")) return;
+    if (!await ModalService.confirm("Xác nhận không phát sinh và loại đầu việc này khỏi điểm A của kỳ?", { title: "Xác nhận không phát sinh", confirmText: "Xác nhận", danger: true })) return;
     try {
       await TaskWriteService.confirmNoOccurrence(task);
       close();
       await onSaved?.();
     } catch (error) {
-      window.alert(friendlyErrorMessage(error, "Không xác nhận được đề nghị."));
+      await ModalService.alert(friendlyErrorMessage(error, "Không xác nhận được đề nghị."), { title: "Không xác nhận được", danger: true });
     }
   });
   overlay.querySelector("#rejectNoOccurrenceButton")?.addEventListener("click", async () => {
-    const reason = window.prompt("Nêu lý do không chấp thuận:");
+    const reason = await ModalService.prompt("Nêu lý do không chấp thuận:", { title: "Không chấp thuận đề nghị", label: "Lý do", required: true, confirmText: "Không chấp thuận", danger: true });
     if (reason === null) return;
     try {
       await TaskWriteService.rejectNoOccurrence(task, reason);
       close();
       await onSaved?.();
     } catch (error) {
-      window.alert(friendlyErrorMessage(error, "Không xử lý được đề nghị."));
+      await ModalService.alert(friendlyErrorMessage(error, "Không xử lý được đề nghị."), { title: "Không xử lý được", danger: true });
     }
   });
 
@@ -834,7 +836,7 @@ export async function openTaskDetailModal(task, { onSaved }) {
       close();
       await onSaved?.();
     } catch (error) {
-      window.alert(friendlyErrorMessage(error, "Không lưu được phân công."));
+      await ModalService.alert(friendlyErrorMessage(error, "Không lưu được phân công."), { title: "Không lưu được phân công", danger: true });
       button.disabled = false;
       button.textContent = "Lưu phân công";
     }
@@ -849,7 +851,7 @@ export async function openTaskDetailModal(task, { onSaved }) {
       close();
       await onSaved?.();
     } catch (error) {
-      window.alert(friendlyErrorMessage(error, "Không xác nhận được Phòng/Khu đã nhận nhiệm vụ."));
+      await ModalService.alert(friendlyErrorMessage(error, "Không xác nhận được Phòng/Khu đã nhận nhiệm vụ."), { title: "Không xác nhận được", danger: true });
       button.disabled = false;
       button.textContent = "Xác nhận Phòng/Khu đã nhận";
     }
@@ -882,8 +884,9 @@ export async function openTaskDetailModal(task, { onSaved }) {
     error
   });
 
-  window.alert(
-    friendlyErrorMessage(error, "Không xác nhận được nhiệm vụ.")
+  await ModalService.alert(
+    friendlyErrorMessage(error, "Không xác nhận được nhiệm vụ."),
+    { title: "Không xác nhận được nhiệm vụ", danger: true }
   );
 
   button.disabled = false;
@@ -912,8 +915,9 @@ export async function openTaskDetailModal(task, { onSaved }) {
         errorMessage: error?.message || String(error),
         error
       });
-      window.alert(
-        friendlyErrorMessage(error, "Không mở được chức năng cập nhật nhiệm vụ.")
+      await ModalService.alert(
+        friendlyErrorMessage(error, "Không mở được chức năng cập nhật nhiệm vụ."),
+        { title: "Không mở được cập nhật nhiệm vụ", danger: true }
       );
       if (button) {
         button.disabled = false;

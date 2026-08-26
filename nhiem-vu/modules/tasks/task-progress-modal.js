@@ -5,15 +5,16 @@
  * - Bấm × trước khi Lưu chỉ bỏ tệp khỏi danh sách, không phát sinh thao tác Drive.
  * - Mốc định kỳ hỗ trợ Theo ngày / Theo tuần / Theo tháng.
  */
-import { UserContext } from "../../core/user-context.js?v=20260825.V1_18_0";
-import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260825.V1_18_0";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260825.V1_18_0";
-import { TaskMilestoneService } from "../../services/task-milestone-service.js?v=20260825.V1_18_0";
-import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260825.V1_18_0";
-import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260825.V1_18_0";
-import { TaskEvidenceService } from "../../services/task-evidence-service.js?v=20260825.V1_18_0";
-import { StagedEvidenceUploader } from "../../services/staged-evidence-uploader.js?v=20260825.V1_18_0";
-import { validateProgressInput, cleanText } from "./task-form-validator.js?v=20260825.V1_18_0";
+import { UserContext } from "../../core/user-context.js?v=20260826.V1_18_1";
+import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260826.V1_18_1";
+import { ModalService } from "../../core/modal-service.js?v=20260826.V1_18_1";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260826.V1_18_1";
+import { TaskMilestoneService } from "../../services/task-milestone-service.js?v=20260826.V1_18_1";
+import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260826.V1_18_1";
+import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260826.V1_18_1";
+import { TaskEvidenceService } from "../../services/task-evidence-service.js?v=20260826.V1_18_1";
+import { StagedEvidenceUploader } from "../../services/staged-evidence-uploader.js?v=20260826.V1_18_1";
+import { validateProgressInput, cleanText } from "./task-form-validator.js?v=20260826.V1_18_1";
 
 function mayUpdate(task) {
   const user = UserContext.requireUser();
@@ -301,7 +302,14 @@ export async function openTaskProgressModal(task, { onSaved }) {
           const completedCount = Number(workItemSummary.completedCount || 0);
           if (total <= 0) throw new Error("Chưa có lượt phát sinh. Nếu cả kỳ không phát sinh, hãy dùng quy trình Đề nghị Không phát sinh.");
           if (completedCount < total) throw new Error(`Còn ${total - completedCount} lượt chưa hoàn thành. Hãy hoàn tất các lượt trước khi kết thúc theo dõi.`);
-          if (!window.confirm(`Kết thúc theo dõi phát sinh trong kỳ?\n\nĐã ghi nhận: ${total} lượt\nĐã hoàn thành: ${completedCount}/${total}\nTiến độ KPI: ${Number(workItemSummary.appliedProgressRate ?? 0)}%\n\nSau khi kết thúc sẽ không thể thêm/sửa/xóa lượt phát sinh.`)) {
+          const progressRate = Number(workItemSummary.appliedProgressRate ?? 0);
+          const confirmedClose = await ModalService.confirm("", {
+            title: "Kết thúc theo dõi trong kỳ",
+            confirmText: "Kết thúc theo dõi",
+            cancelText: "Tiếp tục theo dõi",
+            messageHtml: `<div class="app-dialog-summary"><div><span>Đã ghi nhận</span><strong>${total} lượt</strong></div><div><span>Đã hoàn thành</span><strong>${completedCount}/${total}</strong></div><div><span>Tiến độ KPI</span><strong>${progressRate}%</strong></div></div><p>Sau khi kết thúc, không thể thêm, sửa hoặc xóa lượt phát sinh. Điểm KPI vẫn giữ theo kết quả thực tế của các lượt, không tự chuyển thành 100%.</p>`
+          });
+          if (!confirmedClose) {
             button.disabled = false; button.textContent = "Lưu cập nhật"; saving = false; return;
           }
           button.textContent = "Đang kết thúc theo dõi…";
