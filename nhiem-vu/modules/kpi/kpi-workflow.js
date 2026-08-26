@@ -1,24 +1,25 @@
-import { auth, db } from '../../firebase-config.js?v=20260825.V1_18_0';
+import { auth, db } from '../../firebase-config.js?v=20260826.V1_18_1';
 import {
   addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, query,
   serverTimestamp, setDoc, Timestamp, updateDoc, where, limit, writeBatch
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
-import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260825.V1_18_0';
-import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260825.V1_18_0';
-import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260825.V1_18_0';
-import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260825.V1_18_0';
-import { PeriodReadService } from '../../services/period-read-service.js?v=20260825.V1_18_0';
-import { TaskReadService } from '../../services/task-read-service.js?v=20260825.V1_18_0';
-import { Permissions } from '../../core/permissions.js?v=20260825.V1_18_0';
-import { UserContext } from '../../core/user-context.js?v=20260825.V1_18_0';
-import { APP_VERSION } from '../../core/app-version.js?v=20260825.V1_18_0';
-import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260825.V1_18_0';
-import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260825.V1_18_0';
+import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260826.V1_18_1';
+import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260826.V1_18_1';
+import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260826.V1_18_1';
+import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260826.V1_18_1';
+import { PeriodReadService } from '../../services/period-read-service.js?v=20260826.V1_18_1';
+import { TaskReadService } from '../../services/task-read-service.js?v=20260826.V1_18_1';
+import { Permissions } from '../../core/permissions.js?v=20260826.V1_18_1';
+import { UserContext } from '../../core/user-context.js?v=20260826.V1_18_1';
+import { APP_VERSION } from '../../core/app-version.js?v=20260826.V1_18_1';
+import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260826.V1_18_1';
+import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260826.V1_18_1';
 import {
   KPI2B as KPI2C, M01_GROUPS, COMMON_CRITERIA, commonCriteriaForProfile, reportFormTypeForProfile, calculateTaskScore, calculateKpiSummary,
   proposedRating, ratingName, round2, progressRateFromDates, convertAppendix04Rate, calculateMilestoneProgress, calculateBonusScore
-} from '../../kpi-engine.js?v=20260825.V1_18_0';
-import { resolveKpiReviewer, canReviewKpiOwner } from '../../core/kpi-review-authority.js?v=20260825.V1_18_0';
+} from '../../kpi-engine.js?v=20260826.V1_18_1';
+import { resolveKpiReviewer, canReviewKpiOwner } from '../../core/kpi-review-authority.js?v=20260826.V1_18_1';
+import { ModalService } from '../../core/modal-service.js?v=20260826.V1_18_1';
 
 export const KpiWorkflowState = {
   user: null,
@@ -98,16 +99,22 @@ async function approveRegistrationsWithLegacyRecovery(registrations = []) {
       if (String(error?.code || '') !== 'LEGACY_MANUAL_DEADLINE_REQUIRED') throw error;
 
       const code = clean(error?.standardTaskCode || error?.standardTaskId || 'đầu việc');
-      const input = window.prompt(
-        `Đăng ký cũ ${code} chưa có Hạn hoàn thành cụ thể.\n`
-        + 'Nhập hạn để Trưởng phòng duyệt (DD/MM/YYYY hoặc YYYY-MM-DD).\n'
-        + 'Hệ thống sẽ lưu hạn này vào snapshot đăng ký và không dùng ngày cuối kỳ.'
+      const input = await ModalService.prompt(
+        `Đăng ký cũ ${code} chưa có Hạn hoàn thành cụ thể. Hãy bổ sung hạn để tiếp tục duyệt.`,
+        {
+          title: 'Bổ sung hạn hoàn thành',
+          label: 'Hạn hoàn thành (DD/MM/YYYY hoặc YYYY-MM-DD)',
+          multiline: false,
+          placeholder: '25/08/2026',
+          required: true,
+          confirmText: 'Lưu hạn và tiếp tục'
+        }
       );
       if (input === null) return null;
 
       const key = manualDeadlineDateKey(input);
       if (!key) {
-        window.alert('Ngày không hợp lệ. Ví dụ: 25/08/2026.');
+        ModalService.alert('Ngày không hợp lệ. Ví dụ: 25/08/2026.');
         continue;
       }
 
@@ -446,6 +453,21 @@ function registrationInApproverDepartment(registration) {
   return departmentId === profileDepartmentId();
 }
 
+function departmentHasActiveHead(departmentId) {
+  const target = normalizeDepartment(departmentId);
+  if (!target || target === 'CDTN' || target === 'BGD') return false;
+  return KpiWorkflowState.users.some(user => (
+    user?.active === true
+    && normalizeDepartment(user.departmentId) === target
+    && Permissions.isDepartmentHead(user)
+  ));
+}
+
+function directorApprovalAvailable(permissionName = 'APPROVE_REGISTRATIONS') {
+  return Permissions.isDirectorHead()
+    || (Permissions.isDirectorDeputy() && hasActiveApprovalDelegation(permissionName, 'BGD'));
+}
+
 function canApproveRegistration(registration) {
   if (!registration || registration.status !== 'PENDING') return false;
   if (activeRole('ADMIN')) return true;
@@ -461,22 +483,34 @@ function canApproveRegistration(registration) {
     );
   }
 
+  const ownerProfile = {
+    uid: registration.userId,
+    active: true,
+    role: registration.userRole,
+    position: registration.userPosition,
+    leaderLevel: registration.userLeaderLevel,
+    isDepartmentHead: registration.userIsDepartmentHead,
+    departmentId: registrationDepartmentId
+  };
+  const ownerIsHead = Permissions.isDepartmentHead(ownerProfile);
+  const ownerIsDeputy = Permissions.isDepartmentDeputy(ownerProfile);
+  const directorFallback = directorApprovalAvailable('APPROVE_REGISTRATIONS')
+    && registration.userId !== KpiWorkflowState.user.uid
+    && (ownerIsHead || (!departmentHasActiveHead(registrationDepartmentId) && (ownerIsDeputy || !['DIRECTOR'].includes(clean(registration.userRole).toUpperCase()))));
+  if (directorFallback) return true;
+
   const delegated = hasActiveApprovalDelegation('APPROVE_REGISTRATIONS', profileDepartmentId());
   if (registration.userRole === 'DEPARTMENT_LEADER') {
-    const deputy = Permissions.isDepartmentDeputy({
-      uid: registration.userId,
-      active: true,
-      role: registration.userRole,
-      position: registration.userPosition,
-      leaderLevel: registration.userLeaderLevel,
-      isDepartmentHead: registration.userIsDepartmentHead
-    });
-    if (deputy) {
-      return Permissions.canApproveRegistrationForDepartment(registrationDepartmentId, delegated) && registrationInApproverDepartment(registration) && registration.userId !== KpiWorkflowState.user.uid;
+    if (ownerIsDeputy) {
+      return Permissions.canApproveRegistrationForDepartment(registrationDepartmentId, delegated)
+        && registrationInApproverDepartment(registration)
+        && registration.userId !== KpiWorkflowState.user.uid;
     }
-    return activeRole('DIRECTOR');
+    return false;
   }
-  return Permissions.canApproveRegistrationForDepartment(registrationDepartmentId, delegated) && registrationInApproverDepartment(registration);
+  return Permissions.canApproveRegistrationForDepartment(registrationDepartmentId, delegated)
+    && registrationInApproverDepartment(registration)
+    && registration.userId !== KpiWorkflowState.user.uid;
 }
 
 function canViewDepartmentData() {
@@ -794,7 +828,7 @@ function openEditPeriod(periodId) {
     const name = clean(el('editPeriodName').value);
     const startDate = clean(el('editPeriodStart').value);
     const endDate = clean(el('editPeriodEnd').value);
-    if (!name || !startDate || !endDate || startDate > endDate) return alert('Thông tin kỳ chưa hợp lệ.');
+    if (!name || !startDate || !endDate || startDate > endDate) return ModalService.alert('Thông tin kỳ chưa hợp lệ.');
     await updateDoc(doc(db,'evaluationPeriods',periodId), { name, startDate, endDate, updatedAt:serverTimestamp(), updatedByUserId:KpiWorkflowState.user.uid });
     PeriodReadService.invalidate();
     await audit('UPDATE_PERIOD',{periodId,startDate,endDate});
@@ -804,7 +838,7 @@ function openEditPeriod(periodId) {
 
 async function activatePeriod(periodId) {
   if (!Permissions.canManageEvaluationPeriods()) return;
-  if (KpiWorkflowState.periods.some(period => period.active === true && period.id !== periodId)) return alert('Đang có một kỳ hoạt động. Hãy kết thúc kỳ đó trước.');
+  if (KpiWorkflowState.periods.some(period => period.active === true && period.id !== periodId)) return ModalService.alert('Đang có một kỳ hoạt động. Hãy kết thúc kỳ đó trước.');
   await updateDoc(doc(db,'evaluationPeriods',periodId), { active:true, status:'ACTIVE', activatedAt:serverTimestamp(), activatedByUserId:KpiWorkflowState.user.uid, updatedAt:serverTimestamp() });
   PeriodReadService.invalidate();
   await audit('ACTIVATE_PERIOD',{periodId});
@@ -814,7 +848,7 @@ async function activatePeriod(periodId) {
 async function completePeriodById(periodId) {
   if (!Permissions.canManageEvaluationPeriods()) return;
   if (KpiWorkflowState.period?.id !== periodId || KpiWorkflowState.period?.active !== true) {
-    alert('Chỉ có thể kết thúc kỳ đang hoạt động.');
+    ModalService.alert('Chỉ có thể kết thúc kỳ đang hoạt động.');
     return;
   }
   closeModal();
@@ -1497,14 +1531,14 @@ function renderCompactEvaluationPanel(target) {
   target.querySelector('#kpiReviewClearAll')?.addEventListener('click', () => target.querySelectorAll('[data-kpi-confirm-check]').forEach(input => { input.checked = false; }));
   target.querySelector('#kpiConfirmSelected')?.addEventListener('click', async event => {
     const ids = [...target.querySelectorAll('[data-kpi-confirm-check]:checked')].map(input => input.value);
-    if (!ids.length) return alert('Hãy chọn ít nhất một nhiệm vụ cần xác nhận.');
+    if (!ids.length) return ModalService.alert('Hãy chọn ít nhất một nhiệm vụ cần xác nhận.');
     const button = event.currentTarget;
     button.disabled = true;
     try {
       await batchConfirmEvaluations(ids);
       await loadAll();
     } catch (error) {
-      alert(friendlyErrorMessage(error, 'Không xác nhận được các nhiệm vụ đã chọn.'));
+      ModalService.alert(friendlyErrorMessage(error, 'Không xác nhận được các nhiệm vụ đã chọn.'));
       button.disabled = false;
     }
   });
@@ -1528,7 +1562,7 @@ async function batchConfirmEvaluations(evaluationIds) {
   }).filter(Boolean);
 
   if (!rows.length) throw new Error('Các nhiệm vụ đã chọn chưa có tự đánh giá hợp lệ hoặc không thuộc quyền xác nhận.');
-  if (!confirm(`Xác nhận ${rows.length} nhiệm vụ theo điểm tự đánh giá hiện tại? Các điểm này sẽ được khóa chính thức.`)) return;
+  if (!await ModalService.confirm(`Xác nhận ${rows.length} nhiệm vụ theo điểm tự đánh giá hiện tại? Các điểm này sẽ được khóa chính thức.`)) return;
 
   const batch = writeBatch(db);
   rows.forEach(({ evaluation, task, score }) => {
@@ -1621,7 +1655,7 @@ function openPersonPlanDetail(uid) {
       const registration = registrations.find(item => item.id === button.dataset.cancelRegistrationManager);
       if (!registration) return;
       const taskName = registration.standardTaskName || registration.title || 'đầu việc này';
-      if (!confirm(`Hủy đăng ký “${taskName}” của ${user.fullName || 'nhân viên'}? Đầu việc sẽ trở lại danh mục để đăng ký lại khi kế hoạch được mở.`)) return;
+      if (!await ModalService.confirm(`Hủy đăng ký “${taskName}” của ${user.fullName || 'nhân viên'}? Đầu việc sẽ trở lại danh mục để đăng ký lại khi kế hoạch được mở.`)) return;
       button.disabled = true;
       try {
         await TaskRegistrationService.cancelRegistration(registration, { asManager: true });
@@ -1629,7 +1663,7 @@ function openPersonPlanDetail(uid) {
         await loadAll();
         openPersonPlanDetail(uid);
       } catch (error) {
-        alert(friendlyErrorMessage(error, 'Không thể hủy đăng ký cho nhân viên.'));
+        ModalService.alert(friendlyErrorMessage(error, 'Không thể hủy đăng ký cho nhân viên.'));
         button.disabled = false;
       }
     });
@@ -1639,7 +1673,7 @@ function openPersonPlanDetail(uid) {
     const ids = [...root.querySelectorAll('[data-reg-review]:checked')].map(input => input.value);
     const selected = pending.filter(item => ids.includes(item.id));
     if (!selected.length) {
-      alert('Chưa chọn đầu việc để duyệt.');
+      ModalService.alert('Chưa chọn đầu việc để duyệt.');
       return;
     }
 
@@ -1660,7 +1694,7 @@ function openPersonPlanDetail(uid) {
       await loadAll();
     } catch (error) {
       console.error('TASK_REGISTRATION_BATCH_APPROVE_FAILED', error);
-      alert(friendlyErrorMessage(error, 'Không duyệt được các đầu việc đã chọn.'));
+      ModalService.alert(friendlyErrorMessage(error, 'Không duyệt được các đầu việc đã chọn.'));
       if (button?.isConnected) {
         button.disabled = false;
         button.textContent = 'Duyệt mục đã chọn';
@@ -1852,7 +1886,7 @@ function scoreStateForUserInDepartment(userId, departmentId) {
 
 function openDepartmentReport(options = {}) {
   if (!canViewDepartmentReport()) {
-    alert('Tài khoản không có quyền xem báo cáo tổng hợp của Phòng/Khu hoặc Chi đoàn.');
+    ModalService.alert('Tài khoản không có quyền xem báo cáo tổng hợp của Phòng/Khu hoặc Chi đoàn.');
     return;
   }
 
@@ -2053,7 +2087,7 @@ function openRegistrationGroup(userId) {
     const button = event.currentTarget;
     const ids = [...document.querySelectorAll('[data-reg-review]:checked')].map(x => x.value);
     const selected = items.filter(r => ids.includes(r.id));
-    if (!selected.length) return alert('Chưa chọn đầu việc để duyệt.');
+    if (!selected.length) return ModalService.alert('Chưa chọn đầu việc để duyệt.');
     try {
       button.disabled = true;
       button.textContent = 'Đang duyệt...';
@@ -2068,14 +2102,14 @@ function openRegistrationGroup(userId) {
       await loadAll();
     } catch (error) {
       console.error('TASK_REGISTRATION_GROUP_APPROVE_FAILED', error);
-      alert(friendlyErrorMessage(error, 'Không duyệt được các đầu việc đã chọn.'));
+      ModalService.alert(friendlyErrorMessage(error, 'Không duyệt được các đầu việc đã chọn.'));
       if (button?.isConnected) {
         button.disabled = false;
         button.textContent = 'Duyệt các mục đã chọn';
       }
     }
   });
-  el('regRejectAll')?.addEventListener('click', async()=>{ const reason=prompt('Nhập lý do trả lại toàn bộ:'); if(!clean(reason))return; await TaskRegistrationService.rejectMany(items,reason); closeModal(); await loadAll(); });
+  el('regRejectAll')?.addEventListener('click', async()=>{ const reason=await ModalService.prompt('Nhập lý do trả lại toàn bộ:'); if(!clean(reason))return; await TaskRegistrationService.rejectMany(items,reason); closeModal(); await loadAll(); });
 }
 
 async function handleRegistrationAction(event) {
@@ -2086,11 +2120,11 @@ async function handleRegistrationAction(event) {
   const registration = KpiWorkflowState.registrations.find(r => r.id === id);
   if (!registration) return true;
   if (approve) {
-    const core = window.confirm('Chọn OK nếu đây là đầu việc cốt lõi của cá nhân; chọn Cancel nếu không phải.');
+    const core = await ModalService.confirm('Đầu việc này có phải là nhiệm vụ cốt lõi của cá nhân không?', { title: 'Xác định nhiệm vụ cốt lõi', confirmText: 'Là nhiệm vụ cốt lõi', cancelText: 'Không phải cốt lõi' });
     const approved = await approveRegistrationsWithLegacyRecovery([registration]);
     if (approved === null) return true;
   } else {
-    const reason = prompt('Nhập lý do trả lại đăng ký:');
+    const reason = await ModalService.prompt('Nhập lý do trả lại đăng ký:');
     if (!clean(reason)) return true;
     await TaskRegistrationService.reject(registration, reason);
   }
@@ -2126,7 +2160,7 @@ async function reviewAction(event) {
 async function approvePlanTask(taskId) {
   const task = KpiWorkflowState.tasks.find(t=>t.id===taskId);
   if (!canApproveDepartmentPlanTask(task)) return;
-  const core = window.confirm('Chọn OK nếu đây là nhiệm vụ cốt lõi của cá nhân; chọn Cancel nếu không phải.');
+  const core = await ModalService.confirm('Nhiệm vụ này có phải là nhiệm vụ cốt lõi của cá nhân không?', { title: 'Xác định nhiệm vụ cốt lõi', confirmText: 'Là nhiệm vụ cốt lõi', cancelText: 'Không phải cốt lõi' });
   await updateDoc(doc(db,'tasks',taskId), {
     planApprovalStatus:'APPROVED', includedInA: true, isCoreTask:core,
     planApprovedByUserId:KpiWorkflowState.user.uid, planApprovedByName:KpiWorkflowState.profile.fullName || '', planApprovedAt:serverTimestamp(), scoringEnabled:true, updatedAt:serverTimestamp(), updatedByUserId:KpiWorkflowState.user.uid, updatedByName:KpiWorkflowState.profile.fullName || ''
@@ -2139,8 +2173,8 @@ async function approvePlanTask(taskId) {
 async function rejectPlanTask(taskId){
   const task=KpiWorkflowState.tasks.find(t=>t.id===taskId);
   if(!canApproveDepartmentPlanTask(task))return;
-  const reason=clean(prompt('Nhập lý do trả lại kế hoạch:')||'');
-  if(!reason){alert('Phải nhập lý do trả lại.');return;}
+  const reason=clean(await ModalService.prompt('Nhập lý do trả lại kế hoạch:')||'');
+  if(!reason){ModalService.alert('Phải nhập lý do trả lại.');return;}
   await updateDoc(doc(db,'tasks',taskId),{
     planApprovalStatus:'REJECTED',includedInA:false,planRejectedReason:reason,
     planRejectedByUserId:KpiWorkflowState.user.uid,planRejectedByName:KpiWorkflowState.profile.fullName||'',planRejectedAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedByUserId:KpiWorkflowState.user.uid,updatedByName:KpiWorkflowState.profile.fullName||''
@@ -2192,18 +2226,18 @@ async function openSelfAssessment(taskId) {
   const task = KpiWorkflowState.tasks.find(t => t.id === taskId); if (!task) return;
   const ev = evaluationFor(taskId) || {};
   if (String(task.noOccurrenceStatus || '').toUpperCase() === 'CONFIRMED') {
-    alert('Đầu việc đã được xác nhận không phát sinh, đã loại khỏi A và không thực hiện chấm điểm.');
+    ModalService.alert('Đầu việc đã được xác nhận không phát sinh, đã loại khỏi A và không thực hiện chấm điểm.');
     return;
   }
   if (ev.status === 'CONFIRMED' || ev.scoreLocked === true) {
-    alert('Kết quả nhiệm vụ đã được xác nhận và không thể chỉnh sửa.');
+    ModalService.alert('Kết quả nhiệm vụ đã được xác nhận và không thể chỉnh sửa.');
     return;
   }
 
   const itemized = String(task.trackingMode || 'FINAL_OUTPUT').toUpperCase() === 'ITEMIZED';
   const eventDriven = String(task.deadlineMode || '').toUpperCase() === 'EVENT_DRIVEN';
   if (eventDriven && String(task.status || '').toUpperCase() !== 'HOAN_THANH' && !task.completedAt) {
-    alert('Hãy kết thúc theo dõi phát sinh trong kỳ trước khi tự đánh giá nhiệm vụ.');
+    ModalService.alert('Hãy kết thúc theo dõi phát sinh trong kỳ trước khi tự đánh giá nhiệm vụ.');
     return;
   }
   const recurring = ['DAILY','WEEKLY','MONTHLY'].includes(String(task.milestoneMode || '').toUpperCase());
@@ -2214,14 +2248,14 @@ async function openSelfAssessment(taskId) {
       workItems = await TaskWorkItemService.list(task);
       workSummary = TaskWorkItemService.calculateSummary(workItems, task.workItemType, task);
     } catch (error) {
-      alert(friendlyErrorMessage(error, 'Không đọc được các công việc phát sinh trong kỳ.'));
+      ModalService.alert(friendlyErrorMessage(error, 'Không đọc được các công việc phát sinh trong kỳ.'));
       return;
     }
     if (!workSummary.count) {
       if (Number(workSummary.totalRecordedCount || 0) > 0) {
-        alert('Đã có lượt phát sinh nhưng chưa có lượt nào đủ điều kiện tính KPI. Lượt chưa hoàn thành và chưa đến hạn chưa bị tính 0%; hãy đánh giá khi đã có lượt hoàn thành hoặc đã đến hạn.');
+        ModalService.alert('Đã có lượt phát sinh nhưng chưa có lượt nào đủ điều kiện tính KPI. Lượt chưa hoàn thành và chưa đến hạn chưa bị tính 0%; hãy đánh giá khi đã có lượt hoàn thành hoặc đã đến hạn.');
       } else {
-        alert('Đầu việc chưa có lượt phát sinh. Hãy ghi nhận việc phát sinh khi có yêu cầu thực tế; nếu cả kỳ không phát sinh, gửi đề nghị “Không phát sinh” tại Chi tiết nhiệm vụ.');
+        ModalService.alert('Đầu việc chưa có lượt phát sinh. Hãy ghi nhận việc phát sinh khi có yêu cầu thực tế; nếu cả kỳ không phát sinh, gửi đề nghị “Không phát sinh” tại Chi tiết nhiệm vụ.');
       }
       return;
     }
@@ -2232,13 +2266,13 @@ async function openSelfAssessment(taskId) {
     try {
       milestoneItems = await TaskMilestoneService.list(task);
     } catch (error) {
-      alert(friendlyErrorMessage(error, 'Không đọc được mốc tiến độ của nhiệm vụ.'));
+      ModalService.alert(friendlyErrorMessage(error, 'Không đọc được mốc tiến độ của nhiệm vụ.'));
       return;
     }
   }
   const milestoneSummary = recurring ? calculateMilestoneProgress(milestoneItems, new Date()) : null;
   if (recurring && !milestoneSummary?.eligibleMilestones) {
-    alert('Chưa có mốc nào đủ điều kiện tính tiến độ: các mốc tương lai chưa hoàn thành sẽ chưa được đưa vào mẫu số.');
+    ModalService.alert('Chưa có mốc nào đủ điều kiện tính tiến độ: các mốc tương lai chưa hoàn thành sẽ chưa được đưa vào mẫu số.');
     return;
   }
 
@@ -2444,7 +2478,7 @@ function openReview(evalId) {
 
   el('kpiNeedRevision').addEventListener('click', async () => {
     const note = clean(el('kpiReviewerComment').value);
-    if (!note) { alert('Nhập nội dung cần bổ sung.'); return; }
+    if (!note) { ModalService.alert('Nhập nội dung cần bổ sung.'); return; }
     await updateDoc(doc(db, 'taskEvaluations', ev.id), { status: 'NEEDS_REVISION', reviewerComment: note, reviewedByUserId: KpiWorkflowState.user.uid, reviewedByName: KpiWorkflowState.profile.fullName || '', updatedAt: serverTimestamp() });
     closeModal(); await loadAll();
   });
@@ -2454,19 +2488,19 @@ function openReview(evalId) {
     if (button?.dataset?.saving === '1') return;
     let p, r;
     try { p = automaticProgress; r = assessmentRate(el('kpiConfirmResult').value, 'Kết quả xác nhận'); }
-    catch (error) { alert(friendlyErrorMessage(error)); return; }
+    catch (error) { ModalService.alert(friendlyErrorMessage(error)); return; }
     const note = clean(el('kpiReviewerComment').value);
-    if (r !== Number(ev.selfResultRate) && !note) { alert('Khi điều chỉnh Kết quả áp dụng khác tự đánh giá phải nhập lý do.'); return; }
+    if (r !== Number(ev.selfResultRate) && !note) { ModalService.alert('Khi điều chỉnh Kết quả áp dụng khác tự đánh giá phải nhập lý do.'); return; }
     const x = calculateTaskScore(task.baseScore, task.difficultyCoefficient, p, r);
     const bonusDecision = bonusRequested ? clean(el('kpiBonusDecision')?.value || 'APPROVED') : 'NOT_REQUESTED';
     const bonusDecisionReason = bonusRequested && bonusDecision === 'REJECTED' ? clean(el('kpiBonusDecisionReason')?.value) : '';
-    if (bonusDecision === 'REJECTED' && !bonusDecisionReason) { alert('Khi không chấp thuận điểm thưởng phải nhập lý do.'); el('kpiBonusDecisionReason')?.focus(); return; }
+    if (bonusDecision === 'REJECTED' && !bonusDecisionReason) { ModalService.alert('Khi không chấp thuận điểm thưởng phải nhập lý do.'); el('kpiBonusDecisionReason')?.focus(); return; }
     const bonusAwarded = bonusRequested && bonusDecision === 'APPROVED';
     const bonusType = bonusAwarded ? requestType : '';
     const bonusRate = bonusAwarded ? 0.05 : 0;
     const bonusScore = bonusAwarded ? calculateBonusScore(x.actual, bonusRate) : 0;
     const bonusText = bonusRequested ? (bonusAwarded ? ` Điểm thưởng được chấp thuận +${fmt(bonusScore)}.` : ' Điểm thưởng không được chấp thuận.') : '';
-    if (!confirm(`Xác nhận điểm thực tế ${fmt(x.actual)} là kết quả chính thức.${bonusText} Sau thao tác này không thể chỉnh sửa trực tiếp.`)) return;
+    if (!await ModalService.confirm(`Xác nhận điểm thực tế ${fmt(x.actual)} là kết quả chính thức.${bonusText} Sau thao tác này không thể chỉnh sửa trực tiếp.`)) return;
     if (button) { button.dataset.saving = '1'; button.disabled = true; button.textContent = 'Đang xác nhận…'; }
     try {
       const finalBonusFields = {
@@ -2500,7 +2534,7 @@ function openReview(evalId) {
       scheduleKpiRealtimeReload();
     } catch (error) {
       if (button) { button.dataset.saving = '0'; button.disabled = false; button.textContent = 'Xác nhận điểm'; }
-      alert(friendlyErrorMessage(error));
+      ModalService.alert(friendlyErrorMessage(error));
     }
   });
 }
@@ -2520,13 +2554,13 @@ function criteriaForUser(user = KpiWorkflowState.profile) {
 
 function openCommonCriteria(){
   if(!KpiWorkflowState.period)return;
-  if(KpiWorkflowState.common?.status==='CONFIRMED'){alert('Tiêu chí chung đã được xác nhận và không thể chỉnh sửa.');return;}
+  if(KpiWorkflowState.common?.status==='CONFIRMED'){ModalService.alert('Tiêu chí chung đã được xác nhận và không thể chỉnh sửa.');return;}
   const formType = reportFormTypeForProfile(KpiWorkflowState.profile || {});
   const criteria = criteriaForUser(KpiWorkflowState.profile);
   const items=KpiWorkflowState.common?.items||[];
   modal(`${formType === '01A' ? 'Mẫu 01A' : 'Mẫu 01B'} · Tiêu chí chung 30 điểm`,`<div class="kpi-criteria-list">${criteria.map(c=>{const v=items.find(x=>x.code===c.code)||{};return `<div class="kpi-criterion"><strong class="kpi-criterion-score">${c.code}<br>${c.max} điểm</strong><p class="kpi-criterion-text">${esc(c.text)}</p><div class="kpi-criterion-controls"><select data-common-code="${c.code}" aria-label="Kết quả tiêu chí ${c.code}"><option value="DAM_BAO" ${v.selfResult!=='KHONG_DAM_BAO'?'selected':''}>Đảm bảo</option><option value="KHONG_DAM_BAO" ${v.selfResult==='KHONG_DAM_BAO'?'selected':''}>Không đảm bảo</option></select><textarea data-common-note="${c.code}" rows="2" placeholder="Ghi chú/căn cứ" aria-label="Ghi chú tiêu chí ${c.code}">${esc(v.note||'')}</textarea></div></div>`;}).join('')}</div><div id="kpiCommonTotal" class="kpi-alert"></div>`, '<button class="kpi-button secondary" data-kpi-close type="button">Hủy</button><button id="kpiSaveCommon" class="kpi-button" type="button">Lưu tự đánh giá</button>');
   const calc=()=>{let total=0;criteria.forEach(c=>{if(document.querySelector(`[data-common-code="${c.code}"]`)?.value==='DAM_BAO')total+=c.max;});el('kpiCommonTotal').textContent=`Tổng điểm tiêu chí chung: ${total}/30`;return total;};document.querySelectorAll('[data-common-code]').forEach(x=>x.addEventListener('change',calc));calc();
-  el('kpiSaveCommon').addEventListener('click',async()=>{const data=criteria.map(c=>{const result=document.querySelector(`[data-common-code="${c.code}"]`).value;const note=clean(document.querySelector(`[data-common-note="${c.code}"]`).value);if(result==='KHONG_DAM_BAO'&&!note)throw new Error(`Tiêu chí ${c.code} không đảm bảo phải có căn cứ.`);return {code:c.code,group:c.group,max:c.max,text:c.text,selfResult:result,selfScore:result==='DAM_BAO'?c.max:0,note};});try{const total=data.reduce((sum,x)=>sum+x.selfScore,0);const commonDepartmentId=profileDepartmentId();const commonId=commonAssessmentId(KpiWorkflowState.period.id,KpiWorkflowState.user.uid);const reviewer=reviewerForOwner(KpiWorkflowState.user.uid,null);await setDoc(doc(db,'commonCriteriaAssessments',commonId),{periodId:KpiWorkflowState.period.id,userId:KpiWorkflowState.user.uid,fullName:KpiWorkflowState.profile.fullName||'',ownerRole:KpiWorkflowState.profile.role||'',ownerLeaderLevel:KpiWorkflowState.profile.leaderLevel||'',departmentId:commonDepartmentId,scopeType:'PROFESSIONAL',formType,criteriaVersion:`${formType}-V1.18.0`,items:data,selfTotal:total,confirmedTotal:null,reviewerUserId:reviewer.uid,reviewerName:reviewer.name,status:'SELF_COMPLETED',updatedAt:serverTimestamp(),createdAt:KpiWorkflowState.common?.createdAt||serverTimestamp()},{merge:true});await audit('SAVE_COMMON_CRITERIA',{score:total,formType});closeModal();await loadAll();}catch(err){alert(friendlyErrorMessage(err));}});
+  el('kpiSaveCommon').addEventListener('click',async()=>{const data=criteria.map(c=>{const result=document.querySelector(`[data-common-code="${c.code}"]`).value;const note=clean(document.querySelector(`[data-common-note="${c.code}"]`).value);if(result==='KHONG_DAM_BAO'&&!note)throw new Error(`Tiêu chí ${c.code} không đảm bảo phải có căn cứ.`);return {code:c.code,group:c.group,max:c.max,text:c.text,selfResult:result,selfScore:result==='DAM_BAO'?c.max:0,note};});try{const total=data.reduce((sum,x)=>sum+x.selfScore,0);const commonDepartmentId=profileDepartmentId();const commonId=commonAssessmentId(KpiWorkflowState.period.id,KpiWorkflowState.user.uid);const reviewer=reviewerForOwner(KpiWorkflowState.user.uid,null);await setDoc(doc(db,'commonCriteriaAssessments',commonId),{periodId:KpiWorkflowState.period.id,userId:KpiWorkflowState.user.uid,fullName:KpiWorkflowState.profile.fullName||'',ownerRole:KpiWorkflowState.profile.role||'',ownerLeaderLevel:KpiWorkflowState.profile.leaderLevel||'',departmentId:commonDepartmentId,scopeType:'PROFESSIONAL',formType,criteriaVersion:`${formType}-V1.18.0`,items:data,selfTotal:total,confirmedTotal:null,reviewerUserId:reviewer.uid,reviewerName:reviewer.name,status:'SELF_COMPLETED',updatedAt:serverTimestamp(),createdAt:KpiWorkflowState.common?.createdAt||serverTimestamp()},{merge:true});await audit('SAVE_COMMON_CRITERIA',{score:total,formType});closeModal();await loadAll();}catch(err){ModalService.alert(friendlyErrorMessage(err));}});
 }
 
 function openCommonReview(assessmentId) {
@@ -2545,20 +2579,20 @@ function openCommonReview(assessmentId) {
     try {
       const confirmedItems = criteria.map(c=>{const original=items.find(x=>x.code===c.code)||{};const result=document.querySelector(`[data-confirm-common-code="${c.code}"]`).value;const note=clean(document.querySelector(`[data-confirm-common-note="${c.code}"]`).value);if(result!==original.selfResult&&!note)throw new Error(`Tiêu chí ${c.code} điều chỉnh khác tự chấm phải có căn cứ.`);return {...original,code:c.code,group:c.group,max:c.max,text:c.text,confirmedResult:result,confirmedScore:result==='DAM_BAO'?c.max:0,confirmedNote:note};});
       const total=confirmedItems.reduce((sum,item)=>sum+item.confirmedScore,0);
-      if(!confirm(`Xác nhận ${fmt(total)}/30 điểm tiêu chí chung là điểm chính thức? Sau thao tác này không thể chỉnh sửa trực tiếp.`))return;
+      if(!await ModalService.confirm(`Xác nhận ${fmt(total)}/30 điểm tiêu chí chung là điểm chính thức? Sau thao tác này không thể chỉnh sửa trực tiếp.`))return;
       await updateDoc(doc(db,'commonCriteriaAssessments',assessment.id),{items:confirmedItems,formType,criteriaVersion:`${formType}-V1.18.0`,confirmedTotal:total,status:'CONFIRMED',confirmedByUserId:KpiWorkflowState.user.uid,confirmedByName:KpiWorkflowState.profile.fullName||'',confirmedAt:serverTimestamp(),updatedAt:serverTimestamp()});
       await audit('CONFIRM_COMMON_CRITERIA',{userId:assessment.userId,score:total,formType});closeModal();await loadAll();
-    } catch(error){alert(friendlyErrorMessage(error));}
+    } catch(error){ModalService.alert(friendlyErrorMessage(error));}
   });
 }
 
 async function lockDepartmentPlan() {
   if (!KpiWorkflowState.period || !canLockPlan()) {
-    alert('Tài khoản không có quyền thực hiện thao tác này.');
+    ModalService.alert('Tài khoản không có quyền thực hiện thao tác này.');
     return;
   }
   if (KpiWorkflowState.plan?.locked === true) {
-    alert('Đăng ký kế hoạch đã được khóa.');
+    ModalService.alert('Đăng ký kế hoạch đã được khóa.');
     return;
   }
 
@@ -2570,7 +2604,7 @@ async function lockDepartmentPlan() {
   );
 
   if (!approved.length) {
-    alert('Chưa có nhiệm vụ kế hoạch được duyệt.');
+    ModalService.alert('Chưa có nhiệm vụ kế hoạch được duyệt.');
     return;
   }
 
@@ -2589,7 +2623,7 @@ async function lockDepartmentPlan() {
     ? `${approvedUserCount} cá nhân`
     : 'các cá nhân trong Phòng/Khu';
 
-  if (!confirm(
+  if (!await ModalService.confirm(
     `Khóa đăng ký kế hoạch của ${departmentId}? Hiện có ${approvedTaskCount} đầu việc `
     + `đã được duyệt cho ${peopleLabel}. Sau khi khóa, người dùng không thể đăng ký thêm.`
   )) return;
@@ -2636,13 +2670,17 @@ async function openDelegationManager() {
     && normalizeDepartment(item.departmentId) === departmentId
   ));
   const allowedPermissions = directorMode
-    ? ['CONFIRM_EVALUATIONS']
+    ? ['APPROVE_REGISTRATIONS', 'CONFIRM_EVALUATIONS']
     : ['APPROVE_REGISTRATIONS', 'CONFIRM_EVALUATIONS', 'LOCK_PLAN'];
   const selectedPermissions = Array.isArray(active?.permissions) && active.permissions.length
     ? active.permissions.filter(permission => allowedPermissions.includes(permission))
     : [directorMode ? 'CONFIRM_EVALUATIONS' : 'APPROVE_REGISTRATIONS'];
   const scopePresets = directorMode
-    ? [{ value: 'CONFIRM_EVALUATIONS', label: 'Xác nhận kết quả đánh giá của Trưởng Phòng/Khu và Bí thư Chi đoàn' }]
+    ? [
+      { value: 'APPROVE_REGISTRATIONS', label: 'Duyệt đăng ký của Trưởng/Phụ trách và đơn vị chưa có người đứng đầu' },
+      { value: 'CONFIRM_EVALUATIONS', label: 'Xác nhận kết quả đánh giá của Trưởng/Phụ trách, Bí thư và hồ sơ đơn vị chưa có người đứng đầu' },
+      { value: 'APPROVE_REGISTRATIONS|CONFIRM_EVALUATIONS', label: 'Duyệt đăng ký và xác nhận kết quả' }
+    ]
     : [
       { value: 'APPROVE_REGISTRATIONS', label: 'Duyệt và trả lại đăng ký kế hoạch' },
       { value: 'CONFIRM_EVALUATIONS', label: 'Xác nhận kết quả đánh giá' },
@@ -2674,7 +2712,7 @@ async function openDelegationManager() {
         <label class="kpi-field"><span>Từ ngày</span><input id="delegationStart" type="date" value="${active?.startDate || todayKey()}"></label>
         <label class="kpi-field"><span>Đến ngày</span><input id="delegationEnd" type="date" value="${active?.endDate || KpiWorkflowState.period?.endDate || ''}"></label>
       </div>
-      <label class="kpi-field kpi-delegation-scope-select"><span>Phạm vi ủy quyền</span><select id="delegationScope" ${directorMode ? 'disabled' : ''}>${scopePresets.map(option => `<option value="${option.value}" ${selectedScope === option.value ? 'selected' : ''}>${esc(option.label)}</option>`).join('')}</select></label>
+      <label class="kpi-field kpi-delegation-scope-select"><span>Phạm vi ủy quyền</span><select id="delegationScope">${scopePresets.map(option => `<option value="${option.value}" ${selectedScope === option.value ? 'selected' : ''}>${esc(option.label)}</option>`).join('')}</select></label>
       <label class="kpi-field kpi-delegation-reason"><span>Lý do</span><textarea id="delegationReason" rows="3" placeholder="Ví dụ: Nghỉ phép, đi công tác…">${esc(active?.reason || '')}</textarea></label>
     </div>`,
     footer
@@ -2685,13 +2723,11 @@ async function openDelegationManager() {
     const reason = clean(el('delegationReason').value);
     const startDate = clean(el('delegationStart').value);
     const endDate = clean(el('delegationEnd').value);
-    const permissions = directorMode
-      ? ['CONFIRM_EVALUATIONS']
-      : clean(el('delegationScope').value).split('|').filter(permission => allowedPermissions.includes(permission));
-    if (!delegateUserId) return alert(`Hãy chọn ${delegateLabel} được ủy quyền.`);
-    if (!reason) return alert('Phải nhập lý do ủy quyền.');
-    if (!permissions.length) return alert('Hãy chọn ít nhất một phạm vi ủy quyền.');
-    if (!startDate || !endDate || startDate > endDate) return alert('Thời gian ủy quyền chưa hợp lệ.');
+    const permissions = clean(el('delegationScope').value).split('|').filter(permission => allowedPermissions.includes(permission));
+    if (!delegateUserId) return ModalService.alert(`Hãy chọn ${delegateLabel} được ủy quyền.`);
+    if (!reason) return ModalService.alert('Phải nhập lý do ủy quyền.');
+    if (!permissions.length) return ModalService.alert('Hãy chọn ít nhất một phạm vi ủy quyền.');
+    if (!startDate || !endDate || startDate > endDate) return ModalService.alert('Thời gian ủy quyền chưa hợp lệ.');
 
     const reference = doc(db, 'approvalDelegations', `${departmentId}_ACTIVE`);
     const deputy = candidates.find(item => item.id === delegateUserId);
@@ -2728,7 +2764,7 @@ async function openDelegationManager() {
 
   root.querySelector('#revokeDelegation')?.addEventListener('click', async () => {
     if (!active) return;
-    if (!confirm(`Hủy ủy quyền của ${active.delegateName || delegateLabel} ngay bây giờ? Quyền được ủy quyền sẽ hết hiệu lực ngay.`)) return;
+    if (!await ModalService.confirm(`Hủy ủy quyền của ${active.delegateName || delegateLabel} ngay bây giờ? Quyền được ủy quyền sẽ hết hiệu lực ngay.`)) return;
     const reference = doc(db, 'approvalDelegations', `${departmentId}_ACTIVE`);
     const button = root.querySelector('#revokeDelegation');
     button.disabled = true;
@@ -2746,7 +2782,7 @@ async function openDelegationManager() {
       await loadAll();
       message('Đã hủy ủy quyền. Quyền được ủy quyền đã hết hiệu lực.', 'ok');
     } catch (error) {
-      alert(friendlyErrorMessage(error, 'Không thể hủy ủy quyền.'));
+      ModalService.alert(friendlyErrorMessage(error, 'Không thể hủy ủy quyền.'));
       button.disabled = false;
     }
   });
@@ -2754,14 +2790,14 @@ async function openDelegationManager() {
 
 async function unlockDepartmentPlan() {
   if (!KpiWorkflowState.plan?.locked || !canLockPlan()) {
-    alert('Tài khoản không có quyền thực hiện thao tác này.');
+    ModalService.alert('Tài khoản không có quyền thực hiện thao tác này.');
     return;
   }
   const hasEvaluation = KpiWorkflowState.evaluations.some(item => ['PENDING_REVIEW', 'CONFIRMED'].includes(item.status));
-  if (hasEvaluation && !confirm('Kỳ đã phát sinh dữ liệu tự đánh giá hoặc xác nhận. Trưởng phòng vẫn muốn mở lại đăng ký kế hoạch của Phòng/Khu?')) {
+  if (hasEvaluation && !await ModalService.confirm('Kỳ đã phát sinh dữ liệu tự đánh giá hoặc xác nhận. Trưởng phòng vẫn muốn mở lại đăng ký kế hoạch của Phòng/Khu?')) {
     return;
   }
-  const reason = prompt('Nhập lý do mở lại đăng ký kế hoạch:');
+  const reason = await ModalService.prompt('Nhập lý do mở lại đăng ký kế hoạch:');
   if (!clean(reason)) return;
   await updateDoc(doc(db, 'kpiPlans', KpiWorkflowState.plan.id), {
     locked: false,
@@ -2843,9 +2879,9 @@ async function createPeriodFromForm(){
   const endDate=clean(el('kpiPeriodEndInput').value);
   const quarterMatch=/^(\d{4})-Q([1-4])$/.exec(periodId);
   const monthMatch=/^(\d{4})-M(0[1-9]|1[0-2])$/.exec(periodId);
-  if(!quarterMatch&&!monthMatch){alert('Mã kỳ phải có dạng 2026-Q3 hoặc 2026-M08.');return;}
-  if(!name||!startDate||!endDate||startDate>endDate){alert('Thông tin kỳ chưa hợp lệ.');return;}
-  if(KpiWorkflowState.periods.some(p=>p.active===true)){alert('Đang có một kỳ hoạt động. Hãy kết thúc kỳ hiện tại trước khi mở kỳ mới.');return;}
+  if(!quarterMatch&&!monthMatch){ModalService.alert('Mã kỳ phải có dạng 2026-Q3 hoặc 2026-M08.');return;}
+  if(!name||!startDate||!endDate||startDate>endDate){ModalService.alert('Thông tin kỳ chưa hợp lệ.');return;}
+  if(KpiWorkflowState.periods.some(p=>p.active===true)){ModalService.alert('Đang có một kỳ hoạt động. Hãy kết thúc kỳ hiện tại trước khi mở kỳ mới.');return;}
   const year=Number((quarterMatch||monthMatch)[1]);
   const periodType=quarterMatch?'QUARTER':'MONTH';
   await setDoc(doc(db,'evaluationPeriods',periodId),{
@@ -2874,7 +2910,7 @@ async function completePeriod(){
     && !clean(item.taskId)
   ));
   if (pendingRegistrations.length) {
-    alert(`Không thể kết thúc kỳ vì còn ${pendingRegistrations.length} đăng ký kế hoạch chưa được duyệt hoặc trả lại.`);
+    ModalService.alert(`Không thể kết thúc kỳ vì còn ${pendingRegistrations.length} đăng ký kế hoạch chưa được duyệt hoặc trả lại.`);
     return;
   }
 
@@ -2884,7 +2920,7 @@ async function completePeriod(){
       const user = KpiWorkflowState.users.find(item => item.id === userId);
       return user?.fullName || user?.email || userId;
     });
-    alert(`Không thể kết thúc kỳ vì ${names.length} cá nhân có A = 0, chưa đủ cơ sở tính KPI: ${names.join(', ')}.`);
+    ModalService.alert(`Không thể kết thúc kỳ vì ${names.length} cá nhân có A = 0, chưa đủ cơ sở tính KPI: ${names.join(', ')}.`);
     return;
   }
 
@@ -2917,11 +2953,11 @@ async function completePeriod(){
     const remaining = incompletePeople.length > details.length
       ? `; và ${incompletePeople.length - details.length} người khác`
       : '';
-    alert(`Không thể kết thúc kỳ. Hồ sơ đánh giá chưa hoàn tất: ${details.join('; ')}${remaining}.`);
+    ModalService.alert(`Không thể kết thúc kỳ. Hồ sơ đánh giá chưa hoàn tất: ${details.join('; ')}${remaining}.`);
     return;
   }
 
-  if(!confirm('Xác nhận đã in và lưu hồ sơ giấy, sau đó kết thúc kỳ?'))return;
+  if(!await ModalService.confirm('Xác nhận đã in và lưu hồ sơ giấy, sau đó kết thúc kỳ?'))return;
   await updateDoc(doc(db,'evaluationPeriods',KpiWorkflowState.period.id),{status:'COMPLETED',active:false,completedByUserId:KpiWorkflowState.user.uid,completedAt:serverTimestamp(),updatedAt:serverTimestamp()});
   PeriodReadService.invalidate();
   await audit('COMPLETE_PERIOD',{periodId:KpiWorkflowState.period.id});
@@ -2931,12 +2967,12 @@ async function deletePeriodData(){
   if(!activeRole('ADMIN')||!KpiWorkflowState.period)return;
   const period=KpiWorkflowState.period;
   if(period.active===true||period.status!=='COMPLETED'){
-    alert('Phải hoàn tất đánh giá và kết thúc kỳ trước khi lưu trữ, dọn dữ liệu.');
+    ModalService.alert('Phải hoàn tất đánh giá và kết thúc kỳ trước khi lưu trữ, dọn dữ liệu.');
     return;
   }
-  const confirmation=prompt(`Đây là thao tác xóa dữ liệu vận hành sau khi đã lưu lên Drive.\nNhập chính xác mã kỳ ${period.id} để tiếp tục:`);
+  const confirmation=await ModalService.prompt(`Đây là thao tác xóa dữ liệu vận hành sau khi đã lưu lên Drive.\nNhập chính xác mã kỳ ${period.id} để tiếp tục:`);
   if(clean(confirmation).toUpperCase()!==clean(period.id).toUpperCase()){
-    if(confirmation!==null)alert('Mã kỳ xác nhận không đúng. Hệ thống chưa thay đổi dữ liệu.');
+    if(confirmation!==null)ModalService.alert('Mã kỳ xác nhận không đúng. Hệ thống chưa thay đổi dữ liệu.');
     return;
   }
   const progressRoot=modal('Lưu trữ và dọn dữ liệu kỳ',`
@@ -2950,11 +2986,11 @@ async function deletePeriodData(){
     }});
     PeriodReadService.invalidate();
     closeModal();
-    alert(`Đã hoàn tất kỳ ${period.id}.\n- Đã lưu ${result.totalRecords} bản ghi lên Google Drive.\n- Đã dọn ${result.deleted} bản ghi khỏi Firestore.\n- Mã kiểm tra: ${result.sha256.slice(0,16)}…`);
+    ModalService.alert(`Đã hoàn tất kỳ ${period.id}.\n- Đã lưu ${result.totalRecords} bản ghi lên Google Drive.\n- Đã dọn ${result.deleted} bản ghi khỏi Firestore.\n- Mã kiểm tra: ${result.sha256.slice(0,16)}…`);
     await loadAll();
   }catch(error){
     closeModal();
-    alert(`Không thể hoàn tất quy trình: ${friendlyErrorMessage(error)}\nDữ liệu chỉ bị xóa sau khi tệp Drive đã được xác nhận. Có thể chạy lại thao tác để tiếp tục.`);
+    ModalService.alert(`Không thể hoàn tất quy trình: ${friendlyErrorMessage(error)}\nDữ liệu chỉ bị xóa sau khi tệp Drive đã được xác nhận. Có thể chạy lại thao tác để tiếp tục.`);
   }
 }
 
@@ -2993,7 +3029,7 @@ function openReport() {
 
   const taskRows = mine.map((task, index) => {
     const applied = evaluationScoreSnapshot(evaluationFor(task.id));
-    return `<tr class="m01-task-row"><td class="m01-center">${index + 1}</td><td>${esc(task.title || '')}</td><td class="m01-center">${fmt(task.maximumConvertedScore || 0)}</td><td class="m01-center">${applied.hasScore ? fmt(applied.actualScore) : ''}</td><td>${applied.hasScore ? esc(applied.shortLabel) : ''}</td></tr>`;
+    return `<tr class="m01-task-row"><td class="m01-center">${index + 1}</td><td>${esc(task.title || '')}</td><td class="m01-center">${fmt(task.maximumConvertedScore || 0)}</td><td class="m01-center">${applied.hasScore ? fmt(applied.actualScore) : ''}</td><td colspan="2">${applied.hasScore ? esc(applied.shortLabel) : ''}</td></tr>`;
   }).join('');
 
   const bonusTasks = mine.map(task => ({ task, score:evaluationScoreSnapshot(evaluationFor(task.id)) })).filter(item => item.score.official && item.score.bonusAwarded && item.score.bonusScore > 0);
@@ -3030,6 +3066,14 @@ function openReport() {
     <div class="m01-section-title"><strong>I. Tự đánh giá kết quả thực hiện nhiệm vụ</strong></div>
     <div class="m01-intro">Trên cơ sở nhiệm vụ được giao, cá nhân tự đánh giá về kết quả thực hiện nhiệm vụ theo quý như sau:</div>
     <table class="kpi-report-table m01-table">
+      <colgroup>
+        <col class="m01-col-stt">
+        <col class="m01-col-content">
+        <col class="m01-col-max">
+        <col class="m01-col-self">
+        <col class="m01-col-authority">
+        <col class="m01-col-note">
+      </colgroup>
       <tbody>
         <tr class="m01-part-row"><td class="m01-center">A</td><td colspan="5">NHÓM TIÊU CHÍ CHUNG (30 ĐIỂM)</td></tr>
         <tr class="m01-column-head"><td class="m01-center">TT</td><td>Tiêu chí / Nội dung</td><td class="m01-center">Điểm tối đa</td><td class="m01-center">Điểm cá nhân tự chấm</td><td class="m01-center">Điểm lãnh đạo, cấp có thẩm quyền chấm</td><td>Ghi chú</td></tr>

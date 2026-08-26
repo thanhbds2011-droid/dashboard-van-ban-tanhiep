@@ -1,12 +1,13 @@
 /** Giao diện quy trình điều chỉnh sau Hội đồng - V1.10.0. */
-import { UserContext } from "../../core/user-context.js?v=20260825.V1_18_0";
-import { Permissions } from "../../core/permissions.js?v=20260825.V1_18_0";
-import { FirebaseService } from "../../core/firebase-service.js?v=20260825.V1_18_0";
-import { PeriodReadService } from "../../services/period-read-service.js?v=20260825.V1_18_0";
-import { DepartmentReadService } from "../../services/department-read-service.js?v=20260825.V1_18_0";
-import { UserReadService } from "../../services/user-read-service.js?v=20260825.V1_18_0";
-import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260825.V1_18_0";
-import { CouncilAdjustmentService } from "../../services/council-adjustment-service.js?v=20260825.V1_18_0";
+import { UserContext } from "../../core/user-context.js?v=20260826.V1_18_1";
+import { Permissions } from "../../core/permissions.js?v=20260826.V1_18_1";
+import { FirebaseService } from "../../core/firebase-service.js?v=20260826.V1_18_1";
+import { PeriodReadService } from "../../services/period-read-service.js?v=20260826.V1_18_1";
+import { DepartmentReadService } from "../../services/department-read-service.js?v=20260826.V1_18_1";
+import { UserReadService } from "../../services/user-read-service.js?v=20260826.V1_18_1";
+import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260826.V1_18_1";
+import { CouncilAdjustmentService } from "../../services/council-adjustment-service.js?v=20260826.V1_18_1";
+import { ModalService } from "../../core/modal-service.js?v=20260826.V1_18_1";
 
 const PROFESSIONAL_DEPARTMENTS = Object.freeze(["TCHC", "CTXH", "KHTC", "YT", "KI", "KII", "KIII"]);
 
@@ -96,7 +97,7 @@ async function requestEditor({ period, departmentId, user, target, onSaved }) {
       modal.close();
       await onSaved?.();
     } catch (error) {
-      alert(error?.message || "Không tạo được yêu cầu điều chỉnh.");
+      ModalService.alert(error?.message || "Không tạo được yêu cầu điều chỉnh.");
       button.disabled = false; button.textContent = "Gửi yêu cầu";
     }
   });
@@ -156,7 +157,7 @@ async function employeeEditor(requestItem, onSaved) {
       modal.close();
       await onSaved?.();
     } catch (error) {
-      alert(error?.message || "Không gửi được nội dung điều chỉnh.");
+      ModalService.alert(error?.message || "Không gửi được nội dung điều chỉnh.");
       button.disabled = false; button.textContent = "Gửi Trưởng phòng xác nhận";
     }
   });
@@ -180,25 +181,25 @@ async function managerConfirmEditor(requestItem, onSaved) {
     footer: '<button id="councilReturnEmployee" class="secondary-button" type="button">Yêu cầu bổ sung lại</button><button class="secondary-button" type="button" data-council-close>Đóng</button><button id="councilConfirmFinal" class="primary-button" type="button">Chốt kết quả</button>'
   });
   modal.root.querySelector("#councilReturnEmployee")?.addEventListener("click", async event => {
-    const note = prompt("Nêu rõ nội dung cần cá nhân bổ sung thêm:");
+    const note = await ModalService.prompt("Nêu rõ nội dung cần cá nhân bổ sung thêm:");
     if (note === null) return;
     try {
       event.currentTarget.disabled = true;
       await CouncilAdjustmentService.returnToEmployee(requestItem, note);
       modal.close(); await onSaved?.();
-    } catch (error) { alert(error?.message || "Không trả lại được yêu cầu."); event.currentTarget.disabled = false; }
+    } catch (error) { ModalService.alert(error?.message || "Không trả lại được yêu cầu."); event.currentTarget.disabled = false; }
   });
   modal.root.querySelector("#councilConfirmFinal")?.addEventListener("click", async event => {
     const button = event.currentTarget;
     try {
-      if (!confirm("Chốt kết quả này là kết quả sau Hội đồng và cập nhật vào báo cáo KPI cuối cùng?")) return;
+      if (!await ModalService.confirm("Chốt kết quả này là kết quả sau Hội đồng và cập nhật vào báo cáo KPI cuối cùng?")) return;
       button.disabled = true; button.textContent = "Đang chốt…";
       await CouncilAdjustmentService.confirmRequest(requestItem, {
         finalScore: modal.root.querySelector("#councilFinalScore")?.value ?? null,
         managerNote: modal.root.querySelector("#councilManagerNote")?.value || ""
       });
       modal.close(); await onSaved?.();
-    } catch (error) { alert(error?.message || "Không chốt được kết quả."); button.disabled = false; button.textContent = "Chốt kết quả"; }
+    } catch (error) { ModalService.alert(error?.message || "Không chốt được kết quả."); button.disabled = false; button.textContent = "Chốt kết quả"; }
   });
 }
 
@@ -219,9 +220,9 @@ async function renderMyRequests(container, period, user) {
 export async function openMyCouncilAdjustments() {
   const user = UserContext.requireUser();
   const period = await PeriodReadService.getActive({ force: true });
-  if (!period) return alert("Chưa có kỳ đánh giá đang hoạt động.");
+  if (!period) return ModalService.alert("Chưa có kỳ đánh giá đang hoạt động.");
   const round = await CouncilAdjustmentService.getRound(period.id);
-  if (!round) return alert("TCHC chưa mở đợt điều chỉnh sau Hội đồng.");
+  if (!round) return ModalService.alert("TCHC chưa mở đợt điều chỉnh sau Hội đồng.");
   const modal = openModal({
     title: "Yêu cầu điều chỉnh sau Hội đồng",
     subtitle: `${period.name || period.id} • ${user.fullName || user.email}`,
@@ -233,11 +234,11 @@ export async function openMyCouncilAdjustments() {
 
 export async function openTchcCouncilManager() {
   const user = UserContext.requireUser();
-  if (!isTchcHead(user)) return alert("Chỉ Trưởng Phòng Tổ chức - Hành chính được quản lý đợt điều chỉnh sau Hội đồng.");
+  if (!isTchcHead(user)) return ModalService.alert("Chỉ Trưởng Phòng Tổ chức - Hành chính được quản lý đợt điều chỉnh sau Hội đồng.");
   const [period, departments] = await Promise.all([
     PeriodReadService.getActive({ force: true }), DepartmentReadService.listActive()
   ]);
-  if (!period) return alert("Chưa có kỳ đánh giá đang hoạt động.");
+  if (!period) return ModalService.alert("Chưa có kỳ đánh giá đang hoạt động.");
   const round = await CouncilAdjustmentService.getRound(period.id);
   const available = departments.filter(item => PROFESSIONAL_DEPARTMENTS.includes(upper(item.id || item.code)));
   const selected = new Set((round?.departmentIds || available.map(d => d.id || d.code)).map(upper));
@@ -273,15 +274,15 @@ export async function openTchcCouncilManager() {
 
   modal.root.querySelector("#councilOpenRound")?.addEventListener("click", async event => {
     const ids = [...modal.root.querySelectorAll(".council-department-picker input:checked")].map(input => input.value);
-    if (!ids.length) return alert("Hãy chọn ít nhất một Phòng/Khu.");
-    if (!confirm(`Mở đợt điều chỉnh sau Hội đồng cho ${ids.length} Phòng/Khu?`)) return;
+    if (!ids.length) return ModalService.alert("Hãy chọn ít nhất một Phòng/Khu.");
+    if (!await ModalService.confirm(`Mở đợt điều chỉnh sau Hội đồng cho ${ids.length} Phòng/Khu?`)) return;
     try { event.currentTarget.disabled = true; await CouncilAdjustmentService.openRound(period, ids); modal.close(); await openTchcCouncilManager(); }
-    catch (error) { alert(error?.message || "Không mở được đợt điều chỉnh."); event.currentTarget.disabled = false; }
+    catch (error) { ModalService.alert(error?.message || "Không mở được đợt điều chỉnh."); event.currentTarget.disabled = false; }
   });
   modal.root.querySelector("#councilCloseRound")?.addEventListener("click", async event => {
-    if (!confirm("Khóa đợt điều chỉnh sau Hội đồng? Sau khi khóa, cá nhân và Phòng/Khu không thể sửa tiếp.")) return;
+    if (!await ModalService.confirm("Khóa đợt điều chỉnh sau Hội đồng? Sau khi khóa, cá nhân và Phòng/Khu không thể sửa tiếp.")) return;
     try { event.currentTarget.disabled = true; await CouncilAdjustmentService.closeRound(period.id); modal.close(); await openTchcCouncilManager(); }
-    catch (error) { alert(error?.message || "Không khóa được đợt điều chỉnh."); event.currentTarget.disabled = false; }
+    catch (error) { ModalService.alert(error?.message || "Không khóa được đợt điều chỉnh."); event.currentTarget.disabled = false; }
   });
 }
 
@@ -340,9 +341,9 @@ async function managerContent(modal, period, departmentId, users) {
 
 export async function openDepartmentCouncilManager() {
   const current = UserContext.requireUser();
-  if (!isDepartmentManager(current)) return alert("Chỉ Trưởng/Phó Phòng/Khu được giao yêu cầu điều chỉnh cho nhân sự của đơn vị.");
+  if (!isDepartmentManager(current)) return ModalService.alert("Chỉ Trưởng/Phó Phòng/Khu được giao yêu cầu điều chỉnh cho nhân sự của đơn vị.");
   const period = await PeriodReadService.getActive({ force: true });
-  if (!period) return alert("Chưa có kỳ đánh giá đang hoạt động.");
+  if (!period) return ModalService.alert("Chưa có kỳ đánh giá đang hoạt động.");
   const departmentId = upper(current.departmentId);
   const [round, state, allUsers] = await Promise.all([
     CouncilAdjustmentService.getRound(period.id),
@@ -350,7 +351,7 @@ export async function openDepartmentCouncilManager() {
     UserReadService.listActive({ force: true })
   ]);
   if (!round || upper(round.status) !== "OPEN" || state?.enabled !== true) {
-    return alert("TCHC chưa mở quyền điều chỉnh sau Hội đồng cho Phòng/Khu này.");
+    return ModalService.alert("TCHC chưa mở quyền điều chỉnh sau Hội đồng cho Phòng/Khu này.");
   }
   const users = allUsers.filter(user => user.active === true && upper(user.departmentId) === departmentId)
     .sort((a, b) => String(a.fullName || "").localeCompare(String(b.fullName || ""), "vi"));
@@ -382,7 +383,7 @@ function printableRows(requests) {
 export async function openCouncilReport() {
   const current = UserContext.requireUser();
   const period = await PeriodReadService.getActive({ force: true });
-  if (!period) return alert("Chưa có kỳ đánh giá đang hoạt động.");
+  if (!period) return ModalService.alert("Chưa có kỳ đánh giá đang hoạt động.");
   const departments = await DepartmentReadService.listActive();
   let departmentIds = [];
   if (Permissions.isDirector(current) || isTchcHead(current) || Permissions.isAdmin(current)) {
@@ -411,7 +412,7 @@ export async function openCouncilReport() {
   });
   modal.root.querySelector("#councilPrintReport")?.addEventListener("click", () => {
     const win = window.open("", "_blank", "noopener,noreferrer");
-    if (!win) return alert("Trình duyệt đang chặn cửa sổ in. Hãy cho phép pop-up rồi thử lại.");
+    if (!win) return ModalService.alert("Trình duyệt đang chặn cửa sổ in. Hãy cho phép pop-up rồi thử lại.");
     win.document.write(`<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>Báo cáo điều chỉnh sau Hội đồng</title><style>body{font-family:Arial,sans-serif;color:#111;margin:24px}h1{font-size:20px;text-align:center}p{text-align:center}table{border-collapse:collapse;width:100%;font-size:11px}th,td{border:1px solid #444;padding:6px;vertical-align:top}th{background:#eee}@page{size:A4 landscape;margin:12mm}</style></head><body><h1>BÁO CÁO ĐIỀU CHỈNH KẾT QUẢ SAU HỘI ĐỒNG</h1><p>${esc(period.name || period.id)}</p><table><thead><tr><th>STT</th><th>Cá nhân</th><th>Mã</th><th>Nội dung</th><th>Trước HĐ</th><th>Sau HĐ</th><th>Loại xử lý</th><th>Minh chứng bổ sung</th><th>Ghi chú</th></tr></thead><tbody>${printableRows(rows)}</tbody></table><script>window.onload=()=>window.print()<\/script></body></html>`);
     win.document.close();
   });
