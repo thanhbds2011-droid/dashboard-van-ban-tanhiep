@@ -9,11 +9,11 @@
  * - BGĐ được thu hồi, chuyển Phòng/Khu hoặc xóa mềm nhiệm vụ đã giao.
  * - Không dùng quyền này để xác nhận/chấm điểm KPI của người khác.
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260826.V1_18_1";
-import { UserContext } from "../core/user-context.js?v=20260826.V1_18_1";
-import { Permissions } from "../core/permissions.js?v=20260826.V1_18_1";
-import { TaskLogService } from "./task-log-service.js?v=20260826.V1_18_1";
-import { TaskNotificationService } from "./task-notification-service.js?v=20260826.V1_18_1";
+import { FirebaseService } from "../core/firebase-service.js?v=20260826.V1_18_2";
+import { UserContext } from "../core/user-context.js?v=20260826.V1_18_2";
+import { Permissions } from "../core/permissions.js?v=20260826.V1_18_2";
+import { TaskLogService } from "./task-log-service.js?v=20260826.V1_18_2";
+import { TaskNotificationService } from "./task-notification-service.js?v=20260826.V1_18_2";
 
 function clean(value) {
   return String(value ?? "").trim();

@@ -1,16 +1,62 @@
 /** Tạo, phân công, tiếp nhận, cập nhật tiến độ và hoàn thành nhiệm vụ. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260826.V1_18_1";
-import { UserContext } from "../core/user-context.js?v=20260826.V1_18_1";
-import { Permissions } from "../core/permissions.js?v=20260826.V1_18_1";
-import { TaskLogService } from "./task-log-service.js?v=20260826.V1_18_1";
-import { TaskWorkItemService } from "./task-work-item-service.js?v=20260826.V1_18_1";
-import { PeriodReadService } from "./period-read-service.js?v=20260826.V1_18_1";
-import { TaskNotificationService } from "./task-notification-service.js?v=20260826.V1_18_1";
-import { APP_VERSION, BUILD_VERSION } from "../core/app-version.js?v=20260826.V1_18_1";
-import { deadlineDateFromKey, isDateKey } from "../core/deadline-engine.js?v=20260826.V1_18_1";
+import { FirebaseService } from "../core/firebase-service.js?v=20260826.V1_18_2";
+import { UserContext } from "../core/user-context.js?v=20260826.V1_18_2";
+import { Permissions } from "../core/permissions.js?v=20260826.V1_18_2";
+import { TaskLogService } from "./task-log-service.js?v=20260826.V1_18_2";
+import { TaskWorkItemService } from "./task-work-item-service.js?v=20260826.V1_18_2";
+import { PeriodReadService } from "./period-read-service.js?v=20260826.V1_18_2";
+import { TaskNotificationService } from "./task-notification-service.js?v=20260826.V1_18_2";
+import { APP_VERSION, BUILD_VERSION } from "../core/app-version.js?v=20260826.V1_18_2";
+import { deadlineDateFromKey, isDateKey } from "../core/deadline-engine.js?v=20260826.V1_18_2";
 
 const TASK_WRITE_BUILD_VERSION = BUILD_VERSION;
 const MAX_CODE_SCAN = 1000;
+const EVENT_CLOSE_COMMIT_TIMEOUT_MS = 15000;
+const EVENT_CLOSE_VERIFY_ATTEMPTS = 4;
+const EVENT_CLOSE_VERIFY_DELAY_MS = 1800;
+
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function writeTimeoutError() {
+  const error = new Error("Máy chủ chưa xác nhận thao tác lưu trong thời gian cho phép.");
+  error.code = "write-confirmation-timeout";
+  return error;
+}
+
+async function eventTrackingClosedOnServer(taskId, userId) {
+  try {
+    const snapshot = await FirebaseService.getDocFromServer(taskRef(taskId));
+    if (!snapshot.exists()) return false;
+    const data = snapshot.data() || {};
+    return String(data.status || "").toUpperCase() === "HOAN_THANH"
+      && Boolean(data.eventTrackingClosedAt || data.completedAt)
+      && String(data.eventTrackingClosedByUserId || data.completedByUserId || "") === String(userId || "");
+  } catch (_) {
+    return false;
+  }
+}
+
+async function commitEventCloseWithRecovery(commitPromise, taskId, userId) {
+  let timeoutId;
+  try {
+    await Promise.race([
+      commitPromise,
+      new Promise((_, reject) => { timeoutId = setTimeout(() => reject(writeTimeoutError()), EVENT_CLOSE_COMMIT_TIMEOUT_MS); })
+    ]);
+    return { recovered: false };
+  } catch (error) {
+    if (String(error?.code || "") !== "write-confirmation-timeout") throw error;
+    for (let attempt = 0; attempt < EVENT_CLOSE_VERIFY_ATTEMPTS; attempt += 1) {
+      if (await eventTrackingClosedOnServer(taskId, userId)) return { recovered: true };
+      if (attempt < EVENT_CLOSE_VERIFY_ATTEMPTS - 1) await delay(EVENT_CLOSE_VERIFY_DELAY_MS);
+    }
+    throw error;
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
 
 function dateKey(date) {
   const y = date.getFullYear();
@@ -792,12 +838,13 @@ export const TaskWriteService = Object.freeze({
       after: { ...snapshotTask(task), ...payload, updatedAt: null, completedAt: null, eventTrackingClosedAt: null },
       note: `Kết thúc theo dõi phát sinh trong kỳ; giữ nguyên tiến độ KPI ${progress}%.`
     }));
-    await batch.commit();
+    const commitResult = await commitEventCloseWithRecovery(batch.commit(), task.id, user.uid);
     await TaskNotificationService.send("TASK_COMPLETED", task.id, {
       sourceAction: "EVENT_TRACKING_CLOSED", taskCode: task.taskCode || "", periodId: task.periodId || "",
       oldStatus: task.status || "", newStatus: "HOAN_THANH", oldProgress: Number(task.progress || 0), newProgress: progress,
       performedByUserId: user.uid, performedByName: user.fullName || "", performedByRole: user.role || "", performedByDepartmentId: user.departmentId || ""
     }, { eventId: `TASKLOG_${notificationLogReference.id}` });
+    return { closed: true, recoveredFromTimeout: commitResult.recovered === true };
   },
 
   async requestNoOccurrence(task, reason) {

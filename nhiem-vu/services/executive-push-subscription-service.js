@@ -5,7 +5,7 @@
  *
  * Không đọc/ghi taskPushSubscriptions và không gọi TaskNotificationService.
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260826.V1_18_1";
+import { FirebaseService } from "../core/firebase-service.js?v=20260826.V1_18_2";
 
 let currentUser = null;
 let oneSignalInstance = null;
