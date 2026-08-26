@@ -248,13 +248,15 @@ button,input,select,textarea{font-size:16px}
 .m01-table{table-layout:fixed;font-size:10.5px!important;line-height:1.2}
 .m01-table th,.m01-table td{padding:4px!important;vertical-align:top;border:1px solid #8fb1c8!important}
 .m01-table th{font-weight:700;text-align:center;vertical-align:middle}
-.m01-col-stt{width:5%}.m01-col-content{width:43%}.m01-col-max{width:10%}.m01-col-self{width:12%}.m01-col-authority{width:18%}.m01-col-note{width:12%}
+.m01-col-a{width:3.7%}.m01-col-b{width:29.4%}.m01-col-c{width:16.6%}.m01-col-d{width:11.9%}.m01-col-e{width:8.9%}.m01-col-f{width:8.9%}.m01-col-g{width:15.1%}.m01-col-h{width:5.5%}
 .m01-center{text-align:center!important;vertical-align:middle!important}
 .m01-check{font-weight:700;font-size:13px}
 .m01-part-row,.m01-group-row{font-weight:700;background:#d7eaf6}
 .m01-column-head{font-weight:700;background:#cfe4f2}
 .m01-result-axes td{vertical-align:top!important}
 .m01-result-axes td:nth-child(2){text-align:justify}
+.m01-task-row td:nth-child(2),.m01-bonus-item td:nth-child(2){text-align:left}
+.m01-bonus-item td{vertical-align:middle!important}
 .m01-header-row{background:#cfe4f2}
 .m01-total-row{font-weight:700;background:#d7eaf6}
 .m01-total-row td:first-child,.m01-grand-total td:first-child{text-align:right}
