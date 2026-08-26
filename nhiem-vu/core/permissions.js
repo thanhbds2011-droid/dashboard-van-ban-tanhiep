@@ -2,7 +2,7 @@
  * Lớp kiểm tra quyền dùng thống nhất cho giao diện.
  * Firestore Security Rules vẫn là lớp kiểm soát bắt buộc ở phía dữ liệu.
  */
-import { UserContext } from "./user-context.js?v=20260825.V1_17_0";
+import { UserContext } from "./user-context.js?v=20260825.V1_18_0";
 
 function clean(value) {
   return String(value ?? "").trim();
@@ -95,6 +95,14 @@ export const Permissions = Object.freeze({
     return roleIs(user, "DIRECTOR");
   },
 
+  isDirectorHead(user = UserContext.getUser()) {
+    return Boolean(this.isDirector(user) && leaderLevel(user) === "HEAD");
+  },
+
+  isDirectorDeputy(user = UserContext.getUser()) {
+    return Boolean(this.isDirector(user) && leaderLevel(user) === "DEPUTY");
+  },
+
   isDepartmentLeader(user = UserContext.getUser()) {
     return roleIs(user, "DEPARTMENT_LEADER");
   },
@@ -153,7 +161,7 @@ export const Permissions = Object.freeze({
   },
 
   canDelegateCdtnApproval() {
-    return this.isCdtnLeadership();
+    return this.isCdtnSecretary();
   },
 
   canManageCdtnAttendance(hasDelegation = false) {
@@ -297,7 +305,7 @@ export const Permissions = Object.freeze({
   },
 
   canDelegateApproval() {
-    return this.isDepartmentHead();
+    return this.isDepartmentHead() || this.isDirectorHead();
   },
 
   canConfirmEvaluations(hasDelegation = false) {
