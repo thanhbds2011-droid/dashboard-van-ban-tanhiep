@@ -1,25 +1,25 @@
-import { auth, db } from '../../firebase-config.js?v=20260826.V1_18_1';
+import { auth, db } from '../../firebase-config.js?v=20260826.V1_18_2';
 import {
   addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, query,
   serverTimestamp, setDoc, Timestamp, updateDoc, where, limit, writeBatch
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
-import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260826.V1_18_1';
-import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260826.V1_18_1';
-import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260826.V1_18_1';
-import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260826.V1_18_1';
-import { PeriodReadService } from '../../services/period-read-service.js?v=20260826.V1_18_1';
-import { TaskReadService } from '../../services/task-read-service.js?v=20260826.V1_18_1';
-import { Permissions } from '../../core/permissions.js?v=20260826.V1_18_1';
-import { UserContext } from '../../core/user-context.js?v=20260826.V1_18_1';
-import { APP_VERSION } from '../../core/app-version.js?v=20260826.V1_18_1';
-import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260826.V1_18_1';
-import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260826.V1_18_1';
+import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260826.V1_18_2';
+import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260826.V1_18_2';
+import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260826.V1_18_2';
+import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260826.V1_18_2';
+import { PeriodReadService } from '../../services/period-read-service.js?v=20260826.V1_18_2';
+import { TaskReadService } from '../../services/task-read-service.js?v=20260826.V1_18_2';
+import { Permissions } from '../../core/permissions.js?v=20260826.V1_18_2';
+import { UserContext } from '../../core/user-context.js?v=20260826.V1_18_2';
+import { APP_VERSION } from '../../core/app-version.js?v=20260826.V1_18_2';
+import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260826.V1_18_2';
+import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260826.V1_18_2';
 import {
   KPI2B as KPI2C, M01_GROUPS, COMMON_CRITERIA, commonCriteriaForProfile, reportFormTypeForProfile, calculateTaskScore, calculateKpiSummary,
   proposedRating, ratingName, round2, progressRateFromDates, convertAppendix04Rate, calculateMilestoneProgress, calculateBonusScore
-} from '../../kpi-engine.js?v=20260826.V1_18_1';
-import { resolveKpiReviewer, canReviewKpiOwner } from '../../core/kpi-review-authority.js?v=20260826.V1_18_1';
-import { ModalService } from '../../core/modal-service.js?v=20260826.V1_18_1';
+} from '../../kpi-engine.js?v=20260826.V1_18_2';
+import { resolveKpiReviewer, canReviewKpiOwner } from '../../core/kpi-review-authority.js?v=20260826.V1_18_2';
+import { ModalService } from '../../core/modal-service.js?v=20260826.V1_18_2';
 
 export const KpiWorkflowState = {
   user: null,
@@ -3003,7 +3003,6 @@ function openReport() {
   const commonScore = commonScoreSnapshot(commonRecord);
   const scoreState = scoreStateForUserCombined(KpiWorkflowState.user.uid);
   const s = summaryForUserCombined(KpiWorkflowState.user.uid);
-  const rating = s.hasCalculationBasis ? ratingName(proposedRating(s.total100)) : 'Chưa đủ cơ sở tính';
   const profile = { ...(KpiWorkflowState.profile || {}), ...(KpiWorkflowState.kpiProfile || {}) };
   const formType = reportFormTypeForProfile(profile);
   const criteria = commonCriteriaForProfile(profile);
@@ -3022,18 +3021,32 @@ function openReport() {
       const value = resultFor(c.code);
       const selfScore = value.selfScore ?? (value.selfResult === 'DAM_BAO' ? c.max : value.selfResult === 'KHONG_DAM_BAO' ? 0 : '');
       const confirmedScore = commonScore.official ? (value.confirmedScore ?? (value.confirmedResult === 'DAM_BAO' ? c.max : 0)) : '';
-      return `<tr class="m01-item-row"><td class="m01-center">${esc(c.code)}</td><td>${esc(c.text)}</td><td class="m01-center">${fmt(c.max)}</td><td class="m01-center">${selfScore === '' ? '' : fmt(selfScore)}</td><td class="m01-center">${confirmedScore === '' ? '' : fmt(confirmedScore)}</td><td>${esc(commonScore.official ? (value.confirmedNote || value.note || '') : (value.note || ''))}</td></tr>`;
+      return `<tr class="m01-item-row"><td class="m01-center">${esc(c.code)}</td><td colspan="3">${esc(c.text)}</td><td class="m01-center">${fmt(c.max)}</td><td class="m01-center">${selfScore === '' ? '' : fmt(selfScore)}</td><td class="m01-center">${confirmedScore === '' ? '' : fmt(confirmedScore)}</td><td>${esc(commonScore.official ? (value.confirmedNote || value.note || '') : (value.note || ''))}</td></tr>`;
     }).join('');
-    return `<tr class="m01-group-row"><td class="m01-center">${esc(group.code)}</td><td><strong>${esc(group.title)}</strong></td><td class="m01-center">${fmt(group.max)}</td><td class="m01-center">${fmt(groupSelf)}</td><td class="m01-center">${commonScore.official ? fmt(groupConfirmed) : ''}</td><td></td></tr>${rows}`;
+    return `<tr class="m01-group-row"><td class="m01-center">${esc(group.code)}</td><td colspan="3"><strong>${esc(group.title)}</strong></td><td class="m01-center">${fmt(group.max)}</td><td class="m01-center">${fmt(groupSelf)}</td><td class="m01-center">${commonScore.official ? fmt(groupConfirmed) : ''}</td><td></td></tr>${rows}`;
   }).join('');
 
   const taskRows = mine.map((task, index) => {
     const applied = evaluationScoreSnapshot(evaluationFor(task.id));
-    return `<tr class="m01-task-row"><td class="m01-center">${index + 1}</td><td>${esc(task.title || '')}</td><td class="m01-center">${fmt(task.maximumConvertedScore || 0)}</td><td class="m01-center">${applied.hasScore ? fmt(applied.actualScore) : ''}</td><td colspan="2">${applied.hasScore ? esc(applied.shortLabel) : ''}</td></tr>`;
+    return `<tr class="m01-task-row"><td class="m01-center">${index + 1}</td><td colspan="4">${esc(task.title || '')}</td><td class="m01-center">${fmt(task.maximumConvertedScore || 0)}</td><td class="m01-center">${applied.hasScore ? fmt(applied.actualScore) : ''}</td><td>${applied.hasScore ? esc(applied.shortLabel) : ''}</td></tr>`;
   }).join('');
 
-  const bonusTasks = mine.map(task => ({ task, score:evaluationScoreSnapshot(evaluationFor(task.id)) })).filter(item => item.score.official && item.score.bonusAwarded && item.score.bonusScore > 0);
-  const bonusRows = bonusTasks.map((item,index)=>`<tr class="m01-bonus-item"><td class="m01-center">${index+1}</td><td>${esc(item.task.title || '')}</td><td class="m01-center">${fmt(item.score.bonusBasisScore || item.score.actualScore)}</td><td class="m01-center">5%</td><td class="m01-center"><strong>${fmt(item.score.bonusScore)}</strong></td><td></td></tr>`).join('');
+  const bonusTasks = mine.map(task => {
+    const score = evaluationScoreSnapshot(evaluationFor(task.id));
+    const pending = score.bonusRequested === true && score.bonusDecision === 'PENDING' && score.bonusRequestedScore > 0;
+    const approved = score.official && score.bonusAwarded && score.bonusScore > 0;
+    if (!pending && !approved) return null;
+    return {
+      task, score, pending, approved,
+      basisScore: approved ? Number(score.bonusBasisScore || score.actualScore || 0) : Number(score.convertedActualScore || score.actualScore || 0),
+      displayBonus: approved ? Number(score.bonusScore || 0) : Number(score.bonusRequestedScore || 0),
+      statusText: approved ? 'Đã chấp thuận' : 'Chờ xác nhận'
+    };
+  }).filter(Boolean);
+  const reportBonusC = round2(Math.min(7, bonusTasks.reduce((sum,item)=>sum+Math.max(0,Number(item.displayBonus||0)),0)));
+  const reportTotal100 = s.hasCalculationBasis ? round2(Math.min(100, Number(s.kpi70 || 0) + Number(commonScore.total || 0) + reportBonusC)) : null;
+  const reportRating = reportTotal100 == null ? 'Chưa đủ cơ sở tính' : ratingName(proposedRating(reportTotal100));
+  const bonusRows = bonusTasks.map((item,index)=>`<tr class="m01-bonus-item"><td class="m01-center">${index+1}</td><td colspan="4">${esc(item.task.title || '')}</td><td class="m01-center">${fmt(item.basisScore)} × 5%</td><td class="m01-center"><strong>${fmt(item.displayBonus)}</strong></td><td>${esc(item.statusText)}</td></tr>`).join('');
 
   const startMatch = /^(\d{4})-(\d{2})-\d{2}$/.exec(clean(KpiWorkflowState.period.startDate));
   const quarterNumber = startMatch ? Math.ceil(Number(startMatch[2]) / 3) : 0;
@@ -3067,31 +3080,32 @@ function openReport() {
     <div class="m01-intro">Trên cơ sở nhiệm vụ được giao, cá nhân tự đánh giá về kết quả thực hiện nhiệm vụ theo quý như sau:</div>
     <table class="kpi-report-table m01-table">
       <colgroup>
-        <col class="m01-col-stt">
-        <col class="m01-col-content">
-        <col class="m01-col-max">
-        <col class="m01-col-self">
-        <col class="m01-col-authority">
-        <col class="m01-col-note">
+        <col class="m01-col-a">
+        <col class="m01-col-b">
+        <col class="m01-col-c">
+        <col class="m01-col-d">
+        <col class="m01-col-e">
+        <col class="m01-col-f">
+        <col class="m01-col-g">
+        <col class="m01-col-h">
       </colgroup>
       <tbody>
-        <tr class="m01-part-row"><td class="m01-center">A</td><td colspan="5">NHÓM TIÊU CHÍ CHUNG (30 ĐIỂM)</td></tr>
-        <tr class="m01-column-head"><td class="m01-center">TT</td><td>Tiêu chí / Nội dung</td><td class="m01-center">Điểm tối đa</td><td class="m01-center">Điểm cá nhân tự chấm</td><td class="m01-center">Điểm lãnh đạo, cấp có thẩm quyền chấm</td><td>Ghi chú</td></tr>
+        <tr class="m01-part-row"><td class="m01-center">A</td><td colspan="7">NHÓM TIÊU CHÍ CHUNG (30 ĐIỂM)</td></tr>
+        <tr class="m01-column-head"><td class="m01-center">TT</td><td colspan="3">Tiêu chí / Nội dung</td><td class="m01-center">Điểm tối đa</td><td class="m01-center">Điểm cá nhân tự chấm</td><td class="m01-center">Điểm lãnh đạo, cấp có thẩm quyền chấm</td><td>Ghi chú</td></tr>
         ${criterionRows}
-        <tr class="m01-total-row"><td colspan="2">Tổng (A) =</td><td class="m01-center">30</td><td class="m01-center">${selfCommonTotal}</td><td class="m01-center">${confirmedCommonTotal}</td><td></td></tr>
+        <tr class="m01-total-row"><td colspan="4">Tổng (A) =</td><td class="m01-center">30</td><td class="m01-center">${selfCommonTotal}</td><td class="m01-center">${confirmedCommonTotal}</td><td></td></tr>
 
-        <tr class="m01-part-row"><td class="m01-center">B</td><td colspan="5">KẾT QUẢ THỰC HIỆN NHIỆM VỤ ĐƯỢC GIAO (70 ĐIỂM)</td></tr>
-        <tr class="m01-result-axes"><td></td><td>${esc(resultAxesText)}</td><td class="m01-center">Điểm tối đa<br>(70 điểm)</td><td class="m01-center">Điểm đạt được<br>= Điểm KPI đã tính tại bảng tính điểm</td><td colspan="2">Ghi chú</td></tr>
-        ${taskRows || '<tr><td class="m01-center">—</td><td>Chưa có nhiệm vụ trong kỳ.</td><td></td><td></td><td colspan="2"></td></tr>'}
-        <tr class="m01-total-row"><td colspan="2">TỔNG (B) = Điểm KPI đã tính tại bảng tính điểm</td><td class="m01-center">70</td><td class="m01-center">${s.hasCalculationBasis ? fmt(s.kpi70) : 'Chưa đủ cơ sở tính'}</td><td colspan="2"></td></tr>
+        <tr class="m01-part-row"><td class="m01-center">B</td><td colspan="7">KẾT QUẢ THỰC HIỆN NHIỆM VỤ ĐƯỢC GIAO (70 ĐIỂM)</td></tr>
+        <tr class="m01-result-axes"><td></td><td colspan="4">${esc(resultAxesText)}</td><td class="m01-center">Điểm tối đa<br>(70 điểm)</td><td class="m01-center">Điểm đạt được<br>= Điểm KPI đã tính tại bảng tính điểm</td><td>Ghi chú</td></tr>
+        ${taskRows || '<tr><td class="m01-center">—</td><td colspan="4">Chưa có nhiệm vụ trong kỳ.</td><td></td><td></td><td></td></tr>'}
+        <tr class="m01-total-row"><td colspan="5">TỔNG (B) = Điểm KPI đã tính tại bảng tính điểm</td><td class="m01-center">${fmt(s.A || 0)}</td><td class="m01-center">${s.hasCalculationBasis ? fmt(s.kpi70) : 'Chưa đủ cơ sở tính'}</td><td></td></tr>
 
-        <tr class="m01-part-row"><td class="m01-center">C</td><td>ĐIỂM THƯỞNG<br><small>(Mỗi công việc được xác nhận nổi trội, sáng kiến mới được tính điểm thưởng bằng 5% tổng điểm KPI đạt được của công việc cụ thể)</small></td><td class="m01-center">Điểm KPI công việc</td><td class="m01-center">Tỷ lệ thưởng</td><td class="m01-center">Điểm thưởng</td><td>Ghi chú</td></tr>
-        ${bonusRows || '<tr class="m01-bonus-item"><td class="m01-center">—</td><td>Không có công việc được xác nhận điểm thưởng.</td><td></td><td></td><td class="m01-center">0</td><td></td></tr>'}
-        <tr class="m01-total-row"><td colspan="2">TỔNG (C) =</td><td class="m01-center">Tối đa 07 điểm</td><td></td><td class="m01-center"><strong>${s.hasCalculationBasis ? fmt(s.bonusC ?? 0) : '0'}</strong></td><td></td></tr>
-        <tr class="m01-grand-total"><td colspan="2">TỔNG (A + B + C) =</td><td class="m01-center">Tối đa 100 điểm</td><td></td><td class="m01-center"><strong>${s.hasCalculationBasis ? fmt(s.total100) : '—'}</strong></td><td></td></tr>
+        <tr class="m01-part-row"><td class="m01-center">C</td><td colspan="4">ĐIỂM THƯỞNG<br><small>(Mỗi công việc được xác nhận nổi trội, sáng kiến mới được tính điểm thưởng bằng 5% tổng điểm KPI đạt được của công việc cụ thể)</small></td><td class="m01-center">Điểm tối đa<br>(07 điểm)</td><td class="m01-center">Điểm đạt được<br>= Tổng điểm thưởng các công việc<br><strong>${fmt(reportBonusC)}</strong></td><td></td></tr>
+        ${bonusRows || '<tr class="m01-bonus-item"><td class="m01-center">—</td><td colspan="4">Không có công việc đề nghị/được xác nhận điểm thưởng.</td><td></td><td class="m01-center">0</td><td></td></tr>'}
+        <tr class="m01-grand-total"><td colspan="5">TỔNG (A + B + C) =</td><td class="m01-center">Tối đa 100 điểm</td><td class="m01-center"><strong>${reportTotal100 == null ? '—' : fmt(reportTotal100)}</strong></td><td></td></tr>
       </tbody>
     </table>
-    <div class="m01-proposal"><strong>II. Tự đề xuất xếp loại mức chất lượng:</strong> ${esc(rating)}</div>
+    <div class="m01-proposal"><strong>II. Tự đề xuất xếp loại mức chất lượng:</strong> ${esc(reportRating)}</div>
     <div class="m01-rating-levels">(Theo 04 mức: - Hoàn thành xuất sắc nhiệm vụ, 2- Hoàn thành tốt nhiệm vụ, 3- Hoàn thành nhiệm vụ và 4- Không hoàn thành nhiệm vụ)</div>
     <div class="m01-quality-note">${esc(qualityNoteText)}</div>
     <div class="m01-self-sign"><strong>CÁ NHÂN TỰ ĐÁNH GIÁ</strong><br><em>(Ký, ghi rõ họ tên)</em></div>
@@ -3103,7 +3117,7 @@ function openReport() {
     </div>
   </div>`;
 
-  const excelHtml = `<div id="kpiExcelPreview" class="kpi-hidden"><div class="kpi-score-state ${scoreState.className}"><span class="kpi-score-state-icon">${scoreState.code === 'OFFICIAL' ? '✓' : '✎'}</span><div><strong>${esc(scoreState.label)}</strong><span>${esc(scoreState.detail)}</span></div></div><div class="kpi-table-wrap"><table class="kpi-table"><thead><tr><th>STT</th><th>Tên nhiệm vụ</th><th>Điểm chuẩn</th><th>Hệ số độ khó</th><th>Điểm quy đổi tối đa</th><th>Tiến độ áp dụng</th><th>Kết quả áp dụng</th><th>Điểm thực hiện</th><th>Điểm quy đổi thực tế</th><th>Điểm thưởng</th><th>Trạng thái</th></tr></thead><tbody>${mine.map((t, i) => { const applied = evaluationScoreSnapshot(evaluationFor(t.id)); return `<tr><td>${i + 1}</td><td>${esc(t.title)}</td><td>${fmt(t.baseScore)}</td><td>${coefficientPercent(t.difficultyCoefficient)}</td><td>${fmt(t.maximumConvertedScore)}</td><td>${applied.progressRate ?? ''}</td><td>${applied.resultRate ?? ''}</td><td>${applied.hasScore ? fmt(applied.executionScore) : ''}</td><td><strong>${applied.hasScore ? fmt(applied.convertedActualScore) : ''}</strong></td><td>${applied.bonusScore > 0 ? `+${fmt(applied.bonusScore)}` : ''}</td><td>${esc(applied.label)}</td></tr>`; }).join('')}</tbody></table></div></div>`;
+  const excelHtml = `<div id="kpiExcelPreview" class="kpi-hidden"><div class="kpi-score-state ${scoreState.className}"><span class="kpi-score-state-icon">${scoreState.code === 'OFFICIAL' ? '✓' : '✎'}</span><div><strong>${esc(scoreState.label)}</strong><span>${esc(scoreState.detail)}</span></div></div><div class="kpi-table-wrap"><table class="kpi-table"><thead><tr><th>STT</th><th>Tên nhiệm vụ</th><th>Điểm chuẩn</th><th>Hệ số độ khó</th><th>Điểm quy đổi tối đa</th><th>Tiến độ áp dụng</th><th>Kết quả áp dụng</th><th>Điểm thực hiện</th><th>Điểm quy đổi thực tế</th><th>Điểm thưởng</th><th>Trạng thái</th></tr></thead><tbody>${mine.map((t, i) => { const applied = evaluationScoreSnapshot(evaluationFor(t.id)); return `<tr><td>${i + 1}</td><td>${esc(t.title)}</td><td>${fmt(t.baseScore)}</td><td>${coefficientPercent(t.difficultyCoefficient)}</td><td>${fmt(t.maximumConvertedScore)}</td><td>${applied.progressRate ?? ''}</td><td>${applied.resultRate ?? ''}</td><td>${applied.hasScore ? fmt(applied.executionScore) : ''}</td><td><strong>${applied.hasScore ? fmt(applied.convertedActualScore) : ''}</strong></td><td>${applied.bonusScore > 0 ? `+${fmt(applied.bonusScore)}` : applied.bonusRequestedScore > 0 && applied.bonusDecision === 'PENDING' ? `+${fmt(applied.bonusRequestedScore)} · Chờ xác nhận` : ''}</td><td>${esc(applied.label)}</td></tr>`; }).join('')}</tbody></table></div></div>`;
 
   modal(`Báo cáo KPI cá nhân · ${formLabel}`, `<div class="kpi-preview-tabs kpi-no-print"><button id="kpiPdfTab" class="kpi-button secondary active" type="button">${formLabel}</button><button id="kpiExcelTab" class="kpi-button secondary" type="button">Bảng tính điểm</button></div>${pdfHtml}${excelHtml}`, '<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button><button id="kpiExportCsv" class="kpi-button secondary" type="button">📊 Xuất bảng điểm</button><button id="kpiPrintReport" class="kpi-button" type="button">🖨️ In biểu mẫu</button>');
   el('kpiPdfTab').addEventListener('click', () => { el('kpiPdfPreview').classList.remove('kpi-hidden'); el('kpiExcelPreview').classList.add('kpi-hidden'); el('kpiPdfTab').classList.add('active'); el('kpiExcelTab').classList.remove('active'); el('kpiPrintReport').classList.remove('kpi-hidden'); });
