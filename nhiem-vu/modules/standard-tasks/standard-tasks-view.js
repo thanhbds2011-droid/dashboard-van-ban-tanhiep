@@ -1,11 +1,12 @@
-import { UserContext } from "../../core/user-context.js?v=20260825.V1_18_0";
-import { Permissions } from "../../core/permissions.js?v=20260825.V1_18_0";
-import { ToastService } from "../../core/toast-service.js?v=20260825.V1_18_0";
-import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260825.V1_18_0";
-import { PeriodReadService } from "../../services/period-read-service.js?v=20260825.V1_18_0";
-import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260825.V1_18_0";
-import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260825.V1_18_0";
-import { deriveDeadlinePlan, deadlineRuleDescription, requiresManualDeadline, isEventDrivenFrequency, canonicalFrequency, STANDARD_FREQUENCIES, WEEKDAY_OPTIONS } from "../../core/deadline-engine.js?v=20260825.V1_18_0";
+import { UserContext } from "../../core/user-context.js?v=20260826.V1_18_1";
+import { Permissions } from "../../core/permissions.js?v=20260826.V1_18_1";
+import { ToastService } from "../../core/toast-service.js?v=20260826.V1_18_1";
+import { ModalService } from "../../core/modal-service.js?v=20260826.V1_18_1";
+import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260826.V1_18_1";
+import { PeriodReadService } from "../../services/period-read-service.js?v=20260826.V1_18_1";
+import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260826.V1_18_1";
+import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260826.V1_18_1";
+import { deriveDeadlinePlan, deadlineRuleDescription, requiresManualDeadline, isEventDrivenFrequency, canonicalFrequency, STANDARD_FREQUENCIES, WEEKDAY_OPTIONS } from "../../core/deadline-engine.js?v=20260826.V1_18_1";
 
 let currentCatalogAccess = {
   canManage: false,
@@ -152,7 +153,7 @@ export async function renderStandardTasksView(outlet) {
           const confirmation = registration.status === "REJECTED"
             ? "Xóa đăng ký đã được trả lại để chọn đầu việc này lại?"
             : "Hủy đăng ký đang chờ duyệt?";
-          if (!window.confirm(confirmation)) return;
+          if (!await ModalService.confirm(confirmation, { title: "Xác nhận đăng ký", confirmText: "Xác nhận" })) return;
           button.disabled = true;
           try {
             await TaskRegistrationService.cancelRegistration(registration);
@@ -169,13 +170,13 @@ export async function renderStandardTasksView(outlet) {
         button.addEventListener("click", async () => {
           const registration = registrations.find(item => item.id === button.dataset.cancelApprovedRegistration);
           if (!registration) return;
-          const reason = window.prompt(
-            "Bạn đang hủy đầu việc do chính mình đăng ký. Thao tác chỉ được thực hiện khi nhiệm vụ chưa hoàn thành, chưa đánh giá, chưa khóa điểm và chưa phát sinh tiến độ, lượt công việc hoặc minh chứng.\n\nVui lòng nhập lý do hủy:",
-            "Đăng ký nhầm đầu việc"
+          const reason = await ModalService.prompt(
+            "Bạn đang hủy đầu việc do chính mình đăng ký. Thao tác chỉ được thực hiện khi nhiệm vụ chưa hoàn thành, chưa đánh giá, chưa khóa điểm và chưa phát sinh tiến độ, lượt công việc hoặc minh chứng.",
+            { title: "Hủy đầu việc đã đăng ký", label: "Lý do hủy", defaultValue: "Đăng ký nhầm đầu việc", required: true, confirmText: "Tiếp tục" }
           );
           if (reason === null) return;
           if (!String(reason).trim()) return ToastService.error("Vui lòng nhập lý do hủy đầu việc.");
-          if (!window.confirm("Xác nhận hủy nhiệm vụ tự đăng ký và đưa đầu việc trở lại danh mục lựa chọn? Lịch sử thao tác vẫn được giữ để kiểm tra.")) return;
+          if (!await ModalService.confirm("Xác nhận hủy nhiệm vụ tự đăng ký và đưa đầu việc trở lại danh mục lựa chọn? Lịch sử thao tác vẫn được giữ để kiểm tra.", { title: "Xác nhận hủy đầu việc", confirmText: "Hủy đầu việc", danger: true })) return;
           button.disabled = true;
           try {
             await TaskRegistrationService.cancelApprovedRegistration(registration, reason);
@@ -454,10 +455,9 @@ function catalogActionButtons(item, catalogAccess = currentCatalogAccess) {
 
 async function confirmAndRemoveStandardTask(item, button = null, modalRoot = null) {
   const code = item?.code || item?.id || "đầu việc";
-  if (!window.confirm(
-    `Xóa ${code} khỏi DANH MỤC CÔNG VIỆC CHUẨN?\n\n` +
-    "Đây không phải thao tác hủy nhiệm vụ cá nhân. Nếu đầu việc chưa phát sinh đăng ký hoặc nhiệm vụ, document danh mục sẽ được xóa. " +
-    "Nếu đã có lịch sử, hệ thống chỉ đưa đầu việc ra khỏi danh mục hiện hành để không làm mất báo cáo cũ."
+  if (!await ModalService.confirm(
+    `Xóa ${code} khỏi DANH MỤC CÔNG VIỆC CHUẨN? Đây không phải thao tác hủy nhiệm vụ cá nhân. Nếu đầu việc chưa phát sinh đăng ký hoặc nhiệm vụ, document danh mục sẽ được xóa. Nếu đã có lịch sử, hệ thống chỉ đưa đầu việc ra khỏi danh mục hiện hành để không làm mất báo cáo cũ.`,
+    { title: "Xóa đầu việc khỏi danh mục", confirmText: "Xóa khỏi danh mục", danger: true }
   )) return false;
 
   if (button) button.disabled = true;
@@ -942,7 +942,7 @@ async function openCatalogDelegation(currentDelegation, period) {
     });
 
     root.querySelector("#revokeCatalogDelegation")?.addEventListener("click", async event => {
-      if (!window.confirm("Hủy ủy quyền nhập danh mục ngay bây giờ?")) return;
+      if (!await ModalService.confirm("Hủy ủy quyền nhập danh mục ngay bây giờ?", { title: "Hủy ủy quyền", confirmText: "Hủy ủy quyền", danger: true })) return;
       const button = event.currentTarget;
       button.disabled = true;
       try {
@@ -1001,7 +1001,7 @@ async function openCdtnApprovalDelegation(period) {
     });
 
     root.querySelector("#revokeCdtnApproval")?.addEventListener("click", async event => {
-      if (!window.confirm("Hủy ủy quyền duyệt nhiệm vụ Chi đoàn ngay bây giờ?")) return;
+      if (!await ModalService.confirm("Hủy ủy quyền duyệt nhiệm vụ Chi đoàn ngay bây giờ?", { title: "Hủy ủy quyền Chi đoàn", confirmText: "Hủy ủy quyền", danger: true })) return;
       const button = event.currentTarget;
       button.disabled = true;
       try {
