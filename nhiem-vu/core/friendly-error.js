@@ -20,10 +20,7 @@ export function friendlyErrorMessage(error, fallback = "Không thực hiện đ�
     return "Tài khoản chưa được cấp quyền phù hợp cho thao tác này. Vui lòng bấm Cập nhật; nếu lỗi vẫn còn, liên hệ quản trị viên.";
   }
   if (code.includes("milestone-schema-repair-required")) {
-    return "Dữ liệu mốc của nhiệm vụ được tạo từ phiên bản cũ chưa được chuẩn hóa. Quản trị viên cần chạy migration V1.18.2; sau đó bấm Cập nhật và thử lại.";
-  }
-  if (code.includes("write-confirmation-timeout")) {
-    return "Hệ thống chưa nhận được xác nhận lưu từ máy chủ trong thời gian cho phép. Dữ liệu đã được kiểm tra lại; nếu chưa cập nhật, vui lòng bấm Lưu lại. Không cần tải cứng trang.";
+    return "Dữ liệu mốc của nhiệm vụ được tạo từ phiên bản cũ chưa được chuẩn hóa. Quản trị viên cần chạy migration V1.18.3; sau đó bấm Cập nhật và thử lại.";
   }
   if (code.includes("write-confirmation-timeout")) {
     return "Hệ thống chưa nhận được xác nhận lưu từ máy chủ trong thời gian cho phép. Dữ liệu đã được kiểm tra lại; nếu chưa cập nhật, vui lòng bấm Lưu lại. Không cần tải cứng trang.";
