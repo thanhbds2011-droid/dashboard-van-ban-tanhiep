@@ -10,25 +10,63 @@ export const KPI2B = Object.freeze({
   RESULT_WEIGHT: 0.70
 });
 
-export const COMMON_CRITERIA = Object.freeze([
-  { code: '1.1', group: '1', max: 2, text: 'Tuyệt đối trung thành với Đảng, Tổ quốc và Nhân dân; có lập trường, quan điểm và bản lĩnh chính trị vững vàng.' },
-  { code: '1.2', group: '1', max: 2, text: 'Chấp hành nghiêm nguyên tắc tổ chức, kỷ luật của Đảng, pháp luật của Nhà nước và sự phân công của tổ chức.' },
-  { code: '1.3', group: '1', max: 2, text: 'Có tinh thần trách nhiệm, tận tụy với công việc; chủ động phối hợp và hoàn thành nhiệm vụ được giao.' },
-  { code: '1.4', group: '1', max: 2, text: 'Tự giác học tập, cập nhật kiến thức, nâng cao trình độ để đáp ứng yêu cầu nhiệm vụ.' },
-  { code: '1.5', group: '1', max: 2, text: 'Có phẩm chất đạo đức, lối sống trong sáng, trung thực, khiêm tốn, cần, kiệm, liêm, chính.' },
-  { code: '1.6', group: '1', max: 2, text: 'Không tham nhũng, lãng phí, cơ hội, vụ lợi; kiên quyết đấu tranh với biểu hiện tiêu cực và lợi ích nhóm.' },
-  { code: '1.7', group: '1', max: 2, text: 'Có uy tín, tinh thần đoàn kết, thương yêu đồng chí, đồng nghiệp; giữ gìn đoàn kết nội bộ.' },
-  { code: '1.8', group: '1', max: 2, text: 'Chủ động, đổi mới, sáng tạo; phấn đấu vì mục tiêu phát triển của cơ quan, đơn vị.' },
-  { code: '1.9', group: '1', max: 2, text: 'Thực hiện kê khai, công khai tài sản, thu nhập và báo cáo thông tin theo quy định.' },
-  { code: '2.1', group: '2', max: 1, text: 'Có tư duy đổi mới, tầm nhìn, phương pháp làm việc khoa học và khả năng thích ứng.' },
-  { code: '2.2', group: '2', max: 1, text: 'Bám sát thực tiễn, có cách làm sáng tạo, hiệu quả trong tổ chức thực hiện nhiệm vụ.' },
-  { code: '2.3', group: '2', max: 1, text: 'Nói đi đôi với làm; dám nghĩ, dám làm, dám chịu trách nhiệm vì lợi ích chung.' },
-  { code: '2.4', group: '2', max: 1, text: 'Có khát vọng cống hiến; biết quy tụ và phát huy sức mạnh tập thể, cá nhân.' },
-  { code: '3.1', group: '3', max: 2, text: 'Chủ động, nghiêm túc tự phê bình và phê bình; cầu thị, tiếp thu góp ý.' },
-  { code: '3.2', group: '3', max: 2, text: 'Có kế hoạch và quyết liệt khắc phục hạn chế, khuyết điểm đã được chỉ ra.' },
-  { code: '3.3', group: '3', max: 2, text: 'Kết quả khắc phục đạt từ 80% nội dung trở lên, có tiến bộ rõ và không để tái diễn.' },
-  { code: '3.4', group: '3', max: 2, text: 'Tự soi, tự sửa với trách nhiệm cao; không né tránh, không đổ lỗi.' }
+export const M01_GROUPS = Object.freeze([
+  Object.freeze({ code: "1", title: "Về phẩm chất chính trị, đạo đức, lối sống, thực hiện trách nhiệm nêu gương", max: 18 }),
+  Object.freeze({ code: "2", title: "Tư duy đổi mới, chiến lược, khát vọng cống hiến, dám nghĩ dám làm", max: 4 }),
+  Object.freeze({ code: "3", title: "Về tự phê bình và phê bình, tự soi, tự sửa, khắc phục hạn chế, khuyết điểm", max: 8 })
 ]);
+
+export const COMMON_CRITERIA_01A = Object.freeze([
+  Object.freeze({ code: "1.1", group: "1", max: 2, text: "Tuyệt đối trung thành với Đảng, Tổ quốc và Nhân dân; kiên định chủ nghĩa Mác - Lênin, tư tưởng Hồ Chí Minh, mục tiêu độc lập dân tộc và chủ nghĩa xã hội. Có lập trường, quan điểm, bản lĩnh chính trị vững vàng; kiên quyết bảo vệ nền tảng tư tưởng, Cương lĩnh chính trị, đường lối của Đảng, Hiến pháp, pháp luật của Nhà nước; đấu tranh phản bác các quan điểm sai trái, thù địch, các biểu hiện suy thoái, \"tự diễn biến\", \"tự chuyển hoá\"." }),
+  Object.freeze({ code: "1.2", group: "1", max: 2, text: "Có tinh thần yêu nước sâu sắc, tận tuỵ phục vụ Nhân dân, sâu sát cơ sở, luôn hành động vì lợi ích của Nhân dân. Đặt lợi ích của Đảng, quốc gia - dân tộc, Nhân dân, tập thể lên trên lợi ích cá nhân, sẵn sàng hy sinh vì sự nghiệp cách mạng của Đảng, vì độc lập, tự do của Tổ quốc, vì hạnh phúc của Nhân dân." }),
+  Object.freeze({ code: "1.3", group: "1", max: 2, text: "Chấp hành nghiêm chủ trương, đường lối, nghị quyết, chỉ thị, quy định, nguyên tắc tổ chức, kỷ luật của Đảng, nhất là nguyên tắc tập trung dân chủ, tự phê bình và phê bình; chấp hành nghiêm pháp luật của Nhà nước và quy định của cơ quan, đơn vị. Tuyệt đối chấp hành sự phân công của tổ chức, yên tâm công tác và hoàn thành tốt mọi nhiệm vụ được giao." }),
+  Object.freeze({ code: "1.4", group: "1", max: 2, text: "Có tinh thần tự giác, trách nhiệm cao trong nghiên cứu, học tập chủ nghĩa Mác - Lênin, tư tưởng Hồ Chí Minh, các nghị quyết, chỉ thị của Đảng và các chương trình bồi dưỡng, cập nhật kiến thức mới nhằm nâng cao trình độ về mọi mặt, đáp ứng yêu cầu, nhiệm vụ." }),
+  Object.freeze({ code: "1.5", group: "1", max: 2, text: "Có phẩm chất đạo đức, lối sống trong sáng, trung thực, khiêm tốn, chân thành, giản dị; cần, kiệm, liêm, chính, chí công vô tư; chấp hành nghiêm quy định về chuẩn mực đạo đức cách mạng của cán bộ, đảng viên trong giai đoạn mới, trách nhiệm nêu gương; không vi phạm Quy định về những điều đảng viên không được làm. Không né tránh công việc, chạy theo thành tích; không vi phạm đạo đức, lối sống đến mức bị xử lý kỷ luật." }),
+  Object.freeze({ code: "1.6", group: "1", max: 2, text: "Không tham vọng quyền lực; không chạy chức, chạy quyền; không tham nhũng, lãng phí, cơ hội, vụ lợi, cục bộ, lợi ích nhóm; không để gia đình, người thân và người khác lợi dụng chức vụ, vị trí công tác để trục lợi. Không có biểu hiện suy thoái về tư tưởng chính trị, đạo đức, lối sống, những biểu hiện \"tự diễn biến\", \"tự chuyển hoá\" trong nội bộ. Kiên quyết đấu tranh chống quan liêu, cửa quyền, tham nhũng, xa hoa, lãng phí, tiêu cực, chủ nghĩa cá nhân, lối sống cơ hội, thực dụng, bè phái, lợi ích nhóm, nói không đi đôi với làm." }),
+  Object.freeze({ code: "1.7", group: "1", max: 2, text: "Có uy tín cao, tiêu biểu về phẩm chất đạo đức và phong cách công tác; là trung tâm đoàn kết, thương yêu đồng chí, đồng nghiệp." }),
+  Object.freeze({ code: "1.8", group: "1", max: 2, text: "Có tinh thần chủ động, đổi mới sáng tạo; phấn đấu vì mục tiêu phát triển của cơ quan, đơn vị, đóng góp vào mục tiêu chung của đất nước." }),
+  Object.freeze({ code: "1.9", group: "1", max: 2, text: "Thực hiện việc kê khai và công khai tài sản, thu nhập theo quy định. Báo cáo đầy đủ, trung thực, cung cấp thông tin chính xác, khách quan về những nội dung liên quan đến việc thực hiện chức trách, nhiệm vụ được giao và hoạt động của cơ quan, tổ chức, đơn vị với cấp trên khi được yêu cầu." }),
+  Object.freeze({ code: "2.1", group: "2", max: 1, text: "Có tư duy đổi mới, tầm nhìn chiến lược, khả năng lãnh đạo, chỉ đạo thích ứng với sự phát triển của thời đại và xu thế toàn cầu hoá; phương pháp làm việc khoa học, nhạy bén chính trị; có năng lực cụ thể hoá trong lãnh đạo, chỉ đạo cơ quan, đơn vị thực hiện và hoàn thành tốt chức năng, nhiệm vụ được giao." }),
+  Object.freeze({ code: "2.2", group: "2", max: 1, text: "Luôn bám sát thực tiễn, có nhiều cách làm hay, sáng tạo, đạt hiệu quả cao trong lãnh đạo, chỉ đạo, tổ chức thực hiện nhiệm vụ; xây dựng cấp uỷ, tổ chức đảng trong sạch, vững mạnh, cơ quan, đơn vị vững mạnh toàn diện." }),
+  Object.freeze({ code: "2.3", group: "2", max: 1, text: "Nói đi đôi với làm, dám nghĩ, dám làm, dám chịu trách nhiệm, dám đột phá vì lợi ích chung. Có khả năng phân tích, dự báo tình hình, phát hiện những khó khăn, bất cập, thời cơ, thuận lợi trong thực tiễn; đề xuất hoặc quyết định những giải pháp phù hợp, kịp thời, hiệu quả." }),
+  Object.freeze({ code: "2.4", group: "2", max: 1, text: "Có khát vọng phấn đấu, cống hiến; có khả năng quy tụ và phát huy được sức mạnh của tập thể, cá nhân trong cơ quan, đơn vị và các cơ quan, đơn vị có liên quan." }),
+  Object.freeze({ code: "3.1", group: "3", max: 2, text: "Chủ động, nghiêm túc thực hiện tự phê bình và phê bình, có tinh thần cầu thị và tiếp thu phản biện, góp ý." }),
+  Object.freeze({ code: "3.2", group: "3", max: 2, text: "Có kế hoạch rõ ràng và quyết liệt trong khắc phục hạn chế, khuyết điểm đã được chỉ ra." }),
+  Object.freeze({ code: "3.3", group: "3", max: 2, text: "Kết quả khắc phục hoàn thành từ ≥ 80% nội dung, có tiến bộ rõ, được tổ chức đánh giá tốt; không để tái diễn tồn tại." }),
+  Object.freeze({ code: "3.4", group: "3", max: 2, text: "Tự soi, tự sửa trên tinh thần trách nhiệm chính trị cao, không né tránh, không đổ lỗi." }),
+]);
+
+export const COMMON_CRITERIA_01B = Object.freeze([
+  Object.freeze({ code: "1.1", group: "1", max: 2, text: "Tuyệt đối trung thành với Đảng, Tổ quốc và Nhân dân; kiên định chủ nghĩa Mác - Lênin, tư tưởng Hồ Chí Minh, mục tiêu độc lập dân tộc và chủ nghĩa xã hội. Có lập trường, quan điểm, bản lĩnh chính trị vững vàng; kiên quyết bảo vệ nền tảng tư tưởng, Cương lĩnh chính trị, đường lối của Đảng, Hiến pháp, pháp luật của Nhà nước; đấu tranh phản bác các quan điểm sai trái, thù địch, các biểu hiện suy thoái, \"tự diễn biến\", \"tự chuyển hoá\"." }),
+  Object.freeze({ code: "1.2", group: "1", max: 2, text: "Có tinh thần yêu nước sâu sắc, tận tuỵ phục vụ Nhân dân, sâu sát cơ sở, luôn hành động vì lợi ích của Nhân dân. Đặt lợi ích của Đảng, quốc gia - dân tộc, Nhân dân, tập thể lên trên lợi ích cá nhân, sẵn sàng hy sinh vì sự nghiệp cách mạng của Đảng, vì độc lập, tự do của Tổ quốc, vì hạnh phúc của Nhân dân." }),
+  Object.freeze({ code: "1.3", group: "1", max: 2, text: "Chấp hành nghiêm chủ trương, đường lối, nghị quyết, chỉ thị, quy định, nguyên tắc tổ chức, kỷ luật của Đảng, nhất là nguyên tắc tập trung dân chủ, tự phê bình và phê bình; chấp hành nghiêm pháp luật của Nhà nước và quy định của cơ quan, đơn vị. Tuyệt đối chấp hành sự phân công của tổ chức, yên tâm công tác và hoàn thành tốt mọi nhiệm vụ được giao." }),
+  Object.freeze({ code: "1.4", group: "1", max: 2, text: "Có tinh thần tự giác, trách nhiệm cao trong nghiên cứu, học tập chủ nghĩa Mác - Lênin, tư tưởng Hồ Chí Minh, các nghị quyết, chỉ thị của Đảng và các chương trình bồi dưỡng, cập nhật kiến thức mới nhằm nâng cao trình độ về mọi mặt, đáp ứng yêu cầu, nhiệm vụ." }),
+  Object.freeze({ code: "1.5", group: "1", max: 2, text: "Có phẩm chất đạo đức, lối sống trong sáng, trung thực, khiêm tốn, chân thành, giản dị; cần, kiệm, liêm, chính, chí công vô tư; chấp hành nghiêm quy định về chuẩn mực đạo đức cách mạng của cán bộ, đảng viên trong giai đoạn mới, trách nhiệm nêu gương; không vi phạm Quy định về những điều đảng viên không được làm. Không né tránh công việc, chạy theo thành tích; không vi phạm đạo đức, lối sống đến mức bị xử lý kỷ luật." }),
+  Object.freeze({ code: "1.6", group: "1", max: 2, text: "Không tham vọng quyền lực; không chạy chức, chạy quyền; không tham nhũng, lãng phí, cơ hội, vụ lợi, cục bộ, lợi ích nhóm; không để gia đình, người thân và người khác lợi dụng vị trí công tác để trục lợi. Không có biểu hiện suy thoái về tư tưởng chính trị, đạo đức, lối sống, những biểu hiện \"tự diễn biến\", \"tự chuyển hoá\" trong nội bộ. Kiên quyết đấu tranh chống quan liêu, cửa quyền, tham nhũng, xa hoa, lãng phí, tiêu cực, chủ nghĩa cá nhân, lối sống cơ hội, thực dụng, bè phái, lợi ích nhóm, nói không đi đôi với làm." }),
+  Object.freeze({ code: "1.7", group: "1", max: 2, text: "Có uy tín cao, tiêu biểu về phẩm chất đạo đức và phong cách công tác; là trung tâm đoàn kết, thương yêu đồng chí, đồng nghiệp." }),
+  Object.freeze({ code: "1.8", group: "1", max: 2, text: "Có tinh thần chủ động, đổi mới sáng tạo; phấn đấu vì mục tiêu phát triển của cơ quan, đơn vị, đóng góp vào mục tiêu chung của đất nước." }),
+  Object.freeze({ code: "1.9", group: "1", max: 2, text: "Thực hiện việc kê khai và công khai tài sản, thu nhập theo quy định. Báo cáo đầy đủ, trung thực, cung cấp thông tin chính xác, khách quan về những nội dung liên quan đến việc thực hiện chức trách, nhiệm vụ được giao và hoạt động của cơ quan, tổ chức, đơn vị với cấp trên khi được yêu cầu." }),
+  Object.freeze({ code: "2.1", group: "2", max: 2, text: "Có tư duy đổi mới, thích ứng với sự phát triển của thời đại và xu thế toàn cầu hoá; phương pháp làm việc khoa học, nhạy bén chính trị" }),
+  Object.freeze({ code: "2.2", group: "2", max: 1, text: "Luôn bám sát thực tiễn, có nhiều cách làm hay, sáng tạo, đạt hiệu quả cao thực hiện nhiệm vụ" }),
+  Object.freeze({ code: "2.3", group: "2", max: 1, text: "Nói đi đôi với làm, dám nghĩ, dám làm, dám chịu trách nhiệm, dám đột phá vì lợi ích chung. Có khả năng phân tích, dự báo tình hình, phát hiện những khó khăn, bất cập, thời cơ, thuận lợi trong thực tiễn; kịp thời đề xuất những giải pháp phù hợp, kịp thời, hiệu quả." }),
+  Object.freeze({ code: "3.1", group: "3", max: 2, text: "Chủ động, nghiêm túc thực hiện tự phê bình và phê bình, có tinh thần cầu thị và tiếp thu phản biện, góp ý." }),
+  Object.freeze({ code: "3.2", group: "3", max: 2, text: "Có kế hoạch rõ ràng và quyết liệt trong khắc phục hạn chế, khuyết điểm đã được chỉ ra." }),
+  Object.freeze({ code: "3.3", group: "3", max: 2, text: "Kết quả khắc phục hoàn thành từ ≥ 80% nội dung, có tiến bộ rõ, được tổ chức đánh giá tốt; không để tái diễn tồn tại." }),
+  Object.freeze({ code: "3.4", group: "3", max: 2, text: "Tự soi, tự sửa trên tinh thần trách nhiệm chính trị cao, không né tránh, không đổ lỗi." }),
+]);
+
+/** Tương thích module cũ: mặc định 01A, code mới phải chọn theo hồ sơ. */
+export const COMMON_CRITERIA = COMMON_CRITERIA_01A;
+
+export function reportFormTypeForProfile(profile = {}) {
+  const role = String(profile?.role || "").trim().toUpperCase();
+  return role === "DIRECTOR" || role === "DEPARTMENT_LEADER" ? "01A" : "01B";
+}
+
+export function commonCriteriaForProfile(profile = {}) {
+  return reportFormTypeForProfile(profile) === "01A" ? COMMON_CRITERIA_01A : COMMON_CRITERIA_01B;
+}
+
 
 export function clampRate(value) {
   const number = Number(value);
@@ -112,12 +150,15 @@ export function calculateKpiSummary(tasks, commonScore) {
   const bonusRaw = round2(recognized.reduce((sum, item) => sum + Math.max(0, Number(item.bonusScore || 0)), 0));
   const hasCalculationBasis = A > 0;
   const kpi70 = hasCalculationBasis ? round2(Math.min((B / A) * 70, 70)) : null;
-  const bonus70 = hasCalculationBasis ? round2((bonusRaw / A) * 70) : null;
+  // Mẫu 01A/01B: C là 5% điểm KPI thực tế của từng công việc cụ thể, cộng trực tiếp và tối đa 07 điểm.
+  const bonusC = hasCalculationBasis ? round2(Math.min(Number(bonusRaw || 0), 7)) : null;
+  const bonus70Uncapped = bonusC; // alias tương thích dữ liệu/UI cũ; từ V1.18.0 không quy đổi C theo A.
+  const bonus70 = bonusC;
   const common30 = round2(Math.max(0, Math.min(Number(commonScore || 0), 30)));
   const baseTotal100 = hasCalculationBasis ? round2(Math.min(kpi70 + common30, 100)) : null;
-  const totalBeforeCap = hasCalculationBasis ? round2(baseTotal100 + Number(bonus70 || 0)) : null;
+  const totalBeforeCap = hasCalculationBasis ? round2(baseTotal100 + Number(bonusC || 0)) : null;
   const total100 = hasCalculationBasis ? round2(Math.min(totalBeforeCap, 100)) : null;
-  return { A, B, bonusRaw, bonus70, kpi70, common30, baseTotal100, totalBeforeCap, total100, hasCalculationBasis };
+  return { A, B, bonusRaw, bonus70Uncapped, bonus70, bonusC, kpi70, common30, baseTotal100, totalBeforeCap, total100, hasCalculationBasis };
 }
 
 export function parseDate(value) {
