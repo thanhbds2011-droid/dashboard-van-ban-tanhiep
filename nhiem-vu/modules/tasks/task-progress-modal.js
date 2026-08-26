@@ -5,16 +5,16 @@
  * - Bấm × trước khi Lưu chỉ bỏ tệp khỏi danh sách, không phát sinh thao tác Drive.
  * - Mốc định kỳ hỗ trợ Theo ngày / Theo tuần / Theo tháng.
  */
-import { UserContext } from "../../core/user-context.js?v=20260826.V1_18_3";
-import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260826.V1_18_3";
-import { ModalService } from "../../core/modal-service.js?v=20260826.V1_18_3";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260826.V1_18_3";
-import { TaskMilestoneService } from "../../services/task-milestone-service.js?v=20260826.V1_18_3";
-import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260826.V1_18_3";
-import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260826.V1_18_3";
-import { TaskEvidenceService } from "../../services/task-evidence-service.js?v=20260826.V1_18_3";
-import { StagedEvidenceUploader } from "../../services/staged-evidence-uploader.js?v=20260826.V1_18_3";
-import { validateProgressInput, cleanText } from "./task-form-validator.js?v=20260826.V1_18_3";
+import { UserContext } from "../../core/user-context.js?v=20260826.V1_18_5";
+import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260826.V1_18_5";
+import { ModalService } from "../../core/modal-service.js?v=20260826.V1_18_5";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260826.V1_18_5";
+import { TaskMilestoneService } from "../../services/task-milestone-service.js?v=20260826.V1_18_5";
+import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260826.V1_18_5";
+import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260826.V1_18_5";
+import { TaskEvidenceService } from "../../services/task-evidence-service.js?v=20260826.V1_18_5";
+import { StagedEvidenceUploader } from "../../services/staged-evidence-uploader.js?v=20260826.V1_18_5";
+import { validateProgressInput, cleanText } from "./task-form-validator.js?v=20260826.V1_18_5";
 
 function mayUpdate(task) {
   const user = UserContext.requireUser();
