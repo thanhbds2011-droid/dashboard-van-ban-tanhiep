@@ -1,25 +1,25 @@
-import { auth, db } from '../../firebase-config.js?v=20260826.V1_18_2';
+import { auth, db } from '../../firebase-config.js?v=20260826.V1_18_3';
 import {
   addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, query,
   serverTimestamp, setDoc, Timestamp, updateDoc, where, limit, writeBatch
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
-import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260826.V1_18_2';
-import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260826.V1_18_2';
-import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260826.V1_18_2';
-import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260826.V1_18_2';
-import { PeriodReadService } from '../../services/period-read-service.js?v=20260826.V1_18_2';
-import { TaskReadService } from '../../services/task-read-service.js?v=20260826.V1_18_2';
-import { Permissions } from '../../core/permissions.js?v=20260826.V1_18_2';
-import { UserContext } from '../../core/user-context.js?v=20260826.V1_18_2';
-import { APP_VERSION } from '../../core/app-version.js?v=20260826.V1_18_2';
-import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260826.V1_18_2';
-import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260826.V1_18_2';
+import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260826.V1_18_3';
+import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260826.V1_18_3';
+import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260826.V1_18_3';
+import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260826.V1_18_3';
+import { PeriodReadService } from '../../services/period-read-service.js?v=20260826.V1_18_3';
+import { TaskReadService } from '../../services/task-read-service.js?v=20260826.V1_18_3';
+import { Permissions } from '../../core/permissions.js?v=20260826.V1_18_3';
+import { UserContext } from '../../core/user-context.js?v=20260826.V1_18_3';
+import { APP_VERSION } from '../../core/app-version.js?v=20260826.V1_18_3';
+import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260826.V1_18_3';
+import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260826.V1_18_3';
 import {
   KPI2B as KPI2C, M01_GROUPS, COMMON_CRITERIA, commonCriteriaForProfile, reportFormTypeForProfile, calculateTaskScore, calculateKpiSummary,
   proposedRating, ratingName, round2, progressRateFromDates, convertAppendix04Rate, calculateMilestoneProgress, calculateBonusScore
-} from '../../kpi-engine.js?v=20260826.V1_18_2';
-import { resolveKpiReviewer, canReviewKpiOwner } from '../../core/kpi-review-authority.js?v=20260826.V1_18_2';
-import { ModalService } from '../../core/modal-service.js?v=20260826.V1_18_2';
+} from '../../kpi-engine.js?v=20260826.V1_18_3';
+import { resolveKpiReviewer, canReviewKpiOwner } from '../../core/kpi-review-authority.js?v=20260826.V1_18_3';
+import { ModalService } from '../../core/modal-service.js?v=20260826.V1_18_3';
 
 export const KpiWorkflowState = {
   user: null,
@@ -3100,7 +3100,7 @@ function openReport() {
         ${taskRows || '<tr><td class="m01-center">—</td><td colspan="4">Chưa có nhiệm vụ trong kỳ.</td><td></td><td></td><td></td></tr>'}
         <tr class="m01-total-row"><td colspan="5">TỔNG (B) = Điểm KPI đã tính tại bảng tính điểm</td><td class="m01-center">${fmt(s.A || 0)}</td><td class="m01-center">${s.hasCalculationBasis ? fmt(s.kpi70) : 'Chưa đủ cơ sở tính'}</td><td></td></tr>
 
-        <tr class="m01-part-row"><td class="m01-center">C</td><td colspan="4">ĐIỂM THƯỞNG<br><small>(Mỗi công việc được xác nhận nổi trội, sáng kiến mới được tính điểm thưởng bằng 5% tổng điểm KPI đạt được của công việc cụ thể)</small></td><td class="m01-center">Điểm tối đa<br>(07 điểm)</td><td class="m01-center">Điểm đạt được<br>= Tổng điểm thưởng các công việc<br><strong>${fmt(reportBonusC)}</strong></td><td></td></tr>
+        <tr class="m01-part-row"><td class="m01-center">C</td><td colspan="4">ĐIỂM THƯỞNG<br><small>(Mỗi công việc được xác nhận nổi trội, sáng kiến mới được tính điểm thưởng bằng 5% tổng điểm KPI đạt được của công việc cụ thể)</small></td><td class="m01-center">Điểm tối đa<br>(07 điểm)</td><td class="m01-center">Điểm đạt được<br>= Tổng điểm thưởng các công việc</td><td></td></tr>
         ${bonusRows || '<tr class="m01-bonus-item"><td class="m01-center">—</td><td colspan="4">Không có công việc đề nghị/được xác nhận điểm thưởng.</td><td></td><td class="m01-center">0</td><td></td></tr>'}
         <tr class="m01-grand-total"><td colspan="5">TỔNG (A + B + C) =</td><td class="m01-center">Tối đa 100 điểm</td><td class="m01-center"><strong>${reportTotal100 == null ? '—' : fmt(reportTotal100)}</strong></td><td></td></tr>
       </tbody>
