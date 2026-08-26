@@ -13,8 +13,8 @@
  * - Giữ nguyên UID Firebase và mô hình accessAccounts hiện hữu.
  */
 
-import { FirebaseService } from "./firebase-service.js?v=20260825.V1_18_0";
-import { UserContext } from "./user-context.js?v=20260825.V1_18_0";
+import { FirebaseService } from "./firebase-service.js?v=20260826.V1_18_1";
+import { UserContext } from "./user-context.js?v=20260826.V1_18_1";
 
 const LOGIN_URL = "./login.html";
 const AUTH_TIMEOUT_MS = 10000;
@@ -44,7 +44,7 @@ function hasOwn(object, key) { return Object.prototype.hasOwnProperty.call(objec
 
 
 const PROFILE_SCOPE_FIELDS = Object.freeze([
-  "email", "fullName", "departmentId", "role", "position", "leaderLevel",
+  "email", "fullName", "departmentId", "role", "position", "leaderLevel", "approvalAuthority",
   "isDepartmentHead", "teamId", "employeeCode", "additionalRoles",
   "taskNotificationCoordinator", "active"
 ]);
@@ -57,6 +57,7 @@ function profileScopeFingerprint(profile = {}) {
     role: normalizeRole(profile.role),
     position: clean(profile.position),
     leaderLevel: normalizeRole(profile.leaderLevel),
+    approvalAuthority: normalizeRole(profile.approvalAuthority),
     isDepartmentHead: typeof profile.isDepartmentHead === "boolean" ? profile.isDepartmentHead : null,
     teamId: clean(profile.teamId).toUpperCase(),
     employeeCode: clean(profile.employeeCode),
@@ -78,6 +79,7 @@ function contextPayload(firebaseUser, profile = {}) {
     position: profile.position || "",
     employeeCode: profile.employeeCode || "",
     leaderLevel: profile.leaderLevel || "",
+    approvalAuthority: profile.approvalAuthority || "",
     isDepartmentHead: typeof profile.isDepartmentHead === "boolean" ? profile.isDepartmentHead : null,
     additionalRoles: profile.additionalRoles || [],
     active: profile.active === true
@@ -343,6 +345,9 @@ function buildProfileFromAccess(firebaseUser, accessEmail, access, existingProfi
   if (hasOwn(access, "leaderLevel")) profile.leaderLevel = normalizeRole(access.leaderLevel);
   else if (hasOwn(existingProfile, "leaderLevel")) profile.leaderLevel = normalizeRole(existingProfile.leaderLevel);
 
+  if (hasOwn(access, "approvalAuthority")) profile.approvalAuthority = normalizeRole(access.approvalAuthority);
+  else if (hasOwn(existingProfile, "approvalAuthority")) profile.approvalAuthority = normalizeRole(existingProfile.approvalAuthority);
+
   if (typeof access.isDepartmentHead === "boolean") profile.isDepartmentHead = access.isDepartmentHead;
   else if (typeof existingProfile?.isDepartmentHead === "boolean") profile.isDepartmentHead = existingProfile.isDepartmentHead;
 
@@ -351,7 +356,7 @@ function buildProfileFromAccess(firebaseUser, accessEmail, access, existingProfi
 
 function profileNeedsSync(existingProfile, desiredProfile) {
   if (!existingProfile) return true;
-  const stringFields = ["email", "fullName", "departmentId", "role", "position", "teamId", "employeeCode", "leaderLevel"];
+  const stringFields = ["email", "fullName", "departmentId", "role", "position", "teamId", "employeeCode", "leaderLevel", "approvalAuthority"];
   if (stringFields.some(field => clean(existingProfile[field]) !== clean(desiredProfile[field]))) return true;
   if (existingProfile.active !== true) return true;
   if ((existingProfile.taskNotificationCoordinator === true) !== (desiredProfile.taskNotificationCoordinator === true)) return true;

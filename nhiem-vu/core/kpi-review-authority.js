@@ -1,5 +1,5 @@
 /**
- * Ma trận xác nhận KPI V1.18.0.
+ * Ma trận xác nhận KPI V1.18.1.
  * Quy tắc cốt lõi: SELF REQUEST != FINAL APPROVAL và không ai tự duyệt chính mình.
  */
 function clean(value) { return String(value ?? "").trim(); }
@@ -27,8 +27,10 @@ export function leaderLevelOf(user = {}) {
     if (/^(quyen\s+)?giam\s+doc\b/.test(position)) return "HEAD";
   }
   if (role === "DEPARTMENT_LEADER") {
+    /* Dữ liệu cũ có thể ghi “Phó Trưởng phòng, Phụ trách ...”. Phụ trách/Quyền Trưởng phải ưu tiên HEAD. */
+    if (/\b(phu\s+trach|quyen\s+truong)\b/.test(position)) return "HEAD";
+    if (/^(truong\s+phong|truong\s+khu)\b/.test(position)) return "HEAD";
     if (/^(pho\s+truong|pho\s+phong|pho\s+khu|p\s*truong|ptp|ptk)\b/.test(position)) return "DEPUTY";
-    if (/^(truong\s+phong|truong\s+khu|quyen\s+truong|phu\s+trach)\b/.test(position)) return "HEAD";
   }
   return "";
 }
@@ -110,11 +112,20 @@ export function resolveKpiReviewer({ users = [], delegations = [], owner, scopeD
       ownerId
     );
     if (delegatedDeputy) return delegatedDeputy;
-    return candidate(users, user => isDepartmentHeadProfile(user) && sameDepartment(user, owner), ownerId);
+    const departmentHead = candidate(users, user => isDepartmentHeadProfile(user) && sameDepartment(user, owner), ownerId);
+    if (departmentHead) return departmentHead;
+    /* Phòng/Khu không có Trưởng hoặc người phụ trách: chuyển hồ sơ lên Ban Giám đốc. */
+    const delegatedDirector = delegateUser(users, delegations, "BGD", "CONFIRM_EVALUATIONS", isDirectorDeputy, ownerId);
+    if (delegatedDirector) return delegatedDirector;
+    return candidate(users, isDirectorHead, ownerId);
   }
 
   if (isDepartmentDeputyProfile(owner)) {
-    return candidate(users, user => isDepartmentHeadProfile(user) && sameDepartment(user, owner), ownerId);
+    const departmentHead = candidate(users, user => isDepartmentHeadProfile(user) && sameDepartment(user, owner), ownerId);
+    if (departmentHead) return departmentHead;
+    const delegatedDirector = delegateUser(users, delegations, "BGD", "CONFIRM_EVALUATIONS", isDirectorDeputy, ownerId);
+    if (delegatedDirector) return delegatedDirector;
+    return candidate(users, isDirectorHead, ownerId);
   }
 
   if (isDepartmentHeadProfile(owner)) {

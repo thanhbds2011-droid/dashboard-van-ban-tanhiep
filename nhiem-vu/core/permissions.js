@@ -2,7 +2,7 @@
  * Lớp kiểm tra quyền dùng thống nhất cho giao diện.
  * Firestore Security Rules vẫn là lớp kiểm soát bắt buộc ở phía dữ liệu.
  */
-import { UserContext } from "./user-context.js?v=20260825.V1_18_0";
+import { UserContext } from "./user-context.js?v=20260826.V1_18_1";
 
 function clean(value) {
   return String(value ?? "").trim();
@@ -34,6 +34,14 @@ function leaderLevel(user) {
   const position = normalize(user?.position);
   if (!position) return "";
 
+  /* “Phó Trưởng phòng, Phụ trách ...” phải được hiểu là người phụ trách đơn vị. */
+  if (/\b(phu\s+trach|quyen\s+truong)\b/.test(position)) return "HEAD";
+
+  const headPatterns = [
+    /^truong\s+(phong|khu)\b/
+  ];
+  if (headPatterns.some(pattern => pattern.test(position))) return "HEAD";
+
   const deputyPatterns = [
     /^pho\s+truong\s+(phong|khu)\b/,
     /^pho\s+(phong|khu)\b/,
@@ -42,13 +50,6 @@ function leaderLevel(user) {
     /^ptk\b/
   ];
   if (deputyPatterns.some(pattern => pattern.test(position))) return "DEPUTY";
-
-  const headPatterns = [
-    /^truong\s+(phong|khu)\b/,
-    /^quyen\s+truong\s+(phong|khu)\b/,
-    /^phu\s+trach\s+(phong|khu)\b/
-  ];
-  if (headPatterns.some(pattern => pattern.test(position))) return "HEAD";
 
   return "";
 }
