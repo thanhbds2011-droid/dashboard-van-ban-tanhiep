@@ -5,10 +5,11 @@
  * Các hạn nội bộ được lưu tại taskMilestones; hoàn thành một mốc không tự kết thúc
  * nhiệm vụ, trừ khi đó là mốc cuối cùng và mọi mốc trước đã hoàn thành.
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260826.V1_18_2";
-import { UserContext } from "../core/user-context.js?v=20260826.V1_18_2";
-import { TaskLogService } from "./task-log-service.js?v=20260826.V1_18_2";
-import { TaskNotificationService } from "./task-notification-service.js?v=20260826.V1_18_2";
+import { FirebaseService } from "../core/firebase-service.js?v=20260826.V1_18_3";
+import { UserContext } from "../core/user-context.js?v=20260826.V1_18_3";
+import { TaskLogService } from "./task-log-service.js?v=20260826.V1_18_3";
+import { TaskNotificationService } from "./task-notification-service.js?v=20260826.V1_18_3";
+import { confirmWriteWithServerRecovery } from "./firestore-write-recovery.js?v=20260826.V1_18_3";
 
 function clean(value) {
   return String(value ?? "").trim();
@@ -105,6 +106,52 @@ function displayDateKey(value) {
   return match ? `${match[3]}/${match[2]}/${match[1]}` : String(value || "");
 }
 
+function hasOwn(object, field) {
+  return Object.prototype.hasOwnProperty.call(object || {}, field);
+}
+
+function milestoneSchemaReady(milestone = {}) {
+  return clean(milestone.taskId)
+    && clean(milestone.ownerUserId)
+    && clean(milestone.departmentId)
+    && clean(milestone.dueDateKey)
+    && hasOwn(milestone, "dueAt") && Boolean(milestone.dueAt)
+    && hasOwn(milestone, "sequence") && Number.isFinite(Number(milestone.sequence)) && Number(milestone.sequence) > 0;
+}
+
+function parentMilestoneSchemaReady(task = {}) {
+  return ["DAILY", "WEEKLY", "MONTHLY"].includes(clean(task.milestoneMode).toUpperCase())
+    && typeof task.milestoneCount === "number" && Number.isFinite(task.milestoneCount) && task.milestoneCount > 0
+    && typeof task.milestoneCompletedCount === "number" && Number.isFinite(task.milestoneCompletedCount) && task.milestoneCompletedCount >= 0
+    && clean(task.finalMilestoneId);
+}
+
+function milestoneRepairError() {
+  const error = new Error("Dữ liệu mốc của nhiệm vụ cũ chưa được chuẩn hóa đầy đủ. Quản trị viên cần chạy migration V1.18.3 rồi bấm Cập nhật trước khi thử lại.");
+  error.code = "milestone-schema-repair-required";
+  return error;
+}
+
+async function milestoneCompletionConfirmedOnServer(taskId, milestoneId, userId, finalMilestone) {
+  const [milestoneSnapshot, taskSnapshot] = await Promise.all([
+    FirebaseService.getDocFromServer(milestoneRef(milestoneId)),
+    FirebaseService.getDocFromServer(taskRef(taskId))
+  ]);
+  if (!milestoneSnapshot.exists() || !taskSnapshot.exists()) return false;
+  const liveMilestone = milestoneSnapshot.data() || {};
+  const liveTask = taskSnapshot.data() || {};
+  const milestoneDone = clean(liveMilestone.status).toUpperCase() === "COMPLETED"
+    && Boolean(liveMilestone.completedAt)
+    && clean(liveMilestone.completedByUserId) === clean(userId);
+  const parentDone = clean(liveTask.lastCompletedMilestoneId) === clean(milestoneId)
+    && Number(liveTask.milestoneCompletedCount || 0) > 0;
+  if (!milestoneDone || !parentDone) return false;
+  if (!finalMilestone) return true;
+  return clean(liveTask.status).toUpperCase() === "HOAN_THANH"
+    && Boolean(liveTask.completedAt)
+    && clean(liveTask.completedByUserId) === clean(userId);
+}
+
 export const TaskMilestoneService = Object.freeze({
   async list(taskOrId) {
     const reference = scopedMilestoneQuery(taskOrId);
@@ -149,7 +196,7 @@ export const TaskMilestoneService = Object.freeze({
     const taskReference = taskRef(task.id);
     const notificationLogReference = logRef();
 
-    await FirebaseService.runTransaction(FirebaseService.db, async transaction => {
+    const transactionPromise = FirebaseService.runTransaction(FirebaseService.db, async transaction => {
       const [milestoneSnapshot, taskSnapshot] = await Promise.all([
         transaction.get(milestoneReference),
         transaction.get(taskReference)
@@ -165,17 +212,11 @@ export const TaskMilestoneService = Object.freeze({
       if (liveMilestone.ownerUserId !== user.uid || liveTask.ownerUserId !== user.uid) {
         throw new Error("Tài khoản không còn là người thực hiện nhiệm vụ.");
       }
-      const liveMode = String(liveTask.milestoneMode || "").toUpperCase();
-      const liveCount = Number(liveTask.milestoneCount);
-      const liveCompletedCount = Number(liveTask.milestoneCompletedCount);
-      if (!["DAILY", "WEEKLY", "MONTHLY"].includes(liveMode)
-        || !Number.isFinite(liveCount) || liveCount <= 0
-        || !Number.isFinite(liveCompletedCount) || liveCompletedCount < 0
-        || !clean(liveTask.finalMilestoneId)) {
-        const error = new Error("Dữ liệu mốc của nhiệm vụ cũ chưa được chuẩn hóa. Quản trị viên cần chạy migration V1.18.2 rồi bấm Cập nhật trước khi thử lại.");
-        error.code = "milestone-schema-repair-required";
-        throw error;
+      if (!milestoneSchemaReady(liveMilestone) || !parentMilestoneSchemaReady(liveTask)) {
+        throw milestoneRepairError();
       }
+      const liveCount = liveTask.milestoneCount;
+      const liveCompletedCount = liveTask.milestoneCompletedCount;
       finalMilestone = clean(liveTask.finalMilestoneId) === milestone.id;
 
       const milestoneUpdate = {
@@ -230,6 +271,11 @@ export const TaskMilestoneService = Object.freeze({
           : `Đã hoàn thành mốc ngày ${displayDateKey(milestone.dueDateKey)}.`
       }));
     });
+
+    await confirmWriteWithServerRecovery(
+      transactionPromise,
+      () => milestoneCompletionConfirmedOnServer(task.id, milestone.id, user.uid, finalMilestone)
+    );
 
     const action = finalMilestone ? "TASK_COMPLETED" : "TASK_UPDATED";
     await TaskNotificationService.send(

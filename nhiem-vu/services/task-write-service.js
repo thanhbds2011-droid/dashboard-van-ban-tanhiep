@@ -1,61 +1,55 @@
 /** Tạo, phân công, tiếp nhận, cập nhật tiến độ và hoàn thành nhiệm vụ. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260826.V1_18_2";
-import { UserContext } from "../core/user-context.js?v=20260826.V1_18_2";
-import { Permissions } from "../core/permissions.js?v=20260826.V1_18_2";
-import { TaskLogService } from "./task-log-service.js?v=20260826.V1_18_2";
-import { TaskWorkItemService } from "./task-work-item-service.js?v=20260826.V1_18_2";
-import { PeriodReadService } from "./period-read-service.js?v=20260826.V1_18_2";
-import { TaskNotificationService } from "./task-notification-service.js?v=20260826.V1_18_2";
-import { APP_VERSION, BUILD_VERSION } from "../core/app-version.js?v=20260826.V1_18_2";
-import { deadlineDateFromKey, isDateKey } from "../core/deadline-engine.js?v=20260826.V1_18_2";
+import { FirebaseService } from "../core/firebase-service.js?v=20260826.V1_18_3";
+import { UserContext } from "../core/user-context.js?v=20260826.V1_18_3";
+import { Permissions } from "../core/permissions.js?v=20260826.V1_18_3";
+import { TaskLogService } from "./task-log-service.js?v=20260826.V1_18_3";
+import { TaskWorkItemService } from "./task-work-item-service.js?v=20260826.V1_18_3";
+import { PeriodReadService } from "./period-read-service.js?v=20260826.V1_18_3";
+import { TaskNotificationService } from "./task-notification-service.js?v=20260826.V1_18_3";
+import { APP_VERSION, BUILD_VERSION } from "../core/app-version.js?v=20260826.V1_18_3";
+import { deadlineDateFromKey, isDateKey } from "../core/deadline-engine.js?v=20260826.V1_18_3";
+import { confirmWriteWithServerRecovery } from "./firestore-write-recovery.js?v=20260826.V1_18_3";
 
 const TASK_WRITE_BUILD_VERSION = BUILD_VERSION;
 const MAX_CODE_SCAN = 1000;
-const EVENT_CLOSE_COMMIT_TIMEOUT_MS = 15000;
-const EVENT_CLOSE_VERIFY_ATTEMPTS = 4;
-const EVENT_CLOSE_VERIFY_DELAY_MS = 1800;
 
-function delay(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+function cleanWriteValue(value) {
+  return String(value ?? "").trim();
 }
 
-function writeTimeoutError() {
-  const error = new Error("Máy chủ chưa xác nhận thao tác lưu trong thời gian cho phép.");
-  error.code = "write-confirmation-timeout";
-  return error;
-}
-
-async function eventTrackingClosedOnServer(taskId, userId) {
-  try {
-    const snapshot = await FirebaseService.getDocFromServer(taskRef(taskId));
-    if (!snapshot.exists()) return false;
-    const data = snapshot.data() || {};
-    return String(data.status || "").toUpperCase() === "HOAN_THANH"
-      && Boolean(data.eventTrackingClosedAt || data.completedAt)
-      && String(data.eventTrackingClosedByUserId || data.completedByUserId || "") === String(userId || "");
-  } catch (_) {
-    return false;
+async function taskUpdateConfirmedOnServer(taskId, logId, userId, expected = {}) {
+  const [snapshot, logSnapshot] = await Promise.all([
+    FirebaseService.getDocFromServer(taskRef(taskId)),
+    FirebaseService.getDocFromServer(FirebaseService.doc(FirebaseService.db, "taskLogs", logId))
+  ]);
+  if (!snapshot.exists() || !logSnapshot.exists()) return false;
+  const log = logSnapshot.data() || {};
+  if (cleanWriteValue(log.performedByUserId) !== cleanWriteValue(userId)) return false;
+  const data = snapshot.data() || {};
+  if (cleanWriteValue(data.updatedByUserId) !== cleanWriteValue(userId)) return false;
+  if (expected.status && cleanWriteValue(data.status).toUpperCase() !== cleanWriteValue(expected.status).toUpperCase()) return false;
+  if (Object.prototype.hasOwnProperty.call(expected, "evidenceText")
+    && cleanWriteValue(data.evidenceText) !== cleanWriteValue(expected.evidenceText)) return false;
+  if (Object.prototype.hasOwnProperty.call(expected, "evidenceUrl")
+    && cleanWriteValue(data.evidenceUrl || data.evidenceLink) !== cleanWriteValue(expected.evidenceUrl)) return false;
+  if (cleanWriteValue(expected.status).toUpperCase() === "HOAN_THANH") {
+    if (!data.completedAt || cleanWriteValue(data.completedByUserId) !== cleanWriteValue(userId)) return false;
   }
+  return true;
 }
 
-async function commitEventCloseWithRecovery(commitPromise, taskId, userId) {
-  let timeoutId;
-  try {
-    await Promise.race([
-      commitPromise,
-      new Promise((_, reject) => { timeoutId = setTimeout(() => reject(writeTimeoutError()), EVENT_CLOSE_COMMIT_TIMEOUT_MS); })
-    ]);
-    return { recovered: false };
-  } catch (error) {
-    if (String(error?.code || "") !== "write-confirmation-timeout") throw error;
-    for (let attempt = 0; attempt < EVENT_CLOSE_VERIFY_ATTEMPTS; attempt += 1) {
-      if (await eventTrackingClosedOnServer(taskId, userId)) return { recovered: true };
-      if (attempt < EVENT_CLOSE_VERIFY_ATTEMPTS - 1) await delay(EVENT_CLOSE_VERIFY_DELAY_MS);
-    }
-    throw error;
-  } finally {
-    if (timeoutId) clearTimeout(timeoutId);
-  }
+async function eventTrackingClosedOnServer(taskId, logId, userId) {
+  const [snapshot, logSnapshot] = await Promise.all([
+    FirebaseService.getDocFromServer(taskRef(taskId)),
+    FirebaseService.getDocFromServer(FirebaseService.doc(FirebaseService.db, "taskLogs", logId))
+  ]);
+  if (!snapshot.exists() || !logSnapshot.exists()) return false;
+  const log = logSnapshot.data() || {};
+  if (cleanWriteValue(log.performedByUserId) !== cleanWriteValue(userId)) return false;
+  const data = snapshot.data() || {};
+  return String(data.status || "").toUpperCase() === "HOAN_THANH"
+    && Boolean(data.eventTrackingClosedAt || data.completedAt)
+    && String(data.eventTrackingClosedByUserId || data.completedByUserId || "") === String(userId || "");
 }
 
 function dateKey(date) {
@@ -769,7 +763,14 @@ export const TaskWriteService = Object.freeze({
       after: { ...snapshotTask(task), ...payload, updatedAt: null, completedAt: null },
       note: status === "HOAN_THANH" ? "Hoàn thành nhiệm vụ; tiến độ được hệ thống tự ghi 100%." : "Cập nhật trạng thái/minh chứng nhiệm vụ."
     }));
-    await batch.commit();
+    await confirmWriteWithServerRecovery(
+      batch.commit(),
+      () => taskUpdateConfirmedOnServer(task.id, notificationLogReference.id, user.uid, {
+        status: payload.status,
+        evidenceText: payload.evidenceText,
+        evidenceUrl: payload.evidenceUrl
+      })
+    );
 
     // TaskNotificationService.send() chỉ enqueue; Push không nằm trên critical path Firestore/UI.
     await TaskNotificationService.send(
@@ -838,7 +839,7 @@ export const TaskWriteService = Object.freeze({
       after: { ...snapshotTask(task), ...payload, updatedAt: null, completedAt: null, eventTrackingClosedAt: null },
       note: `Kết thúc theo dõi phát sinh trong kỳ; giữ nguyên tiến độ KPI ${progress}%.`
     }));
-    const commitResult = await commitEventCloseWithRecovery(batch.commit(), task.id, user.uid);
+    const commitResult = await confirmWriteWithServerRecovery(batch.commit(), () => eventTrackingClosedOnServer(task.id, notificationLogReference.id, user.uid));
     await TaskNotificationService.send("TASK_COMPLETED", task.id, {
       sourceAction: "EVENT_TRACKING_CLOSED", taskCode: task.taskCode || "", periodId: task.periodId || "",
       oldStatus: task.status || "", newStatus: "HOAN_THANH", oldProgress: Number(task.progress || 0), newProgress: progress,
