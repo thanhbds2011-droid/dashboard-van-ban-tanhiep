@@ -1,9 +1,9 @@
-import { UserContext } from "../../core/user-context.js?v=20260825.V1_17_0";
-import { Permissions } from "../../core/permissions.js?v=20260825.V1_17_0";
-import { ToastService } from "../../core/toast-service.js?v=20260825.V1_17_0";
-import { DepartmentReadService } from "../../services/department-read-service.js?v=20260825.V1_17_0";
-import { UserReadService } from "../../services/user-read-service.js?v=20260825.V1_17_0";
-import { ExecutiveDirectiveService } from "../../services/executive-directive-service.js?v=20260825.V1_17_0";
+import { UserContext } from "../../core/user-context.js?v=20260825.V1_18_0";
+import { Permissions } from "../../core/permissions.js?v=20260825.V1_18_0";
+import { ToastService } from "../../core/toast-service.js?v=20260825.V1_18_0";
+import { DepartmentReadService } from "../../services/department-read-service.js?v=20260825.V1_18_0";
+import { UserReadService } from "../../services/user-read-service.js?v=20260825.V1_18_0";
+import { ExecutiveDirectiveService } from "../../services/executive-directive-service.js?v=20260825.V1_18_0";
 
 let state = {
   directives: [],
