@@ -1,9 +1,10 @@
-import { UserContext } from "../../core/user-context.js?v=20260825.V1_18_0";
-import { Permissions } from "../../core/permissions.js?v=20260825.V1_18_0";
-import { ToastService } from "../../core/toast-service.js?v=20260825.V1_18_0";
-import { DepartmentReadService } from "../../services/department-read-service.js?v=20260825.V1_18_0";
-import { UserReadService } from "../../services/user-read-service.js?v=20260825.V1_18_0";
-import { ExecutiveDirectiveService } from "../../services/executive-directive-service.js?v=20260825.V1_18_0";
+import { UserContext } from "../../core/user-context.js?v=20260826.V1_18_1";
+import { Permissions } from "../../core/permissions.js?v=20260826.V1_18_1";
+import { ToastService } from "../../core/toast-service.js?v=20260826.V1_18_1";
+import { ModalService } from "../../core/modal-service.js?v=20260826.V1_18_1";
+import { DepartmentReadService } from "../../services/department-read-service.js?v=20260826.V1_18_1";
+import { UserReadService } from "../../services/user-read-service.js?v=20260826.V1_18_1";
+import { ExecutiveDirectiveService } from "../../services/executive-directive-service.js?v=20260826.V1_18_1";
 
 let state = {
   directives: [],
@@ -863,7 +864,7 @@ function openDirectiveDetail(id) {
   backdrop.querySelector("#btnDirectiveProgress")?.addEventListener("click", () => { backdrop.remove(); openProgressForm(directive); });
   backdrop.querySelector("#btnDirectiveReminder")?.addEventListener("click", async event => {
     const button = event.currentTarget;
-    const note = window.prompt(`Nhập nội dung đôn đốc ${departmentName(scopeDepartment)}:`, "Đề nghị khẩn trương triển khai và cập nhật tiến độ thực hiện.");
+    const note = await ModalService.prompt(`Nhập nội dung đôn đốc ${departmentName(scopeDepartment)}:`, { title: "Gửi đôn đốc", label: "Nội dung đôn đốc", defaultValue: "Đề nghị khẩn trương triển khai và cập nhật tiến độ thực hiện.", required: true, confirmText: "Gửi đôn đốc" });
     if (note === null) return;
     if (!clean(note)) return ToastService.error("Cần nhập nội dung đôn đốc.");
     try {
@@ -883,7 +884,7 @@ function openDirectiveDetail(id) {
   backdrop.querySelector("#btnDirectiveLifecycle")?.addEventListener("click", async event => {
     const button = event.currentTarget;
     const closing = upper(directive.lifecycleStatus) !== "CLOSED";
-    const reason = closing ? window.prompt("Nhập lý do đóng chỉ đạo (có thể để trống):", "") : "";
+    const reason = closing ? await ModalService.prompt("Nhập lý do đóng chỉ đạo (có thể để trống):", { title: "Đóng nội dung chỉ đạo", label: "Lý do", confirmText: "Tiếp tục" }) : "";
     if (closing && reason === null) return;
     try {
       button.disabled = true;
@@ -893,10 +894,10 @@ function openDirectiveDetail(id) {
   });
   backdrop.querySelector("#btnDirectiveDelete")?.addEventListener("click", async event => {
     const button = event.currentTarget;
-    const reason = window.prompt("Nhập lý do xóa nội dung chỉ đạo:", "");
+    const reason = await ModalService.prompt("Nhập lý do xóa nội dung chỉ đạo:", { title: "Xóa nội dung chỉ đạo", label: "Lý do xóa", required: true, confirmText: "Tiếp tục", danger: true });
     if (reason === null) return;
     if (!clean(reason)) return ToastService.error("Cần nhập lý do xóa.");
-    if (!window.confirm("Xóa nội dung này khỏi danh sách sử dụng? Hệ thống vẫn giữ lịch sử để đối chiếu.")) return;
+    if (!await ModalService.confirm("Xóa nội dung này khỏi danh sách sử dụng? Hệ thống vẫn giữ lịch sử để đối chiếu.", { title: "Xác nhận xóa chỉ đạo", confirmText: "Xóa khỏi danh sách", danger: true })) return;
     try {
       button.disabled = true;
       await ExecutiveDirectiveService.softDelete(directive, reason);
