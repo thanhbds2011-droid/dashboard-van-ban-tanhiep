@@ -1,9 +1,9 @@
-import { Permissions } from "../../core/permissions.js?v=20260826.V1_18_5";
-import { ToastService } from "../../core/toast-service.js?v=20260826.V1_18_5";
-import { TaskReadService } from "../../services/task-read-service.js?v=20260826.V1_18_5";
-import { openTaskCreateModal } from "./task-form-modal.js?v=20260826.V1_18_5";
-import { openTaskDetailModal } from "./task-detail-modal.js?v=20260826.V1_18_5";
-import { effectiveDepartmentAssignmentStatus } from "../../core/task-display-order.js?v=20260826.V1_18_5";
+import { Permissions } from "../../core/permissions.js?v=20260826.V1_18_6";
+import { ToastService } from "../../core/toast-service.js?v=20260826.V1_18_6";
+import { TaskReadService } from "../../services/task-read-service.js?v=20260826.V1_18_6";
+import { openTaskCreateModal } from "./task-form-modal.js?v=20260826.V1_18_6";
+import { openTaskDetailModal } from "./task-detail-modal.js?v=20260826.V1_18_6";
+import { effectiveDepartmentAssignmentStatus } from "../../core/task-display-order.js?v=20260826.V1_18_6";
 
 let renderSequence = 0;
 let currentTasks = [];
@@ -283,12 +283,23 @@ function renderTaskList(tasks, emptyTitle = "Không có nhiệm vụ trong phạ
     const eventCount = Math.max(0, Number(task.eventWorkItemCount || 0));
     const eventEligible = Math.max(0, Number(task.eventEligibleCount || 0));
     const eventProgress = task.eventProgressRate === null || task.eventProgressRate === undefined ? null : Number(task.eventProgressRate);
-    const progressValue = eventDriven ? (eventProgress ?? 0) : Number(task.progress || 0);
+    const eventCompleted = Math.max(0, Number(task.eventCompletedCount || 0));
+    const progressValue = eventDriven
+      ? (task._completed ? 100 : (eventProgress ?? 0))
+      : Number(task.progress || 0);
     const progressLabel = eventDriven
-      ? (eventCount === 0 ? "Chưa phát sinh" : eventEligible === 0 ? `${eventCount} lượt · chưa đến hạn` : `${eventProgress ?? 0}%`)
+      ? (task._completed
+          ? "100% hoàn thành"
+          : eventCount === 0
+            ? "Chưa phát sinh"
+            : eventEligible === 0
+              ? `${eventCount} lượt · chưa đến hạn`
+              : `KPI ${eventProgress ?? 0}%`)
       : `${Number(task.progress || 0)}%`;
     const secondary = eventDriven
-      ? (eventCount ? `${eventCount} lượt đã ghi nhận` : "Theo từng lượt phát sinh")
+      ? (task._completed
+          ? `${eventCompleted || eventCount}/${eventCount || eventCompleted} lượt hoàn thành · KPI tiến độ ${eventProgress ?? 0}%`
+          : (eventCount ? `${eventCount} lượt đã ghi nhận` : "Theo từng lượt phát sinh"))
       : formatDate(task._deadline);
     return `<button type="button" class="data-row task-row-button" data-task-id="${escapeHtml(task.id)}"><div class="data-row-main"><strong>${escapeHtml(task.title || task.taskCode || "Nhiệm vụ không có tiêu đề")}</strong><small>${escapeHtml(task.taskCode || task.id)} • ${escapeHtml(DEPARTMENT_NAMES[taskWorkspaceId(task)] || taskWorkspaceId(task) || "-")} • ${escapeHtml(taskOwnerSummary(task))}</small><div class="progress-track"><span style="width:${Math.min(100, Math.max(0, progressValue))}%"></span></div></div><div class="data-row-meta"><span class="status-pill ${status.className}">${status.label}</span><small>${escapeHtml(secondary)}</small><strong>${escapeHtml(progressLabel)}</strong></div></button>`;
   }).join("")}</div>`;

@@ -1,17 +1,17 @@
 /** Chi tiết, phân công và các lượt công việc phát sinh của nhiệm vụ. */
-import { UserContext } from "../../core/user-context.js?v=20260826.V1_18_5";
-import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260826.V1_18_5";
-import { ModalService } from "../../core/modal-service.js?v=20260826.V1_18_5";
-import { Permissions } from "../../core/permissions.js?v=20260826.V1_18_5";
-import { effectiveDepartmentAssignmentStatus, isTerminalTask } from "../../core/task-display-order.js?v=20260826.V1_18_5";
-import { UserReadService } from "../../services/user-read-service.js?v=20260826.V1_18_5";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260826.V1_18_5";
-import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260826.V1_18_5";
-import { TaskEvidenceService } from "../../services/task-evidence-service.js?v=20260826.V1_18_5";
-import { StagedEvidenceUploader } from "../../services/staged-evidence-uploader.js?v=20260826.V1_18_5";
-import { openTaskProgressModal } from "./task-progress-modal.js?v=20260826.V1_18_5";
-import { mountTaskAdjustmentPanel } from "./task-adjustment-panel.js?v=20260826.V1_18_5";
-import { TaskLogService } from "../../services/task-log-service.js?v=20260826.V1_18_5";
+import { UserContext } from "../../core/user-context.js?v=20260826.V1_18_6";
+import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260826.V1_18_6";
+import { ModalService } from "../../core/modal-service.js?v=20260826.V1_18_6";
+import { Permissions } from "../../core/permissions.js?v=20260826.V1_18_6";
+import { effectiveDepartmentAssignmentStatus, isTerminalTask } from "../../core/task-display-order.js?v=20260826.V1_18_6";
+import { UserReadService } from "../../services/user-read-service.js?v=20260826.V1_18_6";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260826.V1_18_6";
+import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260826.V1_18_6";
+import { TaskEvidenceService } from "../../services/task-evidence-service.js?v=20260826.V1_18_6";
+import { StagedEvidenceUploader } from "../../services/staged-evidence-uploader.js?v=20260826.V1_18_6";
+import { openTaskProgressModal } from "./task-progress-modal.js?v=20260826.V1_18_6";
+import { mountTaskAdjustmentPanel } from "./task-adjustment-panel.js?v=20260826.V1_18_6";
+import { TaskLogService } from "../../services/task-log-service.js?v=20260826.V1_18_6";
 
 const TEAM_LABELS = Object.freeze({
   BAO_VE: "Tổ Bảo vệ",
@@ -266,6 +266,23 @@ function workItemRows(items, canEdit, task, evidenceFiles = []) {
     </article>`).join("")}</div>`;
 }
 
+function eventDrivenKpiExplanation(items, task, summary) {
+  if (String(task?.deadlineMode || "").toUpperCase() !== "EVENT_DRIVEN" || summary.workItemType === "ATTENDANCE" || !summary.count) return "";
+  const activeCompleted = (items || []).filter(item => item?.active !== false && item?.completedDateKey);
+  const rateCount = rate => activeCompleted.filter(item => Number(item.progressRate || 0) === rate).length;
+  const buckets = [
+    rateCount(100) ? `${rateCount(100)} lượt đúng hạn → 100%` : "",
+    rateCount(80) ? `${rateCount(80)} lượt trễ 1–3 ngày → 80%` : "",
+    rateCount(60) ? `${rateCount(60)} lượt trễ 4–5 ngày → 60%` : "",
+    rateCount(0) ? `${rateCount(0)} lượt ở mức 0% (trễ trên 5 ngày hoặc không đạt điều kiện)` : ""
+  ].filter(Boolean);
+  const completionRate = summary.count > 0 ? Math.round((Number(summary.completedCount || 0) / Number(summary.count)) * 100) : 0;
+  return `<div class="info-banner task-kpi-meaning-banner">
+    <strong>Hoàn thành công việc và điểm tiến độ KPI là hai chỉ số khác nhau</strong>
+    <span>Hoàn thành nghiệp vụ: <b>${summary.completedCount}/${summary.count} = ${completionRate}%</b>. Điểm tiến độ KPI được tính theo đúng/trễ hạn của từng lượt nên có thể thấp hơn 100% dù toàn bộ công việc đã làm xong.${buckets.length ? ` ${buckets.join("; ")}.` : ""}</span>
+  </div>`;
+}
+
 function workItemSummaryHtml(items, task) {
   const type = workItemType(task);
   const summary = TaskWorkItemService.calculateSummary(items, type, task);
@@ -287,19 +304,20 @@ function workItemSummaryHtml(items, task) {
   const incomplete = summary.incompleteCount > 0
     ? `<div class="is-warning"><span>Chưa hoàn thành</span><strong>${summary.incompleteCount}</strong></div>`
     : "";
-  const actualProgressLabel = type === "ATTENDANCE" ? "Tỷ lệ tham gia T/N" : "Tiến độ trung bình";
-  const actualResultLabel = type === "ATTENDANCE" ? "Tỷ lệ kết quả K/N" : "Kết quả trung bình";
+  const actualProgressLabel = type === "ATTENDANCE" ? "Tỷ lệ tham gia thực tế T/N" : "Tỷ lệ tiến độ thực tế";
+  const actualResultLabel = type === "ATTENDANCE" ? "Tỷ lệ kết quả thực tế K/N" : "Tỷ lệ kết quả thực tế";
+  const completionRate = summary.count > 0 ? Math.round((Number(summary.completedCount || 0) / Number(summary.count)) * 100) : 0;
 
-  return `<div class="task-work-item-summary">
+  return `${eventDrivenKpiExplanation(items, task, summary)}<div class="task-work-item-summary">
     ${Number(summary.totalRecordedCount || summary.count) !== Number(summary.count) ? `<div><span>Tổng lượt đã ghi nhận</span><strong>${summary.totalRecordedCount}</strong></div>` : ""}
     <div><span>Lượt đang được tính KPI (N)</span><strong>${summary.count}</strong></div>
-    <div><span>Đã hoàn thành trong N</span><strong>${summary.completedCount}/${summary.count}</strong></div>
+    <div><span>Hoàn thành nghiệp vụ</span><strong>${summary.completedCount}/${summary.count} · ${completionRate}%</strong></div>
     ${Number(summary.futurePendingCount || 0) > 0 ? `<div><span>Chưa đến hạn, chưa tính</span><strong>${summary.futurePendingCount}</strong></div>` : ""}
     ${incomplete}
     ${typeSpecific}
     <div><span>${actualProgressLabel}</span><strong>${numberVi(summary.actualProgressRate)}%</strong></div>
     <div><span>${actualResultLabel}</span><strong>${numberVi(summary.actualResultRate)}%</strong></div>
-    <div class="is-applied"><span>Mức áp dụng</span><strong>${summary.appliedProgressRate}% tiến độ · ${summary.appliedResultRate}% kết quả</strong></div>
+    <div class="is-applied"><span>Điểm KPI áp dụng</span><strong>Tiến độ ${summary.appliedProgressRate}% · Kết quả ${summary.appliedResultRate}%</strong></div>
   </div>`;
 }
 
@@ -590,6 +608,7 @@ export async function openTaskDetailModal(task, { onSaved }) {
   const isOwner = task.ownerUserId === currentUser.uid;
   const accepted = task.assignmentStatus === "DA_TIEP_NHAN";
   const completed = isTerminalTask(task);
+  const eventDrivenTask = String(task.deadlineMode || "").toUpperCase() === "EVENT_DRIVEN";
   const adjustmentExempt = String(task.scoringStatus || "").toUpperCase() === "ADJUSTMENT_EXEMPT";
   const mayAssign = canAssign(task);
   const mayAcceptDepartment = canAcceptDepartment(task);
@@ -649,8 +668,10 @@ export async function openTaskDetailModal(task, { onSaved }) {
           <div class="detail-grid task-detail-summary task-detail-summary-compact">
             ${detail("Người thực hiện", ownerDisplayName(task))}
             ${detail("Trạng thái", statusName(task))}
-            ${detail("Hạn hoàn thành", String(task.deadlineMode || "").toUpperCase() === "EVENT_DRIVEN" ? "Theo từng lượt phát sinh" : formatDate(task._deadline || task.deadline))}
-            ${detail("Tiến độ", taskProgressDisplay(task))}
+            ${detail("Hạn hoàn thành", eventDrivenTask ? "Theo từng lượt phát sinh" : formatDate(task._deadline || task.deadline))}
+            ${eventDrivenTask ? detail("Hoàn thành nghiệp vụ", completed ? "100%" : eventCompletionDisplay(task)) : detail("Tiến độ", taskProgressDisplay(task))}
+            ${eventDrivenTask ? detail("KPI tiến độ", `${Number(task.eventProgressRate ?? 0)}%`) : ""}
+            ${eventDrivenTask && task.eventResultRate !== null && task.eventResultRate !== undefined ? detail("KPI kết quả", `${Number(task.eventResultRate)}%`) : ""}
             ${task.teamId ? detail("Tổ/Nhóm", teamLabel(task.teamId)) : ""}
             ${detail("Điểm tối đa", numberVi(task.maximumConvertedScore || 0))}
           </div>
@@ -925,6 +946,14 @@ export async function openTaskDetailModal(task, { onSaved }) {
       }
     }
   });
+}
+
+function eventCompletionDisplay(task) {
+  const total = Math.max(0, Number(task?.eventWorkItemCount || 0));
+  const completed = Math.max(0, Number(task?.eventCompletedCount || 0));
+  if (!total) return "Chưa phát sinh";
+  const rate = Math.round((Math.min(completed, total) / total) * 100);
+  return `${completed}/${total} · ${rate}%`;
 }
 
 function taskProgressDisplay(task) {

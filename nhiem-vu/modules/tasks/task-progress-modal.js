@@ -5,16 +5,16 @@
  * - Bấm × trước khi Lưu chỉ bỏ tệp khỏi danh sách, không phát sinh thao tác Drive.
  * - Mốc định kỳ hỗ trợ Theo ngày / Theo tuần / Theo tháng.
  */
-import { UserContext } from "../../core/user-context.js?v=20260826.V1_18_5";
-import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260826.V1_18_5";
-import { ModalService } from "../../core/modal-service.js?v=20260826.V1_18_5";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260826.V1_18_5";
-import { TaskMilestoneService } from "../../services/task-milestone-service.js?v=20260826.V1_18_5";
-import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260826.V1_18_5";
-import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260826.V1_18_5";
-import { TaskEvidenceService } from "../../services/task-evidence-service.js?v=20260826.V1_18_5";
-import { StagedEvidenceUploader } from "../../services/staged-evidence-uploader.js?v=20260826.V1_18_5";
-import { validateProgressInput, cleanText } from "./task-form-validator.js?v=20260826.V1_18_5";
+import { UserContext } from "../../core/user-context.js?v=20260826.V1_18_6";
+import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260826.V1_18_6";
+import { ModalService } from "../../core/modal-service.js?v=20260826.V1_18_6";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260826.V1_18_6";
+import { TaskMilestoneService } from "../../services/task-milestone-service.js?v=20260826.V1_18_6";
+import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260826.V1_18_6";
+import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260826.V1_18_6";
+import { TaskEvidenceService } from "../../services/task-evidence-service.js?v=20260826.V1_18_6";
+import { StagedEvidenceUploader } from "../../services/staged-evidence-uploader.js?v=20260826.V1_18_6";
+import { validateProgressInput, cleanText } from "./task-form-validator.js?v=20260826.V1_18_6";
 
 function mayUpdate(task) {
   const user = UserContext.requireUser();
@@ -307,13 +307,20 @@ export async function openTaskProgressModal(task, { onSaved }) {
             title: "Kết thúc theo dõi trong kỳ",
             confirmText: "Kết thúc theo dõi",
             cancelText: "Tiếp tục theo dõi",
-            messageHtml: `<div class="app-dialog-summary"><div><span>Đã ghi nhận</span><strong>${total} lượt</strong></div><div><span>Đã hoàn thành</span><strong>${completedCount}/${total}</strong></div><div><span>Tiến độ KPI</span><strong>${progressRate}%</strong></div></div><p>Sau khi kết thúc, không thể thêm, sửa hoặc xóa lượt phát sinh. Điểm KPI vẫn giữ theo kết quả thực tế của các lượt, không tự chuyển thành 100%.</p>`
+            messageHtml: `<div class="app-dialog-summary"><div><span>Đã ghi nhận</span><strong>${total} lượt</strong></div><div><span>Hoàn thành nghiệp vụ</span><strong>${completedCount}/${total} = 100%</strong></div><div><span>Điểm tiến độ KPI</span><strong>${progressRate}%</strong></div></div><p><strong>Lưu ý:</strong> 100% ở đây là đã làm xong toàn bộ lượt công việc. Điểm tiến độ KPI vẫn tính theo đúng/trễ hạn từng lượt; ví dụ trễ 1–3 ngày chỉ còn 80%. Sau khi kết thúc, không thể thêm, sửa hoặc xóa lượt phát sinh.</p>`
           });
           if (!confirmedClose) {
-            button.disabled = false; button.textContent = "Lưu cập nhật"; saving = false; return;
+            saving = false;
+            button.textContent = "Lưu cập nhật";
+            overlay.querySelectorAll("[data-close]").forEach(item => { item.disabled = false; });
+            refreshSaveState();
+            return;
           }
           button.textContent = "Đang kết thúc theo dõi…";
-          await TaskWriteService.endEventDrivenTracking(task, workItemSummary, changes);
+          const closeResult = await TaskWriteService.endEventDrivenTracking(task, workItemSummary, changes);
+          if (closeResult?.earlyVerified) {
+            console.info("EVENT_DRIVEN_CLOSE_CONFIRMED_EARLY", { taskId: task.id, taskCode: task.taskCode || "", build: "20260826.V1_18_6" });
+          }
         } else {
           validateProgressInput(changes, task);
           button.textContent = "Đang hoàn tất cập nhật…";

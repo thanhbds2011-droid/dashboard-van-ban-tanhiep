@@ -2,9 +2,9 @@
  * Quy trình điều chỉnh/miễn đánh giá nhiệm vụ.
  * STAFF gửi đề nghị; người giao nhiệm vụ xem xét và phê duyệt hoặc trả lại.
  */
-import { ToastService } from "../../core/toast-service.js?v=20260826.V1_18_5";
-import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260826.V1_18_5";
-import { TaskAdjustmentService } from "../../services/task-adjustment-service.js?v=20260826.V1_18_5";
+import { ToastService } from "../../core/toast-service.js?v=20260826.V1_18_6";
+import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260826.V1_18_6";
+import { TaskAdjustmentService } from "../../services/task-adjustment-service.js?v=20260826.V1_18_6";
 
 const STATUS_LABELS = Object.freeze({
   PENDING: ["Chờ phê duyệt", "warning"],
