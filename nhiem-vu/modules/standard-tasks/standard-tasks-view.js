@@ -1,12 +1,12 @@
-import { UserContext } from "../../core/user-context.js?v=20260826.V1_18_6";
-import { Permissions } from "../../core/permissions.js?v=20260826.V1_18_6";
-import { ToastService } from "../../core/toast-service.js?v=20260826.V1_18_6";
-import { ModalService } from "../../core/modal-service.js?v=20260826.V1_18_6";
-import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260826.V1_18_6";
-import { PeriodReadService } from "../../services/period-read-service.js?v=20260826.V1_18_6";
-import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260826.V1_18_6";
-import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260826.V1_18_6";
-import { deriveDeadlinePlan, deadlineRuleDescription, requiresManualDeadline, isEventDrivenFrequency, canonicalFrequency, STANDARD_FREQUENCIES, WEEKDAY_OPTIONS } from "../../core/deadline-engine.js?v=20260826.V1_18_6";
+import { UserContext } from "../../core/user-context.js?v=20260826.V1_19_0";
+import { Permissions } from "../../core/permissions.js?v=20260826.V1_19_0";
+import { ToastService } from "../../core/toast-service.js?v=20260826.V1_19_0";
+import { ModalService } from "../../core/modal-service.js?v=20260826.V1_19_0";
+import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260826.V1_19_0";
+import { PeriodReadService } from "../../services/period-read-service.js?v=20260826.V1_19_0";
+import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260826.V1_19_0";
+import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260826.V1_19_0";
+import { deriveDeadlinePlan, deadlineRuleDescription, requiresManualDeadline, isEventDrivenFrequency, canonicalFrequency, STANDARD_FREQUENCIES, WEEKDAY_OPTIONS } from "../../core/deadline-engine.js?v=20260826.V1_19_0";
 
 let currentCatalogAccess = {
   canManage: false,
@@ -910,14 +910,21 @@ async function openCatalogDelegation(currentDelegation, period) {
     const today = StandardTaskWriteService.todayKey();
     const defaultEnd = period?.endDate || addDays(today, 30);
     const root = openStandardModal(
-      "Ủy quyền nhập danh mục công việc",
+      "Ủy quyền thêm đầu việc",
       `<div class="kpi-form-grid standard-task-delegation-form">
-        <label class="kpi-field full"><span>Nhân viên được ủy quyền</span><select id="catalogDelegateUser"><option value="">-- Chọn nhân viên --</option>${candidates.map(item => `<option value="${escapeHtml(item.id)}" ${active?.delegateUserId === item.id ? "selected" : ""}>${escapeHtml(item.fullName || "Chưa cập nhật họ tên")} — ${escapeHtml(item.position || "Nhân viên")}</option>`).join("")}</select></label>
-        ${candidates.length ? "" : '<div class="kpi-alert full">Chưa có tài khoản nhân viên đang hoạt động trong cùng Phòng/Khu.</div>'}
+        <label class="kpi-field full"><span>Phó/Nhân viên được ủy quyền</span><select id="catalogDelegateUser"><option value="">-- Chọn người được ủy quyền --</option>${candidates.map(item => `<option value="${escapeHtml(item.id)}" ${active?.delegateUserId === item.id ? "selected" : ""}>${escapeHtml(item.fullName || "Chưa cập nhật họ tên")} — ${escapeHtml(item.position || "Nhân viên")}</option>`).join("")}</select></label>
+        ${candidates.length ? "" : '<div class="kpi-alert full">Chưa có Phó/Nhân viên đang hoạt động và đủ điều kiện trong cùng Phòng/Khu.</div>'}
         <label class="kpi-field"><span>Từ ngày</span><input id="catalogDelegateStart" type="date" value="${escapeHtml(active?.startDate || today)}"></label>
         <label class="kpi-field"><span>Đến ngày</span><input id="catalogDelegateEnd" type="date" value="${escapeHtml(active?.endDate || defaultEnd)}"></label>
-        <label class="kpi-field full"><span>Lý do</span><textarea id="catalogDelegateReason" rows="3" placeholder="Ví dụ: Phân công phụ trách cập nhật danh mục đầu việc">${escapeHtml(active?.reason || "")}</textarea></label>
-        <div class="info-banner full">Nhân viên được ủy quyền chỉ được thêm và chỉnh sửa đầu việc thuộc đúng Phòng/Khu; không có quyền khóa kế hoạch hoặc duyệt KPI.</div>
+        <label class="kpi-field full"><span>Phạm vi quyền</span>
+          <span class="check-row"><input id="catalogDelegateCreateStandard" type="checkbox" ${(!active || (active?.permissions || []).includes("CREATE_STANDARD_TASKS") || (active?.permissions || []).includes("MANAGE_STANDARD_TASKS")) ? "checked" : ""}> Thêm đầu việc trong Danh mục công việc</span>
+          <span class="check-row"><input id="catalogDelegateEditStandard" type="checkbox" ${((active?.permissions || []).includes("EDIT_STANDARD_TASKS") || (active?.permissions || []).includes("MANAGE_STANDARD_TASKS")) ? "checked" : ""}> Sửa đầu việc trong Danh mục công việc</span>
+          <span class="check-row"><input id="catalogDelegateDeleteStandard" type="checkbox" ${(active?.permissions || []).includes("DELETE_STANDARD_TASKS") ? "checked" : ""}> Xóa/gỡ đầu việc khỏi Danh mục công việc</span>
+          <span class="check-row"><input id="catalogDelegateRuntime" type="checkbox" ${(active?.permissions || []).includes("CREATE_TASKS") ? "checked" : ""}> Giao nhiệm vụ đột xuất của Phòng/Khu</span>
+          <small>Quyền Thêm, Sửa, Xóa và Giao nhiệm vụ là độc lập. Xóa ở đây là gỡ mềm để giữ lịch sử; hard delete chỉ dành cho Admin khi chưa phát sinh dữ liệu.</small>
+        </label>
+        <label class="kpi-field full"><span>Lý do</span><textarea id="catalogDelegateReason" rows="3" placeholder="Ví dụ: Phân công phụ trách cập nhật/giao đầu việc">${escapeHtml(active?.reason || "")}</textarea></label>
+        <div class="info-banner full">Ủy quyền chỉ có hiệu lực trong đúng Phòng/Khu và đúng phạm vi đã chọn. Quyền duyệt đăng ký, xác nhận KPI và khóa kế hoạch vẫn là quyền riêng.</div>
       </div>`,
       `${active ? '<button id="revokeCatalogDelegation" class="kpi-button danger" type="button">Hủy ủy quyền</button>' : ""}<button class="kpi-button secondary" data-standard-close type="button">Đóng</button><button id="saveCatalogDelegation" class="kpi-button" type="button">Lưu ủy quyền</button>`
     );
@@ -930,10 +937,16 @@ async function openCatalogDelegation(currentDelegation, period) {
           delegateUserId: document.getElementById("catalogDelegateUser")?.value,
           startDate: document.getElementById("catalogDelegateStart")?.value,
           endDate: document.getElementById("catalogDelegateEnd")?.value,
-          reason: document.getElementById("catalogDelegateReason")?.value
+          reason: document.getElementById("catalogDelegateReason")?.value,
+          permissions: [
+            document.getElementById("catalogDelegateCreateStandard")?.checked ? "CREATE_STANDARD_TASKS" : "",
+            document.getElementById("catalogDelegateEditStandard")?.checked ? "EDIT_STANDARD_TASKS" : "",
+            document.getElementById("catalogDelegateDeleteStandard")?.checked ? "DELETE_STANDARD_TASKS" : "",
+            document.getElementById("catalogDelegateRuntime")?.checked ? "CREATE_TASKS" : ""
+          ].filter(Boolean)
         });
         closeStandardModal(root);
-        ToastService.success("Đã ủy quyền nhập danh mục công việc.");
+        ToastService.success("Đã lưu ủy quyền thêm đầu việc.");
         reloadRoute();
       } catch (error) {
         ToastService.error(error.message || "Không lưu được ủy quyền.");
@@ -942,7 +955,7 @@ async function openCatalogDelegation(currentDelegation, period) {
     });
 
     root.querySelector("#revokeCatalogDelegation")?.addEventListener("click", async event => {
-      if (!await ModalService.confirm("Hủy ủy quyền nhập danh mục ngay bây giờ?", { title: "Hủy ủy quyền", confirmText: "Hủy ủy quyền", danger: true })) return;
+      if (!await ModalService.confirm("Hủy ủy quyền thêm đầu việc ngay bây giờ?", { title: "Hủy ủy quyền", confirmText: "Hủy ủy quyền", danger: true })) return;
       const button = event.currentTarget;
       button.disabled = true;
       try {
