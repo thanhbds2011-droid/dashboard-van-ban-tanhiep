@@ -1,25 +1,25 @@
-import { auth, db } from '../../firebase-config.js?v=20260826.V1_18_6';
+import { auth, db } from '../../firebase-config.js?v=20260826.V1_19_0';
 import {
   addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, query,
   serverTimestamp, setDoc, Timestamp, updateDoc, where, limit, writeBatch
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
-import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260826.V1_18_6';
-import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260826.V1_18_6';
-import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260826.V1_18_6';
-import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260826.V1_18_6';
-import { PeriodReadService } from '../../services/period-read-service.js?v=20260826.V1_18_6';
-import { TaskReadService } from '../../services/task-read-service.js?v=20260826.V1_18_6';
-import { Permissions } from '../../core/permissions.js?v=20260826.V1_18_6';
-import { UserContext } from '../../core/user-context.js?v=20260826.V1_18_6';
-import { APP_VERSION } from '../../core/app-version.js?v=20260826.V1_18_6';
-import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260826.V1_18_6';
-import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260826.V1_18_6';
+import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260826.V1_19_0';
+import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260826.V1_19_0';
+import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260826.V1_19_0';
+import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260826.V1_19_0';
+import { PeriodReadService } from '../../services/period-read-service.js?v=20260826.V1_19_0';
+import { TaskReadService } from '../../services/task-read-service.js?v=20260826.V1_19_0';
+import { Permissions } from '../../core/permissions.js?v=20260826.V1_19_0';
+import { UserContext } from '../../core/user-context.js?v=20260826.V1_19_0';
+import { APP_VERSION } from '../../core/app-version.js?v=20260826.V1_19_0';
+import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260826.V1_19_0';
+import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260826.V1_19_0';
 import {
   KPI2B as KPI2C, M01_GROUPS, COMMON_CRITERIA, commonCriteriaForProfile, reportFormTypeForProfile, calculateTaskScore, calculateKpiSummary,
   proposedRating, ratingName, round2, progressRateFromDates, convertAppendix04Rate, calculateMilestoneProgress, calculateBonusScore
-} from '../../kpi-engine.js?v=20260826.V1_18_6';
-import { resolveKpiReviewer, canReviewKpiOwner } from '../../core/kpi-review-authority.js?v=20260826.V1_18_6';
-import { ModalService } from '../../core/modal-service.js?v=20260826.V1_18_6';
+} from '../../kpi-engine.js?v=20260826.V1_19_0';
+import { resolveKpiReviewer, canReviewKpiOwner } from '../../core/kpi-review-authority.js?v=20260826.V1_19_0';
+import { ModalService } from '../../core/modal-service.js?v=20260826.V1_19_0';
 
 export const KpiWorkflowState = {
   user: null,
@@ -54,6 +54,7 @@ let lastManualKpiRefreshAt = 0;
 const KPI_MANUAL_REFRESH_COOLDOWN_MS = 8000;
 
 const el = (id) => document.getElementById(id);
+function setTextSafe(id, value) { const node = el(id); if (node) node.textContent = value; return node; }
 const clean = (value) => String(value ?? '').trim();
 const esc = (value) => clean(value).replace(/[&<>'"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const fmt = (n) => Number(n || 0).toLocaleString('vi-VN', { maximumFractionDigits: 2 });
@@ -489,6 +490,7 @@ function canApproveRegistration(registration) {
     role: registration.userRole,
     position: registration.userPosition,
     leaderLevel: registration.userLeaderLevel,
+    approvalAuthority: registration.userApprovalAuthority,
     isDepartmentHead: registration.userIsDepartmentHead,
     departmentId: registrationDepartmentId
   };
@@ -496,7 +498,7 @@ function canApproveRegistration(registration) {
   const ownerIsDeputy = Permissions.isDepartmentDeputy(ownerProfile);
   const directorFallback = directorApprovalAvailable('APPROVE_REGISTRATIONS')
     && registration.userId !== KpiWorkflowState.user.uid
-    && (ownerIsHead || (!departmentHasActiveHead(registrationDepartmentId) && (ownerIsDeputy || !['DIRECTOR'].includes(clean(registration.userRole).toUpperCase()))));
+    && ownerIsHead;
   if (directorFallback) return true;
 
   const delegated = hasActiveApprovalDelegation('APPROVE_REGISTRATIONS', profileDepartmentId());
@@ -1370,13 +1372,13 @@ function render() {
   }
 
   const currentSummary = summary();
-  el('kpiMetricA').textContent = fmt(currentSummary.A);
-  el('kpiMetricB').textContent = fmt(currentSummary.B);
-  el('kpiMetric70').textContent = currentSummary.hasCalculationBasis ? `${fmt(currentSummary.kpi70)}/70` : 'Chưa đủ cơ sở';
+  setTextSafe('kpiMetricA', fmt(currentSummary.A));
+  setTextSafe('kpiMetricB', fmt(currentSummary.B));
+  setTextSafe('kpiMetric70', currentSummary.hasCalculationBasis ? `${fmt(currentSummary.kpi70)}/70` : 'Chưa đủ cơ sở');
   const bonusMetric = el('kpiMetricBonus');
   if (bonusMetric) bonusMetric.textContent = currentSummary.bonus70 > 0 ? `Điểm thưởng: +${fmt(currentSummary.bonus70)}` : 'Chưa có điểm thưởng';
-  el('kpiMetric30').textContent = `${fmt(currentSummary.common30)}/30`;
-  el('kpiMetric100').textContent = currentSummary.hasCalculationBasis ? `${fmt(currentSummary.total100)}/100` : 'Chưa đủ cơ sở';
+  setTextSafe('kpiMetric30', `${fmt(currentSummary.common30)}/30`);
+  setTextSafe('kpiMetric100', currentSummary.hasCalculationBasis ? `${fmt(currentSummary.total100)}/100` : 'Chưa đủ cơ sở');
 
   const scoreStateBox = el('kpiScoreState');
   if (scoreStateBox) {
@@ -1705,8 +1707,8 @@ function openPersonPlanDetail(uid) {
 function renderEvaluationDashboard() {
   const target = el('kpiTaskList');
   if (!target) return;
-  el('kpiMainCardTitle').textContent = 'Đánh giá và xác nhận nhiệm vụ';
-  el('kpiMainCardHint').textContent = 'Chọn nhân viên, chọn nhiệm vụ cần xác nhận hoặc mở chi tiết để điều chỉnh điểm có căn cứ.';
+  setTextSafe('kpiMainCardTitle', 'Đánh giá và xác nhận nhiệm vụ');
+  setTextSafe('kpiMainCardHint', 'Chọn nhân viên, chọn nhiệm vụ cần xác nhận hoặc mở chi tiết để điều chỉnh điểm có căn cứ.');
   target.innerHTML = '<div id="kpiCompactEvaluation"></div>';
   renderCompactEvaluationPanel(el('kpiCompactEvaluation'));
 }
@@ -1720,8 +1722,8 @@ function renderReportDashboard() {
       || hasActiveApprovalDelegation('APPROVE_REGISTRATIONS', 'CDTN')
   );
   const aggregateTitle = fullScopeRole() ? 'Tổng hợp toàn Trung tâm' : 'Tổng hợp Phòng/Khu';
-  el('kpiMainCardTitle').textContent = 'Báo cáo và tổng hợp KPI';
-  el('kpiMainCardHint').textContent = 'Xem kết quả đánh giá cá nhân trong kỳ.';
+  setTextSafe('kpiMainCardTitle', 'Báo cáo và tổng hợp KPI');
+  setTextSafe('kpiMainCardHint', 'Xem kết quả đánh giá cá nhân trong kỳ.');
   target.innerHTML = `<div class="kpi-report-options">
     <button id="reportPersonal" class="kpi-report-option is-personal" type="button"><span>📄</span><strong>Báo cáo KPI cá nhân</strong><small>Xem kết quả đánh giá cá nhân.</small></button>
     <button id="reportProfile" class="kpi-report-option is-profile" type="button"><span>🪪</span><strong>Thông tin Mẫu 01</strong><small>Cập nhật thông tin phục vụ báo cáo.</small></button>
