@@ -1,11 +1,11 @@
-import { FirebaseService } from "../core/firebase-service.js?v=20260826.V1_18_6";
-import { UserContext } from "../core/user-context.js?v=20260826.V1_18_6";
-import { Permissions } from "../core/permissions.js?v=20260826.V1_18_6";
-import { TaskLogService } from "./task-log-service.js?v=20260826.V1_18_6";
-import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260826.V1_18_6";
-import { PeriodReadService } from "./period-read-service.js?v=20260826.V1_18_6";
-import { APP_VERSION } from "../core/app-version.js?v=20260826.V1_18_6";
-import { deriveDeadlinePlan, deadlineDateFromKey, isDateKey, requiresManualDeadline, isEventDrivenFrequency, canonicalFrequency } from "../core/deadline-engine.js?v=20260826.V1_18_6";
+import { FirebaseService } from "../core/firebase-service.js?v=20260826.V1_19_0";
+import { UserContext } from "../core/user-context.js?v=20260826.V1_19_0";
+import { Permissions } from "../core/permissions.js?v=20260826.V1_19_0";
+import { TaskLogService } from "./task-log-service.js?v=20260826.V1_19_0";
+import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260826.V1_19_0";
+import { PeriodReadService } from "./period-read-service.js?v=20260826.V1_19_0";
+import { APP_VERSION } from "../core/app-version.js?v=20260826.V1_19_0";
+import { deriveDeadlinePlan, deadlineDateFromKey, isDateKey, requiresManualDeadline, isEventDrivenFrequency, canonicalFrequency } from "../core/deadline-engine.js?v=20260826.V1_19_0";
 
 const clean = value => String(value ?? "").trim();
 const upper = value => clean(value).toUpperCase();
@@ -120,6 +120,24 @@ async function hasDelegation(reviewer, departmentId, permissionName = "APPROVE_R
   );
 }
 
+function registrationOwnerProfile(registration) {
+  const registrationDepartment = registrationDepartmentId(registration);
+  return {
+    uid: registration?.userId || "",
+    active: true,
+    role: registration?.userRole || "",
+    position: registration?.userPosition || "",
+    leaderLevel: registration?.userLeaderLevel || "",
+    approvalAuthority: registration?.userApprovalAuthority || "",
+    isDepartmentHead: registration?.userIsDepartmentHead === true,
+    departmentId: registrationDepartment
+  };
+}
+
+function registrationOwnerIsUnitAuthority(registration) {
+  return Permissions.hasUnitApprovalAuthority(registrationOwnerProfile(registration));
+}
+
 function canApprove(registration, reviewer) {
   if (!reviewer || reviewer.active !== true || !registration || registration.status !== "PENDING") return false;
   if (reviewer.role === "ADMIN") return true;
@@ -130,7 +148,12 @@ function canApprove(registration, reviewer) {
       && reviewer.additionalRoles.map(upper).some(role => ["CDTN_BI_THU", "CDTN_PHO_BI_THU"].includes(role));
   }
 
-  if (Permissions.isDirectorHead(reviewer)) return registrationDepartment !== "CDTN";
+  const ownerProfile = registrationOwnerProfile(registration);
+  const ownerIsAuthority = Permissions.hasUnitApprovalAuthority(ownerProfile);
+
+  if (Permissions.isDirectorHead(reviewer)) {
+    return registrationDepartment === "BGD" || ownerIsAuthority;
+  }
 
   if (registration.userRole === "DEPARTMENT_LEADER") {
     if (Permissions.isDepartmentDeputy({
@@ -139,6 +162,7 @@ function canApprove(registration, reviewer) {
       role: registration.userRole,
       position: registration.userPosition,
       leaderLevel: registration.userLeaderLevel,
+      approvalAuthority: registration.userApprovalAuthority,
       isDepartmentHead: registration.userIsDepartmentHead
     })) {
       return Permissions.isDepartmentHead(reviewer) && upper(reviewer.departmentId) === registrationDepartment;
@@ -922,6 +946,7 @@ export const TaskRegistrationService = Object.freeze({
         userPosition: user.position || "",
         userRole: user.role || "",
         userLeaderLevel: user.leaderLevel || "",
+        userApprovalAuthority: user.approvalAuthority || "",
         userIsDepartmentHead: user.isDepartmentHead === true,
         userAdditionalRoles: Array.isArray(user.additionalRoles) ? user.additionalRoles : [],
         workType,
@@ -1053,7 +1078,8 @@ export const TaskRegistrationService = Object.freeze({
     const prepared = [];
     for (const item of selected) {
       const delegated = await hasDelegation(reviewer, registrationDepartmentId(item), "APPROVE_REGISTRATIONS");
-      const directorDelegated = registrationDepartmentId(item) !== "CDTN"
+      const registrationDepartment = registrationDepartmentId(item);
+      const directorDelegated = (registrationDepartment === "BGD" || registrationOwnerIsUnitAuthority(item))
         ? await hasDelegation(reviewer, "BGD", "APPROVE_REGISTRATIONS")
         : false;
       const directAuthority = canApprove(item, reviewer);
@@ -1072,7 +1098,8 @@ export const TaskRegistrationService = Object.freeze({
 
     for (const item of selected) {
       const delegated = await hasDelegation(reviewer, registrationDepartmentId(item), "APPROVE_REGISTRATIONS");
-      const directorDelegated = registrationDepartmentId(item) !== "CDTN"
+      const registrationDepartment = registrationDepartmentId(item);
+      const directorDelegated = (registrationDepartment === "BGD" || registrationOwnerIsUnitAuthority(item))
         ? await hasDelegation(reviewer, "BGD", "APPROVE_REGISTRATIONS")
         : false;
       const directAuthority = canApprove(item, reviewer);

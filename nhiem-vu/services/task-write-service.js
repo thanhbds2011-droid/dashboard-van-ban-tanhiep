@@ -1,14 +1,14 @@
 /** Tạo, phân công, tiếp nhận, cập nhật tiến độ và hoàn thành nhiệm vụ. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260826.V1_18_6";
-import { UserContext } from "../core/user-context.js?v=20260826.V1_18_6";
-import { Permissions } from "../core/permissions.js?v=20260826.V1_18_6";
-import { TaskLogService } from "./task-log-service.js?v=20260826.V1_18_6";
-import { TaskWorkItemService } from "./task-work-item-service.js?v=20260826.V1_18_6";
-import { PeriodReadService } from "./period-read-service.js?v=20260826.V1_18_6";
-import { TaskNotificationService } from "./task-notification-service.js?v=20260826.V1_18_6";
-import { APP_VERSION, BUILD_VERSION } from "../core/app-version.js?v=20260826.V1_18_6";
-import { deadlineDateFromKey, isDateKey } from "../core/deadline-engine.js?v=20260826.V1_18_6";
-import { confirmWriteWithServerRecovery } from "./firestore-write-recovery.js?v=20260826.V1_18_6";
+import { FirebaseService } from "../core/firebase-service.js?v=20260826.V1_19_0";
+import { UserContext } from "../core/user-context.js?v=20260826.V1_19_0";
+import { Permissions } from "../core/permissions.js?v=20260826.V1_19_0";
+import { TaskLogService } from "./task-log-service.js?v=20260826.V1_19_0";
+import { TaskWorkItemService } from "./task-work-item-service.js?v=20260826.V1_19_0";
+import { PeriodReadService } from "./period-read-service.js?v=20260826.V1_19_0";
+import { TaskNotificationService } from "./task-notification-service.js?v=20260826.V1_19_0";
+import { APP_VERSION, BUILD_VERSION } from "../core/app-version.js?v=20260826.V1_19_0";
+import { deadlineDateFromKey, isDateKey } from "../core/deadline-engine.js?v=20260826.V1_19_0";
+import { confirmWriteWithServerRecovery } from "./firestore-write-recovery.js?v=20260826.V1_19_0";
 
 const TASK_WRITE_BUILD_VERSION = BUILD_VERSION;
 const MAX_CODE_SCAN = 1000;
@@ -200,6 +200,39 @@ function logRef() {
   return FirebaseService.doc(FirebaseService.collection(FirebaseService.db, "taskLogs"));
 }
 
+
+function taskCreateDelegationDocumentId(departmentId) {
+  return `${normalizeDepartmentId(departmentId)}_STANDARD_TASK_EDITOR`;
+}
+
+async function hasTaskCreateDelegation(user, departmentId = user?.departmentId) {
+  const department = normalizeDepartmentId(departmentId);
+  if (!user?.uid || !department || department !== normalizeDepartmentId(user.departmentId)) return false;
+  if (!(Permissions.isDepartmentDeputy(user) || Permissions.isStaff(user) || Permissions.isTchcCoordinator(user))) return false;
+  try {
+    const snapshot = await FirebaseService.getDoc(
+      FirebaseService.doc(FirebaseService.db, "approvalDelegations", taskCreateDelegationDocumentId(department))
+    );
+    if (!snapshot.exists()) return false;
+    const data = snapshot.data() || {};
+    const now = Date.now();
+    const start = data.startAt?.toDate?.()?.getTime?.() ?? null;
+    const end = data.endAt?.toDate?.()?.getTime?.() ?? null;
+    return data.active === true
+      && data.delegateUserId === user.uid
+      && normalizeDepartmentId(data.departmentId) === department
+      && Array.isArray(data.permissions)
+      && data.permissions.includes("CREATE_TASKS")
+      && (start === null || start <= now)
+      && (end === null || end >= now);
+  } catch (error) {
+    if (!String(error?.code || "").includes("permission-denied")) {
+      console.warn("Không kiểm tra được ủy quyền giao nhiệm vụ:", error);
+    }
+    return false;
+  }
+}
+
 function snapshotTask(task) {
   const allowed = [
     "status", "assignmentStatus", "progress", "ownerUserId", "ownerName",
@@ -211,13 +244,23 @@ function snapshotTask(task) {
 }
 
 export const TaskWriteService = Object.freeze({
+  async canCreateUnexpectedTask() {
+    const user = UserContext.requireUser();
+    if (Permissions.canCreateUnexpectedTask(false, user)) return true;
+    return hasTaskCreateDelegation(user, user.departmentId);
+  },
+
   async create(data) {
     const user = UserContext.requireUser();
-    if (!Permissions.canCreateUnexpectedTask()) {
+    if (!(await this.canCreateUnexpectedTask())) {
       throw new Error("Tài khoản không có quyền giao nhiệm vụ phát sinh.");
     }
 
     const departmentId = normalizeDepartmentId(data.primaryDepartmentId);
+    const ownDepartmentId = normalizeDepartmentId(user.departmentId);
+    if (!Permissions.isAdmin(user) && !Permissions.isDirector(user) && departmentId !== ownDepartmentId) {
+      throw new Error("Chỉ được giao nhiệm vụ trong đúng Phòng/Khu thuộc phạm vi quyền của tài khoản.");
+    }
     const requestedDeadlineDateKey = String(data.deadlineDateKey || "").trim();
     const fallbackDeadlineDateKey = data.deadline instanceof Date && !Number.isNaN(data.deadline.getTime())
       ? dateKey(data.deadline)
@@ -527,9 +570,10 @@ export const TaskWriteService = Object.freeze({
 
     const taskDepartmentId = String(task?.primaryDepartmentId || "").trim().toUpperCase();
     const userDepartmentId = String(user?.departmentId || "").trim().toUpperCase();
+    const delegatedTaskCreator = await hasTaskCreateDelegation(user, taskDepartmentId);
     const mayAssign = Permissions.isAdmin()
-      || (Permissions.isDirector() && taskDepartmentId === userDepartmentId)
-      || (Permissions.isDepartmentLeader() && taskDepartmentId === userDepartmentId);
+      || (Permissions.hasUnitApprovalAuthority(user) && taskDepartmentId === userDepartmentId)
+      || (delegatedTaskCreator && String(task?.createdByUserId || "").trim() === String(user.uid || "").trim());
 
     if (!mayAssign) {
       throw new Error("Tài khoản không có thẩm quyền phân công nhiệm vụ của Phòng/Khu này.");
