@@ -2,7 +2,7 @@
  * Lớp kiểm tra quyền dùng thống nhất cho giao diện.
  * Firestore Security Rules vẫn là lớp kiểm soát bắt buộc ở phía dữ liệu.
  */
-import { UserContext } from "./user-context.js?v=20260826.V1_18_6";
+import { UserContext } from "./user-context.js?v=20260826.V1_19_0";
 
 function clean(value) {
   return String(value ?? "").trim();
@@ -25,6 +25,13 @@ function normalize(value) {
 }
 
 function leaderLevel(user) {
+  // V1.19.0: approvalAuthority từ Danh mục tài khoản là nguồn chân lý về thẩm quyền đơn vị.
+  // Cho phép một Phó Trưởng phòng đang Phụ trách/được giao quyền phê duyệt hoạt động như người đứng đầu
+  // mà không hard-code tên Phòng/Khu hay chức danh cụ thể.
+  const authority = upper(user?.approvalAuthority);
+  if (authority === "HEAD") return "HEAD";
+  if (authority === "DEPUTY") return "DEPUTY";
+
   const explicit = upper(user?.leaderLevel);
   if (["HEAD", "DEPARTMENT_HEAD", "TRUONG"].includes(explicit)) return "HEAD";
   if (["DEPUTY", "DEPARTMENT_DEPUTY", "PHO"].includes(explicit)) return "DEPUTY";
@@ -173,11 +180,17 @@ export const Permissions = Object.freeze({
     return this.isAdmin() || this.isDirector() || this.isCdtnLeadership() || hasDelegation === true;
   },
 
-  isDepartmentHead(user = UserContext.getUser()) {
+  hasUnitApprovalAuthority(user = UserContext.getUser()) {
     return Boolean(
       this.isDepartmentLeader(user) &&
       leaderLevel(user) === "HEAD"
     );
+  },
+
+  // Alias tương thích source cũ. Từ V1.19.0, "HEAD" nghĩa là người có Quyền phê duyệt tại đơn vị,
+  // không đồng nghĩa cứng với chuỗi chức danh "Trưởng phòng".
+  isDepartmentHead(user = UserContext.getUser()) {
+    return this.hasUnitApprovalAuthority(user);
   },
 
   isDepartmentDeputy(user = UserContext.getUser()) {
@@ -226,9 +239,8 @@ export const Permissions = Object.freeze({
       return this.isDirector(user) && sameDepartment(user, "BGD");
     }
     if (!sameDepartment(user, targetDepartment)) return false;
-    return this.isDepartmentHead(user)
-      || this.isDepartmentDeputy(user)
-      || (this.isStaff(user) && delegated);
+    return this.hasUnitApprovalAuthority(user)
+      || ((this.isDepartmentDeputy(user) || this.isStaff(user) || this.isTchcCoordinator(user)) && delegated);
   },
 
   canUpdateStandardTask(task, hasDelegation = false, user = UserContext.getUser()) {
@@ -243,9 +255,10 @@ export const Permissions = Object.freeze({
       return this.isDirector(user) && sameDepartment(user, "BGD");
     }
     if (!sameDepartment(user, departmentId)) return false;
-    if (this.isDepartmentHead(user)) return true;
-    if (this.isDepartmentDeputy(user)) return createdByCurrentUser(task, user);
-    return this.isStaff(user) && hasDelegation === true && createdByCurrentUser(task, user);
+    if (this.hasUnitApprovalAuthority(user)) return true;
+    return (this.isDepartmentDeputy(user) || this.isStaff(user) || this.isTchcCoordinator(user))
+      && hasDelegation === true
+      && createdByCurrentUser(task, user);
   },
 
   canDeleteStandardTask(task, user = UserContext.getUser()) {
@@ -254,7 +267,7 @@ export const Permissions = Object.freeze({
     if (this.isAdmin(user)) return true;
     if (departmentId === "CDTN") return this.isCdtnLeadership(user);
     if (departmentId === "BGD") return this.isDirector(user) && sameDepartment(user, "BGD");
-    return this.isDepartmentHead(user) && sameDepartment(user, departmentId);
+    return this.hasUnitApprovalAuthority(user) && sameDepartment(user, departmentId);
   },
 
   canManageStandardTasks(departmentId = "", hasDelegation = false) {
@@ -266,11 +279,15 @@ export const Permissions = Object.freeze({
   },
 
   canDelegateStandardTaskEditor(user = UserContext.getUser()) {
-    return this.isDepartmentHead(user) || this.isDepartmentDeputy(user);
+    return this.hasUnitApprovalAuthority(user);
   },
 
-  canCreateUnexpectedTask() {
-    return this.isAdmin() || this.isDirector() || this.isDepartmentLeader();
+  canCreateUnexpectedTask(hasDelegation = false, user = UserContext.getUser()) {
+    if (!activeUser(user)) return false;
+    if (this.isAdmin(user) || this.isDirector(user)) return true;
+    if (this.hasUnitApprovalAuthority(user)) return true;
+    return hasDelegation === true
+      && (this.isDepartmentDeputy(user) || this.isStaff(user) || this.isTchcCoordinator(user));
   },
 
   canRegisterTask() {

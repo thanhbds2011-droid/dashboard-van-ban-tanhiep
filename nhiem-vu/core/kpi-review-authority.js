@@ -1,6 +1,12 @@
 /**
- * Ma trận xác nhận KPI V1.18.1.
- * Quy tắc cốt lõi: SELF REQUEST != FINAL APPROVAL và không ai tự duyệt chính mình.
+ * Ma trận xác nhận KPI V1.19.0.
+ *
+ * Nguyên tắc:
+ * - Quyền phê duyệt đơn vị lấy từ approvalAuthority=HEAD (leaderLevel chỉ là lớp tương thích).
+ * - Không hard-code TCHC/YT/KHTC/CTXH: mọi Phòng/Khu dùng cùng một authority resolver.
+ * - Ủy quyền BỔ SUNG quyền cho cấp phó, không làm mất quyền gốc của người phụ trách đơn vị.
+ * - Người có quyền phê duyệt đơn vị tự chấm phải chuyển lên Ban Giám đốc.
+ * - SELF REQUEST != FINAL APPROVAL: không ai tự xác nhận điểm/điểm thưởng của chính mình.
  */
 function clean(value) { return String(value ?? "").trim(); }
 function upper(value) { return clean(value).toUpperCase(); }
@@ -17,9 +23,15 @@ function normalize(value) {
 }
 
 export function leaderLevelOf(user = {}) {
+  const authority = upper(user.approvalAuthority);
+  if (authority === "HEAD") return "HEAD";
+  if (authority === "DEPUTY") return "DEPUTY";
+
   const explicit = upper(user.leaderLevel);
   if (["HEAD", "DEPARTMENT_HEAD", "TRUONG"].includes(explicit)) return "HEAD";
   if (["DEPUTY", "DEPARTMENT_DEPUTY", "PHO"].includes(explicit)) return "DEPUTY";
+  if (user.isDepartmentHead === true && upper(user.role) === "DEPARTMENT_LEADER") return "HEAD";
+
   const role = upper(user.role);
   const position = normalize(user.position);
   if (role === "DIRECTOR") {
@@ -27,7 +39,6 @@ export function leaderLevelOf(user = {}) {
     if (/^(quyen\s+)?giam\s+doc\b/.test(position)) return "HEAD";
   }
   if (role === "DEPARTMENT_LEADER") {
-    /* Dữ liệu cũ có thể ghi “Phó Trưởng phòng, Phụ trách ...”. Phụ trách/Quyền Trưởng phải ưu tiên HEAD. */
     if (/\b(phu\s+trach|quyen\s+truong)\b/.test(position)) return "HEAD";
     if (/^(truong\s+phong|truong\s+khu)\b/.test(position)) return "HEAD";
     if (/^(pho\s+truong|pho\s+phong|pho\s+khu|p\s*truong|ptp|ptk)\b/.test(position)) return "DEPUTY";
@@ -37,7 +48,8 @@ export function leaderLevelOf(user = {}) {
 
 export function isDirectorHead(user = {}) { return upper(user.role) === "DIRECTOR" && leaderLevelOf(user) === "HEAD"; }
 export function isDirectorDeputy(user = {}) { return upper(user.role) === "DIRECTOR" && leaderLevelOf(user) === "DEPUTY"; }
-export function isDepartmentHeadProfile(user = {}) { return upper(user.role) === "DEPARTMENT_LEADER" && leaderLevelOf(user) === "HEAD"; }
+export function isUnitApprovalAuthorityProfile(user = {}) { return upper(user.role) === "DEPARTMENT_LEADER" && leaderLevelOf(user) === "HEAD"; }
+export function isDepartmentHeadProfile(user = {}) { return isUnitApprovalAuthorityProfile(user); }
 export function isDepartmentDeputyProfile(user = {}) { return upper(user.role) === "DEPARTMENT_LEADER" && leaderLevelOf(user) === "DEPUTY"; }
 
 function additionalRoles(user = {}) {
@@ -68,10 +80,20 @@ function delegationActive(delegation, permissionName, departmentId = "", today =
   return permissions.includes(upper(permissionName));
 }
 
-function findUser(users, id) { return (users || []).find(user => clean(user.id || user.uid) === clean(id)) || null; }
+function userId(user) { return clean(user?.id || user?.uid); }
+function findUser(users, id) { return (users || []).find(user => userId(user) === clean(id)) || null; }
 function sameDepartment(a, b) { return upper(a?.departmentId) && upper(a?.departmentId) === upper(b?.departmentId); }
-function candidate(users, predicate, ownerId) {
-  return (users || []).find(user => user?.active === true && clean(user.id || user.uid) !== clean(ownerId) && predicate(user)) || null;
+function activeCandidates(users, predicate, ownerId) {
+  return (users || []).filter(user => user?.active === true && userId(user) !== clean(ownerId) && predicate(user));
+}
+function uniqueUsers(users = []) {
+  const seen = new Set();
+  return users.filter(user => {
+    const id = userId(user);
+    if (!id || seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
 }
 function delegateUser(users, delegations, departmentId, permission, predicate, ownerId) {
   const delegation = (delegations || []).find(item => delegationActive(item, permission, departmentId));
@@ -79,76 +101,85 @@ function delegateUser(users, delegations, departmentId, permission, predicate, o
   const user = findUser(users, delegation.delegateUserId);
   return user && user.active === true && predicate(user) ? user : null;
 }
+function unitAuthorities(users, departmentId, ownerId) {
+  const department = upper(departmentId);
+  return activeCandidates(
+    users,
+    user => isUnitApprovalAuthorityProfile(user) && upper(user.departmentId) === department,
+    ownerId
+  );
+}
+function directorReviewers(users, delegations, ownerId) {
+  const delegated = delegateUser(users, delegations, "BGD", "CONFIRM_EVALUATIONS", isDirectorDeputy, ownerId);
+  const heads = activeCandidates(users, isDirectorHead, ownerId);
+  return uniqueUsers([delegated, ...heads].filter(Boolean));
+}
 
-export function resolveKpiReviewer({ users = [], delegations = [], owner, scopeDepartmentId = "" } = {}) {
-  if (!owner) return null;
-  const ownerId = clean(owner.id || owner.uid);
+/** Trả về TOÀN BỘ người có thẩm quyền xác nhận, theo thứ tự ưu tiên nghiệp vụ. */
+export function resolveKpiReviewers({ users = [], delegations = [], owner, scopeDepartmentId = "" } = {}) {
+  if (!owner) return [];
+  const ownerId = userId(owner);
   const scope = upper(scopeDepartmentId || owner.departmentId);
 
   if (scope === "CDTN") {
-    if (isCdtnSecretary(owner)) {
-      const delegatedDirector = delegateUser(users, delegations, "BGD", "CONFIRM_EVALUATIONS", isDirectorDeputy, ownerId);
-      if (delegatedDirector) return delegatedDirector;
-      return candidate(users, isDirectorHead, ownerId);
-    }
+    if (isCdtnSecretary(owner)) return directorReviewers(users, delegations, ownerId);
     if (isCdtnDeputySecretary(owner)) {
-      return candidate(users, isCdtnSecretary, ownerId);
+      return activeCandidates(users, isCdtnSecretary, ownerId);
     }
     if (isCdtnMember(owner)) {
       const delegatedSecretary = delegateUser(users, delegations, "CDTN", "CONFIRM_EVALUATIONS", isCdtnDeputySecretary, ownerId);
-      if (delegatedSecretary) return delegatedSecretary;
-      return candidate(users, isCdtnSecretary, ownerId);
+      const secretaries = activeCandidates(users, isCdtnSecretary, ownerId);
+      return uniqueUsers([delegatedSecretary, ...secretaries].filter(Boolean));
     }
-    return null;
+    return [];
   }
 
-  if (upper(owner.role) === "STAFF" || upper(owner.role) === "TCHC_COORDINATOR") {
-    const delegatedDeputy = delegateUser(
-      users,
-      delegations,
-      owner.departmentId,
-      "CONFIRM_EVALUATIONS",
-      user => isDepartmentDeputyProfile(user) && sameDepartment(user, owner),
-      ownerId
-    );
-    if (delegatedDeputy) return delegatedDeputy;
-    const departmentHead = candidate(users, user => isDepartmentHeadProfile(user) && sameDepartment(user, owner), ownerId);
-    if (departmentHead) return departmentHead;
-    /* Phòng/Khu không có Trưởng hoặc người phụ trách: chuyển hồ sơ lên Ban Giám đốc. */
-    const delegatedDirector = delegateUser(users, delegations, "BGD", "CONFIRM_EVALUATIONS", isDirectorDeputy, ownerId);
-    if (delegatedDirector) return delegatedDirector;
-    return candidate(users, isDirectorHead, ownerId);
+  if (isDirectorHead(owner)) return [];
+  if (isDirectorDeputy(owner)) return activeCandidates(users, isDirectorHead, ownerId);
+
+  // Người đang giữ Quyền phê duyệt đơn vị (dù chức danh là Trưởng hay Phó phụ trách)
+  // tự chấm phải chuyển lên BGD.
+  if (isUnitApprovalAuthorityProfile(owner)) {
+    return directorReviewers(users, delegations, ownerId);
   }
 
-  if (isDepartmentDeputyProfile(owner)) {
-    const departmentHead = candidate(users, user => isDepartmentHeadProfile(user) && sameDepartment(user, owner), ownerId);
-    if (departmentHead) return departmentHead;
-    const delegatedDirector = delegateUser(users, delegations, "BGD", "CONFIRM_EVALUATIONS", isDirectorDeputy, ownerId);
-    if (delegatedDirector) return delegatedDirector;
-    return candidate(users, isDirectorHead, ownerId);
+  const ownerRole = upper(owner.role);
+  if (["STAFF", "TCHC_COORDINATOR", "DEPARTMENT_LEADER"].includes(ownerRole)) {
+    const authorities = unitAuthorities(users, scope || owner.departmentId, ownerId);
+    if (ownerRole === "DEPARTMENT_LEADER" && !isDepartmentDeputyProfile(owner)) return [];
+
+    // Với nhân viên: Phó được ủy quyền có quyền bổ sung, người phụ trách đơn vị vẫn giữ quyền gốc.
+    const delegatedDeputy = ownerRole === "DEPARTMENT_LEADER"
+      ? null // Phó không được tự dùng ủy quyền để duyệt chính mình.
+      : delegateUser(
+          users,
+          delegations,
+          scope || owner.departmentId,
+          "CONFIRM_EVALUATIONS",
+          user => isDepartmentDeputyProfile(user) && sameDepartment(user, owner),
+          ownerId
+        );
+    const reviewers = uniqueUsers([delegatedDeputy, ...authorities].filter(Boolean));
+    // Cấu hình phòng thiếu người có approvalAuthority=HEAD không được làm nghẽn kỳ KPI.
+    // Đây là fallback an toàn: chuyển lên BGD; khi Danh mục tài khoản có người phụ trách hợp lệ,
+    // reviewer trong đơn vị luôn được ưu tiên và BGD không xuất hiện ở UI.
+    return reviewers.length ? reviewers : directorReviewers(users, delegations, ownerId);
   }
 
-  if (isDepartmentHeadProfile(owner)) {
-    const delegatedDirector = delegateUser(users, delegations, "BGD", "CONFIRM_EVALUATIONS", isDirectorDeputy, ownerId);
-    if (delegatedDirector) return delegatedDirector;
-    return candidate(users, isDirectorHead, ownerId);
-  }
+  return [];
+}
 
-  if (isDirectorDeputy(owner)) {
-    return candidate(users, isDirectorHead, ownerId);
-  }
-
-  /* Giám đốc tự đánh giá không được tự duyệt; ngoài ma trận nội bộ đã chốt. */
-  if (isDirectorHead(owner)) return null;
-  return null;
+/** Reviewer chính để lưu snapshot/hiển thị routing; quyền thực tế dùng resolveKpiReviewers(). */
+export function resolveKpiReviewer(options = {}) {
+  return resolveKpiReviewers(options)[0] || null;
 }
 
 export function canReviewKpiOwner({ currentUser, users = [], delegations = [], owner, scopeDepartmentId = "" } = {}) {
   if (!currentUser || !owner) return false;
-  const currentId = clean(currentUser.id || currentUser.uid);
-  const ownerId = clean(owner.id || owner.uid);
+  const currentId = userId(currentUser);
+  const ownerId = userId(owner);
   if (!currentId || currentId === ownerId) return false;
   if (upper(currentUser.role) === "ADMIN") return true;
-  const reviewer = resolveKpiReviewer({ users, delegations, owner, scopeDepartmentId });
-  return Boolean(reviewer && clean(reviewer.id || reviewer.uid) === currentId);
+  return resolveKpiReviewers({ users, delegations, owner, scopeDepartmentId })
+    .some(reviewer => userId(reviewer) === currentId);
 }

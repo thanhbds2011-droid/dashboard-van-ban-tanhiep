@@ -20,7 +20,8 @@ function open({
 } = {}) {
   return new Promise(resolve => {
     const overlay = document.createElement("div");
-    overlay.className = "modal-overlay";
+    const nested = Boolean(document.querySelector(".modal-backdrop, .kpi-modal-backdrop, .app-modal-backdrop:not(.hidden)"));
+    overlay.className = `modal-overlay${nested ? " nested-modal-backdrop" : ""}`;
     overlay.innerHTML = `
       <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
         <div class="modal-header">
@@ -93,7 +94,8 @@ function confirm(message, options = {}) {
 function prompt(message, options = {}) {
   return new Promise(resolve => {
     const overlay = document.createElement("div");
-    overlay.className = "modal-overlay";
+    const nested = Boolean(document.querySelector(".modal-backdrop, .kpi-modal-backdrop, .app-modal-backdrop:not(.hidden)"));
+    overlay.className = `modal-overlay${nested ? " nested-modal-backdrop" : ""}`;
     const multiline = options.multiline !== false;
     const fieldHtml = multiline
       ? `<textarea class="app-dialog-input" rows="${Number(options.rows || 4)}" maxlength="${Number(options.maxLength || 3000)}" placeholder="${escapeHtml(options.placeholder || "")}">${escapeHtml(options.defaultValue || "")}</textarea>`
