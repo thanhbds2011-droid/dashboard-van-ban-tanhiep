@@ -1,9 +1,10 @@
-import { Permissions } from "../../core/permissions.js?v=20260826.V1_18_6";
-import { ToastService } from "../../core/toast-service.js?v=20260826.V1_18_6";
-import { TaskReadService } from "../../services/task-read-service.js?v=20260826.V1_18_6";
-import { openTaskCreateModal } from "./task-form-modal.js?v=20260826.V1_18_6";
-import { openTaskDetailModal } from "./task-detail-modal.js?v=20260826.V1_18_6";
-import { effectiveDepartmentAssignmentStatus } from "../../core/task-display-order.js?v=20260826.V1_18_6";
+import { Permissions } from "../../core/permissions.js?v=20260826.V1_19_0";
+import { ToastService } from "../../core/toast-service.js?v=20260826.V1_19_0";
+import { TaskReadService } from "../../services/task-read-service.js?v=20260826.V1_19_0";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260826.V1_19_0";
+import { openTaskCreateModal } from "./task-form-modal.js?v=20260826.V1_19_0";
+import { openTaskDetailModal } from "./task-detail-modal.js?v=20260826.V1_19_0";
+import { effectiveDepartmentAssignmentStatus } from "../../core/task-display-order.js?v=20260826.V1_19_0";
 
 let renderSequence = 0;
 let currentTasks = [];
@@ -79,9 +80,13 @@ export async function renderTasksView(outlet) {
   outlet.innerHTML = loadingCard("Đang tải danh sách nhiệm vụ…");
 
   try {
-    currentTasks = await TaskReadService.list({ force: false });
+    const [tasks, canCreateUnexpectedTask] = await Promise.all([
+      TaskReadService.list({ force: false }),
+      TaskWriteService.canCreateUnexpectedTask().catch(() => false)
+    ]);
+    currentTasks = tasks;
     if (sequence !== renderSequence || currentOutlet !== outlet || window.location.hash !== "#/tasks") return;
-    mountTasksPage(outlet);
+    mountTasksPage(outlet, canCreateUnexpectedTask);
     updateTasksPage(currentTasks);
     startTasksRealtime(outlet, sequence);
   } catch (error) {
@@ -111,9 +116,9 @@ function userFacingLoadError(error) {
   return "Không thể tải dữ liệu nhiệm vụ vào lúc này. Vui lòng kiểm tra kết nối và thử lại.";
 }
 
-function mountTasksPage(outlet) {
+function mountTasksPage(outlet, canCreateUnexpectedTask = false) {
   outlet.innerHTML = `<section class="page-card tasks-page-card">
-    <div class="page-header"><div><h2>Nhiệm vụ</h2><p>Theo dõi nhiệm vụ được giao, tiến độ thực hiện và kết quả hoàn thành.</p><small id="taskRealtimeState" class="realtime-state" hidden></small></div>${Permissions.canCreateUnexpectedTask() ? '<button id="btnCreateTask" class="primary-button" type="button">＋ Giao nhiệm vụ đột xuất</button>' : ""}</div>
+    <div class="page-header"><div><h2>Nhiệm vụ</h2><p>Theo dõi nhiệm vụ được giao, tiến độ thực hiện và kết quả hoàn thành.</p><small id="taskRealtimeState" class="realtime-state" hidden></small></div>${canCreateUnexpectedTask ? '<button id="btnCreateTask" class="primary-button" type="button">＋ Giao nhiệm vụ đột xuất</button>' : ""}</div>
     <div class="summary-grid compact-grid tasks-summary-grid">
       ${card("Tất cả", 0, "taskMetricTotal")}
       ${card("Đang xử lý", 0, "taskMetricInProgress")}
