@@ -53,8 +53,10 @@ async function repairMixedBuild(reason = "MIXED_BUILD") {
   try {
     await purgeAppCaches();
     const regs = await navigator.serviceWorker.getRegistrations();
-    await Promise.all(regs.filter(reg => String(reg.scope || "").includes("/nhiem-vu/")).map(reg => reg.update().catch(() => null)));
-    const current = regs.find(reg => String(reg.scope || "").includes("/nhiem-vu/"));
+    const appScope = new URL("./", window.location.href).href;
+    const appRegs = regs.filter(reg => String(reg.scope || "") === appScope);
+    await Promise.all(appRegs.map(reg => reg.update().catch(() => null)));
+    const current = appRegs[0];
     current?.waiting?.postMessage({ type: "SKIP_WAITING" });
   } catch (error) {
     console.warn("Không tự phục hồi được build ứng dụng:", error);

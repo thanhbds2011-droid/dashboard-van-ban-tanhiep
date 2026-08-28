@@ -26,7 +26,16 @@
     const message=document.getElementById("loginMessage");
     const params=new URLSearchParams(location.search);
     const requested=params.get("returnUrl")||"./index.html#/dashboard";
-    const safeReturn=requested.startsWith("/dashboard-van-ban-tanhiep/nhiem-vu/")||requested.startsWith("./")?requested:"./index.html#/dashboard";
+    const fallbackReturn="./index.html#/dashboard";
+    function resolveSafeReturn(value){
+      try{
+        const base=new URL("./",location.href);
+        const target=new URL(value,location.href);
+        if(target.origin!==location.origin||!target.pathname.startsWith(base.pathname))return fallbackReturn;
+        return `${target.pathname}${target.search}${target.hash}`;
+      }catch(_){return fallbackReturn;}
+    }
+    const safeReturn=resolveSafeReturn(requested);
     let redirecting=false;
     function show(text,type=""){message.textContent=text;message.className=`message show ${type}`;}
     function go(){if(redirecting)return;redirecting=true;location.replace(safeReturn);}

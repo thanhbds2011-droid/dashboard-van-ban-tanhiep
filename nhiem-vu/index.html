@@ -125,7 +125,8 @@
           try {
             if ('serviceWorker' in navigator) {
               const regs = await navigator.serviceWorker.getRegistrations();
-              await Promise.all(regs.filter(reg => String(reg.active?.scriptURL || reg.installing?.scriptURL || reg.waiting?.scriptURL || '').includes('/nhiem-vu/sw.js')).map(reg => reg.unregister()));
+              const appWorkerUrl = new URL('./sw.js', location.href).href;
+              await Promise.all(regs.filter(reg => [reg.active?.scriptURL, reg.installing?.scriptURL, reg.waiting?.scriptURL].some(url => String(url || '').split('?')[0] === appWorkerUrl)).map(reg => reg.unregister()));
             }
             if ('caches' in window) {
               const keys = await caches.keys();

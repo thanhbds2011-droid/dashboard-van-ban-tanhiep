@@ -1,10 +1,9 @@
 {
-  "id": "/dashboard-van-ban-tanhiep/nhiem-vu/",
   "name": "Nhiệm vụ và đánh giá KPI Tân Hiệp",
   "short_name": "KPI Tân Hiệp",
   "description": "Quản lý nhiệm vụ, kế hoạch và đánh giá KPI tại Trung tâm Bảo trợ xã hội Tân Hiệp",
-  "start_url": "/dashboard-van-ban-tanhiep/nhiem-vu/#/dashboard",
-  "scope": "/dashboard-van-ban-tanhiep/nhiem-vu/",
+  "start_url": "./#/dashboard",
+  "scope": "./",
   "display": "standalone",
   "display_override": ["window-controls-overlay", "standalone"],
   "background_color": "#edf4fa",
@@ -19,8 +18,8 @@
     { "src": "./icons/apple-touch-icon.png", "sizes": "180x180", "type": "image/png", "purpose": "any" }
   ],
   "shortcuts": [
-    { "name": "Nhiệm vụ", "short_name": "Nhiệm vụ", "url": "/dashboard-van-ban-tanhiep/nhiem-vu/#/tasks", "icons": [{ "src": "./icons/icon-192.png", "sizes": "192x192" }] },
-    { "name": "Kế hoạch KPI", "short_name": "KPI", "url": "/dashboard-van-ban-tanhiep/nhiem-vu/#/kpi", "icons": [{ "src": "./icons/icon-192.png", "sizes": "192x192" }] },
-    { "name": "Báo cáo", "short_name": "Báo cáo", "url": "/dashboard-van-ban-tanhiep/nhiem-vu/#/reports", "icons": [{ "src": "./icons/icon-192.png", "sizes": "192x192" }] }
+    { "name": "Nhiệm vụ", "short_name": "Nhiệm vụ", "url": "./#/tasks", "icons": [{ "src": "./icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Kế hoạch KPI", "short_name": "KPI", "url": "./#/kpi", "icons": [{ "src": "./icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Báo cáo", "short_name": "Báo cáo", "url": "./#/reports", "icons": [{ "src": "./icons/icon-192.png", "sizes": "192x192" }] }
   ]
 }

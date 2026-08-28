@@ -61,8 +61,9 @@ async function refreshServiceWorkerRegistration() {
   if (!("serviceWorker" in navigator)) return;
   try {
     const registrations = await navigator.serviceWorker.getRegistrations();
+    const appScope = new URL("./", window.location.href).href;
     await Promise.all(registrations
-      .filter(item => String(item.scope || "").includes("/nhiem-vu/"))
+      .filter(item => String(item.scope || "") === appScope)
       .map(item => item.update().catch(() => null)));
   } catch (error) {
     console.warn("Không kiểm tra được Service Worker khi phục hồi phiên:", error);
