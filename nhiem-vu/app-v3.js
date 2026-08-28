@@ -315,11 +315,15 @@ function bindPushSubscriptionSync(user) {
     const subscriptionId = String(snapshot?.subscriptionId || "").trim();
     if (!subscriptionId) return;
     const active = snapshot.optedIn === true && snapshot.permission === "granted";
+    const pushProviderKey = String(snapshot?.pushProviderKey || "GITHUB").trim().toUpperCase() || "GITHUB";
+    const pushOrigin = String(snapshot?.pushOrigin || window.location.origin || "").trim();
+    const oneSignalAppId = String(snapshot?.oneSignalAppId || "").trim();
     const fingerprint = [
       user.uid, subscriptionId, user.departmentId || "", user.role || "",
-      active ? "1" : "0", snapshot.permission || "default", snapshot.oneSignalId || ""
+      active ? "1" : "0", snapshot.permission || "default", snapshot.oneSignalId || "",
+      pushProviderKey, pushOrigin, oneSignalAppId
     ].join("|");
-    const storageKey = `taskPushSync:${user.uid}:${subscriptionId}`;
+    const storageKey = `taskPushSync:${pushProviderKey}:${user.uid}:${subscriptionId}`;
     if (options.force !== true) {
       try {
         const cached = JSON.parse(localStorage.getItem(storageKey) || "null");
@@ -340,6 +344,9 @@ function bindPushSubscriptionSync(user) {
       oneSignalId: snapshot.oneSignalId || "",
       externalId: user.uid,
       platform: "WEB_PUSH",
+      pushProviderKey,
+      pushOrigin,
+      oneSignalAppId,
       updatedAt: FirebaseService.serverTimestamp()
     }, { merge: true });
     try { localStorage.setItem(storageKey, JSON.stringify({ fingerprint, at: Date.now() })); } catch (_) { /* no-op */ }

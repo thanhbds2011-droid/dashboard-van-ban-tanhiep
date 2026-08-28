@@ -1,18 +1,17 @@
 /*
  * =========================================================
- * ONESIGNAL WEB PUSH SDK v16
+ * ONESIGNAL WEB PUSH SDK v16 — DUAL ORIGIN
  * Phân hệ: QUẢN LÝ NHIỆM VỤ
  * =========================================================
  *
  * Nguyên tắc:
- * - Dùng chung OneSignal App ID với hệ thống Nhắc việc văn bản.
+ * - GitHub Pages tiếp tục dùng OneSignal App hiện hữu.
+ * - kpi-tanhiep.vercel.app dùng OneSignal App riêng cho origin Vercel.
  * - Không gọi OneSignal.login(), addTags() hoặc logout().
  * - Firebase chịu trách nhiệm liên kết:
- *   Subscription ID ↔ UID ↔ Phòng/Khu ↔ Vai trò.
- * - app.js lưu thiết bị vào collection taskPushSubscriptions.
- *
- * Worker nhiệm vụ:
- * /dashboard-van-ban-tanhiep/push/onesignal/OneSignalSDKWorker.js
+ *   Subscription ID ↔ UID ↔ Phòng/Khu ↔ Vai trò ↔ Push provider.
+ * - app-v3.js lưu thiết bị vào collection taskPushSubscriptions.
+ * - Chỉ cấu hình Push Nhiệm vụ; không thay đổi nghiệp vụ/KPI, phân quyền, UI hoặc phân hệ khác.
  */
 
 (() => {
@@ -22,21 +21,43 @@
    * CẤU HÌNH
    * ======================================================= */
 
-  const ONESIGNAL_APP_ID =
-    "673200ba-0b27-489c-a596-84515dfc7d33";
+  const PUSH_PROVIDERS = Object.freeze({
+    GITHUB: Object.freeze({
+      key: "GITHUB",
+      origin: "https://thanhbds2011-droid.github.io",
+      appId: "673200ba-0b27-489c-a596-84515dfc7d33",
+      serviceWorkerPath: "/dashboard-van-ban-tanhiep/OneSignalSDKWorker.js",
+      serviceWorkerScope: "/dashboard-van-ban-tanhiep/",
+      safariWebId: ""
+    }),
+    VERCEL: Object.freeze({
+      key: "VERCEL",
+      origin: "https://kpi-tanhiep.vercel.app",
+      appId: "5816e774-5237-4773-bf24-195c09da25f0",
+      serviceWorkerPath: "push/onesignal/OneSignalSDKWorker.js",
+      serviceWorkerScope: "/push/onesignal/",
+      safariWebId: "web.onesignal.auto.459ab5a0-25ed-43f1-a7b1-99d986ce9992"
+    })
+  });
 
-  /*
-   * Không đặt dấu "/" ở đầu serviceWorkerPath.
-   */
-  const SERVICE_WORKER_PATH =
-    "/dashboard-van-ban-tanhiep/OneSignalSDKWorker.js";
+  function resolvePushProvider() {
+    const currentOrigin = String(window.location.origin || "").toLowerCase();
 
-  /*
-   * Scope riêng, không trùng với PWA worker của /nhiem-vu/.
-   */
-  const SERVICE_WORKER_SCOPE =
-    "/dashboard-van-ban-tanhiep/";
+    if (currentOrigin === PUSH_PROVIDERS.VERCEL.origin.toLowerCase()) {
+      return PUSH_PROVIDERS.VERCEL;
+    }
 
+    if (currentOrigin === PUSH_PROVIDERS.GITHUB.origin.toLowerCase()) {
+      return PUSH_PROVIDERS.GITHUB;
+    }
+
+    return null;
+  }
+
+  const PUSH_PROVIDER = resolvePushProvider();
+  const ONESIGNAL_APP_ID = PUSH_PROVIDER?.appId || "";
+  const SERVICE_WORKER_PATH = PUSH_PROVIDER?.serviceWorkerPath || "";
+  const SERVICE_WORKER_SCOPE = PUSH_PROVIDER?.serviceWorkerScope || "";
   const MODULE_NAME = "TASKS";
 
   const SUBSCRIPTION_WAIT_TIMEOUT_MS = 30000;
@@ -292,6 +313,15 @@
       module:
         MODULE_NAME,
 
+      pushProviderKey:
+        PUSH_PROVIDER?.key || "UNSUPPORTED",
+
+      pushOrigin:
+        PUSH_PROVIDER?.origin || window.location.origin || "",
+
+      oneSignalAppId:
+        PUSH_PROVIDER?.appId || "",
+
       ready:
         isPushReady(OneSignal)
     };
@@ -324,6 +354,12 @@
    * ======================================================= */
 
   async function ensureInitialized() {
+    if (!PUSH_PROVIDER) {
+      throw new Error(
+        "Domain hiện tại chưa được cấu hình Web Push. Hãy sử dụng kpi-tanhiep.vercel.app hoặc GitHub Pages production."
+      );
+    }
+
     if (
       state.initialized &&
       state.OneSignal
@@ -343,7 +379,7 @@
         window.OneSignalDeferred.push(
           async (OneSignal) => {
             try {
-              await OneSignal.init({
+              const initOptions = {
                 appId:
                   ONESIGNAL_APP_ID,
 
@@ -358,7 +394,14 @@
                 notifyButton: {
                   enable: false
                 }
-              });
+              };
+
+              if (PUSH_PROVIDER.safariWebId) {
+                initOptions.safari_web_id =
+                  PUSH_PROVIDER.safariWebId;
+              }
+
+              await OneSignal.init(initOptions);
 
               state.OneSignal =
                 OneSignal;
@@ -380,7 +423,13 @@
                     SERVICE_WORKER_PATH,
 
                   serviceWorkerScope:
-                    SERVICE_WORKER_SCOPE
+                    SERVICE_WORKER_SCOPE,
+
+                  pushProviderKey:
+                    PUSH_PROVIDER.key,
+
+                  pushOrigin:
+                    PUSH_PROVIDER.origin
                 }
               );
 
@@ -578,8 +627,8 @@
      * - OneSignal.login()
      * - OneSignal.User.addTags()
      *
-     * Vì hai phân hệ dùng chung OneSignal App ID.
-     * Firebase quản lý quan hệ giữa Subscription ID và tài khoản.
+     * Không dùng OneSignal External ID.
+     * Firebase quản lý quan hệ giữa Subscription ID, tài khoản và provider.
      */
     state.currentUid =
       normalizedUid;
@@ -901,9 +950,8 @@
     /*
      * Không gọi OneSignal.logout() hoặc optOut().
      *
-     * Hai phân hệ dùng chung OneSignal App ID.
-     * Gọi logout/optOut ở đây có thể ảnh hưởng tới
-     * hệ thống Nhắc việc văn bản.
+     * Không gọi logout/optOut tại SDK khi đăng xuất tài khoản ứng dụng.
+     * app-v3.js chỉ vô hiệu hóa đúng taskPushSubscriptions của tài khoản hiện tại.
      *
      * app.js đã đánh dấu bản ghi taskPushSubscriptions
      * của tài khoản hiện tại thành active = false
@@ -948,6 +996,16 @@
       );
   }
 
+  function getProviderInfo() {
+    return {
+      pushProviderKey: PUSH_PROVIDER?.key || "UNSUPPORTED",
+      pushOrigin: PUSH_PROVIDER?.origin || window.location.origin || "",
+      oneSignalAppId: PUSH_PROVIDER?.appId || "",
+      serviceWorkerPath: PUSH_PROVIDER?.serviceWorkerPath || "",
+      serviceWorkerScope: PUSH_PROVIDER?.serviceWorkerScope || ""
+    };
+  }
+
   /* =======================================================
    * API CHO APP.JS
    * ======================================================= */
@@ -957,7 +1015,8 @@
     logout,
     refreshStatus,
     requestPermission,
-    getSubscriptionSnapshot
+    getSubscriptionSnapshot,
+    getProviderInfo
   };
 
   /* =======================================================
