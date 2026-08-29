@@ -1,11 +1,11 @@
-import { FirebaseService } from "../core/firebase-service.js?v=20260826.V1_19_0";
-import { UserContext } from "../core/user-context.js?v=20260826.V1_19_0";
-import { Permissions } from "../core/permissions.js?v=20260826.V1_19_0";
-import { TaskLogService } from "./task-log-service.js?v=20260826.V1_19_0";
-import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260826.V1_19_0";
-import { PeriodReadService } from "./period-read-service.js?v=20260826.V1_19_0";
-import { APP_VERSION } from "../core/app-version.js?v=20260826.V1_19_0";
-import { deriveDeadlinePlan, deadlineDateFromKey, isDateKey, requiresManualDeadline, isEventDrivenFrequency, canonicalFrequency } from "../core/deadline-engine.js?v=20260826.V1_19_0";
+import { FirebaseService } from "../core/firebase-service.js?v=20260829.V1_20_0";
+import { UserContext } from "../core/user-context.js?v=20260829.V1_20_0";
+import { Permissions } from "../core/permissions.js?v=20260829.V1_20_0";
+import { TaskLogService } from "./task-log-service.js?v=20260829.V1_20_0";
+import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260829.V1_20_0";
+import { PeriodReadService } from "./period-read-service.js?v=20260829.V1_20_0";
+import { APP_VERSION } from "../core/app-version.js?v=20260829.V1_20_0";
+import { deriveDeadlinePlan, deadlineDateFromKey, isDateKey, requiresManualDeadline, isEventDrivenFrequency, canonicalFrequency } from "../core/deadline-engine.js?v=20260829.V1_20_0";
 
 const clean = value => String(value ?? "").trim();
 const upper = value => clean(value).toUpperCase();
@@ -69,6 +69,26 @@ function registrationId(periodId, uid, standardTaskId) {
 function taskLogRef() {
   return FirebaseService.doc(FirebaseService.collection(FirebaseService.db, "taskLogs"));
 }
+
+function kpiAuditRef() {
+  return FirebaseService.doc(FirebaseService.collection(FirebaseService.db, "kpiAuditLogs"));
+}
+
+function registrationAuditPayload(action, registration, actor, detail = {}) {
+  return {
+    appVersion: APP_VERSION,
+    periodId: clean(registration?.periodId),
+    action,
+    detail,
+    scopeUserId: clean(registration?.userId),
+    scopeDepartmentId: registrationDepartmentId(registration),
+    performedByUserId: actor.uid,
+    performedByName: actor.fullName || "",
+    performedByRole: actor.role || "",
+    performedAt: FirebaseService.serverTimestamp()
+  };
+}
+
 
 async function activePeriod() {
   return PeriodReadService.getActive();
@@ -707,7 +727,7 @@ async function createApprovedTasks(registrations, reviewer, options = {}) {
     const taskReference = FirebaseService.doc(FirebaseService.collection(FirebaseService.db, "tasks"));
     const registrationReference = FirebaseService.doc(FirebaseService.db, "taskRegistrations", registration.id);
     const milestoneIds = deadlinePlan.milestoneDateKeys.map(key => milestoneDocumentId(taskReference.id, key));
-    const expectedWrites = 3 + milestoneIds.length; // task + registration + log + milestones
+    const expectedWrites = 4 + milestoneIds.length; // task + registration + task log + KPI audit + milestones
     if (expectedWrites > 450) throw new Error("Nhiệm vụ có quá nhiều mốc để duyệt trong một giao dịch an toàn.");
     if (writeCount > 0 && writeCount + expectedWrites > 450) await commitCurrentBatch();
 
@@ -783,6 +803,14 @@ async function createApprovedTasks(registrations, reviewer, options = {}) {
           : ""
       ].filter(Boolean).join(" ")
     }));
+    writeCount += 1;
+
+    batch.set(kpiAuditRef(), registrationAuditPayload(
+      "TASK_REGISTRATION_APPROVED",
+      registration,
+      reviewer,
+      { registrationId: registration.id, taskId: taskReference.id, taskCode: code, oldStatus: registration.status || "PENDING", newStatus: "APPROVED" }
+    ));
     writeCount += 1;
     taskIds.push(taskReference.id);
   }
@@ -935,8 +963,8 @@ export const TaskRegistrationService = Object.freeze({
         audienceType: clean(item.audienceType),
         isCoreTaskDefault: item.isCoreTaskDefault === true,
         isManagementTask: item.isManagementTask === true,
-        title: item.name || "",
-        description: item.outputRequirement || "",
+        title: clean(options?.personalDetails?.[itemKey]?.title) || item.name || "",
+        description: clean(options?.personalDetails?.[itemKey]?.description) || item.outputRequirement || "",
         departmentId: workspaceId,
         homeDepartmentId: user.departmentId || "",
         organizationId: workspaceId === "CDTN" ? "CDTN" : "",
@@ -1093,8 +1121,10 @@ export const TaskRegistrationService = Object.freeze({
 
   async rejectMany(registrations, reason) {
     const reviewer = UserContext.requireUser();
+    const rejectionReason = clean(reason);
     const selected = (registrations || []).filter(item => item?.status === "PENDING");
-    if (!selected.length) throw new Error("Không có đăng ký để trả lại.");
+    if (!selected.length) throw new Error("Không có đăng ký để không duyệt.");
+    if (!rejectionReason) throw new Error("Hãy nhập lý do không duyệt đầu việc.");
 
     for (const item of selected) {
       const delegated = await hasDelegation(reviewer, registrationDepartmentId(item), "APPROVE_REGISTRATIONS");
@@ -1104,7 +1134,7 @@ export const TaskRegistrationService = Object.freeze({
         : false;
       const directAuthority = canApprove(item, reviewer);
       if (!directAuthority && (!(delegated || directorDelegated) || item.userId === reviewer.uid)) {
-        throw new Error("Bạn không có quyền trả lại đăng ký này.");
+        throw new Error("Bạn không có quyền không duyệt đăng ký này.");
       }
     }
 
@@ -1112,15 +1142,56 @@ export const TaskRegistrationService = Object.freeze({
     for (const item of selected) {
       batch.update(FirebaseService.doc(FirebaseService.db, "taskRegistrations", item.id), {
         status: "REJECTED",
-        rejectionReason: clean(reason),
+        rejectionReason,
         rejectedAt: FirebaseService.serverTimestamp(),
         rejectedByUserId: reviewer.uid,
         rejectedByName: reviewer.fullName || "",
         updatedAt: FirebaseService.serverTimestamp()
       });
+      batch.set(kpiAuditRef(), registrationAuditPayload(
+        "TASK_REGISTRATION_REJECTED",
+        item,
+        reviewer,
+        { registrationId: item.id, oldStatus: "PENDING", newStatus: "REJECTED", reason: rejectionReason }
+      ));
     }
     await batch.commit();
     return selected.length;
+  },
+
+  async resubmitRegistration(registration) {
+    const user = UserContext.requireUser();
+    if (!registration?.id) throw new Error("Không tìm thấy đăng ký cần gửi lại.");
+    const plan = await departmentPlan(registration.periodId, registration.departmentId);
+    if (!Permissions.canResubmitOwnRegistration(registration, plan?.locked === true)) {
+      throw new Error(plan?.locked === true
+        ? "Kế hoạch đã khóa nên chưa thể đăng ký lại đầu việc này."
+        : "Chỉ người đăng ký mới được gửi lại đầu việc đã không duyệt.");
+    }
+
+    const reference = FirebaseService.doc(FirebaseService.db, "taskRegistrations", registration.id);
+    const batch = FirebaseService.writeBatch(FirebaseService.db);
+    batch.update(reference, {
+      active: true,
+      status: "PENDING",
+      taskId: null,
+      rejectionReason: "",
+      rejectedAt: null,
+      rejectedByUserId: "",
+      rejectedByName: "",
+      resubmittedAt: FirebaseService.serverTimestamp(),
+      resubmittedByUserId: user.uid,
+      resubmittedByName: user.fullName || "",
+      updatedAt: FirebaseService.serverTimestamp()
+    });
+    batch.set(kpiAuditRef(), registrationAuditPayload(
+      "TASK_REGISTRATION_RESUBMITTED",
+      registration,
+      user,
+      { registrationId: registration.id, oldStatus: "REJECTED", newStatus: "PENDING" }
+    ));
+    await batch.commit();
+    return { ...registration, status: "PENDING", active: true, rejectionReason: "" };
   },
 
   async getApprovedCancellationMap(registrations = []) {

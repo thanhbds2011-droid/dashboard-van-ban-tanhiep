@@ -1,7 +1,7 @@
 /** Quản lý quyền điểm danh Chi đoàn như một vai trò kiêm nhiệm. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260826.V1_19_0";
-import { UserContext } from "../core/user-context.js?v=20260826.V1_19_0";
-import { Permissions } from "../core/permissions.js?v=20260826.V1_19_0";
+import { FirebaseService } from "../core/firebase-service.js?v=20260829.V1_20_0";
+import { UserContext } from "../core/user-context.js?v=20260829.V1_20_0";
+import { Permissions } from "../core/permissions.js?v=20260829.V1_20_0";
 
 const DOCUMENT_ID = "CDTN_ATTENDANCE_ACTIVE";
 const PERMISSION = "MANAGE_CDTN_ATTENDANCE";

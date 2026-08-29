@@ -5,8 +5,8 @@
  * - Bấm × trước khi Lưu chỉ loại tệp khỏi danh sách, không gọi Drive.
  * - Nếu lưu nghiệp vụ thất bại sau khi upload, rollbackUncommitted() đưa các tệp vừa tải vào Thùng rác Drive.
  */
-import { DriveEvidenceService } from "./drive-evidence-service.js?v=20260826.V1_19_0";
-import { TaskEvidenceService } from "./task-evidence-service.js?v=20260826.V1_19_0";
+import { DriveEvidenceService } from "./drive-evidence-service.js?v=20260829.V1_20_0";
+import { TaskEvidenceService } from "./task-evidence-service.js?v=20260829.V1_20_0";
 
 function id() {
   return `STAGED_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
