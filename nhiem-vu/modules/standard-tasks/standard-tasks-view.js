@@ -1,12 +1,12 @@
-import { UserContext } from "../../core/user-context.js?v=20260826.V1_19_0";
-import { Permissions } from "../../core/permissions.js?v=20260826.V1_19_0";
-import { ToastService } from "../../core/toast-service.js?v=20260826.V1_19_0";
-import { ModalService } from "../../core/modal-service.js?v=20260826.V1_19_0";
-import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260826.V1_19_0";
-import { PeriodReadService } from "../../services/period-read-service.js?v=20260826.V1_19_0";
-import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260826.V1_19_0";
-import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260826.V1_19_0";
-import { deriveDeadlinePlan, deadlineRuleDescription, requiresManualDeadline, isEventDrivenFrequency, canonicalFrequency, STANDARD_FREQUENCIES, WEEKDAY_OPTIONS } from "../../core/deadline-engine.js?v=20260826.V1_19_0";
+import { UserContext } from "../../core/user-context.js?v=20260829.V1_20_0";
+import { Permissions } from "../../core/permissions.js?v=20260829.V1_20_0";
+import { ToastService } from "../../core/toast-service.js?v=20260829.V1_20_0";
+import { ModalService } from "../../core/modal-service.js?v=20260829.V1_20_0";
+import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260829.V1_20_0";
+import { PeriodReadService } from "../../services/period-read-service.js?v=20260829.V1_20_0";
+import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260829.V1_20_0";
+import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260829.V1_20_0";
+import { deriveDeadlinePlan, deadlineRuleDescription, requiresManualDeadline, isEventDrivenFrequency, canonicalFrequency, STANDARD_FREQUENCIES, WEEKDAY_OPTIONS } from "../../core/deadline-engine.js?v=20260829.V1_20_0";
 
 let currentCatalogAccess = {
   canManage: false,
@@ -150,9 +150,7 @@ export async function renderStandardTasksView(outlet) {
         button.addEventListener("click", async () => {
           const registration = registrations.find(item => item.id === button.dataset.deleteRegistration);
           if (!registration) return;
-          const confirmation = registration.status === "REJECTED"
-            ? "Xóa đăng ký đã được trả lại để chọn đầu việc này lại?"
-            : "Hủy đăng ký đang chờ duyệt?";
+          const confirmation = "Hủy đăng ký đang chờ duyệt?";
           if (!await ModalService.confirm(confirmation, { title: "Xác nhận đăng ký", confirmText: "Xác nhận" })) return;
           button.disabled = true;
           try {
@@ -161,6 +159,26 @@ export async function renderStandardTasksView(outlet) {
             reloadRoute();
           } catch (error) {
             ToastService.error(error.message || "Không hủy được đăng ký.");
+            button.disabled = false;
+          }
+        });
+      });
+
+      document.querySelectorAll("[data-resubmit-registration]").forEach(button => {
+        button.addEventListener("click", async () => {
+          const registration = registrations.find(item => item.id === button.dataset.resubmitRegistration);
+          if (!registration) return;
+          if (!await ModalService.confirm(
+            `Gửi lại ${registration.standardTaskCode || "đầu việc"} để cấp có thẩm quyền xem xét lần nữa?`,
+            { title: "Đăng ký lại đầu việc", confirmText: "Đăng ký lại" }
+          )) return;
+          button.disabled = true;
+          try {
+            await TaskRegistrationService.resubmitRegistration(registration);
+            ToastService.success("Đã đăng ký lại. Đầu việc chuyển về trạng thái Chờ duyệt.");
+            reloadRoute();
+          } catch (error) {
+            ToastService.error(error.message || "Không đăng ký lại được đầu việc.");
             button.disabled = false;
           }
         });
@@ -231,7 +249,7 @@ export async function renderStandardTasksView(outlet) {
         listContainer.innerHTML = groups.length
           ? groups.map(group => `<section class="standard-task-workspace" data-workspace="${escapeHtml(group.workspaceId)}">
               <header class="standard-task-workspace-head">
-                <div><span class="page-eyebrow">${group.workspaceId === "CDTN" ? "Chi đoàn" : "Phòng/Khu"}</span><h3>${escapeHtml(workspaceName(group.workspaceId))}</h3><p>${group.workspaceId === "CDTN" ? "Đầu việc và đăng ký thuộc Chi đoàn." : "Đầu việc và đăng ký thuộc Phòng/Khu."}</p></div>
+                <div><h3>${escapeHtml(workspaceName(group.workspaceId))}</h3><p><strong>${group.items.length}</strong> đầu việc</p></div>
                 <span class="status-pill ${workspacePlans[group.workspaceId]?.locked === true ? "warning" : "success"}">${workspacePlans[group.workspaceId]?.locked === true ? "Đã khóa đăng ký" : "Đang mở đăng ký"}</span>
               </header>
               ${renderRegistrationWorkspace(group.items, registeredMap, workspacePlans[group.workspaceId]?.locked !== true, catalogAccess, approvedCancellationMap)}
@@ -266,7 +284,9 @@ export async function renderStandardTasksView(outlet) {
           button.disabled = false;
           return;
         }
-        const result = await TaskRegistrationService.registerMany(selected, period, deadlineOptions);
+        const personalDetails = await preparePersonalRegistrationDetails(selected);
+        if (!personalDetails) { button.disabled = false; return; }
+        const result = await TaskRegistrationService.registerMany(selected, period, { ...deadlineOptions, personalDetails });
         ToastService.success(result.pending
           ? `Đã đăng ký ${result.total} đầu việc: ${result.autoApproved} được duyệt ngay, ${result.pending} chờ duyệt.`
           : `Đã đăng ký và duyệt ngay ${result.total} đầu việc.`);
@@ -281,6 +301,58 @@ export async function renderStandardTasksView(outlet) {
   } catch (error) {
     outlet.innerHTML = errorCard("Không thể tải danh mục công việc", error);
   }
+}
+
+function preparePersonalRegistrationDetails(items = []) {
+  return new Promise(resolve => {
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay standard-personalize-overlay";
+    overlay.innerHTML = `<section class="modal-card standard-personalize-card" role="dialog" aria-modal="true">
+      <div class="modal-header"><div><h2>Nội dung công việc cá nhân</h2></div><button class="modal-x" type="button" aria-label="Đóng">×</button></div>
+      <div class="modal-body"><div class="standard-personalize-list">${items.map(item => {
+        const key = taskKey(item);
+        return `<section class="standard-personalize-item" data-personal-item="${escapeHtml(key)}">
+          <strong>${escapeHtml(item.code || item.id)} · ${escapeHtml(item.name || "")}</strong>
+          <label><span>Nội dung thực hiện</span><input data-personal-title maxlength="1000" value="${escapeHtml(item.name || "")}"></label>
+          <label><span>Kết quả đầu ra</span><textarea data-personal-description rows="2" maxlength="3000">${escapeHtml(item.outputRequirement || "")}</textarea></label>
+        </section>`;
+      }).join("")}</div><div class="app-dialog-error" hidden></div></div>
+      <div class="modal-actions"><button class="secondary-button modal-cancel" type="button">Hủy</button><button class="primary-button modal-confirm" type="button">Tiếp tục đăng ký</button></div>
+    </section>`;
+    const finish = value => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.classList.remove("modal-open");
+      overlay.classList.remove("modal-visible");
+      window.setTimeout(() => overlay.remove(), 160);
+      resolve(value);
+    };
+    const submit = () => {
+      const details = {};
+      let invalid = null;
+      overlay.querySelectorAll("[data-personal-item]").forEach(section => {
+        const key = section.dataset.personalItem;
+        const title = String(section.querySelector("[data-personal-title]")?.value || "").trim();
+        const description = String(section.querySelector("[data-personal-description]")?.value || "").trim();
+        if (!title && !invalid) invalid = section.querySelector("[data-personal-title]");
+        details[key] = { title, description };
+      });
+      if (invalid) {
+        const error = overlay.querySelector(".app-dialog-error");
+        error.hidden = false; error.textContent = "Nội dung thực hiện không được để trống.";
+        invalid.focus(); return;
+      }
+      finish(details);
+    };
+    const onKeyDown = event => { if (event.key === "Escape") finish(null); };
+    overlay.querySelector(".modal-x")?.addEventListener("click", () => finish(null));
+    overlay.querySelector(".modal-cancel")?.addEventListener("click", () => finish(null));
+    overlay.querySelector(".modal-confirm")?.addEventListener("click", submit);
+    overlay.addEventListener("click", event => { if (event.target === overlay) finish(null); });
+    document.addEventListener("keydown", onKeyDown);
+    document.body.appendChild(overlay);
+    document.body.classList.add("modal-open");
+    requestAnimationFrame(() => { overlay.classList.add("modal-visible"); overlay.querySelector("[data-personal-title]")?.focus(); });
+  });
 }
 
 function workspaceName(workspaceId) {
@@ -356,7 +428,7 @@ function renderRegisteredTask(item, registration, registrationOpen, catalogAcces
   const status = ({
     PENDING: "Chờ duyệt",
     APPROVED: "Đã duyệt",
-    REJECTED: "Đã trả lại"
+    REJECTED: "Không duyệt"
   }[registration?.status] || registration?.status || "Đã đăng ký");
   const statusClass = registration?.status === "APPROVED"
     ? "success"
@@ -367,7 +439,13 @@ function renderRegisteredTask(item, registration, registrationOpen, catalogAcces
         : "neutral";
   const canDelete = Boolean(
     registrationOpen &&
+    registration?.status === "PENDING" &&
     Permissions.canCancelOwnRegistration(registration, false)
+  );
+  const canResubmit = Boolean(
+    registrationOpen &&
+    registration?.status === "REJECTED" &&
+    Permissions.canResubmitOwnRegistration(registration, false)
   );
   const canCancelApproved = Boolean(
     registration?.status === "APPROVED" &&
@@ -377,15 +455,16 @@ function renderRegisteredTask(item, registration, registrationOpen, catalogAcces
   return `<article class="registration-row registration-row-registered">
     <div class="registration-state-mark" aria-hidden="true">${registration?.status === "APPROVED" ? "✓" : registration?.status === "REJECTED" ? "↩" : "⌛"}</div>
     <div class="data-row-main">
-      <strong>${escapeHtml(item.code || item.id)} — ${escapeHtml(item.name || "")}</strong>
-      <small>${escapeHtml(item.outputRequirement || "")}</small>
+      <strong>${escapeHtml(item.code || item.id)} — ${escapeHtml(registration?.title || item.name || "")}</strong>
+      ${registration?.title && registration.title !== item.name ? `<small>Danh mục chuẩn: ${escapeHtml(item.name || "")}</small>` : `<small>${escapeHtml(item.outputRequirement || "")}</small>`}
       <div class="standard-task-tags">${workTypeBadge(item)}${item.frequency ? `<span class="status-pill neutral">${escapeHtml(item.frequency)}</span>` : ""}</div>
-      ${registration?.rejectionReason ? `<small class="text-danger">Lý do trả lại: ${escapeHtml(registration.rejectionReason)}</small>` : ""}
+      ${registration?.rejectionReason ? `<small class="text-danger">Lý do không duyệt: ${escapeHtml(registration.rejectionReason)}</small>` : ""}
     </div>
     <div class="data-row-meta">
       <span class="status-pill ${statusClass}">${escapeHtml(status)}</span>
       <small>Điểm tối đa: ${formatNumber(item.maximumConvertedScore || 0)}</small>
       ${canDelete ? `<button class="registration-delete-button" type="button" data-delete-registration="${escapeHtml(registration.id)}">Hủy đăng ký</button>` : ""}
+      ${canResubmit ? `<button class="registration-resubmit-button" type="button" data-resubmit-registration="${escapeHtml(registration.id)}">Đăng ký lại</button>` : ""}
       ${canCancelApproved ? `<button class="registration-cancel-approved-button" type="button" data-cancel-approved-registration="${escapeHtml(registration.id)}">Hủy nhiệm vụ tự đăng ký</button>` : ""}
       ${showCatalogActions ? catalogActionButtons(item, catalogAccess) : ""}
     </div>
@@ -416,7 +495,7 @@ function renderCatalogGroups(items, catalogAccess) {
     const rows = items.filter(item => String(item.departmentId || item._workspaceId || "").trim().toUpperCase() === departmentId);
     return `<section class="standard-task-workspace standard-task-catalog-group" data-workspace="${escapeHtml(departmentId)}">
       <header class="standard-task-workspace-head compact-workspace-head">
-        <div><span class="page-eyebrow">${departmentId === "CDTN" ? "Chi đoàn" : "Phòng/Khu"}</span><h3>${escapeHtml(workspaceName(departmentId))}</h3></div>
+        <div><h3>${escapeHtml(workspaceName(departmentId))}</h3></div>
         <span class="status-pill neutral">${rows.length} đầu việc</span>
       </header>
       ${renderCatalogList(rows, catalogAccess)}
