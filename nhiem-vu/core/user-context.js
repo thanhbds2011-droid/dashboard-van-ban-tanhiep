@@ -53,6 +53,7 @@ function normalizeUser(user = {}) {
     position: normalizeText(user.position),
     leaderLevel: normalizeText(user.leaderLevel).toUpperCase(),
     approvalAuthority: normalizeText(user.approvalAuthority).toUpperCase(),
+    approvalAuthorityPresent: user.approvalAuthorityPresent === true,
     isDepartmentHead: typeof user.isDepartmentHead === "boolean" ? user.isDepartmentHead : null,
     additionalRoles: normalizeAdditionalRoles(user.additionalRoles),
     employeeCode: normalizeText(user.employeeCode),

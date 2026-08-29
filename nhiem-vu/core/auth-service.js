@@ -13,8 +13,8 @@
  * - Giữ nguyên UID Firebase và mô hình accessAccounts hiện hữu.
  */
 
-import { FirebaseService } from "./firebase-service.js?v=20260826.V1_19_0";
-import { UserContext } from "./user-context.js?v=20260826.V1_19_0";
+import { FirebaseService } from "./firebase-service.js?v=20260829.V1_20_0";
+import { UserContext } from "./user-context.js?v=20260829.V1_20_0";
 
 const LOGIN_URL = "./login.html";
 const AUTH_TIMEOUT_MS = 10000;
@@ -58,6 +58,7 @@ function profileScopeFingerprint(profile = {}) {
     position: clean(profile.position),
     leaderLevel: normalizeRole(profile.leaderLevel),
     approvalAuthority: normalizeRole(profile.approvalAuthority),
+    approvalAuthorityPresent: hasOwn(profile, "approvalAuthority") || profile.approvalAuthorityPresent === true,
     isDepartmentHead: typeof profile.isDepartmentHead === "boolean" ? profile.isDepartmentHead : null,
     teamId: clean(profile.teamId).toUpperCase(),
     employeeCode: clean(profile.employeeCode),
@@ -80,6 +81,7 @@ function contextPayload(firebaseUser, profile = {}) {
     employeeCode: profile.employeeCode || "",
     leaderLevel: profile.leaderLevel || "",
     approvalAuthority: profile.approvalAuthority || "",
+    approvalAuthorityPresent: hasOwn(profile, "approvalAuthority"),
     isDepartmentHead: typeof profile.isDepartmentHead === "boolean" ? profile.isDepartmentHead : null,
     additionalRoles: profile.additionalRoles || [],
     active: profile.active === true

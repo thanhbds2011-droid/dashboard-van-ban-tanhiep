@@ -2,7 +2,7 @@
  * Lớp kiểm tra quyền dùng thống nhất cho giao diện.
  * Firestore Security Rules vẫn là lớp kiểm soát bắt buộc ở phía dữ liệu.
  */
-import { UserContext } from "./user-context.js?v=20260826.V1_19_0";
+import { UserContext } from "./user-context.js?v=20260829.V1_20_0";
 
 function clean(value) {
   return String(value ?? "").trim();
@@ -29,8 +29,14 @@ function leaderLevel(user) {
   // Cho phép một Phó Trưởng phòng đang Phụ trách/được giao quyền phê duyệt hoạt động như người đứng đầu
   // mà không hard-code tên Phòng/Khu hay chức danh cụ thể.
   const authority = upper(user?.approvalAuthority);
-  if (authority === "HEAD") return "HEAD";
-  if (authority === "DEPUTY") return "DEPUTY";
+  const authorityFieldPresent = user?.approvalAuthorityPresent === true;
+  if (authorityFieldPresent) {
+    if (authority === "HEAD") return "HEAD";
+    if (authority === "DEPUTY") return "DEPUTY";
+    // Mirror Firestore Rules V1.20.0: khi field approvalAuthority đã tồn tại nhưng
+    // rỗng/không hợp lệ, không được suy quyền từ chức danh legacy.
+    return "";
+  }
 
   const explicit = upper(user?.leaderLevel);
   if (["HEAD", "DEPARTMENT_HEAD", "TRUONG"].includes(explicit)) return "HEAD";
@@ -332,6 +338,18 @@ export const Permissions = Object.freeze({
 
   canViewDepartmentReport() {
     return this.isAdmin() || this.isDirector() || this.isTchcCoordinator() || this.isDepartmentLeader();
+  },
+
+  canResubmitOwnRegistration(registration, planLocked = false) {
+    const user = UserContext.getUser();
+    return Boolean(
+      activeUser(user)
+      && registration
+      && registration.userId === user.uid
+      && upper(registration.status) === "REJECTED"
+      && !clean(registration.taskId)
+      && planLocked !== true
+    );
   },
 
   canCancelOwnRegistration(registration, planLocked = false) {
