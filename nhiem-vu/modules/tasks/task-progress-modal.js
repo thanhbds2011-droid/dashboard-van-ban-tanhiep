@@ -5,16 +5,16 @@
  * - Bấm × trước khi Lưu chỉ bỏ tệp khỏi danh sách, không phát sinh thao tác Drive.
  * - Mốc định kỳ hỗ trợ Theo ngày / Theo tuần / Theo tháng.
  */
-import { UserContext } from "../../core/user-context.js?v=20260826.V1_19_0";
-import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260826.V1_19_0";
-import { ModalService } from "../../core/modal-service.js?v=20260826.V1_19_0";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260826.V1_19_0";
-import { TaskMilestoneService } from "../../services/task-milestone-service.js?v=20260826.V1_19_0";
-import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260826.V1_19_0";
-import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260826.V1_19_0";
-import { TaskEvidenceService } from "../../services/task-evidence-service.js?v=20260826.V1_19_0";
-import { StagedEvidenceUploader } from "../../services/staged-evidence-uploader.js?v=20260826.V1_19_0";
-import { validateProgressInput, cleanText } from "./task-form-validator.js?v=20260826.V1_19_0";
+import { UserContext } from "../../core/user-context.js?v=20260829.V1_20_0";
+import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260829.V1_20_0";
+import { ModalService } from "../../core/modal-service.js?v=20260829.V1_20_0";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260829.V1_20_0";
+import { TaskMilestoneService } from "../../services/task-milestone-service.js?v=20260829.V1_20_0";
+import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260829.V1_20_0";
+import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260829.V1_20_0";
+import { TaskEvidenceService } from "../../services/task-evidence-service.js?v=20260829.V1_20_0";
+import { StagedEvidenceUploader } from "../../services/staged-evidence-uploader.js?v=20260829.V1_20_0";
+import { validateProgressInput, cleanText } from "./task-form-validator.js?v=20260829.V1_20_0";
 
 function mayUpdate(task) {
   const user = UserContext.requireUser();
@@ -112,8 +112,9 @@ export async function openTaskProgressModal(task, { onSaved }) {
   overlay.className = "modal-backdrop";
   overlay.innerHTML = `
     <section class="modal-panel modal-large" role="dialog" aria-modal="true">
-      <div class="modal-header"><div><span class="page-eyebrow">${escapeHtml(task.taskCode || task.id)}</span><h2>Cập nhật nhiệm vụ</h2><p>${escapeHtml(task.title || "")}</p></div><button class="icon-button" type="button" data-close>✕</button></div>
+      <div class="modal-header"><div><span class="page-eyebrow">${escapeHtml(task.taskCode || task.id)}</span><h2>Cập nhật nhiệm vụ</h2></div><button class="icon-button" type="button" data-close>✕</button></div>
       <div class="modal-body task-form-grid">
+        <div class="field-full task-progress-task-summary"><strong>${escapeHtml(task.title || '')}</strong>${task.description ? `<span>${escapeHtml(task.description)}</span>` : ''}</div>
         ${recurringMilestones ? milestonePanel(milestones, currentMilestone, task) : itemized ? `<div class="field-full info-banner task-progress-tracking-note"><strong>${eventDriven ? "Theo dõi phát sinh" : "Theo dõi theo từng lượt"}</strong><span>${Number(workItemSummary.totalRecordedCount || workItemSummary.count || 0)} lượt đã ghi nhận${Number(workItemSummary.count || 0) ? ` · ${Number(workItemSummary.count || 0)} lượt đang được tính` : ""}.</span></div>` : ""}
         <label><span>Trạng thái</span><select id="progressStatus">
           ${statusOption("DANG_XU_LY", eventDriven ? "Theo dõi phát sinh" : "Đang thực hiện", task.status)}
@@ -124,10 +125,10 @@ export async function openTaskProgressModal(task, { onSaved }) {
         ${eventDriven ? `<div class="field-full info-banner compact-info-banner"><strong>Kết thúc theo dõi</strong><span>Chỉ kết thúc khi đã có ít nhất 01 lượt và tất cả lượt đã hoàn thành. Điểm tiến độ vẫn giữ theo kết quả từng lượt, không tự chuyển thành 100%.</span></div>` : ''}
         ${recurringMilestones && currentMilestone ? `<label class="field-full check-row task-milestone-complete-action"><input id="completeCurrentMilestone" type="checkbox"><span><strong>Xác nhận đã hoàn thành mốc ${formatDateKey(currentMilestone.dueDateKey)}</strong><small>Thời điểm hoàn thành được hệ thống ghi tự động. ${currentMilestone.id === task.finalMilestoneId ? "Đây là mốc cuối; sau khi xác nhận, nhiệm vụ sẽ tự chuyển sang Hoàn thành." : "Sau khi xác nhận, nhiệm vụ vẫn tiếp tục đến mốc kế tiếp."}</small></span></label>` : ""}
         <label class="field-full"><span>Minh chứng dạng nội dung/liên kết</span><textarea id="evidenceText" rows="3" maxlength="3000" placeholder="Mô tả kết quả, số văn bản hoặc dán liên kết minh chứng">${escapeHtml(task.evidenceText || "")}</textarea></label>
-        <label class="field-full evidence-file-field"><span>Bổ sung tệp/hình ảnh minh chứng</span><input id="evidenceFile" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"><small>Tệp chỉ được tải lên khi bấm Lưu cập nhật. Tối đa 10 tệp/lần, 20 tệp/nhiệm vụ, 8 MB/tệp.</small></label>
+        <label class="field-full evidence-file-field"><span>Bổ sung tệp/hình ảnh minh chứng</span><input id="evidenceFile" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"><small>10 tệp/lần · tối đa 20 tệp/nhiệm vụ · 8 MB/tệp</small></label>
         <div id="taskProgressFormError" class="field-full task-progress-form-error" hidden role="alert"></div>
-        <div class="field-full task-evidence-staged"><div class="task-evidence-existing-head"><strong>Tệp đang bổ sung</strong><span>Có thể bấm × để bỏ tệp chọn nhầm trước khi lưu.</span></div><div id="evidenceStagedList">${stagedListHtml([])}</div></div>
-        <div class="field-full task-evidence-existing"><div class="task-evidence-existing-head"><strong id="savedEvidenceTitle">Minh chứng đã lưu (${evidenceFiles.length + (task.evidenceUrl && !evidenceFiles.some(item => item.fileUrl === task.evidenceUrl) ? 1 : 0)})</strong><span>Có thể mở lại nhiệm vụ và bổ sung thêm tệp bất cứ lúc nào khi nhiệm vụ còn được phép cập nhật.</span></div><div id="taskEvidenceSavedList">${evidenceListHtml(evidenceFiles, task)}</div></div>
+        <div id="evidenceStagedBox" class="field-full task-evidence-staged" hidden><div class="task-evidence-existing-head"><strong>Tệp chờ lưu</strong></div><div id="evidenceStagedList">${stagedListHtml([])}</div></div>
+        <div class="field-full task-evidence-existing compact-evidence-block"><div class="task-evidence-existing-head"><strong id="savedEvidenceTitle">Tệp đã lưu (${evidenceFiles.length + (task.evidenceUrl && !evidenceFiles.some(item => item.fileUrl === task.evidenceUrl) ? 1 : 0)})</strong></div><div id="taskEvidenceSavedList">${evidenceListHtml(evidenceFiles, task)}</div></div>
       </div>
       <div class="modal-footer"><button class="secondary-button" type="button" data-close>Hủy</button><button id="saveProgressButton" class="primary-button" type="button">Lưu cập nhật</button></div>
     </section>`;
@@ -180,7 +181,7 @@ export async function openTaskProgressModal(task, { onSaved }) {
     const target = $("taskEvidenceSavedList");
     if (target) target.innerHTML = evidenceListHtml(evidenceFiles, task);
     const title = $("savedEvidenceTitle");
-    if (title) title.textContent = `Minh chứng đã lưu (${evidenceFiles.length + (task.evidenceUrl && !evidenceFiles.some(item => item.fileUrl === task.evidenceUrl) ? 1 : 0)})`;
+    if (title) title.textContent = `Tệp đã lưu (${evidenceFiles.length + (task.evidenceUrl && !evidenceFiles.some(item => item.fileUrl === task.evidenceUrl) ? 1 : 0)})`;
   }
 
   const close = async () => {
@@ -319,7 +320,7 @@ export async function openTaskProgressModal(task, { onSaved }) {
           button.textContent = "Đang kết thúc theo dõi…";
           const closeResult = await TaskWriteService.endEventDrivenTracking(task, workItemSummary, changes);
           if (closeResult?.earlyVerified) {
-            console.info("EVENT_DRIVEN_CLOSE_CONFIRMED_EARLY", { taskId: task.id, taskCode: task.taskCode || "", build: "20260826.V1_19_0" });
+            console.info("EVENT_DRIVEN_CLOSE_CONFIRMED_EARLY", { taskId: task.id, taskCode: task.taskCode || "", build: "20260829.V1_20_0" });
           }
         } else {
           validateProgressInput(changes, task);

@@ -1,17 +1,17 @@
 /** Chi tiết, phân công và các lượt công việc phát sinh của nhiệm vụ. */
-import { UserContext } from "../../core/user-context.js?v=20260826.V1_19_0";
-import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260826.V1_19_0";
-import { ModalService } from "../../core/modal-service.js?v=20260826.V1_19_0";
-import { Permissions } from "../../core/permissions.js?v=20260826.V1_19_0";
-import { effectiveDepartmentAssignmentStatus, isTerminalTask } from "../../core/task-display-order.js?v=20260826.V1_19_0";
-import { UserReadService } from "../../services/user-read-service.js?v=20260826.V1_19_0";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260826.V1_19_0";
-import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260826.V1_19_0";
-import { TaskEvidenceService } from "../../services/task-evidence-service.js?v=20260826.V1_19_0";
-import { StagedEvidenceUploader } from "../../services/staged-evidence-uploader.js?v=20260826.V1_19_0";
-import { openTaskProgressModal } from "./task-progress-modal.js?v=20260826.V1_19_0";
-import { mountTaskAdjustmentPanel } from "./task-adjustment-panel.js?v=20260826.V1_19_0";
-import { TaskLogService } from "../../services/task-log-service.js?v=20260826.V1_19_0";
+import { UserContext } from "../../core/user-context.js?v=20260829.V1_20_0";
+import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260829.V1_20_0";
+import { ModalService } from "../../core/modal-service.js?v=20260829.V1_20_0";
+import { Permissions } from "../../core/permissions.js?v=20260829.V1_20_0";
+import { effectiveDepartmentAssignmentStatus, isTerminalTask } from "../../core/task-display-order.js?v=20260829.V1_20_0";
+import { UserReadService } from "../../services/user-read-service.js?v=20260829.V1_20_0";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260829.V1_20_0";
+import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260829.V1_20_0";
+import { TaskEvidenceService } from "../../services/task-evidence-service.js?v=20260829.V1_20_0";
+import { StagedEvidenceUploader } from "../../services/staged-evidence-uploader.js?v=20260829.V1_20_0";
+import { openTaskProgressModal } from "./task-progress-modal.js?v=20260829.V1_20_0";
+import { mountTaskAdjustmentPanel } from "./task-adjustment-panel.js?v=20260829.V1_20_0";
+import { TaskLogService } from "../../services/task-log-service.js?v=20260829.V1_20_0";
 
 const TEAM_LABELS = Object.freeze({
   BAO_VE: "Tổ Bảo vệ",
@@ -430,16 +430,16 @@ function openWorkItemEditor(task, item, onSaved, existingEvidenceFiles = []) {
   overlay.innerHTML = `
     <section class="modal-panel modal-medium" role="dialog" aria-modal="true">
       <div class="modal-header">
-        <div><span class="page-eyebrow">${escapeHtml(task.taskCode || task.id)}</span><h2>${item ? "Cập nhật" : "Thêm"} ${WORK_ITEM_LABELS[type].name.toLowerCase()}</h2><p>Ghi nhận thông tin thực tế của lượt công việc.</p></div>
+        <div><span class="page-eyebrow">${escapeHtml(task.taskCode || task.id)}</span><h2>${item ? "Cập nhật" : "Thêm"} ${WORK_ITEM_LABELS[type].name.toLowerCase()}</h2></div>
         <button class="icon-button" type="button" data-close-work-item>✕</button>
       </div>
       <div class="modal-body task-form-grid">
         ${editorFields(task, item)}
         <label class="field-full"><span>Kết quả/Ghi chú</span><textarea id="workItemResultNote" rows="3" maxlength="3000" placeholder="Nêu kết quả, tình trạng chỉnh sửa hoặc nguyên nhân chưa hoàn thành">${escapeHtml(item?.resultNote || "")}</textarea></label>
         <label class="field-full"><span>Mô tả minh chứng/liên kết</span><textarea id="workItemEvidence" rows="2" maxlength="3000" placeholder="Nêu số văn bản, biên bản, hình ảnh hoặc mô tả minh chứng">${escapeHtml(item?.evidenceText || "")}</textarea></label>
-        <label class="field-full"><span>Bổ sung tệp/hình ảnh minh chứng</span><input id="workItemEvidenceFile" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"><small>Tệp chỉ được tải lên khi bấm Lưu thông tin. Tối đa 10 tệp/lần, 20 tệp/nhiệm vụ, 8 MB/tệp.</small></label>
+        <label class="field-full"><span>Bổ sung tệp/hình ảnh minh chứng</span><input id="workItemEvidenceFile" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"><small>10 tệp/lần · tối đa 20 tệp/nhiệm vụ · 8 MB/tệp</small></label>
         <div id="workItemFormError" class="field-full task-progress-form-error" hidden role="alert"></div>
-        <div class="field-full task-evidence-staged"><div class="task-evidence-existing-head"><strong>Tệp đang bổ sung</strong><span>Có thể bấm × để bỏ tệp chọn nhầm trước khi lưu.</span></div><div id="workItemUploadStatus">${workItemStagedEvidenceHtml([])}</div></div>
+        <div id="workItemEvidenceStagedBox" class="field-full task-evidence-staged" hidden><div class="task-evidence-existing-head"><strong>Tệp chờ lưu</strong></div><div id="workItemUploadStatus">${workItemStagedEvidenceHtml([])}</div></div>
       </div>
       <div class="modal-footer"><button class="secondary-button" type="button" data-close-work-item>Hủy</button><button id="saveWorkItemButton" class="primary-button" type="button">Lưu thông tin</button></div>
     </section>`;

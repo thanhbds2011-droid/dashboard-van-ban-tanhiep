@@ -1,10 +1,10 @@
-import { Permissions } from "../../core/permissions.js?v=20260826.V1_19_0";
-import { ToastService } from "../../core/toast-service.js?v=20260826.V1_19_0";
-import { TaskReadService } from "../../services/task-read-service.js?v=20260826.V1_19_0";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260826.V1_19_0";
-import { openTaskCreateModal } from "./task-form-modal.js?v=20260826.V1_19_0";
-import { openTaskDetailModal } from "./task-detail-modal.js?v=20260826.V1_19_0";
-import { effectiveDepartmentAssignmentStatus } from "../../core/task-display-order.js?v=20260826.V1_19_0";
+import { Permissions } from "../../core/permissions.js?v=20260829.V1_20_0";
+import { ToastService } from "../../core/toast-service.js?v=20260829.V1_20_0";
+import { TaskReadService } from "../../services/task-read-service.js?v=20260829.V1_20_0";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260829.V1_20_0";
+import { openTaskCreateModal } from "./task-form-modal.js?v=20260829.V1_20_0";
+import { openTaskDetailModal } from "./task-detail-modal.js?v=20260829.V1_20_0";
+import { effectiveDepartmentAssignmentStatus } from "../../core/task-display-order.js?v=20260829.V1_20_0";
 
 let renderSequence = 0;
 let currentTasks = [];
@@ -136,11 +136,11 @@ function mountTasksPage(outlet, canCreateUnexpectedTask = false) {
     </div>
     <div id="taskWorkspaceContainer" class="task-workspace-grid">
       <section class="task-workspace-panel" data-task-workspace="PROFESSIONAL">
-        <header><div><span class="task-workspace-kicker">Chuyên môn</span><h3>Nhiệm vụ Phòng/Khu</h3></div><span id="taskProfessionalCount" class="task-workspace-count">0</span></header>
+        <header><div><h3>Nhiệm vụ Phòng/Khu</h3></div><span id="taskProfessionalCount" class="task-workspace-count">0</span></header>
         <div id="taskProfessionalList" class="task-list-scroll"></div>
       </section>
       <section id="taskCdtnPanel" class="task-workspace-panel task-workspace-cdtn" data-task-workspace="CDTN">
-        <header><div><span class="task-workspace-kicker">Chi đoàn</span><h3>Nhiệm vụ Chi đoàn</h3></div><span id="taskCdtnCount" class="task-workspace-count">0</span></header>
+        <header><div><h3>Nhiệm vụ Chi đoàn</h3></div><span id="taskCdtnCount" class="task-workspace-count">0</span></header>
         <div id="taskCdtnList" class="task-list-scroll"></div>
       </section>
     </div>
