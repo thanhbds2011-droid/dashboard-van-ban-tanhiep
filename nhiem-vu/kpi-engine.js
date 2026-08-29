@@ -300,6 +300,21 @@ export function proposedRating(total) {
   return 'KHONG_HOAN_THANH';
 }
 
+export function resolveQualityRating(total, eligibility = {}) {
+  const base = proposedRating(total);
+  if (base !== 'HOAN_THANH_XUAT_SAC') return base;
+  const totalTasks = Math.max(0, Number(eligibility.totalTasks || 0));
+  const exceededTasks = Math.max(0, Number(eligibility.exceededTasks || 0));
+  const exceededRate = totalTasks > 0 ? exceededTasks / totalTasks : 0;
+  const threshold = Number.isFinite(Number(eligibility.exceededThreshold))
+    ? Number(eligibility.exceededThreshold)
+    : 0.30;
+  const allTasksCompleted = eligibility.allTasksCompleted !== false;
+  return allTasksCompleted && totalTasks > 0 && exceededRate >= threshold
+    ? base
+    : 'HOAN_THANH_TOT';
+}
+
 export function ratingName(code) {
   const names = {
     NO_BASIS: 'Chưa đủ cơ sở tính',

@@ -1159,3 +1159,37 @@ textarea.app-dialog-input{min-height:104px}.app-dialog-input:focus{outline:2px s
 }
 .task-kpi-meaning-banner strong { color: #174b6a; }
 .task-kpi-meaning-banner b { color: #0f668f; }
+
+
+/* V1.20.0 – Production typography & compact evidence refinement */
+.v3-body{font-size:16px}
+.page-eyebrow{font-size:13px;letter-spacing:.05em}
+.toolbar label{font-size:15px}
+.toolbar input,.toolbar select{font-size:15px}
+.page-header p,.section-heading p{font-size:15px}
+.task-workspace-panel>header h3,.standard-task-workspace-head h3{font-size:20px;margin:0}
+.task-workspace-kicker{display:none!important}
+.task-evidence-existing-head span{font-size:14px}
+.field-help,.form-field small,.evidence-file-field small{font-size:14px;line-height:1.45}
+.task-progress-title{padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:#f8fbfd}
+.task-progress-title span,.task-progress-title strong{display:block}
+.task-progress-title span{font-size:14px;color:var(--muted);margin-bottom:4px}
+.task-progress-title strong{font-size:17px;line-height:1.45}
+.compact-evidence-block{padding:12px 14px!important;min-height:0!important}
+.compact-evidence-block .task-evidence-existing-head{margin-bottom:6px}
+.standard-personalize-card{width:min(900px,calc(100vw - 28px));max-height:88vh;display:flex;flex-direction:column}
+.standard-personalize-card .modal-body{overflow:auto}
+.standard-personalize-list{display:grid;gap:12px}
+.standard-personalize-item{border:1px solid var(--border);border-radius:12px;padding:12px;background:#fbfdfe}
+.standard-personalize-item>strong{display:block;margin-bottom:10px;color:var(--text);font-size:15px}
+.standard-personalize-item label{display:grid;gap:5px;margin-top:8px;color:var(--text);font-weight:700;font-size:14px}
+.standard-personalize-item input,.standard-personalize-item textarea{width:100%;border:1px solid var(--border);border-radius:9px;padding:10px 11px;font:inherit;background:#fff;color:var(--text)}
+.registration-resubmit-button{border:1px solid #8bb8d1;background:#eaf5fb;color:#0b5d88;border-radius:9px;padding:8px 11px;font-weight:800;cursor:pointer}
+@media(max-width:760px){.v3-body{font-size:16px}.page-eyebrow{font-size:13px}.page-header h2{font-size:22px}.toolbar label{font-size:15px}.standard-personalize-card{width:min(100%,calc(100vw - 16px));max-height:94vh}}
+.task-progress-task-summary{display:grid;gap:4px;padding:12px 14px;border:1px solid #d9e6ee;border-radius:12px;background:#f8fbfd}.task-progress-task-summary strong{font-size:17px;line-height:1.5;color:#102f45}.task-progress-task-summary span{font-size:14px;line-height:1.5;color:#597184}
+/* V1.20.0 – readable operational dialog text */
+.app-dialog-field>span{font-size:15px}
+.app-dialog-error{font-size:14px;line-height:1.45}
+.modal-body .app-dialog-summary span{font-size:13px;line-height:1.4}
+.task-evidence-file-row small{font-size:13px;line-height:1.4}
+.task-evidence-empty,.staged-evidence-empty{font-size:14px;line-height:1.45}

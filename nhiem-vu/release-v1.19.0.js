@@ -1,5 +1,5 @@
 /** Release marker V1.19.0 - Unit Authority + KPI Review + Production Reliability. */
-import { APP_VERSION, BUILD_VERSION } from "./core/app-version.js?v=20260826.V1_19_0";
+import { APP_VERSION, BUILD_VERSION } from "./core/app-version.js?v=20260829.V1_20_0";
 
 export const RELEASE_V1_19_0 = Object.freeze({
   version: APP_VERSION,

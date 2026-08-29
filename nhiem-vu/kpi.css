@@ -1731,3 +1731,61 @@
   .kpi-form-grid { gap: 12px; }
   .kpi-metrics { gap: 10px; }
 }
+
+
+/* V1.20.0 – KPI wide workspace, evidence and report UX */
+.kpi-modal-card:has(.kpi-score-workspace),.kpi-modal-card:has(.kpi-wide-table){width:min(96vw,1560px)!important;max-width:1560px!important}
+.kpi-wide-table .kpi-table{min-width:1380px;table-layout:auto}
+.kpi-wide-table .kpi-table th,.kpi-wide-table .kpi-table td{white-space:normal;word-break:normal;overflow-wrap:anywhere;min-width:84px}
+.kpi-wide-table .kpi-table th:nth-child(2),.kpi-wide-table .kpi-table td:nth-child(2){min-width:300px}
+.kpi-wide-table .kpi-table thead th{position:sticky;top:0;z-index:3}
+.kpi-evidence-review{border:1px solid #cfe1ec;border-radius:12px;padding:13px;background:#f8fbfd;display:grid;gap:9px}
+.kpi-evidence-review h4{margin:0;font-size:17px}
+.kpi-evidence-list{display:grid;gap:7px}
+.kpi-evidence-item{display:flex;gap:10px;align-items:flex-start;justify-content:space-between;border-top:1px solid #e4edf3;padding-top:7px}
+.kpi-evidence-item:first-child{border-top:0;padding-top:0}
+.kpi-evidence-item a{font-weight:800;color:var(--primary)}
+.kpi-exceeded-box{border:1px solid #e7d7a3;border-radius:12px;background:#fffaf0;padding:12px 14px}
+.kpi-pending-bonus{display:block;color:#9a6500;font-size:12px;font-weight:800;margin-top:3px}
+.kpi-product-report{font-family:"Times New Roman",serif;color:#111;background:#fff;padding:18px}
+.kpi-product-report h1,.kpi-product-report h2{text-align:center;margin:4px 0}.kpi-product-meta{margin:14px 0;line-height:1.65}
+.kpi-product-table{width:100%;border-collapse:collapse;font-size:13px}.kpi-product-table th,.kpi-product-table td{border:1px solid #333;padding:7px;vertical-align:top}.kpi-product-signatures{display:grid;grid-template-columns:1fr 1fr;gap:40px;text-align:center;margin-top:34px;min-height:150px}
+.kpi-exceeded-summary{margin:8px 0 14px;line-height:1.5}
+@media(max-width:760px){.kpi-wide-table{display:none}.kpi-score-mobile-cards{display:grid!important;gap:10px}.kpi-score-mobile-card{border:1px solid var(--border);border-radius:12px;padding:12px;background:#fff}.kpi-score-mobile-card strong{display:block}.kpi-score-mobile-card span{display:block;margin-top:4px;font-size:14px}.kpi-product-report{padding:8px}.kpi-product-table{font-size:11px}}
+@media(min-width:761px){.kpi-score-mobile-cards{display:none!important}}
+
+/* V1.20.0 – selector alignment for final production markup */
+.kpi-wide-table{min-width:1380px!important;table-layout:auto}
+.kpi-wide-table th,.kpi-wide-table td{white-space:normal;word-break:normal;overflow-wrap:anywhere;min-width:84px}
+.kpi-wide-table th:nth-child(2),.kpi-wide-table td:nth-child(2){min-width:300px}
+.kpi-wide-table thead th{position:sticky;top:0;z-index:3;background:#155c7b;color:#fff}
+.kpi-review-evidence{border:1px solid #cfe1ec;border-radius:14px;padding:14px 16px;background:#f8fbfd;display:grid;gap:10px}
+.kpi-review-section-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}
+.kpi-review-section-head strong{font-size:17px;color:#163e55}
+.kpi-review-section-head span{font-size:14px;color:#617b8b}
+.kpi-evidence-empty{padding:10px 0;color:#667d8b;font-size:14px}
+.kpi-bonus-pending{color:#9a6500;font-weight:850}
+.m01-quality-result{margin:10px 0 14px;line-height:1.55;font-weight:700;color:#233f51}
+.kpi-scorecard-mobile{display:none}
+.kpi-score-card{border:1px solid #d7e5ed;border-radius:14px;padding:13px 14px;background:#fff;display:grid;gap:8px}
+.kpi-score-card>strong{font-size:16px;line-height:1.45;color:#123d56}
+.kpi-score-card>div{display:flex;gap:8px 14px;flex-wrap:wrap;color:#536f80;font-size:14px}
+.kpi-product-report .kpi-table-wrap{overflow:visible}
+@media(max-width:760px){
+  .kpi-scorecard-desktop{display:none!important}
+  .kpi-scorecard-mobile{display:grid!important;gap:10px}
+  .kpi-review-evidence{padding:12px}
+  .kpi-review-section-head{display:grid;gap:3px}
+}
+@media print{
+  .kpi-product-report{padding:0}
+  .kpi-product-signatures{break-inside:avoid}
+  .kpi-wide-table{font-size:10pt}
+}
+/* V1.20.0 – readable KPI operational typography */
+.kpi-field>label{font-size:15px}
+.kpi-small{font-size:14px;line-height:1.4}
+.kpi-review-person span{font-size:14px}
+.kpi-inline-field-error{font-size:14px}
+.kpi-milestone-rule-note{font-size:14px}
+@media(max-width:760px){.kpi-product-table{font-size:13px}}
