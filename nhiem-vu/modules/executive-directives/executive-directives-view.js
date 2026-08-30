@@ -1,10 +1,10 @@
-import { UserContext } from "../../core/user-context.js?v=20260829.V1_20_0";
-import { Permissions } from "../../core/permissions.js?v=20260829.V1_20_0";
-import { ToastService } from "../../core/toast-service.js?v=20260829.V1_20_0";
-import { ModalService } from "../../core/modal-service.js?v=20260829.V1_20_0";
-import { DepartmentReadService } from "../../services/department-read-service.js?v=20260829.V1_20_0";
-import { UserReadService } from "../../services/user-read-service.js?v=20260829.V1_20_0";
-import { ExecutiveDirectiveService } from "../../services/executive-directive-service.js?v=20260829.V1_20_0";
+import { UserContext } from "../../core/user-context.js?v=20260830.V1_21_0";
+import { Permissions } from "../../core/permissions.js?v=20260830.V1_21_0";
+import { ToastService } from "../../core/toast-service.js?v=20260830.V1_21_0";
+import { ModalService } from "../../core/modal-service.js?v=20260830.V1_21_0";
+import { DepartmentReadService } from "../../services/department-read-service.js?v=20260830.V1_21_0";
+import { UserReadService } from "../../services/user-read-service.js?v=20260830.V1_21_0";
+import { ExecutiveDirectiveService } from "../../services/executive-directive-service.js?v=20260830.V1_21_0";
 
 let state = {
   directives: [],
@@ -637,6 +637,10 @@ function openDirectiveForm(current = null) {
   const selectedDirectorExists = directors.some(item => item.id === selectedDirectorId || item.uid === selectedDirectorId);
   const directorValue = selectedDirectorExists ? selectedDirectorId : (editing && !selectedDirectorId ? "__OTHER__" : (directors[0]?.id || directors[0]?.uid || "__OTHER__"));
   const support = new Set((current?.supportDepartmentIds || []).map(upper));
+  const actor = UserContext.requireUser();
+  const canDecideKpi = Permissions.isDirector(actor);
+  const kpiEnabled = current?.kpiEnabled === true;
+  const kpiLocked = Boolean(clean(current?.kpiStandardTaskId));
   const backdrop = modalBackdrop(`
     <section class="directive-modal-card directive-form-modal">
       <header class="directive-modal-header"><div><h2>${editing ? "Chỉnh sửa nội dung chỉ đạo" : "Thêm nội dung chỉ đạo"}</h2><p>Ghi nhận nội dung và Phòng/Khu thực hiện.</p></div><button data-directive-close class="modal-close-button" type="button">×</button></header>
@@ -652,6 +656,17 @@ function openDirectiveForm(current = null) {
         <label><span>Thời hạn</span><input id="directiveDueDate" type="date" value="${esc(current?.dueDateKey || "")}"></label>
         <fieldset class="field-full directive-support-field"><legend>Phòng/Khu phối hợp <small>(tùy chọn)</small></legend><div class="directive-checkbox-grid">${departments.map(dep => { const id = upper(dep.id || dep.code); return `<label><input type="checkbox" value="${esc(id)}" data-support-department ${support.has(id) ? "checked" : ""}><span>${esc(dep.name || id)}</span></label>`; }).join("")}</div></fieldset>
         <label><span>Mức độ</span><select id="directivePriority">${Object.entries(PRIORITY_LABELS).map(([value,label]) => `<option value="${value}" ${upper(current?.priority || "NORMAL") === value ? "selected" : ""}>${esc(label)}</option>`).join("")}</select></label>
+        ${canDecideKpi ? `<section class="field-full directive-kpi-box">
+          <label class="directive-kpi-toggle"><input id="directiveKpiEnabled" type="checkbox" ${kpiEnabled ? "checked" : ""} ${kpiLocked ? "disabled" : ""}><span>Đưa vào đánh giá KPI</span></label>
+          ${kpiLocked ? `<small>Đã tạo đầu việc KPI <strong>${esc(current?.kpiStandardTaskId || "")}</strong>. Các thông số KPI đã khóa để tránh thay đổi âm thầm.</small>` : ""}
+          <div id="directiveKpiFields" class="directive-kpi-fields ${kpiEnabled ? "" : "hidden"}">
+            <label><span>Tính chất</span><input value="Đột xuất · 12 điểm" disabled></label>
+            <label><span>Hệ số độ khó</span><select id="directiveKpiCoefficient" ${kpiLocked ? "disabled" : ""}>
+              ${[1,1.1,1.2].map(value => `<option value="${value}" ${Number(current?.kpiCoefficient || 1) === value ? "selected" : ""}>${Math.round(value*100)}%</option>`).join("")}
+            </select></label>
+            <label class="field-full"><span>Minh chứng bắt buộc *</span><textarea id="directiveKpiEvidence" rows="2" maxlength="1000" ${kpiLocked ? "disabled" : ""}>${esc(current?.kpiMandatoryEvidence || "")}</textarea></label>
+          </div>
+        </section>` : ""}
       </div></div>
       <footer class="directive-modal-footer"><button data-directive-close class="secondary-button" type="button">Hủy</button><button id="btnSaveDirective" class="primary-button" type="button">${editing ? "Lưu thay đổi" : "Lưu và giao thực hiện"}</button></footer>
     </section>`);
@@ -665,6 +680,9 @@ function openDirectiveForm(current = null) {
   directorSelect?.addEventListener("change", () => otherWrap?.classList.toggle("hidden", directorSelect.value !== "__OTHER__"));
   leadSelect?.addEventListener("change", refreshSupport);
   refreshSupport();
+  const kpiToggle = backdrop.querySelector("#directiveKpiEnabled");
+  const kpiFields = backdrop.querySelector("#directiveKpiFields");
+  kpiToggle?.addEventListener("change", () => kpiFields?.classList.toggle("hidden", !kpiToggle.checked));
   backdrop.querySelector("#btnSaveDirective")?.addEventListener("click", async event => {
     const button = event.currentTarget;
     const selectedDirector = directorSelect?.value || "__OTHER__";
@@ -683,10 +701,15 @@ function openDirectiveForm(current = null) {
       leadDepartmentId: leadSelect?.value,
       dueDateKey: backdrop.querySelector("#directiveDueDate")?.value,
       supportDepartmentIds: [...backdrop.querySelectorAll("[data-support-department]:checked")].map(input => input.value),
-      priority: backdrop.querySelector("#directivePriority")?.value
+      priority: backdrop.querySelector("#directivePriority")?.value,
+      kpiEnabled: canDecideKpi ? (kpiToggle?.checked === true || kpiLocked) : Boolean(current?.kpiEnabled),
+      kpiCoefficient: Number(backdrop.querySelector("#directiveKpiCoefficient")?.value || current?.kpiCoefficient || 1),
+      kpiMandatoryEvidence: backdrop.querySelector("#directiveKpiEvidence")?.value ?? current?.kpiMandatoryEvidence ?? ""
     };
     if (!input.leadDepartmentId) return ToastService.error("Chưa chọn Phòng/Khu chủ trì.");
     if (!input.directedByName || !clean(input.content)) return ToastService.error("Vui lòng nhập đầy đủ người chỉ đạo và nội dung.");
+    if (input.kpiEnabled && !input.dueDateKey) return ToastService.error("Nội dung đưa vào KPI phải có thời hạn hoàn thành cụ thể.");
+    if (input.kpiEnabled && !clean(input.kpiMandatoryEvidence)) return ToastService.error("Nội dung đưa vào KPI phải có Minh chứng bắt buộc.");
     try {
       button.disabled = true;
       button.textContent = editing ? "Đang lưu…" : "Đang giao…";
@@ -827,7 +850,7 @@ function openDirectiveDetail(id) {
         ${workflowNotice}
         <section class="directive-detail-section"><div class="section-heading"><div><h3>Kết quả và lịch sử cập nhật</h3><p>${manager ? "Hiển thị lịch sử toàn bộ Phòng/Khu." : `Hiển thị cập nhật của ${esc(departmentName(user.departmentId))}.`}</p></div></div><div class="directive-history">${history.length ? history.map(historyItem).join("") : emptyState("Chưa có cập nhật tiến độ.")}</div></section>
       </div>
-      <footer class="directive-modal-footer directive-detail-actions">${canAcceptOwn ? '<button id="btnDirectiveAccept" class="primary-button" type="button">✓ Xác nhận tiếp nhận</button>' : ""}${assignableDepartments.length ? '<button id="btnDirectiveAssignInternal" class="secondary-button" type="button">👤 Phân công người thực hiện</button>' : ""}${canPersonalAccept ? '<button id="btnDirectivePersonalAccept" class="primary-button" type="button">✓ Xác nhận nhận việc</button>' : ""}${canProgressOwn ? '<button id="btnDirectiveProgress" class="secondary-button" type="button">Cập nhật thực hiện</button>' : ""}${manager ? '<button id="btnDirectiveReminder" class="secondary-button" type="button">🔔 Đôn đốc</button><button id="btnDirectiveEdit" class="secondary-button" type="button">Chỉnh sửa</button><button id="btnDirectiveLifecycle" class="secondary-button" type="button">' + (upper(directive.lifecycleStatus) === "CLOSED" ? "Mở lại" : "Đóng chỉ đạo") + '</button><button id="btnDirectiveDelete" class="danger-button" type="button">Xóa</button>' : ""}<button data-directive-close class="secondary-button" type="button">Đóng</button></footer>
+      <footer class="directive-modal-footer directive-detail-actions">${canAcceptOwn ? '<button id="btnDirectiveAccept" class="primary-button" type="button">✓ Xác nhận tiếp nhận</button>' : ""}${assignableDepartments.length ? '<button id="btnDirectiveAssignInternal" class="secondary-button" type="button">👤 Phân công người thực hiện</button>' : ""}${canPersonalAccept ? '<button id="btnDirectivePersonalAccept" class="primary-button" type="button">✓ Xác nhận nhận việc</button>' : ""}${canProgressOwn ? '<button id="btnDirectiveProgress" class="secondary-button" type="button">Cập nhật thực hiện</button>' : ""}${manager ? '<button id="btnDirectiveReminder" class="secondary-button" type="button">🔔 Đôn đốc</button><button id="btnDirectiveEdit" class="secondary-button" type="button">Chỉnh sửa</button>' + ((directive.kpiStandardTaskId && Permissions.isDirector(user)) ? '<button id="btnDirectiveCancelKpi" class="secondary-button" type="button">Hủy đưa vào KPI</button>' : '') + '<button id="btnDirectiveLifecycle" class="secondary-button" type="button">' + (upper(directive.lifecycleStatus) === "CLOSED" ? "Mở lại" : "Đóng chỉ đạo") + '</button><button id="btnDirectiveDelete" class="danger-button" type="button">Xóa</button>' : ""}<button data-directive-close class="secondary-button" type="button">Đóng</button></footer>
     </section>`);
 
   backdrop.querySelector("#btnDirectiveAccept")?.addEventListener("click", async event => {
@@ -881,6 +904,19 @@ function openDirectiveDetail(id) {
     }
   });
   backdrop.querySelector("#btnDirectiveEdit")?.addEventListener("click", () => { backdrop.remove(); openDirectiveForm(directive); });
+  backdrop.querySelector("#btnDirectiveCancelKpi")?.addEventListener("click", async event => {
+    const button = event.currentTarget;
+    if (!await ModalService.confirm("Hủy đưa chỉ đạo này vào KPI? Chỉ thực hiện được khi chưa có cá nhân đăng ký đầu việc KPI.", { title:"Hủy KPI từ chỉ đạo", confirmText:"Hủy đưa vào KPI", danger:true })) return;
+    try {
+      button.disabled = true;
+      await ExecutiveDirectiveService.cancelDirectiveKpi(directive);
+      backdrop.remove(); await refreshAfterWrite(); ToastService.success("Đã hủy đưa chỉ đạo vào KPI; chỉ đạo gốc vẫn được giữ.");
+    } catch (error) {
+      ToastService.error(error?.message || "Không thể hủy KPI của chỉ đạo.");
+      button.disabled = false;
+    }
+  });
+
   backdrop.querySelector("#btnDirectiveLifecycle")?.addEventListener("click", async event => {
     const button = event.currentTarget;
     const closing = upper(directive.lifecycleStatus) !== "CLOSED";
