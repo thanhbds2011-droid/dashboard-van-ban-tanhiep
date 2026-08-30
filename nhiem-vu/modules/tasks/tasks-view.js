@@ -1,10 +1,11 @@
-import { Permissions } from "../../core/permissions.js?v=20260829.V1_20_0";
-import { ToastService } from "../../core/toast-service.js?v=20260829.V1_20_0";
-import { TaskReadService } from "../../services/task-read-service.js?v=20260829.V1_20_0";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260829.V1_20_0";
-import { openTaskCreateModal } from "./task-form-modal.js?v=20260829.V1_20_0";
-import { openTaskDetailModal } from "./task-detail-modal.js?v=20260829.V1_20_0";
-import { effectiveDepartmentAssignmentStatus } from "../../core/task-display-order.js?v=20260829.V1_20_0";
+import { UserContext } from "../../core/user-context.js?v=20260830.V1_21_0";
+import { Permissions } from "../../core/permissions.js?v=20260830.V1_21_0";
+import { ToastService } from "../../core/toast-service.js?v=20260830.V1_21_0";
+import { TaskReadService } from "../../services/task-read-service.js?v=20260830.V1_21_0";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260830.V1_21_0";
+import { openTaskCreateModal } from "./task-form-modal.js?v=20260830.V1_21_0";
+import { openTaskDetailModal } from "./task-detail-modal.js?v=20260830.V1_21_0";
+import { effectiveDepartmentAssignmentStatus } from "../../core/task-display-order.js?v=20260830.V1_21_0";
 
 let renderSequence = 0;
 let currentTasks = [];
@@ -12,6 +13,7 @@ let currentOutlet = null;
 let stopTaskRealtime = null;
 let taskRealtimeCleanupBound = false;
 let taskRealtimeErrorShown = false;
+let taskViewMode = "MINE";
 
 const DEPARTMENT_NAMES = Object.freeze({
   BGD: "Ban Giám đốc",
@@ -76,6 +78,7 @@ function startTasksRealtime(outlet, sequence) {
 
 export async function renderTasksView(outlet) {
   currentOutlet = outlet;
+  taskViewMode = "MINE";
   const sequence = ++renderSequence;
   outlet.innerHTML = loadingCard("Đang tải danh sách nhiệm vụ…");
 
@@ -118,7 +121,11 @@ function userFacingLoadError(error) {
 
 function mountTasksPage(outlet, canCreateUnexpectedTask = false) {
   outlet.innerHTML = `<section class="page-card tasks-page-card">
-    <div class="page-header"><div><h2>Nhiệm vụ</h2><p>Theo dõi nhiệm vụ được giao, tiến độ thực hiện và kết quả hoàn thành.</p><small id="taskRealtimeState" class="realtime-state" hidden></small></div>${canCreateUnexpectedTask ? '<button id="btnCreateTask" class="primary-button" type="button">＋ Giao nhiệm vụ đột xuất</button>' : ""}</div>
+    <div class="page-header"><div><h2>Nhiệm vụ</h2><p>Bàn làm việc cá nhân: theo dõi nhiệm vụ của chính bạn, tiến độ và kết quả hoàn thành.</p><small id="taskRealtimeState" class="realtime-state" hidden></small></div>${canCreateUnexpectedTask ? '<button id="btnCreateTask" class="primary-button" type="button">＋ Giao nhiệm vụ đột xuất</button>' : ""}</div>
+    ${(Permissions.canReviewStaffTask() || Permissions.isDepartmentLeader()) ? `<div class="task-scope-tabs">
+      <button type="button" class="secondary-button is-active" data-task-scope="MINE">Nhiệm vụ của tôi</button>
+      <button type="button" class="secondary-button" data-task-scope="MANAGEMENT">Điều hành Phòng/Khu</button>
+    </div>` : ""}
     <div class="summary-grid compact-grid tasks-summary-grid">
       ${card("Tất cả", 0, "taskMetricTotal")}
       ${card("Đang xử lý", 0, "taskMetricInProgress")}
@@ -170,6 +177,19 @@ function mountTasksPage(outlet, canCreateUnexpectedTask = false) {
   document.getElementById("taskSearch")?.addEventListener("input", renderFilteredTasks);
   document.getElementById("taskStatusFilter")?.addEventListener("change", renderFilteredTasks);
   document.getElementById("taskDepartmentFilter")?.addEventListener("change", renderFilteredTasks);
+  document.querySelectorAll("[data-task-scope]").forEach(button => button.addEventListener("click", () => {
+    taskViewMode = button.dataset.taskScope === "MANAGEMENT" ? "MANAGEMENT" : "MINE";
+    document.querySelectorAll("[data-task-scope]").forEach(item => item.classList.toggle("is-active", item === button));
+    updateTasksPage(currentTasks);
+  }));
+}
+
+function scopedTasks(tasks = currentTasks) {
+  const uid = UserContext.requireUser().uid;
+  if (taskViewMode === "MANAGEMENT") {
+    return tasks.filter(task => String(task.ownerUserId || "") !== uid);
+  }
+  return tasks.filter(task => String(task.ownerUserId || "") === uid);
 }
 
 function populateDepartmentFilter(tasks) {
@@ -184,7 +204,8 @@ function populateDepartmentFilter(tasks) {
 }
 
 function updateTasksPage(tasks) {
-  const summary = TaskReadService.summarize(tasks);
+  const visibleTasks = scopedTasks(tasks);
+  const summary = TaskReadService.summarize(visibleTasks);
   setText("taskMetricTotal", summary.total);
   setText("taskMetricInProgress", summary.inProgress);
   setText("taskMetricWaiting", summary.waitingAssignment);
@@ -192,7 +213,7 @@ function updateTasksPage(tasks) {
   setText("taskMetricCompleted", summary.completed);
   setText("taskMetricAdjustment", summary.adjustmentPending);
   setText("taskMetricExempt", summary.exempt);
-  populateDepartmentFilter(tasks);
+  populateDepartmentFilter(visibleTasks);
   renderFilteredTasks();
 }
 
@@ -203,7 +224,7 @@ function renderFilteredTasks() {
   const keyword = String(search?.value || "").trim().toLowerCase();
   const status = filter?.value || "ALL";
   const departmentId = departmentFilter?.value || "ALL";
-  const filtered = currentTasks.filter(task => {
+  const filtered = scopedTasks(currentTasks).filter(task => {
     const text = [task.taskCode, task.title, task.ownerName, task.createdByName, taskWorkspaceId(task)].join(" ").toLowerCase();
     const keywordMatch = !keyword || text.includes(keyword);
     const departmentMatch = departmentId === "ALL" || taskWorkspaceId(task) === departmentId;
@@ -226,7 +247,7 @@ function renderFilteredTasks() {
 
   professionalContainer.innerHTML = renderTaskList(professional, "Chưa có nhiệm vụ chuyên môn trong phạm vi hiển thị");
   cdtnContainer.innerHTML = renderTaskList(cdtn, "Chưa có nhiệm vụ Chi đoàn trong phạm vi hiển thị");
-  cdtnPanel.hidden = cdtn.length === 0 && !currentTasks.some(task => taskWorkspaceId(task) === "CDTN");
+  cdtnPanel.hidden = cdtn.length === 0 && !scopedTasks(currentTasks).some(task => taskWorkspaceId(task) === "CDTN");
   setText("taskProfessionalCount", professional.length);
   setText("taskCdtnCount", cdtn.length);
   bindRows(filtered);
