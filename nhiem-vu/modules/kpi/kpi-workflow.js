@@ -1,26 +1,26 @@
-import { auth, db } from '../../firebase-config.js?v=20260829.V1_20_0';
+import { auth, db } from '../../firebase-config.js?v=20260830.V1_21_0';
 import {
   addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, onSnapshot, query,
   serverTimestamp, setDoc, Timestamp, updateDoc, where, limit, writeBatch
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
-import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260829.V1_20_0';
-import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260829.V1_20_0';
-import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260829.V1_20_0';
-import { TaskEvidenceService } from '../../services/task-evidence-service.js?v=20260829.V1_20_0';
-import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260829.V1_20_0';
-import { PeriodReadService } from '../../services/period-read-service.js?v=20260829.V1_20_0';
-import { TaskReadService } from '../../services/task-read-service.js?v=20260829.V1_20_0';
-import { Permissions } from '../../core/permissions.js?v=20260829.V1_20_0';
-import { UserContext } from '../../core/user-context.js?v=20260829.V1_20_0';
-import { APP_VERSION } from '../../core/app-version.js?v=20260829.V1_20_0';
-import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260829.V1_20_0';
-import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260829.V1_20_0';
+import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260830.V1_21_0';
+import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260830.V1_21_0';
+import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260830.V1_21_0';
+import { TaskEvidenceService } from '../../services/task-evidence-service.js?v=20260830.V1_21_0';
+import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260830.V1_21_0';
+import { PeriodReadService } from '../../services/period-read-service.js?v=20260830.V1_21_0';
+import { TaskReadService } from '../../services/task-read-service.js?v=20260830.V1_21_0';
+import { Permissions } from '../../core/permissions.js?v=20260830.V1_21_0';
+import { UserContext } from '../../core/user-context.js?v=20260830.V1_21_0';
+import { APP_VERSION } from '../../core/app-version.js?v=20260830.V1_21_0';
+import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260830.V1_21_0';
+import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260830.V1_21_0';
 import {
   KPI2B as KPI2C, M01_GROUPS, COMMON_CRITERIA, commonCriteriaForProfile, reportFormTypeForProfile, calculateTaskScore, calculateKpiSummary,
   proposedRating, resolveQualityRating, ratingName, round2, progressRateFromDates, convertAppendix04Rate, calculateMilestoneProgress, calculateBonusScore
-} from '../../kpi-engine.js?v=20260829.V1_20_0';
-import { resolveKpiReviewer, canReviewKpiOwner } from '../../core/kpi-review-authority.js?v=20260829.V1_20_0';
-import { ModalService } from '../../core/modal-service.js?v=20260829.V1_20_0';
+} from '../../kpi-engine.js?v=20260830.V1_21_0';
+import { resolveKpiReviewer, canReviewKpiOwner } from '../../core/kpi-review-authority.js?v=20260830.V1_21_0';
+import { ModalService } from '../../core/modal-service.js?v=20260830.V1_21_0';
 
 export const KpiWorkflowState = {
   user: null,
@@ -897,6 +897,7 @@ function openPeriodManager() {
       <td><div class="kpi-actions">
         ${period.status==='PURGED'?'':`<button class="kpi-button secondary" type="button" data-period-edit="${esc(period.id)}">Sửa</button>`}
         ${period.active === true ? `<button class="kpi-button danger" type="button" data-period-complete="${esc(period.id)}">Kết thúc</button>` : !['COMPLETED','PURGED'].includes(period.status) ? `<button class="kpi-button" type="button" data-period-activate="${esc(period.id)}">Kích hoạt</button>` : ''}
+        ${activeRole('ADMIN') && period.status === 'COMPLETED' ? `<button class="kpi-button warning" type="button" data-period-reopen="${esc(period.id)}">Mở lại để điều chỉnh</button>` : ''}
       </div></td>
     </tr>`).join('');
   const root = modal('Quản lý kỳ đánh giá', `
@@ -908,9 +909,11 @@ function openPeriodManager() {
     const edit = event.target.closest('[data-period-edit]');
     const activate = event.target.closest('[data-period-activate]');
     const complete = event.target.closest('[data-period-complete]');
+    const reopen = event.target.closest('[data-period-reopen]');
     if (edit) return openEditPeriod(edit.dataset.periodEdit);
     if (activate) return activatePeriod(activate.dataset.periodActivate);
     if (complete) return completePeriodById(complete.dataset.periodComplete);
+    if (reopen) return reopenPeriodForCorrection(reopen.dataset.periodReopen);
   });
 }
 
@@ -942,6 +945,36 @@ async function activatePeriod(periodId) {
   PeriodReadService.invalidate();
   await audit('ACTIVATE_PERIOD',{periodId});
   closeModal(); await loadAll(); openPeriodManager();
+}
+
+async function reopenPeriodForCorrection(periodId) {
+  if (!activeRole('ADMIN')) return ModalService.alert('Chỉ ADMIN được mở lại kỳ đã kết thúc để sửa sai.');
+  const period = KpiWorkflowState.periods.find(item => item.id === periodId);
+  if (!period || period.status !== 'COMPLETED' || period.active === true) return ModalService.alert('Chỉ kỳ đã kết thúc mới được mở lại theo luồng sửa sai.');
+  if (KpiWorkflowState.periods.some(item => item.active === true && item.id !== periodId)) {
+    return ModalService.alert('Đang có một kỳ khác hoạt động. Hãy kết thúc kỳ đó trước khi mở lại kỳ cũ.');
+  }
+  const archiveSnap = await getDoc(doc(db, 'periodArchives', periodId));
+  if (archiveSnap.exists()) {
+    return ModalService.alert('Kỳ này đã có hồ sơ lưu trữ chính thức. Không được mở lại hoặc sửa trực tiếp dữ liệu đã archive.');
+  }
+  const reason = clean(await ModalService.prompt('Nhập lý do mở lại kỳ để điều chỉnh. Thao tác sẽ được ghi nhật ký.', { title:'Mở lại kỳ để điều chỉnh', confirmText:'Mở lại kỳ' }));
+  if (!reason) return;
+  if (!await ModalService.confirm(`Mở lại kỳ ${periodId} để xử lý sửa sai? Sau khi điều chỉnh phải thực hiện quy trình xác nhận và Kết thúc kỳ lại.`, { title:'Xác nhận mở lại kỳ', confirmText:'Mở lại', danger:true })) return;
+  await updateDoc(doc(db,'evaluationPeriods',periodId), {
+    active:true, status:'ACTIVE',
+    reopenedForCorrectionAt:serverTimestamp(),
+    reopenedForCorrectionByUserId:KpiWorkflowState.user.uid,
+    reopenedForCorrectionByName:KpiWorkflowState.profile?.fullName || KpiWorkflowState.user?.email || '',
+    reopenedForCorrectionReason:reason,
+    previousCompletedAt:period.completedAt || null,
+    updatedAt:serverTimestamp()
+  });
+  PeriodReadService.invalidate();
+  await audit('REOPEN_PERIOD_FOR_ADMIN_CORRECTION',{ periodId, reason });
+  closeModal();
+  await loadAll();
+  openPeriodManager();
 }
 
 async function completePeriodById(periodId) {
@@ -1779,23 +1812,43 @@ function openPersonPlanDetail(uid) {
     ...tasks.filter(task => !registrations.some(item => item.taskId === task.id)).map(item => ({ kind: 'task', ...item }))
   ];
 
+  const groupKeyFor = item => clean(item.registrationGroupId || item.standardTaskId || item.standardTaskCode || item.taskCode || item.id);
+  const groupCounts = rows.reduce((map, item) => {
+    const key = groupKeyFor(item);
+    map.set(key, (map.get(key) || 0) + 1);
+    return map;
+  }, new Map());
+  const emittedGroups = new Set();
+  const tableRows = rows.map(item => {
+    const key = groupKeyFor(item);
+    const count = groupCounts.get(key) || 1;
+    let groupHeader = '';
+    if (count > 1 && !emittedGroups.has(key)) {
+      emittedGroups.add(key);
+      const groupPending = registrations.filter(reg => groupKeyFor(reg) === key && reg.status === 'PENDING' && canApproveRegistration(reg));
+      const groupName = item.standardTaskName || item.title || '';
+      const groupCode = item.standardTaskCode || item.taskCode || '';
+      groupHeader = `<tr class="kpi-registration-group-row"><td colspan="7"><div><strong>${esc(groupCode)} — ${esc(groupName)}</strong><span>${count} công việc cá nhân</span>${groupPending.length ? `<button class="kpi-button danger" type="button" data-reject-registration-group="${esc(key)}">Không duyệt cả nhóm</button>` : ''}</div></td></tr>`;
+    }
+    const canManagerCancel = item.kind === 'registration' && canCancelRegistrationAsManager(item);
+    const personalLabel = count > 1 ? (item.title || item.description || item.standardTaskName || '') : (item.standardTaskName || item.title || '');
+    return `${groupHeader}<tr>
+      <td>${item.kind === 'registration' && item.status === 'PENDING' ? `<input type="checkbox" data-reg-review value="${esc(item.id)}" ${canApproveRegistration(item) ? 'checked' : 'disabled'}>` : '—'}</td>
+      <td>${count > 1 ? `<span class="kpi-small">Công việc cá nhân ${Number(item.personalItemOrder || 0) || ''}</span><br>` : `<strong>${esc(item.standardTaskCode || item.taskCode || '')}</strong><br>`}${esc(personalLabel)}</td>
+      <td>${fmt(item.baseScore)}</td><td>${coefficientPercent(item.difficultyCoefficient)}</td><td>${fmt(item.maximumConvertedScore)}</td>
+      <td>${esc(item.status === 'PENDING' ? 'Chờ duyệt' : item.status === 'REJECTED' ? 'Không duyệt' : item.planApprovalStatus === 'APPROVED' || item.status === 'APPROVED' ? 'Đã duyệt' : item.status || '')}</td>
+      <td>${item.kind === 'registration' && item.status === 'PENDING' && canApproveRegistration(item)
+        ? `<button class="kpi-button danger" type="button" data-registration-reject="${esc(item.id)}">Không duyệt</button>`
+        : canManagerCancel ? `<button class="kpi-button danger" type="button" data-cancel-registration-manager="${esc(item.id)}">Hủy đăng ký cho nhân viên</button>` : '—'}</td>
+    </tr>`;
+  }).join('');
+
   const root = modal(`Kế hoạch của ${user.fullName || ''}`, `
     <div class="registration-modal-tools">
       ${canApprove ? '<button id="regSelectAll" class="kpi-button secondary" type="button">Chọn tất cả</button><button id="regClearAll" class="kpi-button secondary" type="button">Bỏ chọn tất cả</button>' : ''}
     </div>
     <div class="kpi-table-wrap"><table class="kpi-table"><thead><tr><th>Duyệt</th><th>Đầu việc</th><th>Điểm chuẩn</th><th>Hệ số độ khó</th><th>Điểm tối đa</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>
-      ${rows.map(item => {
-        const canManagerCancel = item.kind === 'registration' && canCancelRegistrationAsManager(item);
-        return `<tr>
-          <td>${item.kind === 'registration' && item.status === 'PENDING' ? `<input type="checkbox" data-reg-review value="${esc(item.id)}" ${canApproveRegistration(item) ? 'checked' : 'disabled'}>` : '—'}</td>
-          <td><strong>${esc(item.standardTaskCode || item.taskCode || '')}</strong><br>${esc(item.standardTaskName || item.title || '')}</td>
-          <td>${fmt(item.baseScore)}</td><td>${coefficientPercent(item.difficultyCoefficient)}</td><td>${fmt(item.maximumConvertedScore)}</td>
-          <td>${esc(item.status === 'PENDING' ? 'Chờ duyệt' : item.status === 'REJECTED' ? 'Không duyệt' : item.planApprovalStatus === 'APPROVED' || item.status === 'APPROVED' ? 'Đã duyệt' : item.status || '')}</td>
-          <td>${item.kind === 'registration' && item.status === 'PENDING' && canApproveRegistration(item)
-            ? `<button class="kpi-button danger" type="button" data-registration-reject="${esc(item.id)}">Không duyệt</button>`
-            : canManagerCancel ? `<button class="kpi-button danger" type="button" data-cancel-registration-manager="${esc(item.id)}">Hủy đăng ký cho nhân viên</button>` : '—'}</td>
-        </tr>`;
-      }).join('')}
+      ${tableRows}
     </tbody></table></div>`,
     canApprove ? '<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button><button id="personProductCatalog" class="kpi-button secondary" type="button">Danh mục sản phẩm</button><button id="regApproveSelected" class="kpi-button" type="button">Duyệt mục đã chọn</button>' : '<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button><button id="personProductCatalog" class="kpi-button" type="button">Danh mục sản phẩm</button>'
   );
@@ -1803,6 +1856,24 @@ function openPersonPlanDetail(uid) {
   root.querySelector('#personProductCatalog')?.addEventListener('click', () => { closeModal(); openProductCatalog(uid); });
   root.querySelector('#regSelectAll')?.addEventListener('click', () => root.querySelectorAll('[data-reg-review]:not(:disabled)').forEach(input => { input.checked = true; }));
   root.querySelector('#regClearAll')?.addEventListener('click', () => root.querySelectorAll('[data-reg-review]').forEach(input => { input.checked = false; }));
+  root.querySelectorAll('[data-reject-registration-group]').forEach(button => {
+    button.addEventListener('click', async () => {
+      const key = button.dataset.rejectRegistrationGroup;
+      const groupPending = registrations.filter(item => groupKeyFor(item) === key && item.status === 'PENDING' && canApproveRegistration(item));
+      if (!groupPending.length) return;
+      const reason = await ModalService.prompt('Nhập lý do không duyệt toàn bộ nhóm công việc này:', { title:'Không duyệt cả nhóm', label:'Lý do', required:true, confirmText:'Không duyệt cả nhóm' });
+      if (!clean(reason)) return;
+      button.disabled = true;
+      try {
+        await TaskRegistrationService.rejectMany(groupPending, reason);
+        closeModal();
+        scheduleKpiLiveRender();
+      } catch (error) {
+        ModalService.alert(friendlyErrorMessage(error, 'Không thể từ chối toàn bộ nhóm đăng ký.'));
+        button.disabled = false;
+      }
+    });
+  });
   root.querySelectorAll('[data-registration-reject]').forEach(button => {
     button.addEventListener('click', async () => {
       const registration = registrations.find(item => item.id === button.dataset.registrationReject);
@@ -2093,10 +2164,7 @@ async function evidenceMapForTasks(tasks = []) {
 }
 
 function scorecardExceededLabel(evaluation) {
-  if (!evaluation) return '';
-  if (evaluation.confirmedExceededRequirement === true) return 'X';
-  if (evaluation.status === 'CONFIRMED' && evaluation.confirmedExceededRequirement === false) return '';
-  return evaluation.isExceededRequirement === true ? 'Đề nghị' : '';
+  return evaluation?.confirmedExceededRequirement === true ? 'X' : '';
 }
 
 function evidenceCellHtml(files = [], task = {}) {
@@ -2105,6 +2173,25 @@ function evidenceCellHtml(files = [], task = {}) {
   const links = files.slice(0,5).map(file => evidenceLinkHtml(file.fileUrl, file.fileName || 'Mở tệp')).filter(Boolean).join('<br>');
   const more = files.length > 5 ? `<span class="kpi-small">+${files.length - 5} tệp</span>` : '';
   return `${clean(task.evidenceText) ? `<span>${esc(task.evidenceText)}</span><br>` : ''}${safeHttpUrl(task.evidenceUrl || task.evidenceLink) ? evidenceLinkHtml(task.evidenceUrl || task.evidenceLink,'Mở liên kết')+'<br>' : ''}${links}${more}`;
+}
+
+function attachSynchronizedHorizontalScroll(root) {
+  const wrap = root?.querySelector('.kpi-scorecard-desktop .kpi-table-wrap');
+  const table = wrap?.querySelector('table');
+  if (!wrap || !table || wrap.dataset.syncScroll === '1') return;
+  wrap.dataset.syncScroll = '1';
+  const bar = document.createElement('div');
+  bar.className = 'kpi-scrollbar-top';
+  const track = document.createElement('div');
+  track.className = 'kpi-scrollbar-top-track';
+  bar.appendChild(track);
+  wrap.parentNode.insertBefore(bar, wrap);
+  const refresh = () => { track.style.width = `${Math.max(table.scrollWidth, wrap.clientWidth)}px`; };
+  bar.addEventListener('scroll', () => { if (wrap.scrollLeft !== bar.scrollLeft) wrap.scrollLeft = bar.scrollLeft; });
+  wrap.addEventListener('scroll', () => { if (bar.scrollLeft !== wrap.scrollLeft) bar.scrollLeft = wrap.scrollLeft; });
+  refresh();
+  window.setTimeout(refresh, 50);
+  window.addEventListener('resize', refresh, { once:true });
 }
 
 async function openUserScorecard(userId) {
@@ -2123,7 +2210,8 @@ async function openUserScorecard(userId) {
     const files = evidenceMap.get(task.id) || [];
     return `<article class="kpi-score-card"><strong>${esc(task.taskCode || '')} — ${esc(task.title || '')}</strong><div><span>Điểm chuẩn ${fmt(task.baseScore)}</span><span>Hệ số ${coefficientPercent(task.difficultyCoefficient)}</span><span>Tối đa ${fmt(task.maximumConvertedScore)}</span></div><div><span>Tiến độ ${applied.progressRate ?? '—'}%</span><span>Kết quả ${applied.resultRate ?? '—'}%</span><span>Điểm thực tế <b>${applied.hasScore ? fmt(applied.convertedActualScore) : '—'}</b></span></div><div><span>Vượt yêu cầu: <b>${esc(scorecardExceededLabel(evaluation) || 'Không')}</b></span><span>Minh chứng: ${files.length} tệp</span></div></article>`;
   }).join('');
-  modal(`Bảng KPI · ${user.fullName || user.email || ''}`, `<div class="kpi-scorecard-desktop"><div class="kpi-table-wrap"><table class="kpi-table kpi-wide-table"><thead><tr><th>STT</th><th>Tên công việc</th><th>Điểm chuẩn</th><th>Hệ số độ khó</th><th>Điểm quy đổi tối đa</th><th>Tiến độ</th><th>Kết quả</th><th>Điểm thực hiện</th><th>Điểm quy đổi thực tế</th><th>Vượt yêu cầu</th><th>Minh chứng</th></tr></thead><tbody>${rows || '<tr><td colspan="11">Chưa có nhiệm vụ KPI đã duyệt.</td></tr>'}</tbody></table></div></div><div class="kpi-scorecard-mobile">${cards || '<div class="kpi-empty">Chưa có nhiệm vụ KPI đã duyệt.</div>'}</div>`, '<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button>');
+  const root = modal(`Bảng KPI · ${user.fullName || user.email || ''}`, `<div class="kpi-scorecard-desktop"><div class="kpi-table-wrap"><table class="kpi-table kpi-wide-table"><thead><tr><th>STT</th><th>Tên công việc</th><th>Điểm chuẩn</th><th>Hệ số độ khó</th><th>Điểm quy đổi tối đa</th><th>Tiến độ</th><th>Kết quả</th><th>Điểm thực hiện</th><th>Điểm quy đổi thực tế</th><th>Vượt yêu cầu</th><th>Minh chứng</th></tr></thead><tbody>${rows || '<tr><td colspan="11">Chưa có nhiệm vụ KPI đã duyệt.</td></tr>'}</tbody></table></div></div><div class="kpi-scorecard-mobile">${cards || '<div class="kpi-empty">Chưa có nhiệm vụ KPI đã duyệt.</div>'}</div>`, '<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button>');
+  attachSynchronizedHorizontalScroll(root);
 }
 
 function periodQuarterLabel(period = {}) {
@@ -2161,14 +2249,37 @@ function productCatalogPeriodTitle(period = {}, departmentName = '') {
   return `DANH MỤC SẢN PHẨM CHUẨN QUÝ ${roman} ${clean(departmentName).toLocaleUpperCase('vi')} NĂM ${match[1]}`;
 }
 
+function productCatalogDeadlineLabel(task = {}) {
+  const fixedDeadline = clean(task.fixedDeadlineDateKey);
+  if (fixedDeadline) return dateVi(fixedDeadline);
+
+  const deadlineMode = clean(task.deadlineMode).toUpperCase();
+  const frequency = clean(task.frequency);
+  const completionDeadline = clean(task.completionDeadline);
+  const milestoneCount = Number(task.milestoneCount || 0);
+
+  // Đầu việc có nhiều mốc/lượt không được in ngày cuối cùng như thể đó là hạn duy nhất.
+  if (deadlineMode === 'EVENT_DRIVEN') return 'Theo từng lượt phát sinh';
+  if (deadlineMode.endsWith('_MILESTONES') || milestoneCount > 1) {
+    return [frequency, completionDeadline].filter(Boolean).join(' · ') || 'Theo các mốc trong kỳ';
+  }
+
+  const concreteDeadline = clean(task.deadlineDateKey);
+  if (concreteDeadline) return dateVi(concreteDeadline);
+  return completionDeadline || frequency || '';
+}
+
 async function openProductCatalog(userId = KpiWorkflowState.user.uid) {
   const user = KpiWorkflowState.users.find(item => item.id === userId) || (userId === KpiWorkflowState.user.uid ? KpiWorkflowState.profile : null);
   if (!user || !KpiWorkflowState.period) return;
   const tasks = productCatalogTasksForUser(userId);
   const departmentName = departmentDisplayName(user.departmentId);
-  const rows = tasks.map((task,index)=>`<tr><td>${index+1}</td><td><strong>${esc(task.taskCode || '')}</strong><br>${esc(task.title || task.standardTaskName || '')}</td><td>${esc(task.description || task.outputRequirement || task.standardTaskOutputRequirement || '')}</td><td>${esc(task.completionDeadline || (task.deadlineDateKey ? dateVi(task.deadlineDateKey) : task.frequency || ''))}</td><td>${esc(clean(task.workType).toUpperCase()==='DOT_XUAT'?'Đột xuất':'Thường xuyên')}</td><td>${fmt(task.baseScore)}</td><td>${coefficientPercent(task.difficultyCoefficient)}</td><td>${fmt(task.maximumConvertedScore)}</td><td>${esc(task.standardTaskMandatoryEvidence || task.mandatoryEvidence || '—')}</td></tr>`).join('');
+  const rows = tasks.map((task,index)=> {
+    const deadlineLabel = productCatalogDeadlineLabel(task);
+    return `<tr><td>${index+1}</td><td>${esc(task.title || task.standardTaskName || '')}</td><td>${esc(task.description || task.outputRequirement || task.standardTaskOutputRequirement || '')}</td><td>${esc(deadlineLabel)}</td><td>${esc(clean(task.workType).toUpperCase()==='DOT_XUAT'?'Đột xuất':'Thường xuyên')}</td><td>${fmt(task.baseScore)}</td><td>${coefficientPercent(task.difficultyCoefficient)}</td><td>${fmt(task.maximumConvertedScore)}</td><td>${esc(task.standardTaskMandatoryEvidence || task.mandatoryEvidence || '—')}</td></tr>`;
+  }).join('');
   const title = productCatalogPeriodTitle(KpiWorkflowState.period, departmentName);
-  modal('Danh mục sản phẩm cá nhân', `<div id="kpiProductCatalogPrint" class="kpi-product-report kpi-report-print"><div class="kpi-product-heading"><strong>TRUNG TÂM BẢO TRỢ XÃ HỘI TÂN HIỆP</strong><h2>${esc(title)}</h2><p><strong>Họ và tên:</strong> ${esc(user.fullName || '')}</p><p><strong>Chức vụ:</strong> ${esc(userPositionWithDepartment(user))}</p></div><div class="kpi-table-wrap"><table class="kpi-report-table kpi-product-table"><thead><tr><th>TT</th><th>Tên công việc</th><th>Kết quả đầu ra</th><th>Thời hạn hoàn thành</th><th>Loại công việc</th><th>Điểm chuẩn</th><th>Hệ số độ khó</th><th>Điểm quy đổi tối đa</th><th>Minh chứng</th></tr></thead><tbody>${rows || '<tr><td colspan="9">Chưa có nhiệm vụ được duyệt.</td></tr>'}</tbody></table></div><div class="kpi-product-totals"><p><strong>Tổng số nhiệm vụ thực hiện trong kỳ:</strong> ${tasks.length}</p><p><strong>Tổng số nhiệm vụ vượt tiến độ/chất lượng:</strong> ${exceededSummaryForUser(userId,{officialOnly:true}).exceededTasks}</p></div><div class="kpi-product-signatures"><div><strong>XÁC NHẬN CỦA LÃNH ĐẠO, ĐƠN VỊ</strong><br><em>(Ký, ghi rõ họ tên)</em></div><div><strong>NGƯỜI LẬP DANH MỤC SẢN PHẨM</strong><br><em>(Ký, ghi rõ họ tên)</em><br><br><strong>${esc(user.fullName || '')}</strong></div></div></div>`, '<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button><button id="kpiPrintProductCatalog" class="kpi-button" type="button">🖨️ In danh mục</button>');
+  modal('Danh mục sản phẩm cá nhân', `<div id="kpiProductCatalogPrint" class="kpi-product-report kpi-report-print"><div class="kpi-product-heading"><strong>TRUNG TÂM BẢO TRỢ XÃ HỘI TÂN HIỆP</strong><h2>${esc(title)}</h2><p><strong>Họ và tên:</strong> ${esc(user.fullName || '')}</p><p><strong>Chức vụ:</strong> ${esc(userPositionWithDepartment(user))}</p></div><div class="kpi-table-wrap"><table class="kpi-report-table kpi-product-table"><thead><tr><th>TT</th><th>Tên công việc</th><th>Kết quả đầu ra</th><th>Thời hạn hoàn thành</th><th>Loại công việc</th><th>Điểm chuẩn</th><th>Hệ số độ khó</th><th>Điểm quy đổi tối đa</th><th>Minh chứng</th></tr></thead><tbody>${rows || '<tr><td colspan="9">Chưa có nhiệm vụ được duyệt.</td></tr>'}</tbody></table></div><div class="kpi-product-totals"><p><strong>Tổng số nhiệm vụ thực hiện trong kỳ:</strong> ${tasks.length}</p><p><strong>Tổng số nhiệm vụ vượt tiến độ/chất lượng:</strong> ${exceededSummaryForUser(userId,{officialOnly:true}).exceededTasks}</p></div><div class="kpi-product-signatures"><div><strong>XÁC NHẬN CỦA LÃNH ĐẠO, ĐƠN VỊ</strong><br><em>(Ký, ghi rõ họ tên)</em><div class="kpi-signature-space"></div></div><div><strong>NGƯỜI LẬP DANH MỤC SẢN PHẨM</strong><br><em>(Ký, ghi rõ họ tên)</em><div class="kpi-signature-space"></div><strong>${esc(user.fullName || '')}</strong></div></div></div>`, '<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button><button id="kpiPrintProductCatalog" class="kpi-button" type="button">🖨️ In danh mục</button>');
   el('kpiPrintProductCatalog')?.addEventListener('click',()=>window.print());
 }
 
@@ -2863,16 +2974,15 @@ async function openReview(evalId) {
     <div class="kpi-field full" id="kpiExceededReasonField"><label>Căn cứ khi không xác nhận</label><textarea id="kpiExceededDecisionReason" rows="3"></textarea></div>
   </div>`;
 
-  const root = modal('Xác nhận điểm nhiệm vụ', `<form class="kpi-form-grid"><div class="kpi-field full kpi-assessment-task-heading"><strong>${esc(task.ownerName)} · ${esc(task.title)}</strong><span>Tiến độ ${ev.selfProgressRate}% · Kết quả ${ev.selfResultRate}% · Điểm quy đổi tự đánh giá ${fmt(ev.selfActualScore)}</span></div>
+  const root = modal('Xác nhận điểm nhiệm vụ', `<form class="kpi-form-grid kpi-review-form">
+    <section class="kpi-review-section full"><header><strong>Thông tin nhiệm vụ</strong></header><div class="kpi-assessment-task-heading"><strong>${esc(task.ownerName)}</strong><span>${esc(task.title)}</span></div><div class="kpi-review-metrics"><div><span>Tiến độ tự đánh giá</span><strong>${ev.selfProgressRate}%</strong></div><div><span>Kết quả tự đánh giá</span><strong>${ev.selfResultRate}%</strong></div><div><span>Điểm tự đánh giá</span><strong>${fmt(ev.selfActualScore)}</strong></div></div></section>
     <input id="kpiConfirmProgress" type="hidden" value="${automaticProgress}">
-    <div class="kpi-field"><label>Tiến độ xác nhận</label><div class="kpi-readonly-value"><strong>${automaticProgress}%</strong></div><small>Hệ thống tự tính; người xác nhận không chỉnh sửa.</small></div>
-    <div class="kpi-field"><label>Kết quả xác nhận</label><select id="kpiConfirmResult">${appendixRateOptions(Number(ev.confirmedResultRate??ev.selfResultRate))}</select><small>Nếu điều chỉnh khác tự đánh giá, cần nêu căn cứ.</small></div>
-    <div class="kpi-field full">${reviewEvidenceHtml(task, context)}</div>
+    <section class="kpi-review-section full"><header><strong>Xác nhận kết quả</strong></header><div class="kpi-review-two-cols"><div class="kpi-field"><label>Tiến độ xác nhận</label><div class="kpi-readonly-value"><strong>${automaticProgress}%</strong></div></div><div class="kpi-field"><label>Kết quả xác nhận</label><select id="kpiConfirmResult">${appendixRateOptions(Number(ev.confirmedResultRate??ev.selfResultRate))}</select></div></div></section>
+    <section class="kpi-review-section full"><header><strong>Minh chứng thực hiện</strong></header>${reviewEvidenceHtml(task, context)}</section>
     ${exceededHtml}
     ${bonusRequestHtml}
-    <div class="kpi-field full"><label>Nhận xét/căn cứ</label><textarea id="kpiReviewerComment" rows="4">${esc(ev.reviewerComment||'')}</textarea></div>
-    <div class="kpi-field full"><div id="kpiConfirmScore"></div></div>
-    <div class="kpi-field full"><div class="kpi-confirm-once"><strong>Xác nhận một lần</strong><span>Sau khi xác nhận, điểm nhiệm vụ, công việc vượt yêu cầu và quyết định điểm thưởng trở thành kết quả chính thức.</span></div></div></form>`,
+    <section class="kpi-review-section full"><header><strong>Nhận xét / căn cứ</strong></header><textarea id="kpiReviewerComment" rows="4">${esc(ev.reviewerComment||'')}</textarea></section>
+    <div class="kpi-field full"><div id="kpiConfirmScore"></div></div></form>`,
     '<button id="kpiNeedRevision" class="kpi-button secondary" type="button">Yêu cầu bổ sung</button><button class="kpi-button secondary" data-kpi-close type="button">Hủy</button><button id="kpiConfirmEvaluation" class="kpi-button" type="button">Xác nhận điểm</button>');
 
   const recalc = () => {
@@ -2882,8 +2992,8 @@ async function openReview(evalId) {
       const decision = el('kpiBonusDecision')?.value || 'APPROVED';
       const bonus = decision === 'APPROVED' ? calculateBonusScore(x.actual, 0.05) : 0;
       el('kpiBonusPreview').innerHTML = decision === 'APPROVED'
-        ? `<strong>Điểm thưởng chính thức nếu chấp thuận: +${fmt(bonus)}</strong><span>5% × ${fmt(x.actual)} điểm KPI thực tế đã xác nhận.</span>`
-        : '<strong>Điểm thưởng: 0</strong><span>Điểm nhiệm vụ vẫn được xác nhận bình thường.</span>';
+        ? `<strong>Điểm thưởng xác nhận: +${fmt(bonus)}</strong>`
+        : '<strong>Điểm thưởng xác nhận: 0</strong>';
       el('kpiBonusRejectReasonField')?.classList.toggle('kpi-hidden', decision !== 'REJECTED');
     }
     const exceededDecision = el('kpiExceededDecision')?.value || (exceededRequested ? 'APPROVED' : 'NOT_REQUESTED');
