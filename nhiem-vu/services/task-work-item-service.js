@@ -1,15 +1,15 @@
 /** Quản lý các lượt công việc phát sinh bên trong một nhiệm vụ KPI. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260829.V1_20_0";
-import { UserContext } from "../core/user-context.js?v=20260829.V1_20_0";
-import { Permissions } from "../core/permissions.js?v=20260829.V1_20_0";
-import { progressRateFromDates } from "../kpi-engine.js?v=20260829.V1_20_0";
+import { FirebaseService } from "../core/firebase-service.js?v=20260830.V1_21_0";
+import { UserContext } from "../core/user-context.js?v=20260830.V1_21_0";
+import { Permissions } from "../core/permissions.js?v=20260830.V1_21_0";
+import { progressRateFromDates } from "../kpi-engine.js?v=20260830.V1_21_0";
 import {
   ATTENDANCE_STATUSES,
   WORK_ITEM_TYPES,
   calculateWorkItemSummary,
   convertActualRate,
   normalizeWorkItemType
-} from "../work-item-score-engine.js?v=20260829.V1_20_0";
+} from "../work-item-score-engine.js?v=20260830.V1_21_0";
 
 const COLLECTION = "taskWorkItems";
 const ALLOWED_RATES = Object.freeze([100, 80, 60, 0]);
@@ -218,14 +218,22 @@ export const TaskWorkItemService = Object.freeze({
     const attendanceStatus = String(data.attendanceStatus || "").toUpperCase();
     let title = clean(data.title, 500);
 
+    const deadlineCeilingDateKey = dateKey(task?.deadlineCeilingDateKey || task?.fixedDeadlineDateKey);
+
     if (workItemType === WORK_ITEM_TYPES.ATTENDANCE) {
       if (!sessionDateKey) throw new Error("Hãy chọn ngày tổ chức hoạt động.");
+      if (deadlineCeilingDateKey && sessionDateKey > deadlineCeilingDateKey) {
+        throw new Error("Ngày hoạt động không được vượt quá hạn cuối Ban Giám đốc giao.");
+      }
       if (!ATTENDANCE_STATUSES.includes(attendanceStatus)) {
         throw new Error("Hãy chọn tình trạng tham dự.");
       }
       title = title || `Hoạt động ngày ${sessionDateKey.split("-").reverse().join("/")}`;
     } else {
       validateDates(assignedDateKey, deadlineDateKey, completedDateKey);
+      if (deadlineCeilingDateKey && deadlineDateKey > deadlineCeilingDateKey) {
+        throw new Error("Hạn của lượt công việc không được vượt quá hạn cuối Ban Giám đốc giao.");
+      }
       if (workItemType === WORK_ITEM_TYPES.QUANTITY) {
         if (!reportingPeriod) throw new Error("Hãy chọn tháng ghi nhận sản lượng.");
         if (finiteNumber(data.plannedQuantity) <= 0) {

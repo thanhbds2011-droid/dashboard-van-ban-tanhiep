@@ -5,12 +5,12 @@
  * - Bí thư, Phó Bí thư và Ủy viên BCH được tạo đầu việc trong phạm vi Chi đoàn.
  * - Quyền tạo, sửa và xóa được tách riêng; Firestore Rules là lớp bảo vệ cuối cùng.
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260829.V1_20_0";
-import { UserContext } from "../core/user-context.js?v=20260829.V1_20_0";
-import { Permissions } from "../core/permissions.js?v=20260829.V1_20_0";
-import { validateDeadlineConfiguration, isEventDrivenFrequency, canonicalFrequency, isStandardFrequency } from "../core/deadline-engine.js?v=20260829.V1_20_0";
+import { FirebaseService } from "../core/firebase-service.js?v=20260830.V1_21_0";
+import { UserContext } from "../core/user-context.js?v=20260830.V1_21_0";
+import { Permissions } from "../core/permissions.js?v=20260830.V1_21_0";
+import { validateDeadlineConfiguration, isEventDrivenFrequency, canonicalFrequency, isStandardFrequency } from "../core/deadline-engine.js?v=20260830.V1_21_0";
 
-const SYNC_VERSION = "20260829.V1_20_0";
+const SYNC_VERSION = "20260830.V1_21_0";
 const MAX_STANDARD_TASK_NAME_LENGTH = 1000;
 const STANDARD_TASK_COLLECTION = "standardTasks";
 const SEQUENCE_COLLECTION = "standardTaskSequences";
@@ -357,7 +357,6 @@ function taskPayload({ data, user, departmentId, code, sequence, existing = fals
     workType,
     outputRequirement: clean(data.outputRequirement),
     mandatoryEvidence: clean(data.mandatoryEvidence),
-    arisingEvidence: clean(data.arisingEvidence),
     trackingMode,
     workItemType,
     quantityUnit,
@@ -494,29 +493,50 @@ export const StandardTaskWriteService = Object.freeze({
   async saveDelegation({ delegateUserId, startDate, endDate, reason, permissions = ["CREATE_STANDARD_TASKS"] }) {
     const user = UserContext.requireUser();
     if (!Permissions.canDelegateStandardTaskEditor(user)) {
-      throw new Error("Chỉ người có Quyền phê duyệt tại đơn vị được ủy quyền thêm đầu việc.");
+      throw new Error("Chỉ Trưởng/Phụ trách đơn vị được ủy quyền nhập Danh mục công việc.");
     }
     if (!clean(delegateUserId)) throw new Error("Hãy chọn Phó/Nhân viên được ủy quyền.");
     if (!clean(startDate) || !clean(endDate) || startDate > endDate) {
       throw new Error("Thời gian ủy quyền chưa hợp lệ.");
     }
     if (!clean(reason)) throw new Error("Hãy nhập lý do ủy quyền.");
-    const normalizedPermissions = [...new Set((permissions || []).map(upper).filter(value => STANDARD_TASK_DELEGATION_PERMISSIONS.includes(value)))];
+    const normalizedPermissions = [...new Set((permissions || []).map(upper).filter(value => STANDARD_TASK_DELEGATION_PERMISSIONS.includes(value) && value !== "MANAGE_STANDARD_TASKS"))];
     if (!normalizedPermissions.length) throw new Error("Hãy chọn ít nhất một phạm vi quyền được ủy quyền.");
 
-    const candidates = await this.listDelegationCandidates();
-    const delegate = candidates.find(item => item.id === delegateUserId);
-    if (!delegate) throw new Error("Người được chọn không còn đủ điều kiện nhận ủy quyền.");
-
     const departmentId = upper(user.departmentId);
-    const reference = FirebaseService.doc(
-      FirebaseService.db,
-      "approvalDelegations",
-      delegationDocumentId(departmentId)
-    );
-    const existing = await FirebaseService.getDoc(reference);
+    if (!departmentId || departmentId === "BGD" || departmentId === "CDTN") {
+      throw new Error("Ủy quyền nhập danh mục này chỉ áp dụng trong Phòng/Khu chuyên môn.");
+    }
 
-    await FirebaseService.setDoc(reference, {
+    // Preflight từ document users là cùng nguồn mà Firestore Rules sử dụng.
+    const currentSnapshot = await FirebaseService.getDoc(FirebaseService.doc(FirebaseService.db, "users", user.uid));
+    if (!currentSnapshot.exists()) throw new Error("Không tìm thấy hồ sơ quyền của tài khoản đang đăng nhập.");
+    const currentProfile = { id: currentSnapshot.id, ...currentSnapshot.data() };
+    if (currentProfile.active !== true || upper(currentProfile.departmentId) !== departmentId || !Permissions.isDepartmentHead(currentProfile)) {
+      throw new Error("Tài khoản hiện chưa được hệ thống nhận diện là Trưởng/Phụ trách đơn vị. Hãy đồng bộ lại Danh mục tài khoản trước khi ủy quyền.");
+    }
+
+    const delegateSnapshot = await FirebaseService.getDoc(FirebaseService.doc(FirebaseService.db, "users", delegateUserId));
+    if (!delegateSnapshot.exists()) throw new Error("Không tìm thấy hồ sơ người nhận ủy quyền.");
+    const delegate = { id: delegateSnapshot.id, ...delegateSnapshot.data() };
+    if (delegate.active !== true) throw new Error("Người nhận ủy quyền đang ở trạng thái không hoạt động.");
+    if (upper(delegate.departmentId) !== departmentId) throw new Error("Người nhận ủy quyền phải thuộc cùng Phòng/Khu.");
+    if (!(["STAFF", "TCHC_COORDINATOR"].includes(upper(delegate.role)) || Permissions.isDepartmentDeputy(delegate))) {
+      throw new Error("Người nhận phải là Phó Trưởng phòng/Phó Trưởng khu hoặc nhân viên cùng đơn vị.");
+    }
+    if (delegate.id === user.uid) throw new Error("Không thể tự ủy quyền cho chính mình.");
+
+    const reference = FirebaseService.doc(FirebaseService.db, "approvalDelegations", delegationDocumentId(departmentId));
+    const existing = await FirebaseService.getDoc(reference);
+    const existingData = existing.exists() ? existing.data() : {};
+    const legacy = existing.exists() && (
+      upper(existingData.delegationType) !== "STANDARD_TASK_EDITOR"
+      || upper(existingData.departmentId) !== departmentId
+      || !Array.isArray(existingData.permissions)
+    );
+
+    const payload = {
+      schemaVersion: 3,
       delegationType: "STANDARD_TASK_EDITOR",
       departmentId,
       delegatorUserId: user.uid,
@@ -536,11 +556,28 @@ export const StandardTaskWriteService = Object.freeze({
       revokedAt: null,
       revokedByUserId: "",
       revokedByName: "",
-      createdAt: existing.exists() ? (existing.data().createdAt || FirebaseService.serverTimestamp()) : FirebaseService.serverTimestamp(),
-      createdBy: existing.exists() ? (existing.data().createdBy || user.uid) : user.uid,
+      legacyNormalized: legacy,
+      legacyNormalizedAt: legacy ? FirebaseService.serverTimestamp() : (existingData.legacyNormalizedAt || null),
+      createdAt: existing.exists() ? (existingData.createdAt || FirebaseService.serverTimestamp()) : FirebaseService.serverTimestamp(),
+      createdBy: existing.exists() ? (existingData.createdBy || user.uid) : user.uid,
       updatedAt: FirebaseService.serverTimestamp(),
       updatedBy: user.uid
-    }, { merge: true });
+    };
+
+    await FirebaseService.setDoc(reference, payload, { merge: false });
+
+    const readBack = await FirebaseService.getDoc(reference);
+    if (!readBack.exists()) throw new Error("Đã ghi nhưng không đọc lại được hồ sơ ủy quyền.");
+    const saved = readBack.data();
+    if (
+      saved.active !== true
+      || saved.delegateUserId !== delegate.id
+      || upper(saved.departmentId) !== departmentId
+      || !normalizedPermissions.every(permission => (saved.permissions || []).includes(permission))
+    ) {
+      throw new Error("Hồ sơ ủy quyền sau khi lưu chưa khớp thông tin đã chọn. Vui lòng bấm Cập nhật và thử lại.");
+    }
+    return { id: readBack.id, ...saved, legacyNormalized: legacy };
   },
 
   async revokeDelegation() {
@@ -699,12 +736,13 @@ export const StandardTaskWriteService = Object.freeze({
     }
 
     const reference = FirebaseService.doc(FirebaseService.db, STANDARD_TASK_COLLECTION, taskId);
-    const hasHistory = await taskHasHistory(task);
 
     /*
-     * Người quản lý nghiệp vụ luôn gỡ mềm để giữ audit. Chỉ ADMIN được xóa cứng
-     * một mã hoàn toàn chưa phát sinh dữ liệu, phù hợp lớp bảo vệ trong Rules.
+     * Người quản lý nghiệp vụ luôn gỡ mềm để giữ audit. Không chạy query lịch sử rộng
+     * cho non-ADMIN vì phạm vi đọc của HEAD/DEPUTY không bao quát dữ liệu người khác.
+     * Chỉ ADMIN mới kiểm tra lịch sử để cân nhắc hard-delete mã chưa từng sử dụng.
      */
+    const hasHistory = Permissions.isAdmin(user) ? await taskHasHistory(task) : true;
     if (hasHistory || !Permissions.isAdmin(user)) {
       await FirebaseService.updateDoc(reference, {
         active: false,

@@ -1,11 +1,11 @@
-import { FirebaseService } from "../core/firebase-service.js?v=20260829.V1_20_0";
-import { UserContext } from "../core/user-context.js?v=20260829.V1_20_0";
-import { Permissions } from "../core/permissions.js?v=20260829.V1_20_0";
-import { TaskLogService } from "./task-log-service.js?v=20260829.V1_20_0";
-import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260829.V1_20_0";
-import { PeriodReadService } from "./period-read-service.js?v=20260829.V1_20_0";
-import { APP_VERSION } from "../core/app-version.js?v=20260829.V1_20_0";
-import { deriveDeadlinePlan, deadlineDateFromKey, isDateKey, requiresManualDeadline, isEventDrivenFrequency, canonicalFrequency } from "../core/deadline-engine.js?v=20260829.V1_20_0";
+import { FirebaseService } from "../core/firebase-service.js?v=20260830.V1_21_0";
+import { UserContext } from "../core/user-context.js?v=20260830.V1_21_0";
+import { Permissions } from "../core/permissions.js?v=20260830.V1_21_0";
+import { TaskLogService } from "./task-log-service.js?v=20260830.V1_21_0";
+import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260830.V1_21_0";
+import { PeriodReadService } from "./period-read-service.js?v=20260830.V1_21_0";
+import { APP_VERSION } from "../core/app-version.js?v=20260830.V1_21_0";
+import { deriveDeadlinePlan, deadlineDateFromKey, isDateKey, requiresManualDeadline, isEventDrivenFrequency, canonicalFrequency } from "../core/deadline-engine.js?v=20260830.V1_21_0";
 
 const clean = value => String(value ?? "").trim();
 const upper = value => clean(value).toUpperCase();
@@ -62,8 +62,20 @@ function dateAtEnd(value) {
   return match ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 23, 59, 59) : null;
 }
 
-function registrationId(periodId, uid, standardTaskId) {
-  return `${periodId}_${uid}_${standardTaskId}`.replace(/[^A-Za-z0-9_-]/g, "_");
+function registrationId(periodId, uid, standardTaskId, personalItemId = "") {
+  const suffix = clean(personalItemId);
+  return `${periodId}_${uid}_${standardTaskId}${suffix ? `_${suffix}` : ""}`.replace(/[^A-Za-z0-9_-]/g, "_");
+}
+
+function personalItemId(value = "") {
+  const normalized = clean(value).replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 80);
+  return normalized || "";
+}
+
+function directiveKpiStandardTask(item, periodId = "") {
+  return upper(item?.sourceType) === "EXECUTIVE_DIRECTIVE"
+    && clean(item?.sourceDirectiveId)
+    && clean(item?.sourcePeriodId) === clean(periodId);
 }
 
 function taskLogRef() {
@@ -552,7 +564,8 @@ function registrationDeadlinePlan(registration) {
     completionDeadline: registration?.completionDeadline || "",
     periodStartDate,
     periodEndDate,
-    manualDeadlineDateKey: clean(registration?.manualDeadlineDateKey)
+    manualDeadlineDateKey: clean(registration?.manualDeadlineDateKey),
+    fixedDeadlineDateKey: clean(registration?.fixedDeadlineDateKey)
   });
   const storedDeadlineDateKey = clean(registration?.deadlineDateKey);
   const storedMode = clean(registration?.deadlineMode);
@@ -625,6 +638,16 @@ function taskPayload(registration, reviewer, options = {}) {
       sourceType: "DANG_KY_KE_HOACH",
       sourceReference: registration.standardTaskCode || "",
       sourceDetail: isUnexpected ? "Đầu việc đột xuất trong danh mục được cá nhân đăng ký, phê duyệt và tính vào A." : "Đầu việc thường xuyên do cá nhân đăng ký và được phê duyệt.",
+      standardTaskId: registration.standardTaskId || registration.standardTaskCode || "",
+      registrationGroupId: clean(registration.registrationGroupId),
+      personalizationMode: clean(registration.personalizationMode || "DIRECT") || "DIRECT",
+      personalItemId: clean(registration.personalItemId),
+      personalItemOrder: Number(registration.personalItemOrder || 1),
+      sourceStandardTaskType: clean(registration.sourceType),
+      sourceDirectiveId: clean(registration.sourceDirectiveId),
+      sourcePeriodId: clean(registration.sourcePeriodId),
+      fixedDeadlineDateKey: clean(registration.fixedDeadlineDateKey),
+      deadlineCeilingDateKey: clean(registration.deadlineCeilingDateKey || registration.fixedDeadlineDateKey),
       sourceDate: FirebaseService.Timestamp.fromDate(new Date()),
       sourceDateKey: dateKey(new Date()),
       entryMode: "SELF_REGISTERED_APPROVED",
@@ -916,9 +939,14 @@ export const TaskRegistrationService = Object.freeze({
       departmentId,
       await departmentPlan(period.id, departmentId)
     ])));
-    const lockedWorkspace = workspaceIds.find(departmentId => plans[departmentId]?.locked === true);
-    if (lockedWorkspace) {
-      throw new Error(`Đăng ký kế hoạch của ${lockedWorkspace === "CDTN" ? "Chi đoàn" : lockedWorkspace} đã được khóa.`);
+
+    const blockedItem = items.find(item => {
+      const workspaceId = StandardTaskReadService.workspaceId(item, user);
+      return plans[workspaceId]?.locked === true && !directiveKpiStandardTask(item, period.id);
+    });
+    if (blockedItem) {
+      const workspaceId = StandardTaskReadService.workspaceId(blockedItem, user);
+      throw new Error(`Đăng ký kế hoạch của ${workspaceId === "CDTN" ? "Chi đoàn" : workspaceId} đã được khóa.`);
     }
 
     const batch = FirebaseService.writeBatch(FirebaseService.db);
@@ -929,84 +957,136 @@ export const TaskRegistrationService = Object.freeze({
       if (!StandardTaskReadService.canRegisterItem(item, user)) {
         throw new Error(`Vai trò hiện tại không thuộc đối tượng đăng ký đầu việc ${item.code || item.id || ""}.`);
       }
+
       const workspaceId = StandardTaskReadService.workspaceId(item, user);
-      const id = registrationId(period.id, user.uid, item.id || item.code);
       const workType = standardWorkType(item.workType);
       const autoApprove = workspaceId === "CDTN"
         ? Permissions.isCdtnLeadership()
         : (Permissions.isDepartmentHead(user) || (Permissions.isDirector() && workspaceId === "BGD"));
       const itemKey = String(item.id || item.code || "");
-      const manualDeadlineDateKey = clean(options?.manualDeadlines?.[itemKey]);
-      const deadlinePlan = deriveDeadlinePlan({
-        frequency: item.frequency || "",
-        completionDeadline: item.completionDeadline || "",
-        periodStartDate: period.startDate,
-        periodEndDate: period.endDate,
-        manualDeadlineDateKey
-      });
-      const registration = {
-        id,
-        periodId: period.id,
-        periodName: period.name || period.id,
-        periodStartDate: period.startDate || "",
-        periodEndDate: period.endDate || "",
-        frequency: canonicalFrequency(item.frequency) || (deadlinePlan.mode === "EVENT_DRIVEN" ? "Khi phát sinh" : (item.frequency || "")),
-        completionDeadline: deadlinePlan.mode === "EVENT_DRIVEN" ? "" : deadlinePlan.completionDeadline,
-        deadlineMode: deadlinePlan.mode,
-        deadlineDateKey: deadlinePlan.deadlineDateKey,
-        milestoneDateKeys: deadlinePlan.milestoneDateKeys,
-        manualDeadlineDateKey: manualDeadlineDateKey || "",
-        standardTaskId: item.id || item.code,
-        standardTaskCode: item.code || item.id,
-        standardTaskName: item.name || "",
-        standardTaskDepartmentId: item.departmentId || workspaceId,
-        audienceType: clean(item.audienceType),
-        isCoreTaskDefault: item.isCoreTaskDefault === true,
-        isManagementTask: item.isManagementTask === true,
-        title: clean(options?.personalDetails?.[itemKey]?.title) || item.name || "",
-        description: clean(options?.personalDetails?.[itemKey]?.description) || item.outputRequirement || "",
-        departmentId: workspaceId,
-        homeDepartmentId: user.departmentId || "",
-        organizationId: workspaceId === "CDTN" ? "CDTN" : "",
-        teamId: user.teamId || "",
-        userId: user.uid,
-        userName: user.fullName || "",
-        userPosition: user.position || "",
-        userRole: user.role || "",
-        userLeaderLevel: user.leaderLevel || "",
-        userApprovalAuthority: user.approvalAuthority || "",
-        userIsDepartmentHead: user.isDepartmentHead === true,
-        userAdditionalRoles: Array.isArray(user.additionalRoles) ? user.additionalRoles : [],
-        workType,
-        planType: workType === "DOT_XUAT" ? "DOT_XUAT" : "KE_HOACH",
-        includedInA: true,
-        baseScore: Number(item.baseScore || 0),
-        difficultyCoefficient: Number(item.difficultyCoefficient || 1),
-        maximumConvertedScore: Number(item.maximumConvertedScore || item.baseScore || 0),
-        mandatoryEvidence: item.mandatoryEvidence || "",
-        trackingMode: deadlinePlan.mode === "EVENT_DRIVEN"
-          ? "ITEMIZED"
-          : (String(item.trackingMode || "FINAL_OUTPUT").toUpperCase() === "ITEMIZED" ? "ITEMIZED" : "FINAL_OUTPUT"),
-        workItemType: String(item.workItemType || "GENERIC").toUpperCase(),
-        quantityUnit: String(item.quantityUnit || "").trim(),
-        status: "PENDING",
-        taskId: null,
-        active: true,
-        autoApproved: autoApprove,
-        registeredAt: FirebaseService.serverTimestamp(),
-        createdAt: FirebaseService.serverTimestamp(),
-        createdByUserId: user.uid,
-        updatedAt: FirebaseService.serverTimestamp()
-      };
-      batch.set(FirebaseService.doc(FirebaseService.db, "taskRegistrations", id), registration, { merge: true });
-      registrations.push(registration);
-      if (autoApprove) autoApproved.push(registration);
+      const suppliedRows = Array.isArray(options?.personalItems?.[itemKey])
+        ? options.personalItems[itemKey].filter(Boolean)
+        : [];
+      const legacyDetail = options?.personalDetails?.[itemKey] || null;
+      const rows = suppliedRows.length
+        ? suppliedRows
+        : [{
+            title: clean(legacyDetail?.title) || item.name || "",
+            description: clean(legacyDetail?.description) || item.outputRequirement || "",
+            frequency: item.frequency || "",
+            completionDeadline: item.completionDeadline || "",
+            manualDeadlineDateKey: clean(options?.manualDeadlines?.[itemKey]),
+            fixedDeadlineDateKey: clean(item.fixedDeadlineDateKey),
+            personalizationMode: "DIRECT",
+            personalItemId: ""
+          }];
+
+      const groupMode = rows.length > 1 || rows.some(row => upper(row?.personalizationMode) === "GROUPED");
+      const groupId = registrationId(period.id, user.uid, item.id || item.code);
+
+      for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
+        const row = rows[rowIndex] || {};
+        const pItemId = groupMode
+          ? personalItemId(row.personalItemId || `item${String(rowIndex + 1).padStart(2, "0")}`)
+          : "";
+        const id = registrationId(period.id, user.uid, item.id || item.code, pItemId);
+        const frequency = canonicalFrequency(row.frequency || item.frequency) || row.frequency || item.frequency || "";
+        const completionDeadline = clean(row.completionDeadline !== undefined ? row.completionDeadline : item.completionDeadline);
+        const manualDeadlineDateKey = clean(row.manualDeadlineDateKey);
+        const inheritedFixedDeadline = clean(item.fixedDeadlineDateKey);
+        const requestedFixedDeadline = clean(row.fixedDeadlineDateKey);
+        const fixedDeadlineDateKey = groupMode
+          ? requestedFixedDeadline
+          : (inheritedFixedDeadline || requestedFixedDeadline);
+
+        if (inheritedFixedDeadline && requestedFixedDeadline && requestedFixedDeadline > inheritedFixedDeadline) {
+          throw new Error(`Hạn hoàn thành của “${clean(row.title) || item.name || item.code}” không được vượt quá hạn Ban Giám đốc giao.`);
+        }
+
+        const effectivePeriodEndDate = inheritedFixedDeadline && inheritedFixedDeadline < clean(period.endDate)
+          ? inheritedFixedDeadline
+          : period.endDate;
+        const deadlinePlan = deriveDeadlinePlan({
+          frequency,
+          completionDeadline,
+          periodStartDate: period.startDate,
+          periodEndDate: effectivePeriodEndDate,
+          manualDeadlineDateKey,
+          fixedDeadlineDateKey
+        });
+
+        const registration = {
+          id,
+          periodId: period.id,
+          periodName: period.name || period.id,
+          periodStartDate: period.startDate || "",
+          periodEndDate: period.endDate || "",
+          frequency,
+          completionDeadline: deadlinePlan.mode === "EVENT_DRIVEN" ? "" : deadlinePlan.completionDeadline,
+          deadlineMode: deadlinePlan.mode,
+          deadlineDateKey: deadlinePlan.deadlineDateKey,
+          milestoneDateKeys: deadlinePlan.milestoneDateKeys,
+          manualDeadlineDateKey: manualDeadlineDateKey || "",
+          fixedDeadlineDateKey: fixedDeadlineDateKey || "",
+          deadlineCeilingDateKey: inheritedFixedDeadline || "",
+          registrationGroupId: groupId,
+          personalizationMode: groupMode ? "GROUPED" : "DIRECT",
+          personalItemId: pItemId,
+          personalItemOrder: rowIndex + 1,
+          standardTaskId: item.id || item.code,
+          standardTaskCode: item.code || item.id,
+          standardTaskName: item.name || "",
+          standardTaskDepartmentId: item.departmentId || workspaceId,
+          audienceType: clean(item.audienceType),
+          isCoreTaskDefault: item.isCoreTaskDefault === true,
+          isManagementTask: item.isManagementTask === true,
+          title: clean(row.title) || item.name || "",
+          description: clean(row.description) || item.outputRequirement || "",
+          departmentId: workspaceId,
+          homeDepartmentId: user.departmentId || "",
+          organizationId: workspaceId === "CDTN" ? "CDTN" : "",
+          teamId: user.teamId || "",
+          userId: user.uid,
+          userName: user.fullName || "",
+          userPosition: user.position || "",
+          userRole: user.role || "",
+          userLeaderLevel: user.leaderLevel || "",
+          userApprovalAuthority: user.approvalAuthority || "",
+          userIsDepartmentHead: user.isDepartmentHead === true,
+          userAdditionalRoles: Array.isArray(user.additionalRoles) ? user.additionalRoles : [],
+          workType,
+          planType: workType === "DOT_XUAT" ? "DOT_XUAT" : "KE_HOACH",
+          includedInA: true,
+          baseScore: Number(item.baseScore || 0),
+          difficultyCoefficient: Number(item.difficultyCoefficient || 1),
+          maximumConvertedScore: Number(item.maximumConvertedScore || item.baseScore || 0),
+          mandatoryEvidence: item.mandatoryEvidence || "",
+          trackingMode: deadlinePlan.mode === "EVENT_DRIVEN"
+            ? "ITEMIZED"
+            : (String(item.trackingMode || "FINAL_OUTPUT").toUpperCase() === "ITEMIZED" ? "ITEMIZED" : "FINAL_OUTPUT"),
+          workItemType: String(item.workItemType || "GENERIC").toUpperCase(),
+          quantityUnit: String(item.quantityUnit || "").trim(),
+          sourceType: clean(item.sourceType),
+          sourceDirectiveId: clean(item.sourceDirectiveId),
+          sourcePeriodId: clean(item.sourcePeriodId),
+          kpiSource: clean(item.kpiSource),
+          status: "PENDING",
+          taskId: null,
+          active: true,
+          autoApproved: autoApprove,
+          registeredAt: FirebaseService.serverTimestamp(),
+          createdAt: FirebaseService.serverTimestamp(),
+          createdByUserId: user.uid,
+          updatedAt: FirebaseService.serverTimestamp()
+        };
+        batch.set(FirebaseService.doc(FirebaseService.db, "taskRegistrations", id), registration, { merge: false });
+        registrations.push(registration);
+        if (autoApprove) autoApproved.push(registration);
+      }
     }
 
     await batch.commit();
-    if (autoApproved.length) {
-      await createApprovedTasks(autoApproved, user);
-    }
+    if (autoApproved.length) await createApprovedTasks(autoApproved, user);
     return {
       total: registrations.length,
       autoApproved: autoApproved.length,
@@ -1159,15 +1239,44 @@ export const TaskRegistrationService = Object.freeze({
     return selected.length;
   },
 
-  async resubmitRegistration(registration) {
+  async resubmitRegistration(registration, changes = {}) {
     const user = UserContext.requireUser();
     if (!registration?.id) throw new Error("Không tìm thấy đăng ký cần gửi lại.");
     const plan = await departmentPlan(registration.periodId, registration.departmentId);
-    if (!Permissions.canResubmitOwnRegistration(registration, plan?.locked === true)) {
+    const directiveException = upper(registration.sourceType) === "EXECUTIVE_DIRECTIVE"
+      && clean(registration.sourcePeriodId) === clean(registration.periodId);
+    if (!Permissions.canResubmitOwnRegistration(registration, plan?.locked === true) && !(directiveException && registration.userId === user.uid)) {
       throw new Error(plan?.locked === true
         ? "Kế hoạch đã khóa nên chưa thể đăng ký lại đầu việc này."
         : "Chỉ người đăng ký mới được gửi lại đầu việc đã không duyệt.");
     }
+
+    const title = clean(changes.title ?? registration.title);
+    const description = clean(changes.description ?? registration.description);
+    const frequency = canonicalFrequency(changes.frequency ?? registration.frequency) || clean(changes.frequency ?? registration.frequency);
+    const completionDeadline = clean(changes.completionDeadline ?? registration.completionDeadline);
+    const manualDeadlineDateKey = clean(changes.manualDeadlineDateKey ?? registration.manualDeadlineDateKey);
+    const deadlineCeilingDateKey = clean(registration.deadlineCeilingDateKey);
+    const requestedFixedDeadlineDateKey = clean(changes.fixedDeadlineDateKey ?? registration.fixedDeadlineDateKey);
+    const fixedDeadlineDateKey = upper(registration.personalizationMode) === "DIRECT" && deadlineCeilingDateKey
+      ? deadlineCeilingDateKey
+      : requestedFixedDeadlineDateKey;
+    if (!title) throw new Error("Nội dung thực hiện không được để trống.");
+    if (deadlineCeilingDateKey && fixedDeadlineDateKey && fixedDeadlineDateKey > deadlineCeilingDateKey) {
+      throw new Error("Hạn hoàn thành không được vượt quá hạn Ban Giám đốc giao.");
+    }
+    const effectivePeriodEndDate = deadlineCeilingDateKey && deadlineCeilingDateKey < clean(registration.periodEndDate)
+      ? deadlineCeilingDateKey
+      : registration.periodEndDate;
+
+    const deadlinePlan = deriveDeadlinePlan({
+      frequency,
+      completionDeadline,
+      periodStartDate: registration.periodStartDate,
+      periodEndDate: effectivePeriodEndDate,
+      manualDeadlineDateKey,
+      fixedDeadlineDateKey
+    });
 
     const reference = FirebaseService.doc(FirebaseService.db, "taskRegistrations", registration.id);
     const batch = FirebaseService.writeBatch(FirebaseService.db);
@@ -1175,6 +1284,15 @@ export const TaskRegistrationService = Object.freeze({
       active: true,
       status: "PENDING",
       taskId: null,
+      title,
+      description,
+      frequency,
+      completionDeadline: deadlinePlan.mode === "EVENT_DRIVEN" ? "" : deadlinePlan.completionDeadline,
+      deadlineMode: deadlinePlan.mode,
+      deadlineDateKey: deadlinePlan.deadlineDateKey,
+      milestoneDateKeys: deadlinePlan.milestoneDateKeys,
+      manualDeadlineDateKey,
+      fixedDeadlineDateKey,
       rejectionReason: "",
       rejectedAt: null,
       rejectedByUserId: "",
@@ -1188,10 +1306,27 @@ export const TaskRegistrationService = Object.freeze({
       "TASK_REGISTRATION_RESUBMITTED",
       registration,
       user,
-      { registrationId: registration.id, oldStatus: "REJECTED", newStatus: "PENDING" }
+      {
+        registrationId: registration.id,
+        oldStatus: "REJECTED",
+        newStatus: "PENDING",
+        changedFields: ["title", "description", "frequency", "completionDeadline", "deadlineDateKey"]
+      }
     ));
     await batch.commit();
-    return { ...registration, status: "PENDING", active: true, rejectionReason: "" };
+    return {
+      ...registration,
+      status: "PENDING",
+      active: true,
+      rejectionReason: "",
+      title, description, frequency,
+      completionDeadline: deadlinePlan.completionDeadline,
+      deadlineMode: deadlinePlan.mode,
+      deadlineDateKey: deadlinePlan.deadlineDateKey,
+      milestoneDateKeys: deadlinePlan.milestoneDateKeys,
+      manualDeadlineDateKey,
+      fixedDeadlineDateKey
+    };
   },
 
   async getApprovedCancellationMap(registrations = []) {

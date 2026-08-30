@@ -1,12 +1,14 @@
 /** Đọc danh mục đầu việc theo đơn vị, vai trò và vai trò kiêm nhiệm. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260829.V1_20_0";
-import { UserContext } from "../core/user-context.js?v=20260829.V1_20_0";
-import { Permissions } from "../core/permissions.js?v=20260829.V1_20_0";
+import { FirebaseService } from "../core/firebase-service.js?v=20260830.V1_21_0";
+import { UserContext } from "../core/user-context.js?v=20260830.V1_21_0";
+import { Permissions } from "../core/permissions.js?v=20260830.V1_21_0";
+import { PeriodReadService } from "./period-read-service.js?v=20260830.V1_21_0";
 
 const CATALOG_CACHE_MS = 5 * 60 * 1000;
 const PROFESSIONAL_DEPARTMENT_IDS = Object.freeze(["BGD", "TCHC", "CTXH", "KHTC", "YT", "KI", "KII", "KIII"]);
 let catalogCache = { key: "", items: [], loadedAt: 0 };
 let catalogRequest = null;
+let activePeriodId = "";
 
 const clean = value => String(value ?? "").trim();
 const upper = value => clean(value).toUpperCase();
@@ -61,6 +63,7 @@ function canRegisterItem(item, user = UserContext.requireUser()) {
   const audience = audienceOf(item);
 
   if (item?.active === false) return false;
+  if (upper(item?.sourceType) === "EXECUTIVE_DIRECTIVE" && clean(item?.sourcePeriodId) && clean(item.sourcePeriodId) !== clean(activePeriodId)) return false;
   if (departmentId === "CDTN") return canRegisterCdtnItem(item);
   if (departmentId !== upper(user.departmentId)) return false;
 
@@ -84,6 +87,7 @@ function normalize(items = []) {
   const user = UserContext.requireUser();
   return deduplicateByCode(items)
     .filter(item => item.active !== false)
+    .filter(item => upper(item?.sourceType) !== "EXECUTIVE_DIRECTIVE" || !clean(item?.sourcePeriodId) || clean(item.sourcePeriodId) === clean(activePeriodId))
     .filter(item => canViewItem(item, user))
     .sort((a, b) => Number(a.order || 9999) - Number(b.order || 9999)
       || String(a.code || a.id).localeCompare(String(b.code || b.id), "vi"));
@@ -174,7 +178,9 @@ function currentCacheKey() {
 
 async function readAllReferences(options = {}) {
   const force = options.force === true;
-  const key = currentCacheKey();
+  const period = await PeriodReadService.getActive({ force }).catch(() => null);
+  activePeriodId = clean(period?.id);
+  const key = `${currentCacheKey()}|${activePeriodId}`;
   if (!force && catalogCache.key === key && Date.now() - catalogCache.loadedAt < CATALOG_CACHE_MS) return catalogCache.items;
   if (!force && catalogRequest?.key === key) return catalogRequest.promise;
 

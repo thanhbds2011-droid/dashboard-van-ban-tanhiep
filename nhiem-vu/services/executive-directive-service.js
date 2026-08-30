@@ -8,16 +8,57 @@
  * - executiveDirectiveStates (trạng thái hiện hành theo Phòng/Khu)
  * - executiveWeeklyReports
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260829.V1_20_0";
-import { UserContext } from "../core/user-context.js?v=20260829.V1_20_0";
-import { Permissions } from "../core/permissions.js?v=20260829.V1_20_0";
-import { ExecutiveNotificationService } from "./executive-notification-service.js?v=20260829.V1_20_0";
+import { FirebaseService } from "../core/firebase-service.js?v=20260830.V1_21_0";
+import { UserContext } from "../core/user-context.js?v=20260830.V1_21_0";
+import { Permissions } from "../core/permissions.js?v=20260830.V1_21_0";
+import { ExecutiveNotificationService } from "./executive-notification-service.js?v=20260830.V1_21_0";
+import { PeriodReadService } from "./period-read-service.js?v=20260830.V1_21_0";
+import { APP_VERSION } from "../core/app-version.js?v=20260830.V1_21_0";
 
 const DIRECTIVES = "executiveDirectives";
 const UPDATES = "executiveDirectiveUpdates";
 const STATES = "executiveDirectiveStates";
 const REPORTS = "executiveWeeklyReports";
 const MAX_LIST = 2000;
+
+const STANDARD_TASKS = "standardTasks";
+const STANDARD_SEQUENCES = "standardTaskSequences";
+const KPI_COEFFICIENTS = Object.freeze([1, 1.1, 1.2]);
+
+function normalizedCode(value) {
+  return upper(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/Đ/g, "D")
+    .replace(/[^A-Z0-9_-]+/g, "-")
+    .replace(/^[-_]+|[-_]+$/g, "");
+}
+function numericSuffix(value) {
+  const match = /(\d+)$/.exec(normalizedCode(value));
+  return match ? Number(match[1]) : 0;
+}
+function formatUnexpectedCode(departmentId, numberValue) {
+  return `${normalizedCode(departmentId)}-DX${String(Math.max(1, Math.trunc(Number(numberValue || 1)))).padStart(2, "0")}`;
+}
+async function observedUnexpectedNumber(departmentId) {
+  const snapshot = await FirebaseService.getDocs(
+    FirebaseService.query(
+      FirebaseService.collection(FirebaseService.db, STANDARD_TASKS),
+      FirebaseService.where("departmentId", "==", upper(departmentId)),
+      FirebaseService.limit(2000)
+    )
+  );
+  return snapshot.docs.reduce((highest, docItem) => {
+    const data = docItem.data() || {};
+    const code = upper(data.code || docItem.id);
+    if (!code.startsWith(`${upper(departmentId)}-DX`)) return highest;
+    return Math.max(highest, numericSuffix(code));
+  }, 0);
+}
+function validKpiCoefficient(value) {
+  const numberValue = Number(value || 1);
+  return KPI_COEFFICIENTS.find(item => Math.abs(item - numberValue) < 0.000001) || null;
+}
 
 function clean(value) { return String(value ?? "").trim(); }
 function upper(value) { return clean(value).toUpperCase(); }
@@ -218,6 +259,36 @@ function dispatchPushInBackground(action, directiveId, eventData = {}, options =
   return { ok: true, status: "QUEUED", eventId };
 }
 
+
+function executiveKpiAllowedActor(user = assertActiveUser()) {
+  return Permissions.isDirector(user);
+}
+function assertExecutiveKpiActor(user = assertActiveUser()) {
+  if (!executiveKpiAllowedActor(user)) {
+    throw new Error("Chỉ Ban Giám đốc được quyết định đưa chỉ đạo vào KPI.");
+  }
+  return user;
+}
+function sequenceRef(departmentId) {
+  return FirebaseService.doc(FirebaseService.db, STANDARD_SEQUENCES, upper(departmentId));
+}
+function standardTaskRef(code) {
+  return FirebaseService.doc(FirebaseService.db, STANDARD_TASKS, clean(code));
+}
+function moneyRound(value) {
+  return Math.round(Number(value || 0) * 100) / 100;
+}
+function executiveKpiFields(input = {}, current = {}) {
+  const enabled = input.kpiEnabled === true;
+  const coefficient = validKpiCoefficient(input.kpiCoefficient ?? current.kpiCoefficient ?? 1) || 1;
+  return {
+    kpiEnabled: enabled,
+    kpiCoefficient: coefficient,
+    kpiMandatoryEvidence: clean(input.kpiMandatoryEvidence ?? current.kpiMandatoryEvidence),
+    kpiConversionStatus: enabled ? clean(current.kpiStandardTaskId) ? "CONVERTED" : "PENDING" : "NOT_REQUESTED"
+  };
+}
+
 export const ExecutiveDirectiveService = Object.freeze({
   async listDirectives(options = {}) {
     const user = assertActiveUser();
@@ -335,6 +406,16 @@ export const ExecutiveDirectiveService = Object.freeze({
     if (!content) throw new Error("Chưa nhập nội dung chỉ đạo.");
     const directedByName = clean(input.directedByName);
     if (!directedByName) throw new Error("Chưa xác định người chỉ đạo.");
+    const dueDateKey = normalizeDateKey(input.dueDateKey);
+    const kpi = executiveKpiFields(input);
+    let period = null;
+    if (kpi.kpiEnabled) {
+      assertExecutiveKpiActor(user);
+      if (!dueDateKey) throw new Error("Chỉ đạo đưa vào KPI phải có thời hạn hoàn thành cụ thể.");
+      if (!kpi.kpiMandatoryEvidence) throw new Error("Chỉ đạo đưa vào KPI phải có Minh chứng bắt buộc.");
+      period = await PeriodReadService.getActivePeriod();
+      if (!period?.id) throw new Error("Chưa có kỳ KPI đang hoạt động để đưa chỉ đạo vào KPI.");
+    }
 
     const ref = FirebaseService.doc(FirebaseService.collection(FirebaseService.db, DIRECTIVES));
     const payload = {
@@ -353,8 +434,13 @@ export const ExecutiveDirectiveService = Object.freeze({
       assignedUserPosition: "",
       supportDepartmentIds,
       visibleDepartmentIds,
-      dueDateKey: normalizeDateKey(input.dueDateKey),
+      dueDateKey,
       priority: upper(input.priority || "NORMAL"),
+      ...kpi,
+      kpiPeriodId: kpi.kpiEnabled ? period.id : "",
+      kpiStandardTaskId: "",
+      kpiConvertedAt: null,
+      kpiConvertedByUserId: "",
       lifecycleStatus: "ACTIVE",
       closeReason: "",
       closedDateKey: "",
@@ -376,25 +462,19 @@ export const ExecutiveDirectiveService = Object.freeze({
     batch.set(updateRef(), managerAuditPayload("DIRECTIVE_CREATED", ref.id, "Tạo nội dung chỉ đạo và giao Phòng/Khu thực hiện.", {
       snapshot: {
         directedDateKey, directedByName, leadDepartmentId,
-        assignmentLevel: assignment.assignmentLevel,
-        leadTeamId: assignment.leadTeamId,
-        leadUserId: assignment.leadUserId,
-        leadUserName: assignment.leadUserName,
-        supportDepartmentIds, dueDateKey: payload.dueDateKey, priority: payload.priority
+        supportDepartmentIds, dueDateKey, priority: payload.priority,
+        kpiEnabled: payload.kpiEnabled, kpiCoefficient: payload.kpiCoefficient
       }
     }));
     await batch.commit();
+
+    let result = { id: ref.id, ...payload };
+    if (kpi.kpiEnabled) result = await this.ensureKpiStandardTask(ref.id);
+
     dispatchPushInBackground("DIRECTIVE_ASSIGNED", ref.id, {
-      leadDepartmentId,
-      assignmentLevel: "DEPARTMENT",
-      leadTeamId: "",
-      leadUserId: "",
-      supportDepartmentIds,
-      visibleDepartmentIds,
-      directedByName,
-      dueDateKey: payload.dueDateKey
+      leadDepartmentId, supportDepartmentIds, visibleDepartmentIds, directedByName, dueDateKey
     }, { eventId: `DIRECTIVE_CREATED_${ref.id}` });
-    return { id: ref.id, ...payload };
+    return result;
   },
 
   async createOralDirective(input = {}) {
@@ -554,12 +634,33 @@ export const ExecutiveDirectiveService = Object.freeze({
     if (!id) throw new Error("Không xác định được nội dung chỉ đạo cần sửa.");
     const leadDepartmentId = upper(input.leadDepartmentId);
     if (!leadDepartmentId) throw new Error("Chưa chọn Phòng/Khu chủ trì.");
-    const assignment = await resolveAssignment(input, leadDepartmentId);
     const supportDepartmentIds = uniqueUpper(input.supportDepartmentIds).filter(id2 => id2 !== leadDepartmentId);
     const visibleDepartmentIds = uniqueUpper([leadDepartmentId, ...supportDepartmentIds]);
-    if (clean(current.assignedUserId) && upper(current.leadDepartmentId) !== leadDepartmentId) {
-      throw new Error("Không thể đổi Phòng/Khu chủ trì sau khi đã có người thực hiện. Hãy tạo nội dung chỉ đạo mới nếu cần chuyển đơn vị.");
+    const linked = clean(current.kpiStandardTaskId);
+    const requestedKpi = input.kpiEnabled === true;
+    if (linked) {
+      const lockedChanges = [
+        upper(current.leadDepartmentId) !== leadDepartmentId,
+        clean(current.dueDateKey) !== normalizeDateKey(input.dueDateKey),
+        Number(current.kpiCoefficient || 1) !== Number(input.kpiCoefficient || current.kpiCoefficient || 1),
+        clean(current.kpiMandatoryEvidence) !== clean(input.kpiMandatoryEvidence ?? current.kpiMandatoryEvidence)
+      ];
+      if (lockedChanges.some(Boolean) || requestedKpi === false) {
+        throw new Error("Chỉ đạo đã hình thành KPI. Không thể âm thầm đổi đơn vị, thời hạn, hệ số, minh chứng hoặc hủy KPI; hãy dùng chức năng điều chỉnh/hủy có kiểm soát.");
+      }
     }
+    if (requestedKpi && !linked) assertExecutiveKpiActor(user);
+    const dueDateKey = normalizeDateKey(input.dueDateKey);
+    if (requestedKpi && !dueDateKey) throw new Error("Chỉ đạo đưa vào KPI phải có thời hạn hoàn thành cụ thể.");
+    const kpi = executiveKpiFields(input, current);
+    if (requestedKpi && !kpi.kpiMandatoryEvidence) throw new Error("Chỉ đạo đưa vào KPI phải có Minh chứng bắt buộc.");
+    let periodId = clean(current.kpiPeriodId);
+    if (requestedKpi && !periodId) {
+      const period = await PeriodReadService.getActivePeriod();
+      periodId = clean(period?.id);
+      if (!periodId) throw new Error("Chưa có kỳ KPI đang hoạt động.");
+    }
+
     const patch = {
       sourceType: upper(input.sourceType || current.sourceType || "DIRECT"),
       meetingName: clean(input.meetingName),
@@ -569,47 +670,193 @@ export const ExecutiveDirectiveService = Object.freeze({
       directedByName: clean(input.directedByName),
       content: clean(input.content),
       leadDepartmentId,
-      ...assignment,
+      assignmentLevel: "DEPARTMENT",
+      leadTeamId: "", leadTeamName: "", leadUserId: "", leadUserName: "", leadUserPosition: "",
       assignedUserId: clean(current.assignedUserId),
       assignedUserName: clean(current.assignedUserName),
       assignedUserPosition: clean(current.assignedUserPosition),
       supportDepartmentIds,
       visibleDepartmentIds,
-      dueDateKey: normalizeDateKey(input.dueDateKey),
+      dueDateKey,
       priority: upper(input.priority || "NORMAL"),
+      ...kpi,
+      kpiPeriodId: requestedKpi ? periodId : "",
+      kpiStandardTaskId: linked,
       updatedAt: FirebaseService.serverTimestamp(),
       updatedByUserId: user.uid,
       updatedByName: user.fullName || user.email
     };
-    if (!patch.directedDateKey || !patch.directedByName || !patch.content) {
-      throw new Error("Thông tin chỉ đạo chưa đầy đủ.");
-    }
-    const changed = [];
-    const compare = [
-      ["sourceType", "hình thức"], ["meetingName", "cuộc họp"], ["referenceText", "nguồn/văn bản"],
-      ["directedDateKey", "ngày chỉ đạo"], ["directedByName", "người chỉ đạo"], ["content", "nội dung"],
-      ["leadDepartmentId", "đơn vị chủ trì"], ["dueDateKey", "thời hạn"], ["priority", "mức độ"]
-    ];
-    compare.forEach(([key, label]) => { if (clean(current[key]) !== clean(patch[key])) changed.push(label); });
-    if (JSON.stringify(uniqueUpper(current.supportDepartmentIds)) !== JSON.stringify(supportDepartmentIds)) changed.push("đơn vị phối hợp");
+    if (!patch.directedDateKey || !patch.directedByName || !patch.content) throw new Error("Thông tin chỉ đạo chưa đầy đủ.");
 
     const batch = FirebaseService.writeBatch(FirebaseService.db);
     batch.update(directiveRef(id), patch);
-    batch.set(updateRef(), managerAuditPayload("DIRECTIVE_EDITED", id,
-      changed.length ? `Đã chỉnh sửa: ${changed.join(", ")}.` : "Đã lưu lại nội dung chỉ đạo.",
-      { changedFields: changed }
-    ));
+    batch.set(updateRef(), managerAuditPayload("DIRECTIVE_EDITED", id, "Đã cập nhật nội dung chỉ đạo.", {
+      kpiEnabled: patch.kpiEnabled
+    }));
     await batch.commit();
-    dispatchPushInBackground("DIRECTIVE_UPDATED", id, {
-      changedFields: changed,
-      previousVisibleDepartmentIds: uniqueUpper(current.visibleDepartmentIds),
-      previousLeadUserId: clean(current.leadUserId),
-      visibleDepartmentIds,
-      leadDepartmentId,
-      assignmentLevel: "DEPARTMENT",
-      leadTeamId: "",
-      leadUserId: ""
+    if (requestedKpi && !linked) return this.ensureKpiStandardTask(id);
+    dispatchPushInBackground("DIRECTIVE_UPDATED", id, { visibleDepartmentIds, leadDepartmentId });
+    return { ...current, ...patch };
+  },
+
+  async ensureKpiStandardTask(directiveId = "") {
+    const user = assertExecutiveKpiActor(assertActiveUser());
+    const id = clean(directiveId);
+    if (!id) throw new Error("Không xác định được chỉ đạo cần đưa vào KPI.");
+    const initial = await FirebaseService.getDoc(directiveRef(id));
+    if (!initial.exists()) throw new Error("Nội dung chỉ đạo không còn tồn tại.");
+    const directive = { id, ...initial.data() };
+    if (directive.kpiEnabled !== true) throw new Error("Chỉ đạo chưa được đánh dấu Đưa vào đánh giá KPI.");
+    if (clean(directive.kpiStandardTaskId)) {
+      const linked = await FirebaseService.getDoc(standardTaskRef(directive.kpiStandardTaskId));
+      if (linked.exists()) return { ...directive, kpiConversionStatus: "CONVERTED" };
+      throw new Error("Chỉ đạo đang lưu mã KPI liên kết nhưng đầu việc tương ứng không tồn tại. Hãy dùng Quản trị sửa sai để rà soát; hệ thống không tự cấp mã mới nhằm tránh trùng mã.");
+    }
+    const departmentId = upper(directive.leadDepartmentId);
+    const periodId = clean(directive.kpiPeriodId);
+    const dueDateKey = normalizeDateKey(directive.dueDateKey);
+    const coefficient = validKpiCoefficient(directive.kpiCoefficient);
+    if (!departmentId || !periodId || !dueDateKey || !coefficient) throw new Error("Chỉ đạo KPI thiếu đơn vị, kỳ, thời hạn hoặc hệ số hợp lệ.");
+    const observed = await observedUnexpectedNumber(departmentId);
+    const dRef = directiveRef(id);
+    const seqRef = sequenceRef(departmentId);
+    let createdCode = "";
+
+    await FirebaseService.runTransaction(FirebaseService.db, async transaction => {
+      const dSnap = await transaction.get(dRef);
+      if (!dSnap.exists()) throw new Error("Chỉ đạo không còn tồn tại.");
+      const fresh = dSnap.data() || {};
+      if (fresh.kpiEnabled !== true) throw new Error("Chỉ đạo đã hủy yêu cầu KPI.");
+      if (clean(fresh.kpiStandardTaskId)) {
+        createdCode = clean(fresh.kpiStandardTaskId);
+        return;
+      }
+      const seqSnap = await transaction.get(seqRef);
+      const seq = seqSnap.exists() ? (seqSnap.data() || {}) : {};
+      const floor = Math.max(
+        observed,
+        Number(seq.unexpectedHighestExistingNumber || 0),
+        Number(seq.unexpectedLastNumber || 0),
+        Math.max(0, Number(seq.unexpectedNextAvailableNumber || 1) - 1)
+      );
+      let numberValue = floor + 1;
+      let code = formatUnexpectedCode(departmentId, numberValue);
+      let taskRef = standardTaskRef(code);
+      let candidateSnapshot = await transaction.get(taskRef);
+      let attempts = 0;
+      while (candidateSnapshot.exists() && attempts < 50) {
+        numberValue += 1;
+        code = formatUnexpectedCode(departmentId, numberValue);
+        taskRef = standardTaskRef(code);
+        candidateSnapshot = await transaction.get(taskRef);
+        attempts += 1;
+      }
+      if (candidateSnapshot.exists()) {
+        throw new Error("Không tìm được mã KPI đột xuất còn trống trong phạm vi an toàn. Hãy kiểm tra chuỗi mã trước khi thử lại.");
+      }
+      createdCode = code;
+      const maxScore = moneyRound(12 * coefficient);
+      transaction.set(taskRef, {
+        code,
+        name: clean(fresh.content),
+        departmentId,
+        organizationId: "",
+        scopeType: "DEPARTMENT",
+        frequency: "Khi phát sinh",
+        completionDeadline: "",
+        deadlineRuleType: "ARISING",
+        workType: "DOT_XUAT",
+        outputRequirement: clean(fresh.content),
+        mandatoryEvidence: clean(fresh.kpiMandatoryEvidence),
+        trackingMode: "FINAL_OUTPUT",
+        workItemType: "GENERIC",
+        baseScore: 12,
+        difficultyCoefficient: coefficient,
+        maximumConvertedScore: maxScore,
+        audienceType: "ALL_DEPARTMENT",
+        isCoreTaskDefault: false,
+        isManagementTask: false,
+        quantityUnit: "",
+        fixedDeadlineDateKey: dueDateKey,
+        sourceType: "EXECUTIVE_DIRECTIVE",
+        sourceDirectiveId: id,
+        sourcePeriodId: periodId,
+        kpiSource: "BGD",
+        active: true,
+        order: numberValue,
+        sequenceNumber: numberValue,
+        syncSource: "WEB_EXECUTIVE_DIRECTIVE",
+        syncVersion: APP_VERSION,
+        createdByUserId: user.uid,
+        createdByName: user.fullName || user.email,
+        createdAt: FirebaseService.serverTimestamp(),
+        updatedByUserId: user.uid,
+        updatedByName: user.fullName || user.email,
+        updatedAt: FirebaseService.serverTimestamp()
+      });
+      transaction.set(seqRef, {
+        departmentId,
+        allocationMode: "MONOTONIC_NO_REUSE",
+        unexpectedHighestExistingNumber: numberValue,
+        unexpectedLastNumber: numberValue,
+        unexpectedLastCode: code,
+        unexpectedNextAvailableNumber: numberValue + 1,
+        unexpectedNextAvailableCode: formatUnexpectedCode(departmentId, numberValue + 1),
+        lastExecutiveDirectiveId: id,
+        lastAllocationRunId: `EXEC_${id}`,
+        syncSource: "WEB_EXECUTIVE_DIRECTIVE",
+        syncVersion: APP_VERSION,
+        updatedByUserId: user.uid,
+        updatedByName: user.fullName || user.email,
+        updatedAt: FirebaseService.serverTimestamp()
+      }, { merge: true });
+      transaction.update(dRef, {
+        kpiStandardTaskId: code,
+        kpiConversionStatus: "CONVERTED",
+        kpiConvertedByUserId: user.uid,
+        kpiConvertedAt: FirebaseService.serverTimestamp(),
+        updatedByUserId: user.uid,
+        updatedByName: user.fullName || user.email,
+        updatedAt: FirebaseService.serverTimestamp()
+      });
     });
+    const freshSnap = await FirebaseService.getDoc(dRef);
+    return { id, ...(freshSnap.data() || {}), kpiStandardTaskId: createdCode };
+  },
+
+  async cancelDirectiveKpi(current = {}) {
+    const user = assertExecutiveKpiActor(assertActiveUser());
+    const directiveId = clean(current.id);
+    const code = clean(current.kpiStandardTaskId);
+    if (!directiveId || !code) throw new Error("Chỉ đạo chưa có đầu việc KPI liên kết.");
+    const registrationSnapshot = await FirebaseService.getDocs(FirebaseService.query(
+      FirebaseService.collection(FirebaseService.db, "taskRegistrations"),
+      FirebaseService.where("standardTaskId", "==", code),
+      FirebaseService.limit(1)
+    ));
+    if (!registrationSnapshot.empty) {
+      throw new Error("Đầu việc KPI đã có đăng ký. Không thể hủy âm thầm; hãy dùng Quản trị sửa sai có kiểm soát.");
+    }
+    const batch = FirebaseService.writeBatch(FirebaseService.db);
+    batch.update(standardTaskRef(code), {
+      active: false,
+      updatedByUserId: user.uid,
+      updatedByName: user.fullName || user.email,
+      updatedAt: FirebaseService.serverTimestamp(),
+      removalReason: "BGĐ hủy đưa chỉ đạo vào KPI trước khi phát sinh đăng ký."
+    });
+    batch.update(directiveRef(directiveId), {
+      kpiEnabled: false,
+      kpiConversionStatus: "CANCELLED",
+      kpiCancelledAt: FirebaseService.serverTimestamp(),
+      kpiCancelledByUserId: user.uid,
+      updatedByUserId: user.uid,
+      updatedByName: user.fullName || user.email,
+      updatedAt: FirebaseService.serverTimestamp()
+    });
+    batch.set(updateRef(), managerAuditPayload("DIRECTIVE_KPI_CANCELLED", directiveId, `Hủy đưa chỉ đạo vào KPI trước khi phát sinh đăng ký. Đầu việc ${code} được gỡ mềm.`));
+    await batch.commit();
+    return true;
   },
 
   async setLifecycle(current = {}, closed, reason = "") {
