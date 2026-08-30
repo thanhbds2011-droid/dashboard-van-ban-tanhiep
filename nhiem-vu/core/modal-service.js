@@ -16,7 +16,9 @@ function open({
   cancelText = "Đóng",
   danger = false,
   showCancel = true,
-  eyebrow = "THÔNG BÁO"
+  eyebrow = "THÔNG BÁO",
+  onOpen = null,
+  beforeConfirm = null
 } = {}) {
   return new Promise(resolve => {
     const overlay = document.createElement("div");
@@ -52,13 +54,44 @@ function open({
 
     overlay.querySelector(".modal-x").addEventListener("click", () => finish(false));
     overlay.querySelector(".modal-cancel")?.addEventListener("click", () => finish(false));
-    overlay.querySelector(".modal-confirm").addEventListener("click", () => finish(true));
+    overlay.querySelector(".modal-confirm").addEventListener("click", async event => {
+      const button = event.currentTarget;
+      if (typeof beforeConfirm === "function") {
+        try {
+          button.disabled = true;
+          await beforeConfirm(overlay);
+        } catch (error) {
+          button.disabled = false;
+          const body = overlay.querySelector(".modal-body");
+          let errorBox = body?.querySelector(".modal-inline-error");
+          if (!errorBox && body) {
+            errorBox = document.createElement("div");
+            errorBox.className = "modal-inline-error";
+            body.appendChild(errorBox);
+          }
+          if (errorBox) errorBox.textContent = error?.message || "Không thể thực hiện thao tác.";
+          return;
+        }
+      }
+      finish(true);
+    });
     overlay.addEventListener("click", event => {
       if (event.target === overlay) finish(false);
     });
     document.addEventListener("keydown", onKeyDown);
     document.body.appendChild(overlay);
     document.body.classList.add("modal-open");
+    if (typeof onOpen === "function") {
+      Promise.resolve(onOpen(overlay)).catch(error => {
+        const body = overlay.querySelector(".modal-body");
+        if (body) {
+          const box = document.createElement("div");
+          box.className = "modal-inline-error";
+          box.textContent = error?.message || "Không thể khởi tạo nội dung.";
+          body.appendChild(box);
+        }
+      });
+    }
     requestAnimationFrame(() => {
       overlay.classList.add("modal-visible");
       overlay.querySelector(".modal-confirm")?.focus();

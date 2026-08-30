@@ -278,10 +278,28 @@ export function deriveDeadlinePlan({
   completionDeadline,
   periodStartDate,
   periodEndDate,
-  manualDeadlineDateKey = ""
+  manualDeadlineDateKey = "",
+  fixedDeadlineDateKey = ""
 } = {}) {
   const end = dateParts(periodEndDate);
   dateParts(periodStartDate);
+
+  if (clean(fixedDeadlineDateKey)) {
+    if (!isDateKey(fixedDeadlineDateKey)) throw new Error("Ngày hạn cụ thể không hợp lệ.");
+    if (fixedDeadlineDateKey < periodStartDate || fixedDeadlineDateKey > periodEndDate) {
+      throw new Error("Ngày hạn cụ thể phải nằm trong kỳ KPI hiện tại.");
+    }
+    return {
+      mode: "FIXED",
+      recurringKind: "",
+      completionDeadline: clean(completionDeadline),
+      deadlineDateKey: fixedDeadlineDateKey,
+      milestoneDateKeys: [],
+      eventDriven: false,
+      fixed: true
+    };
+  }
+
   const { kind, completionDeadline: normalized } = validateDeadlineConfiguration(frequency, completionDeadline);
 
   if (kind === "DAILY" || kind === "WEEKLY" || kind === "MONTHLY") {
