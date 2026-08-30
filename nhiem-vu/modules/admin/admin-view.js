@@ -1,9 +1,9 @@
-import { UserContext } from "../../core/user-context.js?v=20260829.V1_20_0";
-import { Permissions } from "../../core/permissions.js?v=20260829.V1_20_0";
-import { ToastService } from "../../core/toast-service.js?v=20260829.V1_20_0";
-import { ModalService } from "../../core/modal-service.js?v=20260829.V1_20_0";
-import { AdminReadService } from "../../services/admin-read-service.js?v=20260829.V1_20_0";
-import { AdminMaintenanceService } from "../../services/admin-maintenance-service.js?v=20260829.V1_20_0";
+import { UserContext } from "../../core/user-context.js?v=20260830.V1_21_0";
+import { Permissions } from "../../core/permissions.js?v=20260830.V1_21_0";
+import { ToastService } from "../../core/toast-service.js?v=20260830.V1_21_0";
+import { ModalService } from "../../core/modal-service.js?v=20260830.V1_21_0";
+import { AdminReadService } from "../../services/admin-read-service.js?v=20260830.V1_21_0";
+import { AdminMaintenanceService } from "../../services/admin-maintenance-service.js?v=20260830.V1_21_0";
 
 let currentDiagnostic = null;
 
@@ -26,7 +26,7 @@ function render(outlet, user, diagnostic) {
   const repairable = diagnostic.repairableTaskIds.length;
   const warnings = diagnostic.issues.filter(item => item.level === "WARNING").length;
   outlet.innerHTML = `<section class="page-card">
-    <div class="page-header"><div><h2>Quản trị hệ thống</h2><p>Chẩn đoán dữ liệu, nhật ký và bảo trì có kiểm soát.</p></div><span class="role-badge">ADMIN · V1.7.2</span></div>
+    <div class="page-header"><div><h2>Quản trị hệ thống</h2><p>Chẩn đoán dữ liệu, nhật ký và bảo trì có kiểm soát.</p></div><span class="role-badge">ADMIN · V1.21.0</span></div>
     <div class="success-banner">Tài khoản <strong>${escapeHtml(user.fullName || user.email)}</strong> đang thao tác trong phạm vi quản trị.</div>
     <div class="summary-grid compact-grid">
       ${metric("Tài khoản hoạt động", counts.users ?? "—")}
@@ -41,6 +41,7 @@ function render(outlet, user, diagnostic) {
       <button id="btnAdminCheckData" class="admin-action-card" type="button"><span>🔍</span><strong>Kiểm tra lại dữ liệu</strong><small>Quét lại các collection nền theo quyền ADMIN.</small></button>
       <button id="btnAdminAudit" class="admin-action-card" type="button"><span>📜</span><strong>Nhật ký hệ thống</strong><small>Xem taskLogs và kpiAuditLogs mới nhất.</small></button>
       <button id="btnAdminRepair" class="admin-action-card${repairable ? " warning" : ""}" type="button" ${repairable ? "" : "disabled"}><span>🧰</span><strong>Chuẩn hóa phạm vi nhiệm vụ</strong><small>${repairable ? `${repairable} nhiệm vụ có thể sửa tự động.` : "Không có nhiệm vụ cần sửa."}</small></button>
+      <button id="btnAdminCorrection" class="admin-action-card warning" type="button"><span>🛠️</span><strong>Sửa sai dữ liệu KPI</strong><small>Hủy/mở lại theo trạng thái, luôn giữ lịch sử và minh chứng.</small></button>
       <button id="btnAdminCleanup" class="admin-action-card danger" type="button"><span>🗄️</span><strong>Lưu trữ và dọn kỳ</strong><small>Thực hiện tại phân hệ KPI sau khi có tệp Drive và SHA-256.</small></button>
     </div>
     ${diagnostic.unavailable.length ? `<div class="warning-banner">Không đọc được: ${diagnostic.unavailable.map(escapeHtml).join(", ")}.</div>` : ""}
@@ -61,6 +62,7 @@ function bindActions(outlet, user) {
   });
 
   document.getElementById("btnAdminAudit")?.addEventListener("click", showLogs);
+  document.getElementById("btnAdminCorrection")?.addEventListener("click", openAdminCorrection);
   document.getElementById("btnAdminRepair")?.addEventListener("click", async event => {
     const ids = currentDiagnostic?.repairableTaskIds || [];
     if (!ids.length) return;
@@ -99,6 +101,84 @@ async function showLogs() {
     }).join("")}</div>` : "Chưa có nhật ký.";
     await ModalService.open({ title: "Nhật ký hệ thống gần nhất", messageHtml: html, confirmText: "Đóng", showCancel: false });
   } catch (error) { ToastService.error(error.message || "Không đọc được nhật ký."); }
+}
+
+
+async function openAdminCorrection() {
+  try {
+    const candidates = await AdminMaintenanceService.listCorrectionCandidates();
+    if (!candidates.length) return ToastService.info?.("Không có dữ liệu phù hợp để sửa sai.") || ToastService.success("Không có dữ liệu phù hợp để sửa sai.");
+    const label = item => {
+      const owner = item.ownerName || item.userName || item.fullName || item.ownerEmail || "";
+      const code = item.taskCode || item.standardTaskCode || "";
+      const title = item.title || item.standardTaskName || "Không có tên";
+      return `${owner ? owner + " · " : ""}${code ? code + " · " : ""}${title} · ${item.status || ""}`;
+    };
+    const options = candidates.slice(0, 2500).map(item =>
+      `<option value="${escapeHtml(item.kind + "::" + item.id)}">${escapeHtml(label(item))}</option>`
+    ).join("");
+    const html = `<div class="admin-correction-form">
+      <p>Chọn đúng bản ghi cần xử lý. Hệ thống chỉ cho hiện thao tác phù hợp với trạng thái hiện tại; không xóa minh chứng và không sửa archive.</p>
+      <label><span>Dữ liệu</span><select id="adminCorrectionRecord">${options}</select></label>
+      <div id="adminCorrectionPreview" class="admin-correction-preview">Đang kiểm tra…</div>
+      <label><span>Thao tác</span><select id="adminCorrectionAction"></select></label>
+      <label><span>Lý do xử lý *</span><textarea id="adminCorrectionReason" rows="4" maxlength="1000" placeholder="Ghi rõ lý do người dùng thao tác nhầm hoặc nội dung cần khắc phục"></textarea></label>
+    </div>`;
+    const modal = await ModalService.open({
+      title: "Quản trị sửa sai có kiểm soát",
+      messageHtml: html,
+      confirmText: "Thực hiện",
+      cancelText: "Hủy",
+      danger: true,
+      beforeConfirm: async root => {
+        const key = root.querySelector("#adminCorrectionRecord")?.value || "";
+        const [kind,id] = key.split("::");
+        const record = candidates.find(item => item.kind === kind && item.id === id);
+        const reason = root.querySelector("#adminCorrectionReason")?.value || "";
+        const action = root.querySelector("#adminCorrectionAction")?.value || "";
+        if (!record || !action) throw new Error("Không có thao tác phù hợp với dữ liệu hiện tại.");
+        if (!reason.trim()) throw new Error("Phải nhập lý do sửa sai.");
+        await AdminMaintenanceService.applyCorrection({ record, action, reason });
+      },
+      onOpen: async root => {
+        const recordSelect = root.querySelector("#adminCorrectionRecord");
+        const actionSelect = root.querySelector("#adminCorrectionAction");
+        const previewRoot = root.querySelector("#adminCorrectionPreview");
+        const labels = {
+          CANCEL_REGISTRATION:"Hủy đăng ký",
+          REOPEN_REGISTRATION:"Mở lại đăng ký",
+          CANCEL_TASK:"Hủy nhiệm vụ có kiểm soát",
+          REOPEN_TASK:"Mở lại nhiệm vụ",
+          REOPEN_SELF_ASSESSMENT:"Mở lại tự đánh giá",
+          REOPEN_CONFIRMATION:"Mở lại xác nhận KPI"
+        };
+        const refresh = async () => {
+          const [kind,id] = (recordSelect.value || "").split("::");
+          const record = candidates.find(item => item.kind === kind && item.id === id);
+          if (!record) return;
+          previewRoot.textContent = "Đang kiểm tra trạng thái và dữ liệu liên quan…";
+          try {
+            const result = await AdminMaintenanceService.correctionPreview(record);
+            if (result.archived) {
+              previewRoot.innerHTML = "<strong>Kỳ đã archive.</strong> Không được sửa trực tiếp dữ liệu này.";
+              actionSelect.innerHTML = "";
+              return;
+            }
+            actionSelect.innerHTML = result.actions.map(action => `<option value="${action}">${escapeHtml(labels[action] || action)}</option>`).join("");
+            previewRoot.innerHTML = `<strong>${escapeHtml(label(result.record))}</strong><br><small>${result.actions.length ? "Chỉ những thao tác bên dưới được phép." : "Không có thao tác sửa sai an toàn cho trạng thái này."}</small>`;
+          } catch (error) {
+            previewRoot.textContent = error.message || "Không kiểm tra được dữ liệu.";
+            actionSelect.innerHTML = "";
+          }
+        };
+        recordSelect.addEventListener("change", refresh);
+        await refresh();
+      }
+    });
+    if (modal) ToastService.success("Đã thực hiện sửa sai và ghi nhật ký.");
+  } catch (error) {
+    ToastService.error(error.message || "Không mở được chức năng sửa sai.");
+  }
 }
 
 function issueTable(issues) {
