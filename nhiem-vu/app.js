@@ -1343,7 +1343,6 @@ function applyStandardTaskFilters() {
       item.outputRequirement,
       item.frequency,
       item.mandatoryEvidence,
-      item.arisingEvidence,
       item.confirmer,
       departmentName(item.departmentId)
     ].join(" "));
@@ -1640,10 +1639,6 @@ function openStandardTaskDetail(taskId) {
       <p>${escapeHtml(item.mandatoryEvidence || "Chưa khai báo")}</p>
     </div>
 
-    <div class="standard-task-detail-block">
-      <h3>Minh chứng phát sinh</h3>
-      <p>${escapeHtml(item.arisingEvidence || "Không yêu cầu")}</p>
-    </div>
 
     <div class="standard-task-detail-block">
       <h3>Người/Cấp xác nhận</h3>
@@ -4380,7 +4375,6 @@ async function saveTask(event) {
       standardTaskFrequency: templateItem?.frequency || editingTask?.standardTaskFrequency || "",
       standardTaskOutputRequirement: templateItem?.outputRequirement || editingTask?.standardTaskOutputRequirement || "",
       standardTaskMandatoryEvidence: templateItem?.mandatoryEvidence || editingTask?.standardTaskMandatoryEvidence || "",
-      standardTaskArisingEvidence: templateItem?.arisingEvidence || editingTask?.standardTaskArisingEvidence || "",
       standardTaskConfirmer: templateItem?.confirmer || editingTask?.standardTaskConfirmer || "",
       baseScore: templateItem ? Number(templateItem.baseScore || 0) : Number(editingTask?.baseScore || 0),
       difficultyCoefficient: templateItem

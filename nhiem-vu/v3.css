@@ -1193,3 +1193,12 @@ textarea.app-dialog-input{min-height:104px}.app-dialog-input:focus{outline:2px s
 .modal-body .app-dialog-summary span{font-size:13px;line-height:1.4}
 .task-evidence-file-row small{font-size:13px;line-height:1.4}
 .task-evidence-empty,.staged-evidence-empty{font-size:14px;line-height:1.45}
+
+/* ===== V1.21.0: DIRECT/GROUPED personal registration ===== */
+.standard-personalize-group-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding-bottom:10px;border-bottom:1px solid var(--border)}
+.standard-personalize-group-head>div{display:grid;gap:4px;min-width:0}.standard-personalize-group-head small{font-weight:500;line-height:1.45;color:var(--muted)}
+.standard-personal-row{margin-top:12px;padding:12px;border:1px solid var(--border);border-radius:11px;background:#fff;display:grid;gap:10px}
+.standard-personal-row-head{display:flex;align-items:center;justify-content:space-between;gap:10px}.standard-personal-row-head strong{font-size:14px}
+.standard-personal-row-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+.standard-personal-row-grid label{margin-top:0}.personal-deadline-control{display:grid;gap:5px}.personal-deadline-control small{font-weight:500;color:var(--muted);line-height:1.4}
+@media(max-width:760px){.standard-personalize-group-head{display:grid}.standard-personalize-group-head .secondary-button{justify-self:start}.standard-personal-row-grid{grid-template-columns:1fr}}
