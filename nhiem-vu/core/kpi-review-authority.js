@@ -24,8 +24,13 @@ function normalize(value) {
 
 export function leaderLevelOf(user = {}) {
   const authority = upper(user.approvalAuthority);
-  if (authority === "HEAD") return "HEAD";
-  if (authority === "DEPUTY") return "DEPUTY";
+  const authorityFieldPresent = user.approvalAuthorityPresent === true
+    || Object.prototype.hasOwnProperty.call(user, "approvalAuthority");
+  if (authorityFieldPresent) {
+    if (authority === "HEAD") return "HEAD";
+    if (authority === "DEPUTY") return "DEPUTY";
+    return "";
+  }
 
   const explicit = upper(user.leaderLevel);
   if (["HEAD", "DEPARTMENT_HEAD", "TRUONG"].includes(explicit)) return "HEAD";
@@ -48,9 +53,19 @@ export function leaderLevelOf(user = {}) {
 
 export function isDirectorHead(user = {}) { return upper(user.role) === "DIRECTOR" && leaderLevelOf(user) === "HEAD"; }
 export function isDirectorDeputy(user = {}) { return upper(user.role) === "DIRECTOR" && leaderLevelOf(user) === "DEPUTY"; }
-export function isUnitApprovalAuthorityProfile(user = {}) { return upper(user.role) === "DEPARTMENT_LEADER" && leaderLevelOf(user) === "HEAD"; }
+export function isUnitApprovalAuthorityProfile(user = {}) {
+  const role = upper(user.role);
+  return ["DEPARTMENT_LEADER", "ADMIN"].includes(role)
+    && upper(user.departmentId) !== "BGD"
+    && leaderLevelOf(user) === "HEAD";
+}
 export function isDepartmentHeadProfile(user = {}) { return isUnitApprovalAuthorityProfile(user); }
-export function isDepartmentDeputyProfile(user = {}) { return upper(user.role) === "DEPARTMENT_LEADER" && leaderLevelOf(user) === "DEPUTY"; }
+export function isDepartmentDeputyProfile(user = {}) {
+  const role = upper(user.role);
+  return ["DEPARTMENT_LEADER", "ADMIN"].includes(role)
+    && upper(user.departmentId) !== "BGD"
+    && leaderLevelOf(user) === "DEPUTY";
+}
 
 function additionalRoles(user = {}) {
   return Array.isArray(user.additionalRoles) ? user.additionalRoles.map(upper) : [];
@@ -143,13 +158,16 @@ export function resolveKpiReviewers({ users = [], delegations = [], owner, scope
     return directorReviewers(users, delegations, ownerId);
   }
 
-  const ownerRole = upper(owner.role);
-  if (["STAFF", "TCHC_COORDINATOR", "DEPARTMENT_LEADER"].includes(ownerRole)) {
+  const ownerSystemRole = upper(owner.role);
+  const ownerIsDeputy = isDepartmentDeputyProfile(owner);
+  const ownerIsAdminStaff = ownerSystemRole === "ADMIN" && !isUnitApprovalAuthorityProfile(owner) && !ownerIsDeputy;
+  const ownerKpiRole = ownerIsDeputy ? "DEPARTMENT_LEADER" : (ownerIsAdminStaff ? "STAFF" : ownerSystemRole);
+  if (["STAFF", "TCHC_COORDINATOR", "DEPARTMENT_LEADER"].includes(ownerKpiRole)) {
     const authorities = unitAuthorities(users, scope || owner.departmentId, ownerId);
-    if (ownerRole === "DEPARTMENT_LEADER" && !isDepartmentDeputyProfile(owner)) return [];
+    if (ownerKpiRole === "DEPARTMENT_LEADER" && !ownerIsDeputy) return [];
 
     // Với nhân viên: Phó được ủy quyền có quyền bổ sung, người phụ trách đơn vị vẫn giữ quyền gốc.
-    const delegatedDeputy = ownerRole === "DEPARTMENT_LEADER"
+    const delegatedDeputy = ownerKpiRole === "DEPARTMENT_LEADER"
       ? null // Phó không được tự dùng ủy quyền để duyệt chính mình.
       : delegateUser(
           users,
@@ -179,7 +197,6 @@ export function canReviewKpiOwner({ currentUser, users = [], delegations = [], o
   const currentId = userId(currentUser);
   const ownerId = userId(owner);
   if (!currentId || currentId === ownerId) return false;
-  if (upper(currentUser.role) === "ADMIN") return true;
   return resolveKpiReviewers({ users, delegations, owner, scopeDepartmentId })
     .some(reviewer => userId(reviewer) === currentId);
 }
