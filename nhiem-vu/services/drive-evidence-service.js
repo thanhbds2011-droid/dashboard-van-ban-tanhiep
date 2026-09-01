@@ -1,6 +1,6 @@
 /** Tải minh chứng lên Google Drive qua Google Apps Script Web App. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260830.V1_21_0";
-import { NOTIFICATION_WEB_APP_URL } from "../notification-config.js?v=20260830.V1_21_0";
+import { FirebaseService } from "../core/firebase-service.js?v=20260901.V1_21_1";
+import { NOTIFICATION_WEB_APP_URL } from "../notification-config.js?v=20260901.V1_21_1";
 
 const MAX_BYTES = 8 * 1024 * 1024;
 const TIMEOUT_MS = 180000;

@@ -1,8 +1,8 @@
 /** Các thao tác bảo trì có chủ đích, chỉ ADMIN mới gọi được. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260830.V1_21_0";
-import { UserContext } from "../core/user-context.js?v=20260830.V1_21_0";
-import { Permissions } from "../core/permissions.js?v=20260830.V1_21_0";
-import { TaskLogService } from "./task-log-service.js?v=20260830.V1_21_0";
+import { FirebaseService } from "../core/firebase-service.js?v=20260901.V1_21_1";
+import { UserContext } from "../core/user-context.js?v=20260901.V1_21_1";
+import { Permissions } from "../core/permissions.js?v=20260901.V1_21_1";
+import { TaskLogService } from "./task-log-service.js?v=20260901.V1_21_1";
 
 const unique = values => [...new Set((values || []).map(value => String(value || "").trim()).filter(Boolean))];
 
@@ -316,4 +316,5 @@ export const AdminMaintenanceService = Object.freeze({
     await batch.commit();
     return { ok:true, action };
 
+}
 });

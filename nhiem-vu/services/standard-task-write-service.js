@@ -5,12 +5,12 @@
  * - Bí thư, Phó Bí thư và Ủy viên BCH được tạo đầu việc trong phạm vi Chi đoàn.
  * - Quyền tạo, sửa và xóa được tách riêng; Firestore Rules là lớp bảo vệ cuối cùng.
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260830.V1_21_0";
-import { UserContext } from "../core/user-context.js?v=20260830.V1_21_0";
-import { Permissions } from "../core/permissions.js?v=20260830.V1_21_0";
-import { validateDeadlineConfiguration, isEventDrivenFrequency, canonicalFrequency, isStandardFrequency } from "../core/deadline-engine.js?v=20260830.V1_21_0";
+import { FirebaseService } from "../core/firebase-service.js?v=20260901.V1_21_1";
+import { UserContext } from "../core/user-context.js?v=20260901.V1_21_1";
+import { Permissions } from "../core/permissions.js?v=20260901.V1_21_1";
+import { validateDeadlineConfiguration, isEventDrivenFrequency, canonicalFrequency, isStandardFrequency } from "../core/deadline-engine.js?v=20260901.V1_21_1";
 
-const SYNC_VERSION = "20260830.V1_21_0";
+const SYNC_VERSION = "20260901.V1_21_1";
 const MAX_STANDARD_TASK_NAME_LENGTH = 1000;
 const STANDARD_TASK_COLLECTION = "standardTasks";
 const SEQUENCE_COLLECTION = "standardTaskSequences";
@@ -279,7 +279,7 @@ async function listDepartmentTasks(departmentId) {
       FirebaseService.where("departmentId", "==", upper(departmentId))
     )
   );
-  return snapshot.docs.map(item => ({ id: item.id, ...item.data() }));
+  return snapshot.docs.map(item => ({ ...item.data(), id: item.id, uid: item.id }));
 }
 
 function departmentSequenceNumbers(items, departmentId, workType = "THUONG_XUYEN") {
@@ -484,7 +484,7 @@ export const StandardTaskWriteService = Object.freeze({
       )
     );
     return snapshot.docs
-      .map(item => ({ id: item.id, ...item.data() }))
+      .map(item => ({ ...item.data(), id: item.id, uid: item.id }))
       .filter(item => item.active === true && item.id !== user.uid)
       .filter(item => ["STAFF", "TCHC_COORDINATOR"].includes(upper(item.role)) || Permissions.isDepartmentDeputy(item))
       .sort((a, b) => clean(a.fullName).localeCompare(clean(b.fullName), "vi"));
@@ -511,14 +511,16 @@ export const StandardTaskWriteService = Object.freeze({
     // Preflight từ document users là cùng nguồn mà Firestore Rules sử dụng.
     const currentSnapshot = await FirebaseService.getDoc(FirebaseService.doc(FirebaseService.db, "users", user.uid));
     if (!currentSnapshot.exists()) throw new Error("Không tìm thấy hồ sơ quyền của tài khoản đang đăng nhập.");
-    const currentProfile = { id: currentSnapshot.id, ...currentSnapshot.data() };
+    const currentProfileData = currentSnapshot.data();
+    const currentProfile = { ...currentProfileData, id: currentSnapshot.id, uid: currentSnapshot.id, approvalAuthorityPresent: Object.prototype.hasOwnProperty.call(currentProfileData, 'approvalAuthority') };
     if (currentProfile.active !== true || upper(currentProfile.departmentId) !== departmentId || !Permissions.isDepartmentHead(currentProfile)) {
       throw new Error("Tài khoản hiện chưa được hệ thống nhận diện là Trưởng/Phụ trách đơn vị. Hãy đồng bộ lại Danh mục tài khoản trước khi ủy quyền.");
     }
 
     const delegateSnapshot = await FirebaseService.getDoc(FirebaseService.doc(FirebaseService.db, "users", delegateUserId));
     if (!delegateSnapshot.exists()) throw new Error("Không tìm thấy hồ sơ người nhận ủy quyền.");
-    const delegate = { id: delegateSnapshot.id, ...delegateSnapshot.data() };
+    const delegateData = delegateSnapshot.data();
+    const delegate = { ...delegateData, id: delegateSnapshot.id, uid: delegateSnapshot.id, approvalAuthorityPresent: Object.prototype.hasOwnProperty.call(delegateData, 'approvalAuthority') };
     if (delegate.active !== true) throw new Error("Người nhận ủy quyền đang ở trạng thái không hoạt động.");
     if (upper(delegate.departmentId) !== departmentId) throw new Error("Người nhận ủy quyền phải thuộc cùng Phòng/Khu.");
     if (!(["STAFF", "TCHC_COORDINATOR"].includes(upper(delegate.role)) || Permissions.isDepartmentDeputy(delegate))) {

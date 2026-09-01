@@ -8,12 +8,12 @@
  * - executiveDirectiveStates (trạng thái hiện hành theo Phòng/Khu)
  * - executiveWeeklyReports
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260830.V1_21_0";
-import { UserContext } from "../core/user-context.js?v=20260830.V1_21_0";
-import { Permissions } from "../core/permissions.js?v=20260830.V1_21_0";
-import { ExecutiveNotificationService } from "./executive-notification-service.js?v=20260830.V1_21_0";
-import { PeriodReadService } from "./period-read-service.js?v=20260830.V1_21_0";
-import { APP_VERSION } from "../core/app-version.js?v=20260830.V1_21_0";
+import { FirebaseService } from "../core/firebase-service.js?v=20260901.V1_21_1";
+import { UserContext } from "../core/user-context.js?v=20260901.V1_21_1";
+import { Permissions } from "../core/permissions.js?v=20260901.V1_21_1";
+import { ExecutiveNotificationService } from "./executive-notification-service.js?v=20260901.V1_21_1";
+import { PeriodReadService } from "./period-read-service.js?v=20260901.V1_21_1";
+import { APP_VERSION } from "../core/app-version.js?v=20260901.V1_21_1";
 
 const DIRECTIVES = "executiveDirectives";
 const UPDATES = "executiveDirectiveUpdates";
@@ -413,7 +413,7 @@ export const ExecutiveDirectiveService = Object.freeze({
       assertExecutiveKpiActor(user);
       if (!dueDateKey) throw new Error("Chỉ đạo đưa vào KPI phải có thời hạn hoàn thành cụ thể.");
       if (!kpi.kpiMandatoryEvidence) throw new Error("Chỉ đạo đưa vào KPI phải có Minh chứng bắt buộc.");
-      period = await PeriodReadService.getActivePeriod();
+      period = await PeriodReadService.getActive();
       if (!period?.id) throw new Error("Chưa có kỳ KPI đang hoạt động để đưa chỉ đạo vào KPI.");
     }
 
@@ -656,7 +656,7 @@ export const ExecutiveDirectiveService = Object.freeze({
     if (requestedKpi && !kpi.kpiMandatoryEvidence) throw new Error("Chỉ đạo đưa vào KPI phải có Minh chứng bắt buộc.");
     let periodId = clean(current.kpiPeriodId);
     if (requestedKpi && !periodId) {
-      const period = await PeriodReadService.getActivePeriod();
+      const period = await PeriodReadService.getActive();
       periodId = clean(period?.id);
       if (!periodId) throw new Error("Chưa có kỳ KPI đang hoạt động.");
     }
