@@ -60,7 +60,20 @@ export const COMMON_CRITERIA = COMMON_CRITERIA_01A;
 
 export function reportFormTypeForProfile(profile = {}) {
   const role = String(profile?.role || "").trim().toUpperCase();
-  return role === "DIRECTOR" || role === "DEPARTMENT_LEADER" ? "01A" : "01B";
+  if (role === "DIRECTOR" || role === "DEPARTMENT_LEADER") return "01A";
+
+  // V1.21.1: ADMIN là quyền hệ thống, không phải vị trí KPI.
+  // Nếu một ADMIN thực tế là Trưởng/Phó Phòng-Khu thì vẫn dùng Mẫu 01A; ADMIN là nhân viên dùng 01B.
+  if (role === "ADMIN") {
+    const authorityFieldPresent = profile?.approvalAuthorityPresent === true
+      || Object.prototype.hasOwnProperty.call(profile, "approvalAuthority");
+    const authority = String(profile?.approvalAuthority || "").trim().toUpperCase();
+    if (authorityFieldPresent) return ["HEAD", "DEPUTY"].includes(authority) ? "01A" : "01B";
+    const leaderLevel = String(profile?.leaderLevel || "").trim().toUpperCase();
+    if (["HEAD", "DEPARTMENT_HEAD", "TRUONG", "DEPUTY", "DEPARTMENT_DEPUTY", "PHO"].includes(leaderLevel)) return "01A";
+    if (profile?.isDepartmentHead === true) return "01A";
+  }
+  return "01B";
 }
 
 export function commonCriteriaForProfile(profile = {}) {
