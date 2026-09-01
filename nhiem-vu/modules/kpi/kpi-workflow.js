@@ -1,26 +1,26 @@
-import { auth, db } from '../../firebase-config.js?v=20260830.V1_21_0';
+import { auth, db } from '../../firebase-config.js?v=20260901.V1_21_1';
 import {
   addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, onSnapshot, query,
   serverTimestamp, setDoc, Timestamp, updateDoc, where, limit, writeBatch
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
-import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260830.V1_21_0';
-import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260830.V1_21_0';
-import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260830.V1_21_0';
-import { TaskEvidenceService } from '../../services/task-evidence-service.js?v=20260830.V1_21_0';
-import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260830.V1_21_0';
-import { PeriodReadService } from '../../services/period-read-service.js?v=20260830.V1_21_0';
-import { TaskReadService } from '../../services/task-read-service.js?v=20260830.V1_21_0';
-import { Permissions } from '../../core/permissions.js?v=20260830.V1_21_0';
-import { UserContext } from '../../core/user-context.js?v=20260830.V1_21_0';
-import { APP_VERSION } from '../../core/app-version.js?v=20260830.V1_21_0';
-import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260830.V1_21_0';
-import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260830.V1_21_0';
+import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260901.V1_21_1';
+import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260901.V1_21_1';
+import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260901.V1_21_1';
+import { TaskEvidenceService } from '../../services/task-evidence-service.js?v=20260901.V1_21_1';
+import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260901.V1_21_1';
+import { PeriodReadService } from '../../services/period-read-service.js?v=20260901.V1_21_1';
+import { TaskReadService } from '../../services/task-read-service.js?v=20260901.V1_21_1';
+import { Permissions } from '../../core/permissions.js?v=20260901.V1_21_1';
+import { UserContext } from '../../core/user-context.js?v=20260901.V1_21_1';
+import { APP_VERSION } from '../../core/app-version.js?v=20260901.V1_21_1';
+import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260901.V1_21_1';
+import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260901.V1_21_1';
 import {
   KPI2B as KPI2C, M01_GROUPS, COMMON_CRITERIA, commonCriteriaForProfile, reportFormTypeForProfile, calculateTaskScore, calculateKpiSummary,
   proposedRating, resolveQualityRating, ratingName, round2, progressRateFromDates, convertAppendix04Rate, calculateMilestoneProgress, calculateBonusScore
-} from '../../kpi-engine.js?v=20260830.V1_21_0';
-import { resolveKpiReviewer, canReviewKpiOwner } from '../../core/kpi-review-authority.js?v=20260830.V1_21_0';
-import { ModalService } from '../../core/modal-service.js?v=20260830.V1_21_0';
+} from '../../kpi-engine.js?v=20260901.V1_21_1';
+import { resolveKpiReviewer, canReviewKpiOwner } from '../../core/kpi-review-authority.js?v=20260901.V1_21_1';
+import { ModalService } from '../../core/modal-service.js?v=20260901.V1_21_1';
 
 export const KpiWorkflowState = {
   user: null,
@@ -639,6 +639,14 @@ function canViewDepartmentReport() {
   return Permissions.canViewDepartmentReport();
 }
 
+function planManagementDepartmentId() {
+  if (isCdtnScope()) return 'CDTN';
+  // V1.21.1: Trưởng/Phụ trách khóa đúng Phòng/Khu của mình, kể cả khi đang xem Toàn Trung tâm.
+  if (isDepartmentHead()) return profileDepartmentId();
+  if (!globalRole()) return profileDepartmentId();
+  return activeScopeDepartmentId();
+}
+
 function canLockPlan() {
   if (isCdtnScope()) {
     return Permissions.isAdmin()
@@ -1217,7 +1225,7 @@ async function loadAll() {
       evaluationRequest,
       commonRequest,
       milestoneRequest,
-      getDoc(doc(db, 'kpiPlans', `${periodId}_${departmentId}`)),
+      getDoc(doc(db, 'kpiPlans', `${periodId}_${planManagementDepartmentId()}`)),
       profileRequest
     ]);
 
@@ -2164,7 +2172,9 @@ async function evidenceMapForTasks(tasks = []) {
 }
 
 function scorecardExceededLabel(evaluation) {
-  return evaluation?.confirmedExceededRequirement === true ? 'X' : '';
+  // V1.21.1: Bảng KPI dùng X để đánh dấu công việc cá nhân đã đề nghị vượt yêu cầu phục vụ họp/xem xét.
+  // Điều kiện 30% và kết quả chính thức vẫn chỉ dùng confirmedExceededRequirement === true.
+  return evaluation?.isExceededRequirement === true || evaluation?.confirmedExceededRequirement === true ? 'X' : '';
 }
 
 function evidenceCellHtml(files = [], task = {}) {
@@ -3130,7 +3140,7 @@ async function lockDepartmentPlan() {
     return;
   }
 
-  const departmentId = activeScopeDepartmentId();
+  const departmentId = planManagementDepartmentId();
   const approved = KpiWorkflowState.tasks.filter(task =>
     taskScopeDepartmentId(task) === departmentId
     && task.planApprovalStatus === 'APPROVED'
@@ -3327,8 +3337,12 @@ async function unlockDepartmentPlan() {
     ModalService.alert('Tài khoản không có quyền thực hiện thao tác này.');
     return;
   }
-  const hasEvaluation = KpiWorkflowState.evaluations.some(item => ['PENDING_REVIEW', 'CONFIRMED'].includes(item.status));
-  if (hasEvaluation && !await ModalService.confirm('Kỳ đã phát sinh dữ liệu tự đánh giá hoặc xác nhận. Trưởng phòng vẫn muốn mở lại đăng ký kế hoạch của Phòng/Khu?')) {
+  const departmentId = planManagementDepartmentId();
+  const hasEvaluation = KpiWorkflowState.evaluations.some(item =>
+    normalizeDepartment(item.departmentId) === departmentId
+    && ['PENDING_REVIEW', 'CONFIRMED'].includes(item.status)
+  );
+  if (hasEvaluation && !await ModalService.confirm('Kỳ đã phát sinh dữ liệu tự đánh giá hoặc xác nhận trong Phòng/Khu này. Trưởng phòng vẫn muốn mở lại đăng ký kế hoạch?')) {
     return;
   }
   const reason = await ModalService.prompt('Nhập lý do mở lại đăng ký kế hoạch:');
@@ -3340,7 +3354,7 @@ async function unlockDepartmentPlan() {
     unlockedByUserId: KpiWorkflowState.user.uid,
     updatedAt: serverTimestamp()
   });
-  await audit('UNLOCK_DEPARTMENT_PLAN', { reason: clean(reason) });
+  await audit('UNLOCK_DEPARTMENT_PLAN', { departmentId, reason: clean(reason) });
   await loadAll();
   message('Đã mở lại đăng ký kế hoạch.', 'ok');
 }
