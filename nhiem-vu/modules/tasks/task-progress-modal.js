@@ -5,16 +5,16 @@
  * - Bấm × trước khi Lưu chỉ bỏ tệp khỏi danh sách, không phát sinh thao tác Drive.
  * - Mốc định kỳ hỗ trợ Theo ngày / Theo tuần / Theo tháng.
  */
-import { UserContext } from "../../core/user-context.js?v=20260830.V1_21_0";
-import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260830.V1_21_0";
-import { ModalService } from "../../core/modal-service.js?v=20260830.V1_21_0";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260830.V1_21_0";
-import { TaskMilestoneService } from "../../services/task-milestone-service.js?v=20260830.V1_21_0";
-import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260830.V1_21_0";
-import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260830.V1_21_0";
-import { TaskEvidenceService } from "../../services/task-evidence-service.js?v=20260830.V1_21_0";
-import { StagedEvidenceUploader } from "../../services/staged-evidence-uploader.js?v=20260830.V1_21_0";
-import { validateProgressInput, cleanText } from "./task-form-validator.js?v=20260830.V1_21_0";
+import { UserContext } from "../../core/user-context.js?v=20260901.V1_21_1";
+import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260901.V1_21_1";
+import { ModalService } from "../../core/modal-service.js?v=20260901.V1_21_1";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260901.V1_21_1";
+import { TaskMilestoneService } from "../../services/task-milestone-service.js?v=20260901.V1_21_1";
+import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260901.V1_21_1";
+import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260901.V1_21_1";
+import { TaskEvidenceService } from "../../services/task-evidence-service.js?v=20260901.V1_21_1";
+import { StagedEvidenceUploader } from "../../services/staged-evidence-uploader.js?v=20260901.V1_21_1";
+import { validateProgressInput, cleanText } from "./task-form-validator.js?v=20260901.V1_21_1";
 
 function mayUpdate(task) {
   const user = UserContext.requireUser();
@@ -320,7 +320,7 @@ export async function openTaskProgressModal(task, { onSaved }) {
           button.textContent = "Đang kết thúc theo dõi…";
           const closeResult = await TaskWriteService.endEventDrivenTracking(task, workItemSummary, changes);
           if (closeResult?.earlyVerified) {
-            console.info("EVENT_DRIVEN_CLOSE_CONFIRMED_EARLY", { taskId: task.id, taskCode: task.taskCode || "", build: "20260830.V1_21_0" });
+            console.info("EVENT_DRIVEN_CLOSE_CONFIRMED_EARLY", { taskId: task.id, taskCode: task.taskCode || "", build: "20260901.V1_21_1" });
           }
         } else {
           validateProgressInput(changes, task);
