@@ -1202,3 +1202,115 @@ textarea.app-dialog-input{min-height:104px}.app-dialog-input:focus{outline:2px s
 .standard-personal-row-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
 .standard-personal-row-grid label{margin-top:0}.personal-deadline-control{display:grid;gap:5px}.personal-deadline-control small{font-weight:500;color:var(--muted);line-height:1.4}
 @media(max-width:760px){.standard-personalize-group-head{display:grid}.standard-personalize-group-head .secondary-button{justify-self:start}.standard-personal-row-grid{grid-template-columns:1fr}}
+
+/* =========================================================
+ * V1.22.0 — MOBILE/PWA FINAL REFINEMENT
+ * Chỉ tối ưu bố cục/touch target; không thay workflow hay dữ liệu.
+ * ========================================================= */
+@media (max-width: 680px) {
+  .v3-header { padding-top: env(safe-area-inset-top); }
+  .v3-header-inner {
+    width: calc(100% - 18px);
+    min-height: 58px;
+    gap: 7px;
+  }
+  .brand-block { flex: 1 1 auto; min-width: 0; }
+  .brand-block > div:last-child { min-width: 0; }
+  .v3-header h1 {
+    font-size: clamp(15px, 4.5vw, 18px);
+    line-height: 1.17;
+    letter-spacing: -.01em;
+    margin-bottom: 2px;
+  }
+  .v3-header p { font-size: 10px; line-height: 1.25; }
+  .v3-user-area { flex: 0 0 auto; gap: 6px; }
+  .user-avatar,
+  .mobile-menu-button,
+  .header-notification-button {
+    min-width: 44px;
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
+    padding: 0;
+    display: inline-grid !important;
+    place-items: center;
+    border-radius: 11px;
+  }
+  .header-notification-button span { display: none !important; }
+  .mobile-menu-button { font-size: 20px; }
+  .v3-main {
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+  }
+  .v3-footer {
+    padding: 0 12px calc(14px + env(safe-area-inset-bottom));
+    line-height: 1.45;
+  }
+  .toast-container {
+    bottom: calc(10px + env(safe-area-inset-bottom));
+  }
+  .page-header {
+    flex-wrap: wrap;
+  }
+  .page-header .kpi-actions,
+  .page-header .header-actions,
+  .standard-task-workspace-head .kpi-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  .page-header .kpi-actions > button,
+  .page-header .header-actions > button {
+    min-height: 44px;
+  }
+  .toolbar {
+    align-items: stretch;
+  }
+  .toolbar label,
+  .toolbar .field-grow {
+    min-width: 0;
+    width: 100%;
+  }
+  .toolbar input,
+  .toolbar select,
+  .toolbar button {
+    min-height: 44px;
+  }
+  .catalog-row-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    width: 100%;
+    gap: 8px;
+  }
+  .catalog-row-actions button {
+    width: 100%;
+    min-height: 44px;
+    padding: 9px 10px;
+  }
+  .catalog-delete-button {
+    border-width: 1px;
+  }
+  .kpi-review-person {
+    padding: 11px 12px;
+    min-height: 64px;
+  }
+  .kpi-review-person strong { line-height: 1.35; }
+}
+
+/* Giữ các ô thống kê quan trọng ở 2 cột trên điện thoại phổ biến. */
+@media (min-width: 341px) and (max-width: 680px) {
+  .summary-grid,
+  .summary-grid.compact-grid,
+  .kpi-metrics,
+  .tasks-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+/* Chỉ xếp 1 cột ở màn hình thực sự rất hẹp. */
+@media (max-width: 340px) {
+  .summary-grid,
+  .summary-grid.compact-grid,
+  .kpi-metrics,
+  .tasks-summary-grid {
+    grid-template-columns: 1fr !important;
+  }
+}

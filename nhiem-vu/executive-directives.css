@@ -192,3 +192,51 @@
   .directive-tab{font-size:.83rem;padding-inline:8px}
   .directive-mobile-card-meta{grid-template-columns:1fr!important}
 }
+
+/* =========================================================
+ * V1.22.0 — Chỉ đạo điều hành mobile refinement
+ * ========================================================= */
+@media (max-width:700px) {
+  .directive-header-actions {
+    flex-wrap: wrap;
+    gap: 7px;
+  }
+  .directive-header-actions .directive-main-action {
+    flex: 1 1 calc(50% - 30px);
+    min-width: 138px;
+    min-height: 44px;
+  }
+  .directive-header-actions .directive-sync-button {
+    flex: 0 0 44px !important;
+    width: 44px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .directive-tabs {
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    flex-wrap: nowrap;
+    padding-right: 30px;
+    scroll-snap-type: x proximity;
+    scroll-padding-inline: 4px 30px;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  .directive-tab {
+    flex: 0 0 auto;
+    min-height: 44px;
+    scroll-snap-align: start;
+  }
+  .directive-modal-card,
+  .directive-modal-panel {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+@media (max-width:390px) {
+  .directive-header-actions .directive-main-action {
+    min-width: 132px;
+    font-size: .8rem;
+  }
+}
