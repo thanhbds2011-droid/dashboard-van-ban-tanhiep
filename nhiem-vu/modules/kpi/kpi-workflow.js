@@ -1,26 +1,26 @@
-import { auth, db } from '../../firebase-config.js?v=20260901.V1_21_1';
+import { auth, db } from '../../firebase-config.js?v=20260902.V1_22_0';
 import {
   addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, onSnapshot, query,
   serverTimestamp, setDoc, Timestamp, updateDoc, where, limit, writeBatch
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
-import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260901.V1_21_1';
-import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260901.V1_21_1';
-import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260901.V1_21_1';
-import { TaskEvidenceService } from '../../services/task-evidence-service.js?v=20260901.V1_21_1';
-import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260901.V1_21_1';
-import { PeriodReadService } from '../../services/period-read-service.js?v=20260901.V1_21_1';
-import { TaskReadService } from '../../services/task-read-service.js?v=20260901.V1_21_1';
-import { Permissions } from '../../core/permissions.js?v=20260901.V1_21_1';
-import { UserContext } from '../../core/user-context.js?v=20260901.V1_21_1';
-import { APP_VERSION } from '../../core/app-version.js?v=20260901.V1_21_1';
-import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260901.V1_21_1';
-import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260901.V1_21_1';
+import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260902.V1_22_0';
+import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260902.V1_22_0';
+import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260902.V1_22_0';
+import { TaskEvidenceService } from '../../services/task-evidence-service.js?v=20260902.V1_22_0';
+import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260902.V1_22_0';
+import { PeriodReadService } from '../../services/period-read-service.js?v=20260902.V1_22_0';
+import { TaskReadService } from '../../services/task-read-service.js?v=20260902.V1_22_0';
+import { Permissions } from '../../core/permissions.js?v=20260902.V1_22_0';
+import { UserContext } from '../../core/user-context.js?v=20260902.V1_22_0';
+import { APP_VERSION } from '../../core/app-version.js?v=20260902.V1_22_0';
+import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260902.V1_22_0';
+import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260902.V1_22_0';
 import {
   KPI2B as KPI2C, M01_GROUPS, COMMON_CRITERIA, commonCriteriaForProfile, reportFormTypeForProfile, calculateTaskScore, calculateKpiSummary,
   proposedRating, resolveQualityRating, ratingName, round2, progressRateFromDates, convertAppendix04Rate, calculateMilestoneProgress, calculateBonusScore
-} from '../../kpi-engine.js?v=20260901.V1_21_1';
-import { resolveKpiReviewer, canReviewKpiOwner } from '../../core/kpi-review-authority.js?v=20260901.V1_21_1';
-import { ModalService } from '../../core/modal-service.js?v=20260901.V1_21_1';
+} from '../../kpi-engine.js?v=20260902.V1_22_0';
+import { resolveKpiReviewer, canReviewKpiOwner } from '../../core/kpi-review-authority.js?v=20260902.V1_22_0';
+import { ModalService } from '../../core/modal-service.js?v=20260902.V1_22_0';
 
 export const KpiWorkflowState = {
   user: null,
@@ -516,7 +516,7 @@ function hasActiveApprovalDelegation(permissionName = 'APPROVE_REGISTRATIONS', d
 }
 
 function canManageCdtnWorkspace() {
-  return Permissions.isCdtnLeadership()
+  return Permissions.isCdtnSecretary()
     || hasActiveApprovalDelegation('APPROVE_REGISTRATIONS', 'CDTN')
     || hasActiveApprovalDelegation('CONFIRM_EVALUATIONS', 'CDTN')
     || hasActiveApprovalDelegation('LOCK_PLAN', 'CDTN');
@@ -568,11 +568,10 @@ function directorApprovalAvailable(permissionName = 'APPROVE_REGISTRATIONS') {
 
 function canApproveRegistration(registration) {
   if (!registration || registration.status !== 'PENDING') return false;
-  if (activeRole('ADMIN')) return true;
 
   const registrationDepartmentId = normalizeDepartment(registration.departmentId);
   if (registrationDepartmentId === 'CDTN') {
-    const directAuthority = Permissions.isCdtnLeadership();
+    const directAuthority = Permissions.isCdtnSecretary();
     const delegated = hasActiveApprovalDelegation('APPROVE_REGISTRATIONS', 'CDTN');
     return Boolean(
       registrationInApproverDepartment(registration)
@@ -599,13 +598,11 @@ function canApproveRegistration(registration) {
   if (directorFallback) return true;
 
   const delegated = hasActiveApprovalDelegation('APPROVE_REGISTRATIONS', profileDepartmentId());
-  if (registration.userRole === 'DEPARTMENT_LEADER') {
-    if (ownerIsDeputy) {
-      return Permissions.canApproveRegistrationForDepartment(registrationDepartmentId, delegated)
-        && registrationInApproverDepartment(registration)
-        && registration.userId !== KpiWorkflowState.user.uid;
-    }
-    return false;
+  if (ownerIsHead) return false;
+  if (ownerIsDeputy) {
+    return Permissions.canApproveRegistrationForDepartment(registrationDepartmentId, delegated)
+      && registrationInApproverDepartment(registration)
+      && registration.userId !== KpiWorkflowState.user.uid;
   }
   return Permissions.canApproveRegistrationForDepartment(registrationDepartmentId, delegated)
     && registrationInApproverDepartment(registration)
@@ -660,9 +657,9 @@ function canLockPlan() {
 
 function canConfirmEvaluations() {
   if (isCdtnScope()) {
-    return Permissions.isAdmin()
-      || Permissions.isCdtnLeadership()
-      || hasActiveApprovalDelegation('CONFIRM_EVALUATIONS', 'CDTN');
+    return Permissions.isCdtnSecretary()
+      || hasActiveApprovalDelegation('CONFIRM_EVALUATIONS', 'CDTN')
+      || directorApprovalAvailable('CONFIRM_EVALUATIONS');
   }
   return Permissions.canConfirmEvaluations(
     hasActiveApprovalDelegation('CONFIRM_EVALUATIONS', profileDepartmentId())
