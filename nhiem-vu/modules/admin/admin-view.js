@@ -1,9 +1,9 @@
-import { UserContext } from "../../core/user-context.js?v=20260901.V1_21_1";
-import { Permissions } from "../../core/permissions.js?v=20260901.V1_21_1";
-import { ToastService } from "../../core/toast-service.js?v=20260901.V1_21_1";
-import { ModalService } from "../../core/modal-service.js?v=20260901.V1_21_1";
-import { AdminReadService } from "../../services/admin-read-service.js?v=20260901.V1_21_1";
-import { AdminMaintenanceService } from "../../services/admin-maintenance-service.js?v=20260901.V1_21_1";
+import { UserContext } from "../../core/user-context.js?v=20260902.V1_22_0";
+import { Permissions } from "../../core/permissions.js?v=20260902.V1_22_0";
+import { ToastService } from "../../core/toast-service.js?v=20260902.V1_22_0";
+import { ModalService } from "../../core/modal-service.js?v=20260902.V1_22_0";
+import { AdminReadService } from "../../services/admin-read-service.js?v=20260902.V1_22_0";
+import { AdminMaintenanceService } from "../../services/admin-maintenance-service.js?v=20260902.V1_22_0";
 
 let currentDiagnostic = null;
 
@@ -26,7 +26,7 @@ function render(outlet, user, diagnostic) {
   const repairable = diagnostic.repairableTaskIds.length;
   const warnings = diagnostic.issues.filter(item => item.level === "WARNING").length;
   outlet.innerHTML = `<section class="page-card">
-    <div class="page-header"><div><h2>Quản trị hệ thống</h2><p>Chẩn đoán dữ liệu, nhật ký và bảo trì có kiểm soát.</p></div><span class="role-badge">ADMIN · V1.21.1</span></div>
+    <div class="page-header"><div><h2>Quản trị hệ thống</h2><p>Chẩn đoán dữ liệu, nhật ký và bảo trì có kiểm soát.</p></div><span class="role-badge">ADMIN · V1.22.0</span></div>
     <div class="success-banner">Tài khoản <strong>${escapeHtml(user.fullName || user.email)}</strong> đang thao tác trong phạm vi quản trị.</div>
     <div class="summary-grid compact-grid">
       ${metric("Tài khoản hoạt động", counts.users ?? "—")}
