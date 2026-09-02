@@ -1,11 +1,11 @@
-import { UserContext } from "../../core/user-context.js?v=20260901.V1_21_1";
-import { Permissions } from "../../core/permissions.js?v=20260901.V1_21_1";
-import { ToastService } from "../../core/toast-service.js?v=20260901.V1_21_1";
-import { TaskReadService } from "../../services/task-read-service.js?v=20260901.V1_21_1";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260901.V1_21_1";
-import { openTaskCreateModal } from "./task-form-modal.js?v=20260901.V1_21_1";
-import { openTaskDetailModal } from "./task-detail-modal.js?v=20260901.V1_21_1";
-import { effectiveDepartmentAssignmentStatus } from "../../core/task-display-order.js?v=20260901.V1_21_1";
+import { UserContext } from "../../core/user-context.js?v=20260902.V1_22_0";
+import { Permissions } from "../../core/permissions.js?v=20260902.V1_22_0";
+import { ToastService } from "../../core/toast-service.js?v=20260902.V1_22_0";
+import { TaskReadService } from "../../services/task-read-service.js?v=20260902.V1_22_0";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260902.V1_22_0";
+import { openTaskCreateModal } from "./task-form-modal.js?v=20260902.V1_22_0";
+import { openTaskDetailModal } from "./task-detail-modal.js?v=20260902.V1_22_0";
+import { effectiveDepartmentAssignmentStatus } from "../../core/task-display-order.js?v=20260902.V1_22_0";
 
 let renderSequence = 0;
 let currentTasks = [];
@@ -89,7 +89,7 @@ export async function renderTasksView(outlet) {
     ]);
     currentTasks = tasks;
     if (sequence !== renderSequence || currentOutlet !== outlet || window.location.hash !== "#/tasks") return;
-    mountTasksPage(outlet, canCreateUnexpectedTask);
+    mountTasksPage(outlet, canCreateUnexpectedTask && !Permissions.isDirector());
     updateTasksPage(currentTasks);
     startTasksRealtime(outlet, sequence);
   } catch (error) {
@@ -292,9 +292,17 @@ function bindRows(tasks) {
       if (!task) return;
       openTaskDetailModal(task, {
         onSaved: async () => {
-          TaskReadService.invalidate();
-          currentTasks = await TaskReadService.list({ force: true });
-          updateTasksPage(currentTasks);
+          /* V1.22.0: thao tác hằng ngày chỉ tải lại đúng task vừa đổi; realtime vẫn là lớp đồng bộ nền. */
+          try {
+            const refreshed = await TaskReadService.getById(task.id);
+            currentTasks = currentTasks.filter(item => item.id !== task.id);
+            if (refreshed) currentTasks.push(refreshed);
+            updateTasksPage(currentTasks);
+          } catch (error) {
+            console.warn("Không cập nhật cục bộ được nhiệm vụ; fallback tải lại phạm vi hiện tại:", error);
+            currentTasks = await TaskReadService.list({ force: true });
+            updateTasksPage(currentTasks);
+          }
         }
       });
     });

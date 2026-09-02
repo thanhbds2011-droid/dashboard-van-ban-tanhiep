@@ -5,16 +5,16 @@
  * - Bấm × trước khi Lưu chỉ bỏ tệp khỏi danh sách, không phát sinh thao tác Drive.
  * - Mốc định kỳ hỗ trợ Theo ngày / Theo tuần / Theo tháng.
  */
-import { UserContext } from "../../core/user-context.js?v=20260901.V1_21_1";
-import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260901.V1_21_1";
-import { ModalService } from "../../core/modal-service.js?v=20260901.V1_21_1";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260901.V1_21_1";
-import { TaskMilestoneService } from "../../services/task-milestone-service.js?v=20260901.V1_21_1";
-import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260901.V1_21_1";
-import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260901.V1_21_1";
-import { TaskEvidenceService } from "../../services/task-evidence-service.js?v=20260901.V1_21_1";
-import { StagedEvidenceUploader } from "../../services/staged-evidence-uploader.js?v=20260901.V1_21_1";
-import { validateProgressInput, cleanText } from "./task-form-validator.js?v=20260901.V1_21_1";
+import { UserContext } from "../../core/user-context.js?v=20260902.V1_22_0";
+import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260902.V1_22_0";
+import { ModalService } from "../../core/modal-service.js?v=20260902.V1_22_0";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260902.V1_22_0";
+import { TaskMilestoneService } from "../../services/task-milestone-service.js?v=20260902.V1_22_0";
+import { DriveEvidenceService } from "../../services/drive-evidence-service.js?v=20260902.V1_22_0";
+import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260902.V1_22_0";
+import { TaskEvidenceService } from "../../services/task-evidence-service.js?v=20260902.V1_22_0";
+import { StagedEvidenceUploader } from "../../services/staged-evidence-uploader.js?v=20260902.V1_22_0";
+import { validateProgressInput, cleanText } from "./task-form-validator.js?v=20260902.V1_22_0";
 
 function mayUpdate(task) {
   const user = UserContext.requireUser();
@@ -69,9 +69,10 @@ function stagedListHtml(items = []) {
     const selected = item.status === "SELECTED";
     const error = item.status === "ERROR";
     const busy = ["UPLOADING", "ROLLING_BACK"].includes(item.status);
-    const statusText = selected ? "Đã chọn · Chưa lưu" : uploaded ? "Đã tải · Đang hoàn tất lưu" : error ? item.message : item.message || "Đang xử lý…";
+    const statusText = selected ? "Đã chọn · Chưa lưu" : uploaded ? (item.message || "Đã tải · Đang hoàn tất lưu") : error ? item.message : item.message || "Đang xử lý…";
+    const fileSize = Number(item.file?.size || item.uploaded?.uploadedSize || item.uploadedSize || 0);
     return `<div class="staged-evidence-row ${uploaded ? "is-uploaded" : error ? "is-error" : busy ? "is-busy" : ""}" data-staged-id="${escapeHtml(item.id)}">
-      <div class="staged-evidence-main"><strong>${escapeHtml(item.originalName || item.uploaded?.originalFileName || item.uploaded?.fileName || "Tệp minh chứng")}</strong><small>${escapeHtml(statusText)}</small>${busy ? `<div class="staged-evidence-progress"><span style="width:${Math.max(2, Math.min(100, Number(item.percent || 0)))}%"></span></div>` : ""}${uploaded && item.uploaded?.uploadedSize ? `<small>${escapeHtml(DriveEvidenceService.formatBytes(item.uploaded.uploadedSize))}</small>` : ""}</div>
+      <div class="staged-evidence-main"><strong>${escapeHtml(item.originalName || item.uploaded?.originalFileName || item.uploaded?.fileName || "Tệp minh chứng")}</strong><small>${escapeHtml(statusText)}${fileSize ? ` · ${escapeHtml(DriveEvidenceService.formatBytes(fileSize))}` : ""}</small>${busy ? `<div class="staged-evidence-progress"><span style="width:${Math.max(2, Math.min(100, Number(item.percent || 0)))}%"></span></div>` : ""}</div>
       <div class="staged-evidence-actions">${error ? `<button type="button" class="secondary-button compact-button" data-retry-staged-id="${escapeHtml(item.id)}">Thử lại</button>` : ""}<button type="button" class="evidence-remove-button" data-remove-staged-id="${escapeHtml(item.id)}" title="Bỏ tệp" aria-label="Bỏ tệp">×</button></div>
     </div>`;
   }).join("")}</div>`;
@@ -173,8 +174,11 @@ export async function openTaskProgressModal(task, { onSaved }) {
   }
 
   function renderStaged() {
+    const snapshot = staged.snapshot();
+    const box = $("evidenceStagedBox");
     const target = $("evidenceStagedList");
-    if (target) target.innerHTML = stagedListHtml(staged.snapshot());
+    if (box) box.hidden = snapshot.length === 0;
+    if (target) target.innerHTML = stagedListHtml(snapshot);
   }
 
   function renderSavedEvidence() {
@@ -259,7 +263,8 @@ export async function openTaskProgressModal(task, { onSaved }) {
       saving = true;
       refreshSaveState();
       overlay.querySelectorAll("[data-close]").forEach(item => { item.disabled = true; });
-      button.textContent = "Đang lưu…";
+      const pendingEvidenceCount = staged.snapshot().filter(item => ["SELECTED", "ERROR"].includes(item.status) && !item.committed).length;
+      button.textContent = pendingEvidenceCount > 0 ? `Đang tải ${pendingEvidenceCount} tệp minh chứng…` : "Đang lưu…";
 
       let evidenceUrl = task.evidenceUrl || task.evidenceLink || "";
       let evidenceFileName = task.evidenceFileName || "";
@@ -311,6 +316,13 @@ export async function openTaskProgressModal(task, { onSaved }) {
             messageHtml: `<div class="app-dialog-summary"><div><span>Đã ghi nhận</span><strong>${total} lượt</strong></div><div><span>Hoàn thành nghiệp vụ</span><strong>${completedCount}/${total} = 100%</strong></div><div><span>Điểm tiến độ KPI</span><strong>${progressRate}%</strong></div></div><p><strong>Lưu ý:</strong> 100% ở đây là đã làm xong toàn bộ lượt công việc. Điểm tiến độ KPI vẫn tính theo đúng/trễ hạn từng lượt; ví dụ trễ 1–3 ngày chỉ còn 80%. Sau khi kết thúc, không thể thêm, sửa hoặc xóa lượt phát sinh.</p>`
           });
           if (!confirmedClose) {
+            // Người dùng hủy bước kết thúc theo dõi sau khi đã bấm Lưu: đưa evidence vừa tải về trạng thái chờ,
+            // không để lại record Firestore trỏ tới file Drive chưa được commit vào cập nhật nghiệp vụ.
+            for (const record of addedEvidenceRecords) {
+              try { await TaskEvidenceService.remove(task, record); } catch (_) { /* rollback best effort */ }
+            }
+            addedEvidenceRecords = [];
+            await staged.rollbackUncommitted();
             saving = false;
             button.textContent = "Lưu cập nhật";
             overlay.querySelectorAll("[data-close]").forEach(item => { item.disabled = false; });
@@ -320,25 +332,30 @@ export async function openTaskProgressModal(task, { onSaved }) {
           button.textContent = "Đang kết thúc theo dõi…";
           const closeResult = await TaskWriteService.endEventDrivenTracking(task, workItemSummary, changes);
           if (closeResult?.earlyVerified) {
-            console.info("EVENT_DRIVEN_CLOSE_CONFIRMED_EARLY", { taskId: task.id, taskCode: task.taskCode || "", build: "20260901.V1_21_1" });
+            console.info("EVENT_DRIVEN_CLOSE_CONFIRMED_EARLY", { taskId: task.id, taskCode: task.taskCode || "", build: "20260902.V1_22_0" });
           }
         } else {
           validateProgressInput(changes, task);
           button.textContent = "Đang hoàn tất cập nhật…";
           await TaskWriteService.updateProgress(task, changes);
         }
+        // Từ thời điểm business write đã thành công, evidence vừa tải là dữ liệu đã commit.
+        // Đánh dấu ngay trước mọi thao tác render để một lỗi UI không thể kích hoạt cleanup/rollback nhầm file đã lưu.
         businessSaved = true;
-        if (addedEvidenceRecords.length) {
-          evidenceFiles.push(...addedEvidenceRecords);
-          renderSavedEvidence();
-        }
         staged.markCommitted(uploadedFiles);
       } catch (businessError) {
-        for (const record of addedEvidenceRecords) {
-          try { await TaskEvidenceService.remove(task, record); } catch (_) { /* rollback best effort */ }
+        if (!businessSaved) {
+          for (const record of addedEvidenceRecords) {
+            try { await TaskEvidenceService.remove(task, record); } catch (_) { /* rollback best effort */ }
+          }
+          await staged.rollbackUncommitted();
         }
-        await staged.rollbackUncommitted();
         throw businessError;
+      }
+
+      if (addedEvidenceRecords.length) {
+        evidenceFiles.push(...addedEvidenceRecords);
+        try { renderSavedEvidence(); } catch (renderError) { console.warn("Đã lưu minh chứng nhưng chưa cập nhật được danh sách hiển thị:", renderError); }
       }
 
       saving = false;
