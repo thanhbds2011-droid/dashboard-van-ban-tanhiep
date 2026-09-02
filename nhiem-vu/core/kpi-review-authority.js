@@ -72,6 +72,7 @@ function additionalRoles(user = {}) {
 }
 export function isCdtnSecretary(user = {}) { return additionalRoles(user).includes("CDTN_BI_THU"); }
 export function isCdtnDeputySecretary(user = {}) { return additionalRoles(user).includes("CDTN_PHO_BI_THU"); }
+export function isCdtnExecutiveCommitteeMember(user = {}) { return additionalRoles(user).includes("CDTN_UY_VIEN_BCH"); }
 export function isCdtnExecutive(user = {}) {
   const roles = additionalRoles(user);
   return roles.some(role => ["CDTN_BI_THU", "CDTN_PHO_BI_THU", "CDTN_UY_VIEN_BCH"].includes(role));
@@ -138,11 +139,15 @@ export function resolveKpiReviewers({ users = [], delegations = [], owner, scope
 
   if (scope === "CDTN") {
     if (isCdtnSecretary(owner)) return directorReviewers(users, delegations, ownerId);
-    if (isCdtnDeputySecretary(owner)) {
-      return activeCandidates(users, isCdtnSecretary, ownerId);
-    }
     if (isCdtnMember(owner)) {
-      const delegatedSecretary = delegateUser(users, delegations, "CDTN", "CONFIRM_EVALUATIONS", isCdtnDeputySecretary, ownerId);
+      const delegatedSecretary = delegateUser(
+        users,
+        delegations,
+        "CDTN",
+        "CONFIRM_EVALUATIONS",
+        user => isCdtnDeputySecretary(user) || isCdtnExecutiveCommitteeMember(user),
+        ownerId
+      );
       const secretaries = activeCandidates(users, isCdtnSecretary, ownerId);
       return uniqueUsers([delegatedSecretary, ...secretaries].filter(Boolean));
     }

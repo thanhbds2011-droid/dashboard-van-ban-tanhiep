@@ -2,7 +2,7 @@
  * Lớp kiểm tra quyền dùng thống nhất cho giao diện.
  * Firestore Security Rules vẫn là lớp kiểm soát bắt buộc ở phía dữ liệu.
  */
-import { UserContext } from "./user-context.js?v=20260901.V1_21_1";
+import { UserContext } from "./user-context.js?v=20260902.V1_22_0";
 
 function clean(value) {
   return String(value ?? "").trim();
@@ -129,6 +129,17 @@ export const Permissions = Object.freeze({
     return roleIs(user, "TCHC_COORDINATOR");
   },
 
+  isBusinessStaff(user = UserContext.getUser()) {
+    if (!activeUser(user)) return false;
+    const role = upper(user?.role);
+    if (["STAFF", "TCHC_COORDINATOR"].includes(role)) return true;
+    /* ADMIN là system privilege; nếu hồ sơ không mang vị trí Head/Deputy/Director thì workflow nghiệp vụ xem như nhân viên. */
+    return role === "ADMIN"
+      && !this.hasUnitApprovalAuthority(user)
+      && !this.isDepartmentDeputy(user)
+      && !this.isDirector(user);
+  },
+
   isTchcDepartmentLeader(user = UserContext.getUser()) {
     return Boolean(
       this.isDepartmentLeader(user) &&
@@ -166,12 +177,13 @@ export const Permissions = Object.freeze({
   },
 
   isCdtnCatalogManager(user = UserContext.getUser()) {
-    /* V1.9.4: Bí thư, Phó Bí thư và Ủy viên BCH đều được tạo đầu việc Chi đoàn. */
-    return this.isCdtnExecutiveMember(user);
+    /* V1.22.0: Danh mục KPI Chi đoàn do Bí thư quản lý. */
+    return this.isCdtnSecretary(user);
   },
 
   canApproveCdtnRegistrations(hasDelegation = false) {
-    return this.isAdmin() || this.isCdtnLeadership() || hasDelegation === true;
+    /* Bí thư duyệt; Phó Bí thư/Ủy viên BCH chỉ duyệt khi có ủy quyền hợp lệ. */
+    return this.isCdtnSecretary() || hasDelegation === true;
   },
 
   canDelegateCdtnApproval() {
@@ -187,8 +199,10 @@ export const Permissions = Object.freeze({
   },
 
   hasUnitApprovalAuthority(user = UserContext.getUser()) {
+    /* System privilege ADMIN không thay business position; mirror Firestore Rules isHeadProfile(). */
     return Boolean(
-      this.isDepartmentLeader(user) &&
+      activeUser(user) &&
+      ["DEPARTMENT_LEADER", "ADMIN"].includes(upper(user?.role)) &&
       leaderLevel(user) === "HEAD"
     );
   },
@@ -200,8 +214,10 @@ export const Permissions = Object.freeze({
   },
 
   isDepartmentDeputy(user = UserContext.getUser()) {
+    /* Mirror Firestore Rules isDeputyProfile(): ADMIN vẫn giữ business position Phó nếu hồ sơ quy định. */
     return Boolean(
-      this.isDepartmentLeader(user) &&
+      activeUser(user) &&
+      ["DEPARTMENT_LEADER", "ADMIN"].includes(upper(user?.role)) &&
       leaderLevel(user) === "DEPUTY"
     );
   },
@@ -210,9 +226,11 @@ export const Permissions = Object.freeze({
     const user = UserContext.getUser();
     const targetDepartmentId = upper(departmentId);
     if (!targetDepartmentId) return false;
-    if (this.isAdmin(user)) return true;
     if (targetDepartmentId === "CDTN") {
-      return this.isCdtnLeadership(user) || hasDelegation === true;
+      return this.isCdtnSecretary(user) || hasDelegation === true;
+    }
+    if (targetDepartmentId === "BGD") {
+      return this.isDirectorHead(user) || hasDelegation === true;
     }
     return (this.isDepartmentHead(user) && sameDepartment(user, targetDepartmentId))
       || (this.isDepartmentDeputy(user) && sameDepartment(user, targetDepartmentId) && hasDelegation === true);
@@ -231,16 +249,20 @@ export const Permissions = Object.freeze({
     return this.isAdmin(user) || (this.isDepartmentHead(user) && upper(user?.departmentId) === "TCHC");
   },
 
-  canRegisterStandardTasks() {
-    return this.isStaff() || this.isDepartmentLeader() || this.isDirector() || this.isTchcCoordinator();
+  canRegisterStandardTasks(user = UserContext.getUser()) {
+    return this.isDirector(user)
+      || this.isDepartmentLeader(user)
+      || this.isDepartmentHead(user)
+      || this.isDepartmentDeputy(user)
+      || this.isBusinessStaff(user);
   },
 
   canCreateStandardTask(departmentId = "", hasDelegation = false, user = UserContext.getUser()) {
     const targetDepartment = upper(departmentId || user?.departmentId);
     const delegated = hasDelegation === true;
     if (!activeUser(user) || !targetDepartment) return false;
-    if (this.isAdmin(user)) return true;
     if (targetDepartment === "CDTN") return this.isCdtnCatalogManager(user);
+    if (this.isAdmin(user)) return true;
     if (targetDepartment === "BGD") {
       return this.isDirector(user) && sameDepartment(user, "BGD");
     }
@@ -252,11 +274,8 @@ export const Permissions = Object.freeze({
   canUpdateStandardTask(task, hasDelegation = false, user = UserContext.getUser()) {
     const departmentId = upper(task?.departmentId);
     if (!activeUser(user) || !task || !departmentId) return false;
+    if (departmentId === "CDTN") return this.isCdtnCatalogManager(user);
     if (this.isAdmin(user)) return true;
-    if (departmentId === "CDTN") {
-      return this.isCdtnLeadership(user)
-        || (this.isCdtnExecutiveMember(user) && createdByCurrentUser(task, user));
-    }
     if (departmentId === "BGD") {
       return this.isDirector(user) && sameDepartment(user, "BGD");
     }
@@ -270,8 +289,8 @@ export const Permissions = Object.freeze({
   canDeleteStandardTask(task, user = UserContext.getUser()) {
     const departmentId = upper(task?.departmentId);
     if (!activeUser(user) || !task || !departmentId) return false;
+    if (departmentId === "CDTN") return this.isCdtnCatalogManager(user);
     if (this.isAdmin(user)) return true;
-    if (departmentId === "CDTN") return this.isCdtnLeadership(user);
     if (departmentId === "BGD") return this.isDirector(user) && sameDepartment(user, "BGD");
     return this.hasUnitApprovalAuthority(user) && sameDepartment(user, departmentId);
   },
@@ -290,10 +309,15 @@ export const Permissions = Object.freeze({
 
   canCreateUnexpectedTask(hasDelegation = false, user = UserContext.getUser()) {
     if (!activeUser(user)) return false;
-    if (this.isAdmin(user) || this.isDirector(user)) return true;
-    if (this.hasUnitApprovalAuthority(user)) return true;
+    /* V1.22.0: system ADMIN không thay business position trong luồng giao nhiệm vụ. */
+    if (this.isDirector(user)) return true;
+    if (this.hasUnitApprovalAuthority(user) || this.isDepartmentDeputy(user)) return true;
+    const adminStaffProfile = this.isAdmin(user)
+      && !this.hasUnitApprovalAuthority(user)
+      && !this.isDepartmentDeputy(user)
+      && !this.isDirector(user);
     return hasDelegation === true
-      && (this.isDepartmentDeputy(user) || this.isStaff(user) || this.isTchcCoordinator(user));
+      && (this.isStaff(user) || this.isTchcCoordinator(user) || adminStaffProfile);
   },
 
   canRegisterTask() {
@@ -305,7 +329,7 @@ export const Permissions = Object.freeze({
   },
 
   canApproveStaffRegistrations(hasDelegation = false) {
-    return this.isAdmin() || this.isDepartmentHead() || (this.isDepartmentDeputy() && hasDelegation === true);
+    return this.isDepartmentHead() || (this.isDepartmentDeputy() && hasDelegation === true);
   },
 
   canViewStaffRegistrations(hasDelegation = false) {
@@ -313,7 +337,7 @@ export const Permissions = Object.freeze({
   },
 
   canApproveLeaderRegistrations(hasDelegation = false) {
-    return this.isAdmin() || this.isDirector() || this.isDepartmentHead() || (this.isDepartmentDeputy() && hasDelegation === true);
+    return this.isDirectorHead() || (this.isDirectorDeputy() && hasDelegation === true);
   },
 
   canApprovePlan(hasDelegation = false) {
@@ -333,7 +357,10 @@ export const Permissions = Object.freeze({
   },
 
   canConfirmEvaluations(hasDelegation = false) {
-    return this.isAdmin() || this.isDepartmentHead() || (this.isDepartmentDeputy() && hasDelegation === true);
+    return this.isDepartmentHead()
+      || (this.isDepartmentDeputy() && hasDelegation === true)
+      || this.isDirectorHead()
+      || (this.isDirectorDeputy() && hasDelegation === true);
   },
 
   canViewDepartmentReport() {
@@ -406,7 +433,7 @@ export const Permissions = Object.freeze({
   },
 
   canReviewStaffTask() {
-    return this.isAdmin() || this.isDirector() || this.isDepartmentHead();
+    return this.isDirector() || this.isDepartmentHead() || this.isDepartmentDeputy();
   },
 
   canViewAllScopes() {
@@ -420,10 +447,12 @@ export const Permissions = Object.freeze({
   },
 
   canManageExecutiveDirectives(user = UserContext.getUser()) {
-    return this.isAdmin(user)
-      || this.isDirector(user)
-      || this.isTchcCoordinator(user)
-      || this.isTchcDepartmentLeader(user);
+    /* ADMIN là system privilege; quyền điều hành theo business position. */
+    if (this.isDirector(user)) return true;
+    if (upper(user?.departmentId) !== "TCHC") return false;
+    return this.isTchcCoordinator(user)
+      || this.isDepartmentHead(user)
+      || this.isDepartmentDeputy(user);
   },
 
   canViewAllExecutiveDirectives(user = UserContext.getUser()) {
@@ -432,10 +461,26 @@ export const Permissions = Object.freeze({
 
   canRecordOralExecutiveDirective(user = UserContext.getUser()) {
     const departmentId = upper(user?.departmentId);
+    /* Phòng/Khu thông thường: chỉ Trưởng/Phụ trách (HEAD) ghi nhận BGĐ cho chính đơn vị. TCHC Phó đi qua capability relay riêng. */
     return activeUser(user)
-      && this.isDepartmentLeader(user)
+      && this.hasUnitApprovalAuthority(user)
       && Boolean(departmentId)
       && !["BGD", "CDTN"].includes(departmentId);
+  },
+
+  canRelayOralExecutiveDirective(user = UserContext.getUser()) {
+    /*
+     * V1.22.0: TCHC là đầu mối ghi nhận/chuyển tải chỉ đạo miệng BGĐ xuống Phòng/Khu.
+     * System privilege ADMIN không tự tạo capability này; phải có business position/capability TCHC phù hợp.
+     */
+    return activeUser(user)
+      && upper(user?.departmentId) === "TCHC"
+      && (
+        this.isTchcCoordinator(user)
+        || this.isTchcDepartmentLeader(user)
+        || this.hasUnitApprovalAuthority(user)
+        || this.isDepartmentDeputy(user)
+      );
   },
 
   canAccessExecutiveDirectives() {
@@ -448,7 +493,7 @@ export const Permissions = Object.freeze({
 
   canGenerateOwnExecutiveReports(user = UserContext.getUser()) {
     return activeUser(user)
-      && (this.canManageExecutiveDirectives(user) || this.isDepartmentLeader(user));
+      && (this.canManageExecutiveDirectives(user) || this.isDepartmentHead(user) || this.isDepartmentDeputy(user));
   },
 
   canGenerateCenterExecutiveReports(user = UserContext.getUser()) {
