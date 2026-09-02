@@ -5,8 +5,8 @@
  * - Bấm × trước khi Lưu chỉ loại tệp khỏi danh sách, không gọi Drive.
  * - Nếu lưu nghiệp vụ thất bại sau khi upload, rollbackUncommitted() đưa các tệp vừa tải vào Thùng rác Drive.
  */
-import { DriveEvidenceService } from "./drive-evidence-service.js?v=20260901.V1_21_1";
-import { TaskEvidenceService } from "./task-evidence-service.js?v=20260901.V1_21_1";
+import { DriveEvidenceService } from "./drive-evidence-service.js?v=20260902.V1_22_0";
+import { TaskEvidenceService } from "./task-evidence-service.js?v=20260902.V1_22_0";
 
 function id() {
   return `STAGED_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
@@ -75,19 +75,21 @@ export class StagedEvidenceUploader {
   async uploadPending() {
     if (this.closed) throw new Error("Biểu mẫu đã đóng.");
     const candidates = this.items.filter(item => ["SELECTED", "ERROR"].includes(item.status) && !item.committed);
-    for (const item of candidates) {
+    for (let index = 0; index < candidates.length; index += 1) {
+      const item = candidates[index];
+      const ordinal = `${index + 1}/${candidates.length}`;
       item.status = "UPLOADING";
       item.phase = "PREPARING";
       item.percent = 0;
       item.error = "";
-      item.message = "Đang chuẩn bị tệp…";
+      item.message = `Đang chuẩn bị tệp ${ordinal}…`;
       this.notify();
       try {
         const uploaded = await DriveEvidenceService.upload(item.file, this.task, {
           onProgress: state => {
             item.phase = state?.phase || "UPLOADING";
             item.percent = Math.max(0, Math.min(100, Number(state?.percent || 0)));
-            item.message = state?.message || "Đang tải minh chứng…";
+            item.message = `Tệp ${ordinal} · ${state?.message || "Đang tải minh chứng…"}`;
             item.optimized = state?.optimized === true;
             item.originalSize = Number(state?.originalSize || item.file?.size || 0);
             item.uploadedSize = Number(state?.uploadedSize || 0);
@@ -102,7 +104,7 @@ export class StagedEvidenceUploader {
         item.percent = 100;
         item.phase = "COMPLETED";
         item.status = "UPLOADED";
-        item.message = "Đã tải · Đang hoàn tất lưu";
+        item.message = `Đã tải tệp ${ordinal} · Đang hoàn tất lưu`;
         this.notify();
       } catch (error) {
         item.status = "ERROR";

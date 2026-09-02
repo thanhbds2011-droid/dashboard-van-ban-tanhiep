@@ -8,12 +8,12 @@
  * - executiveDirectiveStates (trạng thái hiện hành theo Phòng/Khu)
  * - executiveWeeklyReports
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260901.V1_21_1";
-import { UserContext } from "../core/user-context.js?v=20260901.V1_21_1";
-import { Permissions } from "../core/permissions.js?v=20260901.V1_21_1";
-import { ExecutiveNotificationService } from "./executive-notification-service.js?v=20260901.V1_21_1";
-import { PeriodReadService } from "./period-read-service.js?v=20260901.V1_21_1";
-import { APP_VERSION } from "../core/app-version.js?v=20260901.V1_21_1";
+import { FirebaseService } from "../core/firebase-service.js?v=20260902.V1_22_0";
+import { UserContext } from "../core/user-context.js?v=20260902.V1_22_0";
+import { Permissions } from "../core/permissions.js?v=20260902.V1_22_0";
+import { ExecutiveNotificationService } from "./executive-notification-service.js?v=20260902.V1_22_0";
+import { PeriodReadService } from "./period-read-service.js?v=20260902.V1_22_0";
+import { APP_VERSION } from "../core/app-version.js?v=20260902.V1_22_0";
 
 const DIRECTIVES = "executiveDirectives";
 const UPDATES = "executiveDirectiveUpdates";
@@ -83,6 +83,12 @@ function assertActiveUser() {
   const user = UserContext.requireUser();
   if (user.active !== true) throw new Error("Tài khoản chưa được kích hoạt.");
   return user;
+}
+
+function canReadOwnDirectiveDepartment(user = UserContext.getUser()) {
+  return Permissions.isDepartmentHead(user)
+    || Permissions.isDepartmentDeputy(user)
+    || (Permissions.isTchcCoordinator(user) && upper(user?.departmentId) === "TCHC");
 }
 function directiveRef(id) {
   return FirebaseService.doc(FirebaseService.db, DIRECTIVES, clean(id));
@@ -296,7 +302,7 @@ export const ExecutiveDirectiveService = Object.freeze({
     let q;
     if (Permissions.canViewAllExecutiveDirectives()) {
       q = FirebaseService.query(collectionRef, FirebaseService.limit(MAX_LIST));
-    } else if (upper(user.role) === "DEPARTMENT_LEADER" || (upper(user.role) === "TCHC_COORDINATOR" && upper(user.departmentId) === "TCHC")) {
+    } else if (canReadOwnDirectiveDepartment(user)) {
       if (!user.departmentId) return [];
       q = FirebaseService.query(
         collectionRef,
@@ -321,7 +327,7 @@ export const ExecutiveDirectiveService = Object.freeze({
     const collectionRef = FirebaseService.collection(FirebaseService.db, DIRECTIVES);
     const q = Permissions.canViewAllExecutiveDirectives()
       ? FirebaseService.query(collectionRef, FirebaseService.limit(MAX_LIST))
-      : (upper(user.role) === "DEPARTMENT_LEADER" || (upper(user.role) === "TCHC_COORDINATOR" && upper(user.departmentId) === "TCHC"))
+      : (canReadOwnDirectiveDepartment(user))
         ? FirebaseService.query(
             collectionRef,
             FirebaseService.where("visibleDepartmentIds", "array-contains", user.departmentId),
@@ -344,7 +350,7 @@ export const ExecutiveDirectiveService = Object.freeze({
     let q;
     if (Permissions.canViewAllExecutiveDirectives()) {
       q = FirebaseService.query(collectionRef, FirebaseService.limit(MAX_LIST));
-    } else if (upper(user.role) === "DEPARTMENT_LEADER" || (upper(user.role) === "TCHC_COORDINATOR" && upper(user.departmentId) === "TCHC")) {
+    } else if (canReadOwnDirectiveDepartment(user)) {
       q = FirebaseService.query(
         collectionRef,
         FirebaseService.where("departmentId", "==", user.departmentId),
@@ -365,7 +371,7 @@ export const ExecutiveDirectiveService = Object.freeze({
     const collectionRef = FirebaseService.collection(FirebaseService.db, UPDATES);
     const q = Permissions.canViewAllExecutiveDirectives()
       ? FirebaseService.query(collectionRef, FirebaseService.limit(MAX_LIST))
-      : (upper(user.role) === "DEPARTMENT_LEADER" || (upper(user.role) === "TCHC_COORDINATOR" && upper(user.departmentId) === "TCHC"))
+      : (canReadOwnDirectiveDepartment(user))
         ? FirebaseService.query(
             collectionRef,
             FirebaseService.where("departmentId", "==", user.departmentId),
@@ -448,6 +454,15 @@ export const ExecutiveDirectiveService = Object.freeze({
       isDeleted: false,
       deletedDateKey: "",
       deletedReason: "",
+      ...(input.oralRelay === true ? {
+        entryMode: "TCHC_ORAL_RELAY",
+        oralCapture: true,
+        recordedByUserId: user.uid,
+        recordedByName: user.fullName || user.email,
+        recordedByRole: user.role,
+        recordedByDepartmentId: upper(user.departmentId),
+        recordedAt: FirebaseService.serverTimestamp()
+      } : {}),
       createdByUserId: user.uid,
       createdByName: user.fullName || user.email,
       createdByRole: user.role,
@@ -459,7 +474,7 @@ export const ExecutiveDirectiveService = Object.freeze({
     };
     const batch = FirebaseService.writeBatch(FirebaseService.db);
     batch.set(ref, payload);
-    batch.set(updateRef(), managerAuditPayload("DIRECTIVE_CREATED", ref.id, "Tạo nội dung chỉ đạo và giao Phòng/Khu thực hiện.", {
+    batch.set(updateRef(), managerAuditPayload(input.oralRelay === true ? "DIRECTIVE_ORAL_RELAYED" : "DIRECTIVE_CREATED", ref.id, input.oralRelay === true ? "Ghi nhận/chuyển tải chỉ đạo miệng của Ban Giám đốc đến Phòng/Khu thực hiện." : "Tạo nội dung chỉ đạo và giao Phòng/Khu thực hiện.", {
       snapshot: {
         directedDateKey, directedByName, leadDepartmentId,
         supportDepartmentIds, dueDateKey, priority: payload.priority,
@@ -479,11 +494,27 @@ export const ExecutiveDirectiveService = Object.freeze({
 
   async createOralDirective(input = {}) {
     const user = assertActiveUser();
-    if (!Permissions.canRecordOralExecutiveDirective(user)) {
-      throw new Error("Chỉ Trưởng/Phó Phòng/Khu mới được ghi nhận chỉ đạo miệng cho đơn vị mình.");
+    const ownRecorder = Permissions.canRecordOralExecutiveDirective(user);
+    const tchcRelay = Permissions.canRelayOralExecutiveDirective(user);
+    if (!ownRecorder && !tchcRelay) {
+      throw new Error("Bạn không có quyền ghi nhận chỉ đạo miệng của Ban Giám đốc.");
     }
 
-    const leadDepartmentId = upper(user.departmentId);
+    const ownDepartmentId = upper(user.departmentId);
+    const requestedDepartmentId = upper(input.leadDepartmentId || ownDepartmentId);
+    if (tchcRelay && requestedDepartmentId) {
+      /* TCHC là đầu mối relay: kể cả giao cho chính TCHC vẫn giữ provenance và đơn vị nhận phải tiếp nhận theo workflow. */
+      return this.createDirective({
+        ...input,
+        leadDepartmentId: requestedDepartmentId,
+        supportDepartmentIds: [],
+        assignmentLevel: "DEPARTMENT",
+        kpiEnabled: false,
+        oralRelay: true
+      });
+    }
+
+    const leadDepartmentId = ownDepartmentId;
     const directedDateKey = normalizeDateKey(input.directedDateKey);
     const content = clean(input.content);
     const directedByName = clean(input.directedByName);
@@ -573,7 +604,7 @@ export const ExecutiveDirectiveService = Object.freeze({
       progressSummary: "",
       resultSummary: "",
       evidenceLinks: [],
-      note: "Trưởng/Phó Phòng/Khu ghi nhận chỉ đạo miệng và đồng thời xác nhận tiếp nhận.",
+      note: "Trưởng/Phụ trách Phòng/Khu ghi nhận chỉ đạo miệng và đồng thời xác nhận tiếp nhận.",
       actionDateKey: dateKey,
       acceptedDateKey: dateKey,
       createdByUserId: user.uid,
@@ -1385,7 +1416,7 @@ export const ExecutiveDirectiveService = Object.freeze({
     if (centerScope && !Permissions.canGenerateCenterExecutiveReports()) {
       throw new Error("Tài khoản không có quyền lưu báo cáo toàn Trung tâm.");
     }
-    if (!centerScope && !Permissions.canGenerateCenterExecutiveReports() && !(upper(user.role) === "DEPARTMENT_LEADER" && upper(departmentId) === upper(user.departmentId))) {
+    if (!centerScope && !Permissions.canGenerateCenterExecutiveReports() && !(Permissions.canGenerateOwnExecutiveReports(user) && upper(departmentId) === upper(user.departmentId))) {
       throw new Error("Chỉ Trưởng/Phó Phòng/Khu mới được lưu báo cáo của đơn vị.");
     }
     const ref = reportRef(weekStart, departmentId);
@@ -1410,7 +1441,7 @@ export const ExecutiveDirectiveService = Object.freeze({
     const user = assertActiveUser();
     const target = upper(departmentId || "ALL");
     if (target === "ALL" && !Permissions.canGenerateCenterExecutiveReports()) return null;
-    if (target !== "ALL" && !Permissions.canGenerateCenterExecutiveReports() && !(upper(user.role) === "DEPARTMENT_LEADER" && target === upper(user.departmentId))) return null;
+    if (target !== "ALL" && !Permissions.canGenerateCenterExecutiveReports() && !(Permissions.canGenerateOwnExecutiveReports(user) && target === upper(user.departmentId))) return null;
     const snapshot = await FirebaseService.getDoc(reportRef(weekStart, target));
     return snapshot.exists() ? { id: snapshot.id, ...snapshot.data() } : null;
   }

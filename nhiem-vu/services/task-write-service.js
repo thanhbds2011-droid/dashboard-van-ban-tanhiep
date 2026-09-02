@@ -1,14 +1,14 @@
 /** Tạo, phân công, tiếp nhận, cập nhật tiến độ và hoàn thành nhiệm vụ. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260901.V1_21_1";
-import { UserContext } from "../core/user-context.js?v=20260901.V1_21_1";
-import { Permissions } from "../core/permissions.js?v=20260901.V1_21_1";
-import { TaskLogService } from "./task-log-service.js?v=20260901.V1_21_1";
-import { TaskWorkItemService } from "./task-work-item-service.js?v=20260901.V1_21_1";
-import { PeriodReadService } from "./period-read-service.js?v=20260901.V1_21_1";
-import { TaskNotificationService } from "./task-notification-service.js?v=20260901.V1_21_1";
-import { APP_VERSION, BUILD_VERSION } from "../core/app-version.js?v=20260901.V1_21_1";
-import { deadlineDateFromKey, isDateKey } from "../core/deadline-engine.js?v=20260901.V1_21_1";
-import { confirmWriteWithServerRecovery } from "./firestore-write-recovery.js?v=20260901.V1_21_1";
+import { FirebaseService } from "../core/firebase-service.js?v=20260902.V1_22_0";
+import { UserContext } from "../core/user-context.js?v=20260902.V1_22_0";
+import { Permissions } from "../core/permissions.js?v=20260902.V1_22_0";
+import { TaskLogService } from "./task-log-service.js?v=20260902.V1_22_0";
+import { TaskWorkItemService } from "./task-work-item-service.js?v=20260902.V1_22_0";
+import { PeriodReadService } from "./period-read-service.js?v=20260902.V1_22_0";
+import { TaskNotificationService } from "./task-notification-service.js?v=20260902.V1_22_0";
+import { APP_VERSION, BUILD_VERSION } from "../core/app-version.js?v=20260902.V1_22_0";
+import { deadlineDateFromKey, isDateKey } from "../core/deadline-engine.js?v=20260902.V1_22_0";
+import { confirmWriteWithServerRecovery } from "./firestore-write-recovery.js?v=20260902.V1_22_0";
 
 const TASK_WRITE_BUILD_VERSION = BUILD_VERSION;
 const MAX_CODE_SCAN = 1000;
@@ -205,10 +205,19 @@ function taskCreateDelegationDocumentId(departmentId) {
   return `${normalizeDepartmentId(departmentId)}_STANDARD_TASK_EDITOR`;
 }
 
+function taskCreateDelegateCandidate(user) {
+  if (!user?.uid || user.active !== true) return false;
+  if (Permissions.isDepartmentDeputy(user) || Permissions.isStaff(user) || Permissions.isTchcCoordinator(user)) return true;
+  return Permissions.isAdmin(user)
+    && !Permissions.hasUnitApprovalAuthority(user)
+    && !Permissions.isDepartmentDeputy(user)
+    && !Permissions.isDirector(user);
+}
+
 async function hasTaskCreateDelegation(user, departmentId = user?.departmentId) {
   const department = normalizeDepartmentId(departmentId);
   if (!user?.uid || !department || department !== normalizeDepartmentId(user.departmentId)) return false;
-  if (!(Permissions.isDepartmentDeputy(user) || Permissions.isStaff(user) || Permissions.isTchcCoordinator(user))) return false;
+  if (!taskCreateDelegateCandidate(user)) return false;
   try {
     const snapshot = await FirebaseService.getDoc(
       FirebaseService.doc(FirebaseService.db, "approvalDelegations", taskCreateDelegationDocumentId(department))
@@ -258,7 +267,7 @@ export const TaskWriteService = Object.freeze({
 
     const departmentId = normalizeDepartmentId(data.primaryDepartmentId);
     const ownDepartmentId = normalizeDepartmentId(user.departmentId);
-    if (!Permissions.isAdmin(user) && !Permissions.isDirector(user) && departmentId !== ownDepartmentId) {
+    if (!Permissions.isDirector(user) && departmentId !== ownDepartmentId) {
       throw new Error("Chỉ được giao nhiệm vụ trong đúng Phòng/Khu thuộc phạm vi quyền của tài khoản.");
     }
     const requestedDeadlineDateKey = String(data.deadlineDateKey || "").trim();
@@ -277,7 +286,7 @@ export const TaskWriteService = Object.freeze({
     }
     const startingSequence = await getStartingSequence(departmentId, activePeriod.id);
 
-    const directorCreatesDepartmentTask = Permissions.isDirector() || Permissions.isAdmin();
+    const directorCreatesDepartmentTask = Permissions.isDirector();
     const ownerUserId = directorCreatesDepartmentTask ? "" : String(data.ownerUserId || "").trim();
     const supportIds = [...new Set((data.supportDepartmentIds || [])
       .map(normalizeDepartmentId)
@@ -571,8 +580,8 @@ export const TaskWriteService = Object.freeze({
     const taskDepartmentId = String(task?.primaryDepartmentId || "").trim().toUpperCase();
     const userDepartmentId = String(user?.departmentId || "").trim().toUpperCase();
     const delegatedTaskCreator = await hasTaskCreateDelegation(user, taskDepartmentId);
-    const mayAssign = Permissions.isAdmin()
-      || (Permissions.hasUnitApprovalAuthority(user) && taskDepartmentId === userDepartmentId)
+    /* System privilege ADMIN không thay business position khi phân công nhiệm vụ. */
+    const mayAssign = (Permissions.hasUnitApprovalAuthority(user) && taskDepartmentId === userDepartmentId)
       || (delegatedTaskCreator && String(task?.createdByUserId || "").trim() === String(user.uid || "").trim());
 
     if (!mayAssign) {
@@ -1027,8 +1036,8 @@ export const TaskWriteService = Object.freeze({
       String(task.primaryDepartmentId || "") === String(user.departmentId || "");
     const otherDirectorForBgd = Permissions.isDirector() &&
       String(task.primaryDepartmentId || "") === "BGD";
-    if (!(Permissions.isAdmin() || sameDepartmentLeader || otherDirectorForBgd)) {
-      throw new Error("Chỉ Trưởng phòng, thành viên Ban Giám đốc phù hợp hoặc Admin được xác nhận.");
+    if (!(sameDepartmentLeader || otherDirectorForBgd)) {
+      throw new Error("Chỉ Trưởng/Phụ trách đơn vị hoặc thành viên Ban Giám đốc phù hợp được xác nhận.");
     }
     if (String(task.noOccurrenceStatus || "").toUpperCase() !== "REQUESTED") {
       throw new Error("Đầu việc chưa có đề nghị “Không phát sinh” đang chờ xác nhận.");
@@ -1090,8 +1099,8 @@ export const TaskWriteService = Object.freeze({
       String(task.primaryDepartmentId || "") === String(user.departmentId || "");
     const otherDirectorForBgd = Permissions.isDirector() &&
       String(task.primaryDepartmentId || "") === "BGD";
-    if (!(Permissions.isAdmin() || sameDepartmentLeader || otherDirectorForBgd)) {
-      throw new Error("Tài khoản không có quyền xử lý đề nghị này.");
+    if (!(sameDepartmentLeader || otherDirectorForBgd)) {
+      throw new Error("Chỉ Trưởng/Phụ trách đơn vị hoặc thành viên Ban Giám đốc phù hợp được xử lý đề nghị.");
     }
     if (String(task.noOccurrenceStatus || "").toUpperCase() !== "REQUESTED") {
       throw new Error("Đầu việc không còn ở trạng thái chờ xác nhận.");

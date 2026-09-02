@@ -2,12 +2,12 @@
  * Quy trình đề nghị và phê duyệt điều chỉnh nhiệm vụ.
  * Không chuyển điểm giữa nhân sự; mọi thay đổi được lưu trong kpiAdjustments và taskLogs.
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260901.V1_21_1";
-import { UserContext } from "../core/user-context.js?v=20260901.V1_21_1";
-import { TaskLogService } from "./task-log-service.js?v=20260901.V1_21_1";
-import { TaskNotificationService } from "./task-notification-service.js?v=20260901.V1_21_1";
-import { TaskMilestoneService } from "./task-milestone-service.js?v=20260901.V1_21_1";
-import { daysInMonth, deadlineDateFromKey } from "../core/deadline-engine.js?v=20260901.V1_21_1";
+import { FirebaseService } from "../core/firebase-service.js?v=20260902.V1_22_0";
+import { UserContext } from "../core/user-context.js?v=20260902.V1_22_0";
+import { TaskLogService } from "./task-log-service.js?v=20260902.V1_22_0";
+import { TaskNotificationService } from "./task-notification-service.js?v=20260902.V1_22_0";
+import { TaskMilestoneService } from "./task-milestone-service.js?v=20260902.V1_22_0";
+import { daysInMonth, deadlineDateFromKey } from "../core/deadline-engine.js?v=20260902.V1_22_0";
 
 const COLLECTION = "kpiAdjustments";
 const TYPES = Object.freeze({

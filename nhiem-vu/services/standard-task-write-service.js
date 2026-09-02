@@ -2,15 +2,15 @@
  * Dịch vụ quản lý danh mục công việc chuẩn tại ứng dụng.
  * - Mã đầu việc được cấp tự động bằng transaction trên standardTaskSequences.
  * - Người có Quyền phê duyệt tại đơn vị được tạo/quản lý; Phó hoặc nhân viên chỉ có quyền khi được ủy quyền đúng capability.
- * - Bí thư, Phó Bí thư và Ủy viên BCH được tạo đầu việc trong phạm vi Chi đoàn.
+ * - Chỉ Bí thư được tạo/quản lý đầu việc trong phạm vi Chi đoàn; Phó Bí thư/Ủy viên BCH là vai trò thực hiện hoặc được ủy quyền nghiệp vụ khác.
  * - Quyền tạo, sửa và xóa được tách riêng; Firestore Rules là lớp bảo vệ cuối cùng.
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260901.V1_21_1";
-import { UserContext } from "../core/user-context.js?v=20260901.V1_21_1";
-import { Permissions } from "../core/permissions.js?v=20260901.V1_21_1";
-import { validateDeadlineConfiguration, isEventDrivenFrequency, canonicalFrequency, isStandardFrequency } from "../core/deadline-engine.js?v=20260901.V1_21_1";
+import { FirebaseService } from "../core/firebase-service.js?v=20260902.V1_22_0";
+import { UserContext } from "../core/user-context.js?v=20260902.V1_22_0";
+import { Permissions } from "../core/permissions.js?v=20260902.V1_22_0";
+import { validateDeadlineConfiguration, isEventDrivenFrequency, canonicalFrequency, isStandardFrequency } from "../core/deadline-engine.js?v=20260902.V1_22_0";
 
-const SYNC_VERSION = "20260901.V1_21_1";
+const SYNC_VERSION = "20260902.V1_22_0";
 const MAX_STANDARD_TASK_NAME_LENGTH = 1000;
 const STANDARD_TASK_COLLECTION = "standardTasks";
 const SEQUENCE_COLLECTION = "standardTaskSequences";
@@ -20,7 +20,7 @@ const DEPARTMENT_AUDIENCES = Object.freeze(["ALL_DEPARTMENT", "MANAGEMENT"]);
 const CDTN_AUDIENCES = Object.freeze(["CDTN_SECRETARY", "CDTN_EXECUTIVE", "CDTN_MEMBER"]);
 const TRACKING_MODES = Object.freeze(["FINAL_OUTPUT", "ITEMIZED"]);
 const WORK_ITEM_TYPES = Object.freeze(["GENERIC", "DOCUMENT", "QUANTITY", "ATTENDANCE"]);
-const CDTN_CATALOG_ROLES = Object.freeze(["CDTN_BI_THU", "CDTN_PHO_BI_THU", "CDTN_UY_VIEN_BCH"]);
+const CDTN_CATALOG_ROLES = Object.freeze(["CDTN_BI_THU"]);
 const CDTN_LEADERSHIP_ROLES = Object.freeze(["CDTN_BI_THU", "CDTN_PHO_BI_THU"]);
 const STANDARD_TASK_DELEGATION_PERMISSIONS = Object.freeze([
   "CREATE_STANDARD_TASKS", "EDIT_STANDARD_TASKS", "DELETE_STANDARD_TASKS", "CREATE_TASKS",
@@ -173,6 +173,18 @@ async function readCdtnDirectoryAccess(user) {
   }
 }
 
+function standardTaskDelegateCandidate(user) {
+  if (!user || user.active !== true) return false;
+  if (Permissions.isDepartmentDeputy(user)) return true;
+  const role = upper(user.role);
+  if (["STAFF", "TCHC_COORDINATOR"].includes(role)) return true;
+  /* ADMIN chỉ là system privilege; nếu business position không phải Trưởng/Phó thì vẫn có thể là nhân viên nhận ủy quyền. */
+  return role === "ADMIN"
+    && !Permissions.hasUnitApprovalAuthority(user)
+    && !Permissions.isDepartmentDeputy(user)
+    && !Permissions.isDirector(user);
+}
+
 function departmentAuthorization(user, departmentId, delegation, combinedCdtnRoles = []) {
   const department = upper(departmentId);
   const userDepartment = upper(user?.departmentId);
@@ -180,26 +192,25 @@ function departmentAuthorization(user, departmentId, delegation, combinedCdtnRol
     ? primaryCdtnCatalogRole(combinedCdtnRoles)
     : "";
 
-  if (Permissions.isAdmin(user)) {
+  if (department === "CDTN") {
+    const canCreate = createdUnderAdditionalRole === "CDTN_BI_THU";
     return {
-      canCreate: true,
-      canEditAll: true,
-      canEditOwn: true,
-      canDelete: true,
+      canCreate,
+      canEditAll: canCreate,
+      canEditOwn: canCreate,
+      canDelete: canCreate,
       createdUnderDelegation: false,
       delegatorUserId: "",
       createdUnderAdditionalRole
     };
   }
 
-  if (department === "CDTN") {
-    const canCreate = Boolean(createdUnderAdditionalRole);
-    const leadership = CDTN_LEADERSHIP_ROLES.includes(createdUnderAdditionalRole);
+  if (Permissions.isAdmin(user)) {
     return {
-      canCreate,
-      canEditAll: leadership,
-      canEditOwn: canCreate,
-      canDelete: leadership,
+      canCreate: true,
+      canEditAll: true,
+      canEditOwn: true,
+      canDelete: true,
       createdUnderDelegation: false,
       delegatorUserId: "",
       createdUnderAdditionalRole
@@ -221,8 +232,7 @@ function departmentAuthorization(user, departmentId, delegation, combinedCdtnRol
 
   const sameDepartment = department === userDepartment;
   const isAuthority = sameDepartment && Permissions.hasUnitApprovalAuthority(user);
-  const delegateRoleEligible = sameDepartment
-    && (Permissions.isDepartmentDeputy(user) || Permissions.isStaff(user) || Permissions.isTchcCoordinator(user));
+  const delegateRoleEligible = sameDepartment && standardTaskDelegateCandidate(user);
   const delegatedCreate = delegateRoleEligible && delegationHasPermission(delegation, user, "CREATE_STANDARD_TASKS");
   const delegatedEditExplicit = delegateRoleEligible && delegationHasExplicitPermission(delegation, user, "EDIT_STANDARD_TASKS");
   const delegatedEditLegacy = delegateRoleEligible
@@ -486,7 +496,7 @@ export const StandardTaskWriteService = Object.freeze({
     return snapshot.docs
       .map(item => ({ ...item.data(), id: item.id, uid: item.id }))
       .filter(item => item.active === true && item.id !== user.uid)
-      .filter(item => ["STAFF", "TCHC_COORDINATOR"].includes(upper(item.role)) || Permissions.isDepartmentDeputy(item))
+      .filter(item => standardTaskDelegateCandidate(item))
       .sort((a, b) => clean(a.fullName).localeCompare(clean(b.fullName), "vi"));
   },
 
@@ -523,7 +533,7 @@ export const StandardTaskWriteService = Object.freeze({
     const delegate = { ...delegateData, id: delegateSnapshot.id, uid: delegateSnapshot.id, approvalAuthorityPresent: Object.prototype.hasOwnProperty.call(delegateData, 'approvalAuthority') };
     if (delegate.active !== true) throw new Error("Người nhận ủy quyền đang ở trạng thái không hoạt động.");
     if (upper(delegate.departmentId) !== departmentId) throw new Error("Người nhận ủy quyền phải thuộc cùng Phòng/Khu.");
-    if (!(["STAFF", "TCHC_COORDINATOR"].includes(upper(delegate.role)) || Permissions.isDepartmentDeputy(delegate))) {
+    if (!standardTaskDelegateCandidate(delegate)) {
       throw new Error("Người nhận phải là Phó Trưởng phòng/Phó Trưởng khu hoặc nhân viên cùng đơn vị.");
     }
     if (delegate.id === user.uid) throw new Error("Không thể tự ủy quyền cho chính mình.");

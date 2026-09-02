@@ -9,11 +9,11 @@
  * - BGĐ được thu hồi, chuyển Phòng/Khu hoặc xóa mềm nhiệm vụ đã giao.
  * - Không dùng quyền này để xác nhận/chấm điểm KPI của người khác.
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260901.V1_21_1";
-import { UserContext } from "../core/user-context.js?v=20260901.V1_21_1";
-import { Permissions } from "../core/permissions.js?v=20260901.V1_21_1";
-import { TaskLogService } from "./task-log-service.js?v=20260901.V1_21_1";
-import { TaskNotificationService } from "./task-notification-service.js?v=20260901.V1_21_1";
+import { FirebaseService } from "../core/firebase-service.js?v=20260902.V1_22_0";
+import { UserContext } from "../core/user-context.js?v=20260902.V1_22_0";
+import { Permissions } from "../core/permissions.js?v=20260902.V1_22_0";
+import { TaskLogService } from "./task-log-service.js?v=20260902.V1_22_0";
+import { TaskNotificationService } from "./task-notification-service.js?v=20260902.V1_22_0";
 
 function clean(value) {
   return String(value ?? "").trim();
@@ -44,8 +44,9 @@ function logRef() {
 
 function assertDirector() {
   const user = UserContext.requireUser();
-  if (!(Permissions.isDirector(user) || Permissions.isAdmin(user))) {
-    throw new Error("Chỉ Ban Giám đốc hoặc Admin được thực hiện thao tác điều hành này.");
+  /* V1.22.0: ADMIN là system privilege, không thay business position của Ban Giám đốc. */
+  if (!Permissions.isDirector(user)) {
+    throw new Error("Chỉ Ban Giám đốc được thực hiện thao tác điều hành nhiệm vụ này.");
   }
   return user;
 }

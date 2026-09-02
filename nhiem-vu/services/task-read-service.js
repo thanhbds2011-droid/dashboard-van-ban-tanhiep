@@ -1,8 +1,8 @@
 /** Đọc nhiệm vụ theo kỳ hiện hành, phạm vi tài khoản và bộ nhớ đệm ngắn. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260901.V1_21_1";
-import { UserContext } from "../core/user-context.js?v=20260901.V1_21_1";
-import { Permissions } from "../core/permissions.js?v=20260901.V1_21_1";
-import { PeriodReadService } from "./period-read-service.js?v=20260901.V1_21_1";
+import { FirebaseService } from "../core/firebase-service.js?v=20260902.V1_22_0";
+import { UserContext } from "../core/user-context.js?v=20260902.V1_22_0";
+import { Permissions } from "../core/permissions.js?v=20260902.V1_22_0";
+import { PeriodReadService } from "./period-read-service.js?v=20260902.V1_22_0";
 
 const TASK_CACHE_MS = 2 * 60 * 1000;
 const PROFESSIONAL_DEPARTMENT_IDS = Object.freeze(["BGD", "TCHC", "CTXH", "KHTC", "YT", "KI", "KII", "KIII"]);
@@ -204,6 +204,24 @@ async function loadScopedTasks(options = {}) {
   }
 }
 
+async function loadTaskById(taskId) {
+  const id = String(taskId || "").trim();
+  if (!id) throw new Error("Thiếu mã nhiệm vụ cần tải lại.");
+  const snapshot = await FirebaseService.getDoc(
+    FirebaseService.doc(FirebaseService.db, "tasks", id)
+  );
+  const next = snapshot.exists() && isActiveTask({ id: snapshot.id, ...snapshot.data() })
+    ? enrichTask({ id: snapshot.id, ...snapshot.data() })
+    : null;
+
+  if (taskCache.key) {
+    const items = taskCache.items.filter(item => item.id !== id);
+    if (next) items.push(next);
+    taskCache = { ...taskCache, items: uniqueById(items), loadedAt: Date.now() };
+  }
+  return next;
+}
+
 function subscribeScopedTasks(onData, onError, options = {}) {
   if (typeof onData !== "function") throw new Error("Thiếu hàm nhận dữ liệu nhiệm vụ.");
   let cancelled = false;
@@ -276,6 +294,10 @@ export const TaskReadService = Object.freeze({
 
   currentPeriod() {
     return taskCache.period;
+  },
+
+  async getById(taskId) {
+    return loadTaskById(taskId);
   },
 
   invalidate() {

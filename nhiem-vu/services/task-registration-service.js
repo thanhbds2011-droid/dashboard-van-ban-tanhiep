@@ -1,11 +1,11 @@
-import { FirebaseService } from "../core/firebase-service.js?v=20260901.V1_21_1";
-import { UserContext } from "../core/user-context.js?v=20260901.V1_21_1";
-import { Permissions } from "../core/permissions.js?v=20260901.V1_21_1";
-import { TaskLogService } from "./task-log-service.js?v=20260901.V1_21_1";
-import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260901.V1_21_1";
-import { PeriodReadService } from "./period-read-service.js?v=20260901.V1_21_1";
-import { APP_VERSION } from "../core/app-version.js?v=20260901.V1_21_1";
-import { deriveDeadlinePlan, deadlineDateFromKey, isDateKey, requiresManualDeadline, isEventDrivenFrequency, canonicalFrequency } from "../core/deadline-engine.js?v=20260901.V1_21_1";
+import { FirebaseService } from "../core/firebase-service.js?v=20260902.V1_22_0";
+import { UserContext } from "../core/user-context.js?v=20260902.V1_22_0";
+import { Permissions } from "../core/permissions.js?v=20260902.V1_22_0";
+import { TaskLogService } from "./task-log-service.js?v=20260902.V1_22_0";
+import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260902.V1_22_0";
+import { PeriodReadService } from "./period-read-service.js?v=20260902.V1_22_0";
+import { APP_VERSION } from "../core/app-version.js?v=20260902.V1_22_0";
+import { deriveDeadlinePlan, deadlineDateFromKey, isDateKey, requiresManualDeadline, isEventDrivenFrequency, canonicalFrequency } from "../core/deadline-engine.js?v=20260902.V1_22_0";
 
 const clean = value => String(value ?? "").trim();
 const upper = value => clean(value).toUpperCase();
@@ -172,14 +172,12 @@ function registrationOwnerIsUnitAuthority(registration) {
 
 function canApprove(registration, reviewer) {
   if (!reviewer || reviewer.active !== true || !registration || registration.status !== "PENDING") return false;
-  if (reviewer.role === "ADMIN") return true;
 
   const registrationDepartment = registrationDepartmentId(registration);
   if (registrationDepartment === "CDTN") {
-    return Array.isArray(reviewer.additionalRoles)
-      && reviewer.additionalRoles.map(upper).some(role => ["CDTN_BI_THU", "CDTN_PHO_BI_THU"].includes(role));
+    /* Chi đoàn là scope nghiệp vụ riêng: Bí thư duyệt trực tiếp; delegate được kiểm tra ở flow approveMany(). */
+    return Permissions.isCdtnSecretary(reviewer);
   }
-
   const ownerProfile = registrationOwnerProfile(registration);
   const ownerIsAuthority = Permissions.hasUnitApprovalAuthority(ownerProfile);
 
@@ -187,20 +185,13 @@ function canApprove(registration, reviewer) {
     return registrationDepartment === "BGD" || ownerIsAuthority;
   }
 
-  if (registration.userRole === "DEPARTMENT_LEADER") {
-    if (Permissions.isDepartmentDeputy({
-      uid: registration.userId,
-      active: true,
-      role: registration.userRole,
-      position: registration.userPosition,
-      leaderLevel: registration.userLeaderLevel,
-      approvalAuthority: registration.userApprovalAuthority,
-      isDepartmentHead: registration.userIsDepartmentHead
-    })) {
-      return Permissions.isDepartmentHead(reviewer) && upper(reviewer.departmentId) === registrationDepartment;
-    }
-    /* Trưởng/Phụ trách đơn vị chỉ do Giám đốc hoặc Phó Giám đốc được ủy quyền duyệt. */
+  if (ownerIsAuthority) {
+    /* Trưởng/Phụ trách (kể cả ADMIN + business HEAD) chỉ do BGĐ/phân công BGD duyệt. */
     return false;
+  }
+
+  if (Permissions.isDepartmentDeputy(ownerProfile)) {
+    return Permissions.isDepartmentHead(reviewer) && upper(reviewer.departmentId) === registrationDepartment;
   }
 
   return Permissions.isDepartmentHead(reviewer) && upper(reviewer.departmentId) === registrationDepartment;
@@ -961,7 +952,7 @@ export const TaskRegistrationService = Object.freeze({
       const workspaceId = StandardTaskReadService.workspaceId(item, user);
       const workType = standardWorkType(item.workType);
       const autoApprove = workspaceId === "CDTN"
-        ? Permissions.isCdtnLeadership()
+        ? Permissions.isCdtnSecretary()
         : (Permissions.isDepartmentHead(user) || (Permissions.isDirector() && workspaceId === "BGD"));
       const itemKey = String(item.id || item.code || "");
       const suppliedRows = Array.isArray(options?.personalItems?.[itemKey])
@@ -1104,7 +1095,7 @@ export const TaskRegistrationService = Object.freeze({
 
   async listCdtnApprovalCandidates() {
     if (!Permissions.canDelegateCdtnApproval()) return [];
-    const roles = ["CDTN_PHO_BI_THU"];
+    const roles = ["CDTN_PHO_BI_THU", "CDTN_UY_VIEN_BCH"];
     const snapshot = await FirebaseService.getDocs(
       FirebaseService.query(
         FirebaseService.collection(FirebaseService.db, "cdtnMembers"),
@@ -1119,14 +1110,14 @@ export const TaskRegistrationService = Object.freeze({
       .sort((a, b) => clean(a.fullName).localeCompare(clean(b.fullName), "vi"));
 
     if (!candidates.length) {
-      throw new Error("Chưa tìm thấy Phó Bí thư Chi đoàn đang hoạt động để nhận ủy quyền. Hãy kiểm tra lại vai trò kiêm nhiệm trong danh mục nhân sự.");
+      throw new Error("Chưa tìm thấy Phó Bí thư hoặc Ủy viên BCH Chi đoàn đang hoạt động để nhận ủy quyền. Hãy kiểm tra lại vai trò kiêm nhiệm trong danh mục nhân sự.");
     }
     return candidates;
   },
 
   async saveCdtnApprovalDelegation({ delegateUserId, startDate, endDate, reason }) {
     const user = UserContext.requireUser();
-    if (!Permissions.canDelegateCdtnApproval()) throw new Error("Chỉ Bí thư Chi đoàn được ủy quyền cho Phó Bí thư.");
+    if (!Permissions.canDelegateCdtnApproval()) throw new Error("Chỉ Bí thư Chi đoàn được ủy quyền cho Phó Bí thư hoặc Ủy viên BCH.");
     const candidates = await this.listCdtnApprovalCandidates();
     const delegate = candidates.find(item => item.id === delegateUserId);
     if (!delegate) throw new Error("Người được chọn không đủ điều kiện nhận ủy quyền Chi đoàn.");
