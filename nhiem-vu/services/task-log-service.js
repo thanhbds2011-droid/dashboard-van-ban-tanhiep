@@ -1,8 +1,8 @@
 /** Ghi và đọc nhật ký nhiệm vụ bất biến. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260902.V1_22_0";
-import { UserContext } from "../core/user-context.js?v=20260902.V1_22_0";
-import { Permissions } from "../core/permissions.js?v=20260902.V1_22_0";
-import { APP_VERSION } from "../core/app-version.js?v=20260902.V1_22_0";
+import { FirebaseService } from "../core/firebase-service.js?v=20260903.V1_22_1";
+import { UserContext } from "../core/user-context.js?v=20260903.V1_22_1";
+import { Permissions } from "../core/permissions.js?v=20260903.V1_22_1";
+import { APP_VERSION } from "../core/app-version.js?v=20260903.V1_22_1";
 
 export function buildTaskLog({ taskId, taskCode, periodId = "", action, before = null, after = null, note = "" }) {
   const user = UserContext.requireUser();

@@ -5,12 +5,12 @@
  * - Chỉ Bí thư được tạo/quản lý đầu việc trong phạm vi Chi đoàn; Phó Bí thư/Ủy viên BCH là vai trò thực hiện hoặc được ủy quyền nghiệp vụ khác.
  * - Quyền tạo, sửa và xóa được tách riêng; Firestore Rules là lớp bảo vệ cuối cùng.
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260902.V1_22_0";
-import { UserContext } from "../core/user-context.js?v=20260902.V1_22_0";
-import { Permissions } from "../core/permissions.js?v=20260902.V1_22_0";
-import { validateDeadlineConfiguration, isEventDrivenFrequency, canonicalFrequency, isStandardFrequency } from "../core/deadline-engine.js?v=20260902.V1_22_0";
+import { FirebaseService } from "../core/firebase-service.js?v=20260903.V1_22_1";
+import { UserContext } from "../core/user-context.js?v=20260903.V1_22_1";
+import { Permissions } from "../core/permissions.js?v=20260903.V1_22_1";
+import { validateDeadlineConfiguration, isEventDrivenFrequency, canonicalFrequency, isStandardFrequency } from "../core/deadline-engine.js?v=20260903.V1_22_1";
 
-const SYNC_VERSION = "20260902.V1_22_0";
+const SYNC_VERSION = "20260903.V1_22_1";
 const MAX_STANDARD_TASK_NAME_LENGTH = 1000;
 const STANDARD_TASK_COLLECTION = "standardTasks";
 const SEQUENCE_COLLECTION = "standardTaskSequences";
@@ -539,9 +539,18 @@ export const StandardTaskWriteService = Object.freeze({
     if (delegate.id === user.uid) throw new Error("Không thể tự ủy quyền cho chính mình.");
 
     const reference = FirebaseService.doc(FirebaseService.db, "approvalDelegations", delegationDocumentId(departmentId));
-    const existing = await FirebaseService.getDoc(reference);
-    const existingData = existing.exists() ? existing.data() : {};
-    const legacy = existing.exists() && (
+    let existing = null;
+    try {
+      existing = await FirebaseService.getDoc(reference);
+    } catch (error) {
+      // Firestore Rules đọc approvalDelegations dựa trên resource.data. Ở lần ủy quyền đầu tiên,
+      // document *_STANDARD_TASK_EDITOR chưa tồn tại nên get() có thể trả permission-denied.
+      // Đây là pre-read tùy chọn; quyền CREATE vẫn được Rules kiểm tra chặt khi setDoc().
+      if (!isPermissionDenied(error)) throw error;
+    }
+    const hasExisting = existing?.exists() === true;
+    const existingData = hasExisting ? existing.data() : {};
+    const legacy = hasExisting && (
       upper(existingData.delegationType) !== "STANDARD_TASK_EDITOR"
       || upper(existingData.departmentId) !== departmentId
       || !Array.isArray(existingData.permissions)
@@ -570,8 +579,8 @@ export const StandardTaskWriteService = Object.freeze({
       revokedByName: "",
       legacyNormalized: legacy,
       legacyNormalizedAt: legacy ? FirebaseService.serverTimestamp() : (existingData.legacyNormalizedAt || null),
-      createdAt: existing.exists() ? (existingData.createdAt || FirebaseService.serverTimestamp()) : FirebaseService.serverTimestamp(),
-      createdBy: existing.exists() ? (existingData.createdBy || user.uid) : user.uid,
+      createdAt: hasExisting ? (existingData.createdAt || FirebaseService.serverTimestamp()) : FirebaseService.serverTimestamp(),
+      createdBy: hasExisting ? (existingData.createdBy || user.uid) : user.uid,
       updatedAt: FirebaseService.serverTimestamp(),
       updatedBy: user.uid
     };

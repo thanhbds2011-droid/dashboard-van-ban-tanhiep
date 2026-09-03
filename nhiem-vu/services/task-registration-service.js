@@ -1,11 +1,11 @@
-import { FirebaseService } from "../core/firebase-service.js?v=20260902.V1_22_0";
-import { UserContext } from "../core/user-context.js?v=20260902.V1_22_0";
-import { Permissions } from "../core/permissions.js?v=20260902.V1_22_0";
-import { TaskLogService } from "./task-log-service.js?v=20260902.V1_22_0";
-import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260902.V1_22_0";
-import { PeriodReadService } from "./period-read-service.js?v=20260902.V1_22_0";
-import { APP_VERSION } from "../core/app-version.js?v=20260902.V1_22_0";
-import { deriveDeadlinePlan, deadlineDateFromKey, isDateKey, requiresManualDeadline, isEventDrivenFrequency, canonicalFrequency } from "../core/deadline-engine.js?v=20260902.V1_22_0";
+import { FirebaseService } from "../core/firebase-service.js?v=20260903.V1_22_1";
+import { UserContext } from "../core/user-context.js?v=20260903.V1_22_1";
+import { Permissions } from "../core/permissions.js?v=20260903.V1_22_1";
+import { TaskLogService } from "./task-log-service.js?v=20260903.V1_22_1";
+import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260903.V1_22_1";
+import { PeriodReadService } from "./period-read-service.js?v=20260903.V1_22_1";
+import { APP_VERSION } from "../core/app-version.js?v=20260903.V1_22_1";
+import { deriveDeadlinePlan, deadlineDateFromKey, isDateKey, requiresManualDeadline, isEventDrivenFrequency, canonicalFrequency } from "../core/deadline-engine.js?v=20260903.V1_22_1";
 
 const clean = value => String(value ?? "").trim();
 const upper = value => clean(value).toUpperCase();
@@ -124,6 +124,15 @@ function delegationAllows(data, permissionName) {
   return permissions.length === 0 && permissionName === "APPROVE_REGISTRATIONS";
 }
 
+function isPermissionDenied(error) {
+  const code = lower(error?.code);
+  const message = lower(error?.message);
+  return code.includes("permission-denied")
+    || code.includes("permission_denied")
+    || message.includes("missing or insufficient permissions")
+    || message.includes("permission-denied");
+}
+
 async function hasDelegation(reviewer, departmentId, permissionName = "APPROVE_REGISTRATIONS") {
   const department = upper(departmentId);
   const isCdtn = department === "CDTN";
@@ -137,19 +146,27 @@ async function hasDelegation(reviewer, departmentId, permissionName = "APPROVE_R
 
   const today = dateKey(new Date());
   const documentId = isCdtn ? "CDTN_APPROVAL_ACTIVE" : `${department}_ACTIVE`;
-  const snapshot = await FirebaseService.getDoc(
-    FirebaseService.doc(FirebaseService.db, "approvalDelegations", documentId)
-  );
-  if (!snapshot.exists()) return false;
-  const data = snapshot.data();
-  return (
-    data.active === true &&
-    data.delegateUserId === reviewer.uid &&
-    upper(data.departmentId || data.organizationId) === department &&
-    delegationAllows(data, permissionName) &&
-    (!data.startDate || data.startDate <= today) &&
-    (!data.endDate || data.endDate >= today)
-  );
+  try {
+    const snapshot = await FirebaseService.getDoc(
+      FirebaseService.doc(FirebaseService.db, "approvalDelegations", documentId)
+    );
+    if (!snapshot.exists()) return false;
+    const data = snapshot.data();
+    return (
+      data.active === true &&
+      data.delegateUserId === reviewer.uid &&
+      upper(data.departmentId || data.organizationId) === department &&
+      delegationAllows(data, permissionName) &&
+      (!data.startDate || data.startDate <= today) &&
+      (!data.endDate || data.endDate >= today)
+    );
+  } catch (error) {
+    // Delegation là quyền bổ sung, không phải điều kiện bắt buộc. Document chưa tồn tại
+    // có thể bị Firestore từ chối get() vì Rules dùng resource.data. Fail-closed về false
+    // để direct business authority (HEAD/Bí thư/BGĐ) không bị chặn bởi optional delegation.
+    if (isPermissionDenied(error)) return false;
+    throw error;
+  }
 }
 
 function registrationOwnerProfile(registration) {
@@ -1176,12 +1193,16 @@ export const TaskRegistrationService = Object.freeze({
     const context = { periods: new Map(), catalog: null };
     const prepared = [];
     for (const item of selected) {
-      const delegated = await hasDelegation(reviewer, registrationDepartmentId(item), "APPROVE_REGISTRATIONS");
       const registrationDepartment = registrationDepartmentId(item);
-      const directorDelegated = (registrationDepartment === "BGD" || registrationOwnerIsUnitAuthority(item))
-        ? await hasDelegation(reviewer, "BGD", "APPROVE_REGISTRATIONS")
-        : false;
       const directAuthority = canApprove(item, reviewer);
+      let delegated = false;
+      let directorDelegated = false;
+      if (!directAuthority) {
+        delegated = await hasDelegation(reviewer, registrationDepartment, "APPROVE_REGISTRATIONS");
+        directorDelegated = (registrationDepartment === "BGD" || registrationOwnerIsUnitAuthority(item))
+          ? await hasDelegation(reviewer, "BGD", "APPROVE_REGISTRATIONS")
+          : false;
+      }
       if (!directAuthority && (!(delegated || directorDelegated) || item.userId === reviewer.uid)) {
         throw new Error(`Bạn không có quyền duyệt đăng ký của ${item.userName || "người dùng"}.`);
       }
@@ -1198,12 +1219,16 @@ export const TaskRegistrationService = Object.freeze({
     if (!rejectionReason) throw new Error("Hãy nhập lý do không duyệt đầu việc.");
 
     for (const item of selected) {
-      const delegated = await hasDelegation(reviewer, registrationDepartmentId(item), "APPROVE_REGISTRATIONS");
       const registrationDepartment = registrationDepartmentId(item);
-      const directorDelegated = (registrationDepartment === "BGD" || registrationOwnerIsUnitAuthority(item))
-        ? await hasDelegation(reviewer, "BGD", "APPROVE_REGISTRATIONS")
-        : false;
       const directAuthority = canApprove(item, reviewer);
+      let delegated = false;
+      let directorDelegated = false;
+      if (!directAuthority) {
+        delegated = await hasDelegation(reviewer, registrationDepartment, "APPROVE_REGISTRATIONS");
+        directorDelegated = (registrationDepartment === "BGD" || registrationOwnerIsUnitAuthority(item))
+          ? await hasDelegation(reviewer, "BGD", "APPROVE_REGISTRATIONS")
+          : false;
+      }
       if (!directAuthority && (!(delegated || directorDelegated) || item.userId === reviewer.uid)) {
         throw new Error("Bạn không có quyền không duyệt đăng ký này.");
       }
