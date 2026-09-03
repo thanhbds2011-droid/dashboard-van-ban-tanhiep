@@ -1,8 +1,8 @@
 /** Đọc nhiệm vụ theo kỳ hiện hành, phạm vi tài khoản và bộ nhớ đệm ngắn. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260903.V1_22_1";
-import { UserContext } from "../core/user-context.js?v=20260903.V1_22_1";
-import { Permissions } from "../core/permissions.js?v=20260903.V1_22_1";
-import { PeriodReadService } from "./period-read-service.js?v=20260903.V1_22_1";
+import { FirebaseService } from "../core/firebase-service.js?v=20260903.V1_22_2";
+import { UserContext } from "../core/user-context.js?v=20260903.V1_22_2";
+import { Permissions } from "../core/permissions.js?v=20260903.V1_22_2";
+import { PeriodReadService } from "./period-read-service.js?v=20260903.V1_22_2";
 
 const TASK_CACHE_MS = 2 * 60 * 1000;
 const PROFESSIONAL_DEPARTMENT_IDS = Object.freeze(["BGD", "TCHC", "CTXH", "KHTC", "YT", "KI", "KII", "KIII"]);
@@ -42,7 +42,17 @@ function scopedReferences(periodId) {
       FirebaseService.where("primaryDepartmentId", "in", PROFESSIONAL_DEPARTMENT_IDS),
       FirebaseService.limit(5000)
     )];
-    /* Scope Chi đoàn độc lập: chỉ tải thêm khi chính tài khoản có vai trò Chi đoàn. */
+    /*
+     * V1.22.2: lãnh đạo TCHC có quyền xem toàn phạm vi chuyên môn nên đi vào nhánh này
+     * trước nhánh isDepartmentLeader(). Vẫn phải tải workload kiêm nhiệm của chính nhân viên
+     * thuộc đơn vị qua homeDepartmentId; quyền này chỉ là visibility, Rules không cấp quyền chấm CDTN.
+     */
+    if (Permissions.isDepartmentLeader() && user.departmentId) {
+      references.push(
+        FirebaseService.query(reference, periodFilter, FirebaseService.where("homeDepartmentId", "==", user.departmentId), FirebaseService.limit(2000))
+      );
+    }
+    /* Scope Chi đoàn độc lập: chỉ tải toàn bộ Chi đoàn khi chính tài khoản có vai trò Chi đoàn. */
     if (Permissions.isCdtnMember()) {
       references.push(
         FirebaseService.query(reference, periodFilter, FirebaseService.where("primaryDepartmentId", "==", "CDTN"), FirebaseService.limit(1000)),
