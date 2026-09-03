@@ -1,12 +1,12 @@
-import { UserContext } from "../../core/user-context.js?v=20260903.V1_22_1";
-import { Permissions } from "../../core/permissions.js?v=20260903.V1_22_1";
-import { ToastService } from "../../core/toast-service.js?v=20260903.V1_22_1";
-import { ModalService } from "../../core/modal-service.js?v=20260903.V1_22_1";
-import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260903.V1_22_1";
-import { PeriodReadService } from "../../services/period-read-service.js?v=20260903.V1_22_1";
-import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260903.V1_22_1";
-import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260903.V1_22_1";
-import { deriveDeadlinePlan, deadlineRuleDescription, requiresManualDeadline, isEventDrivenFrequency, canonicalFrequency, STANDARD_FREQUENCIES, WEEKDAY_OPTIONS } from "../../core/deadline-engine.js?v=20260903.V1_22_1";
+import { UserContext } from "../../core/user-context.js?v=20260903.V1_22_2";
+import { Permissions } from "../../core/permissions.js?v=20260903.V1_22_2";
+import { ToastService } from "../../core/toast-service.js?v=20260903.V1_22_2";
+import { ModalService } from "../../core/modal-service.js?v=20260903.V1_22_2";
+import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260903.V1_22_2";
+import { PeriodReadService } from "../../services/period-read-service.js?v=20260903.V1_22_2";
+import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260903.V1_22_2";
+import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260903.V1_22_2";
+import { deriveDeadlinePlan, deadlineRuleDescription, requiresManualDeadline, isEventDrivenFrequency, canonicalFrequency, STANDARD_FREQUENCIES, WEEKDAY_OPTIONS } from "../../core/deadline-engine.js?v=20260903.V1_22_2";
 
 let currentCatalogAccess = {
   canManage: false,
@@ -1224,8 +1224,10 @@ async function openCatalogDelegation(currentDelegation, period) {
     });
 
     root.querySelector("#revokeCatalogDelegation")?.addEventListener("click", async event => {
-      if (!await ModalService.confirm("Hủy ủy quyền thêm đầu việc ngay bây giờ?", { title: "Hủy ủy quyền", confirmText: "Hủy ủy quyền", danger: true })) return;
+      /* V1.22.2: giữ reference trước await; event.currentTarget sẽ thành null sau khi confirm bất đồng bộ kết thúc. */
       const button = event.currentTarget;
+      if (!button) return;
+      if (!await ModalService.confirm("Hủy ủy quyền thêm đầu việc ngay bây giờ?", { title: "Hủy ủy quyền", confirmText: "Hủy ủy quyền", danger: true })) return;
       button.disabled = true;
       try {
         await StandardTaskWriteService.revokeDelegation();
@@ -1234,7 +1236,7 @@ async function openCatalogDelegation(currentDelegation, period) {
         reloadRoute();
       } catch (error) {
         ToastService.error(error.message || "Không hủy được ủy quyền.");
-        button.disabled = false;
+        if (button.isConnected) button.disabled = false;
       }
     });
   } catch (error) {
@@ -1283,8 +1285,10 @@ async function openCdtnApprovalDelegation(period) {
     });
 
     root.querySelector("#revokeCdtnApproval")?.addEventListener("click", async event => {
-      if (!await ModalService.confirm("Hủy ủy quyền duyệt nhiệm vụ Chi đoàn ngay bây giờ?", { title: "Hủy ủy quyền Chi đoàn", confirmText: "Hủy ủy quyền", danger: true })) return;
+      /* Cùng nguyên tắc với ủy quyền Danh mục: không đọc currentTarget lần đầu sau await confirm. */
       const button = event.currentTarget;
+      if (!button) return;
+      if (!await ModalService.confirm("Hủy ủy quyền duyệt nhiệm vụ Chi đoàn ngay bây giờ?", { title: "Hủy ủy quyền Chi đoàn", confirmText: "Hủy ủy quyền", danger: true })) return;
       button.disabled = true;
       try {
         await TaskRegistrationService.revokeCdtnApprovalDelegation();
@@ -1293,7 +1297,7 @@ async function openCdtnApprovalDelegation(period) {
         reloadRoute();
       } catch (error) {
         ToastService.error(error.message || "Không hủy được ủy quyền Chi đoàn.");
-        button.disabled = false;
+        if (button.isConnected) button.disabled = false;
       }
     });
   } catch (error) {
