@@ -1,14 +1,14 @@
 /** Tạo, phân công, tiếp nhận, cập nhật tiến độ và hoàn thành nhiệm vụ. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260903.V1_22_2";
-import { UserContext } from "../core/user-context.js?v=20260903.V1_22_2";
-import { Permissions } from "../core/permissions.js?v=20260903.V1_22_2";
-import { TaskLogService } from "./task-log-service.js?v=20260903.V1_22_2";
-import { TaskWorkItemService } from "./task-work-item-service.js?v=20260903.V1_22_2";
-import { PeriodReadService } from "./period-read-service.js?v=20260903.V1_22_2";
-import { TaskNotificationService } from "./task-notification-service.js?v=20260903.V1_22_2";
-import { APP_VERSION, BUILD_VERSION } from "../core/app-version.js?v=20260903.V1_22_2";
-import { deadlineDateFromKey, isDateKey } from "../core/deadline-engine.js?v=20260903.V1_22_2";
-import { confirmWriteWithServerRecovery } from "./firestore-write-recovery.js?v=20260903.V1_22_2";
+import { FirebaseService } from "../core/firebase-service.js?v=20260903.V1_22_3";
+import { UserContext } from "../core/user-context.js?v=20260903.V1_22_3";
+import { Permissions } from "../core/permissions.js?v=20260903.V1_22_3";
+import { TaskLogService } from "./task-log-service.js?v=20260903.V1_22_3";
+import { TaskWorkItemService } from "./task-work-item-service.js?v=20260903.V1_22_3";
+import { PeriodReadService } from "./period-read-service.js?v=20260903.V1_22_3";
+import { TaskNotificationService } from "./task-notification-service.js?v=20260903.V1_22_3";
+import { APP_VERSION, BUILD_VERSION } from "../core/app-version.js?v=20260903.V1_22_3";
+import { deadlineDateFromKey, isDateKey } from "../core/deadline-engine.js?v=20260903.V1_22_3";
+import { confirmWriteWithServerRecovery } from "./firestore-write-recovery.js?v=20260903.V1_22_3";
 
 const TASK_WRITE_BUILD_VERSION = BUILD_VERSION;
 const MAX_CODE_SCAN = 1000;
