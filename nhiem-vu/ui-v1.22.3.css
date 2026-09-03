@@ -1,0 +1,285 @@
+/* =========================================================
+ * V1.22.2 — Production UAT refinement
+ * Chỉ presentation/layout; không thay query, quyền, scoring hay workflow.
+ * ========================================================= */
+
+/* Tasks: Phòng/Khu full-width; Chi đoàn luôn nằm bên dưới nếu có. */
+.task-workspace-grid {
+  grid-template-columns: minmax(0, 1fr) !important;
+  align-items: start;
+}
+.task-workspace-panel {
+  min-width: 0;
+  width: 100%;
+}
+.task-workspace-panel .task-list-scroll {
+  height: auto !important;
+  max-height: clamp(360px, 55dvh, 680px) !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.task-workspace-panel .data-row,
+.task-workspace-panel .task-row-button {
+  width: 100%;
+  min-width: 0;
+}
+
+/* KPI: scope/status dùng một hàng riêng; action tách xuống dưới để không bó/cắt Phạm vi. */
+.kpi-management-toolbar {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 10px !important;
+  align-items: stretch !important;
+  padding: 12px 14px !important;
+}
+.kpi-management-context {
+  min-width: 0;
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+.kpi-management-context .kpi-plan-state {
+  flex: 0 0 auto;
+  padding: 6px 10px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.kpi-management-context .kpi-scope-switch {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  padding: 5px 7px;
+  border-radius: 16px;
+  box-shadow: none;
+}
+.kpi-management-context .kpi-scope-switch-label {
+  flex: 0 0 auto;
+  font-size: 11px;
+}
+.kpi-management-context .kpi-scope-switch-options {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  overflow-x: visible !important;
+  scrollbar-width: none;
+}
+.kpi-management-context .kpi-scope-switch-options::-webkit-scrollbar {
+  display: none;
+}
+.kpi-management-context .kpi-scope-option {
+  min-width: 0;
+  min-height: 40px;
+  flex: 0 1 auto;
+  padding: 7px 11px;
+}
+.kpi-management-context .kpi-scope-option strong {
+  white-space: nowrap;
+}
+.kpi-management-actions {
+  min-width: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 2px;
+}
+.kpi-management-actions .kpi-button {
+  min-height: 38px;
+  padding: 8px 11px;
+}
+
+/* Task detail: task code phải nhìn như mã nhiệm vụ, không như helper text. */
+.task-detail-tabbed > .modal-header .page-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  margin-bottom: 5px;
+  padding: 5px 10px;
+  border: 1px solid #b8d8e8;
+  border-radius: 999px;
+  background: #eef8fd;
+  color: #075f8e;
+  font-size: 15px !important;
+  font-weight: 900;
+  letter-spacing: .025em !important;
+  line-height: 1.15;
+}
+
+/* Popup kế hoạch: không bẻ chữ "Duyệt" giữa từ; table tự cuộn ngang khi viewport hẹp. */
+.registration-plan-table-wrap {
+  overflow-x: auto !important;
+}
+.registration-plan-table {
+  table-layout: auto;
+}
+.registration-plan-table th:first-child,
+.registration-plan-table td:first-child {
+  width: 72px;
+  min-width: 72px;
+  white-space: nowrap !important;
+  overflow-wrap: normal !important;
+  word-break: keep-all !important;
+  text-align: center;
+}
+.registration-plan-table th:nth-child(2),
+.registration-plan-table td:nth-child(2) {
+  min-width: 320px;
+}
+.registration-plan-table th:nth-child(3),
+.registration-plan-table th:nth-child(4),
+.registration-plan-table th:nth-child(5),
+.registration-plan-table th:nth-child(6),
+.registration-plan-table th:nth-child(7) {
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: keep-all;
+}
+
+@media (max-width: 980px) {
+  .kpi-management-context {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+  }
+  .kpi-management-context .kpi-plan-state {
+    width: fit-content;
+  }
+  .kpi-management-actions {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 760px) {
+  /* Override mobile legacy rule only for the Tasks workspace; standard-task catalog remains untouched. */
+  .tasks-page-card .task-workspace-panel .task-list-scroll {
+    height: auto !important;
+    max-height: clamp(320px, 58dvh, 520px) !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+  }
+  .kpi-management-toolbar {
+    padding: 10px !important;
+  }
+  .kpi-management-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+  .kpi-management-actions .kpi-button {
+    width: 100%;
+  }
+  .kpi-management-context .kpi-scope-switch {
+    width: 100%;
+  }
+  .kpi-management-context .kpi-scope-switch-options {
+    flex-wrap: nowrap;
+    overflow-x: auto !important;
+    scrollbar-width: thin;
+    overscroll-behavior-inline: contain;
+  }
+  .kpi-management-context .kpi-scope-switch-options::-webkit-scrollbar {
+    display: block;
+    height: 5px;
+  }
+  .kpi-management-context .kpi-scope-option {
+    min-width: 145px;
+    flex: 0 0 auto;
+  }
+  .registration-plan-table {
+    min-width: 900px !important;
+  }
+  .task-detail-tabbed > .modal-header .page-eyebrow {
+    font-size: 14px !important;
+  }
+}
+
+/* ===== V1.22.3: chuẩn hóa biểu mẫu tính điểm + header danh mục sản phẩm ===== */
+.kpi-score-summary-table{
+  width:100%;
+  min-width:1380px;
+  border-collapse:collapse;
+  margin-top:10px;
+  font-family:"Times New Roman",Times,serif;
+  color:#111;
+  background:#fff;
+}
+.kpi-score-summary-table th,
+.kpi-score-summary-table td{
+  border:1px solid #334155;
+  padding:8px 10px;
+  vertical-align:middle;
+  white-space:normal;
+  overflow-wrap:anywhere;
+}
+.kpi-score-summary-table th{
+  text-align:right;
+  font-weight:700;
+  background:#f8fafc;
+}
+.kpi-score-summary-table td{
+  width:110px;
+  text-align:center;
+  font-weight:800;
+  font-size:15px;
+}
+.kpi-score-summary-table em{font-weight:400}
+.kpi-score-summary-cards{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:9px;
+  margin-top:10px;
+}
+.kpi-score-summary-cards>div{
+  border:1px solid #d8e4ec;
+  border-radius:12px;
+  background:#f8fbfd;
+  padding:10px 12px;
+  display:grid;
+  gap:4px;
+}
+.kpi-score-summary-cards>div:last-child{grid-column:1/-1}
+.kpi-score-summary-cards span{font-size:12px;color:#64748b}
+.kpi-score-summary-cards strong{font-size:18px;color:#123d56}
+
+.kpi-product-official-header{
+  margin-bottom:18px;
+  padding-bottom:8px;
+  border-bottom:0;
+}
+.kpi-product-official-header .m01-agency,
+.kpi-product-official-header .m01-national{
+  font-family:"Times New Roman",Times,serif;
+  font-size:14px;
+  line-height:1.35;
+}
+.kpi-product-heading h2{
+  margin:8px auto 24px!important;
+  max-width:900px;
+  line-height:1.3;
+  text-transform:uppercase;
+}
+.kpi-product-heading p{margin:8px 0;line-height:1.5}
+
+@media(max-width:760px){
+  .kpi-product-official-header{grid-template-columns:1fr;gap:12px}
+  .kpi-product-official-header .m01-agency,
+  .kpi-product-official-header .m01-national{font-size:12px}
+  .kpi-score-summary-cards{grid-template-columns:1fr}
+  .kpi-score-summary-cards>div:last-child{grid-column:auto}
+}
+
+@media print{
+  .kpi-product-official-header{display:grid!important;grid-template-columns:1fr 1fr!important;gap:24px!important;break-inside:avoid}
+  .kpi-product-official-header .m01-agency,
+  .kpi-product-official-header .m01-national{font-size:10.5pt!important}
+  .kpi-product-heading h2{font-size:14pt!important;margin-bottom:16px!important}
+  .kpi-score-summary-table{min-width:0!important;font-size:9pt!important;break-inside:avoid}
+  .kpi-score-summary-table th,.kpi-score-summary-table td{padding:4px 5px!important}
+}

@@ -1,5 +1,5 @@
 /** Release marker V1.22.0 - Production Workflow + Mobile + Performance Safety. */
-import { APP_VERSION, BUILD_VERSION } from "./core/app-version.js?v=20260903.V1_22_2";
+import { APP_VERSION, BUILD_VERSION } from "./core/app-version.js?v=20260903.V1_22_3";
 
 export const RELEASE_V1220 = Object.freeze({
   version: APP_VERSION,
