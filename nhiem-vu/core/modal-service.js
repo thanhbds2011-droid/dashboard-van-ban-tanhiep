@@ -28,7 +28,7 @@ function open({
       <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
         <div class="modal-header">
           <div>
-            <span class="page-eyebrow">${escapeHtml(eyebrow)}</span>
+            ${eyebrow ? `<span class="page-eyebrow">${escapeHtml(eyebrow)}</span>` : ""}
             <h2 id="modalTitle">${escapeHtml(title)}</h2>
           </div>
           <button class="modal-x" type="button" aria-label="Đóng">×</button>
@@ -107,7 +107,7 @@ function alert(message, options = {}) {
     confirmText: options.confirmText || "Đóng",
     showCancel: false,
     danger: options.danger === true,
-    eyebrow: options.eyebrow || "THÔNG BÁO"
+    eyebrow: options.eyebrow ?? ""
   });
 }
 
@@ -120,7 +120,7 @@ function confirm(message, options = {}) {
     cancelText: options.cancelText || "Hủy",
     danger: options.danger === true,
     showCancel: true,
-    eyebrow: options.eyebrow || "XÁC NHẬN"
+    eyebrow: options.eyebrow ?? ""
   });
 }
 
