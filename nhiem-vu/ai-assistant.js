@@ -1,6 +1,6 @@
-import { auth } from "./firebase-config.js?v=20260902.V1_22_0";
-import { NOTIFICATION_WEB_APP_URL } from "./notification-config.js?v=20260902.V1_22_0";
-import { UserContext } from "./core/user-context.js?v=20260902.V1_22_0";
+import { auth } from "./firebase-config.js?v=20260903.V1_22_1";
+import { NOTIFICATION_WEB_APP_URL } from "./notification-config.js?v=20260903.V1_22_1";
+import { UserContext } from "./core/user-context.js?v=20260903.V1_22_1";
 
 /* =========================================================
  * AI MODULE V4 — HEALTH CHECK + CALLBACK + MOBILE POLLING — TRỢ LÝ GỢI Ý NỘI DUNG THEO TINH THẦN 6 RÕ
