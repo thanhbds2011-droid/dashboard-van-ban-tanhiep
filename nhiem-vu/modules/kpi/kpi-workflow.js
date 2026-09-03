@@ -1,26 +1,27 @@
-import { auth, db } from '../../firebase-config.js?v=20260903.V1_22_2';
+import { auth, db } from '../../firebase-config.js?v=20260903.V1_22_3';
 import {
   addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, onSnapshot, query,
   serverTimestamp, setDoc, Timestamp, updateDoc, where, limit, writeBatch
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
-import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260903.V1_22_2';
-import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260903.V1_22_2';
-import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260903.V1_22_2';
-import { TaskEvidenceService } from '../../services/task-evidence-service.js?v=20260903.V1_22_2';
-import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260903.V1_22_2';
-import { PeriodReadService } from '../../services/period-read-service.js?v=20260903.V1_22_2';
-import { TaskReadService } from '../../services/task-read-service.js?v=20260903.V1_22_2';
-import { Permissions } from '../../core/permissions.js?v=20260903.V1_22_2';
-import { UserContext } from '../../core/user-context.js?v=20260903.V1_22_2';
-import { APP_VERSION } from '../../core/app-version.js?v=20260903.V1_22_2';
-import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260903.V1_22_2';
-import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260903.V1_22_2';
+import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260903.V1_22_3';
+import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260903.V1_22_3';
+import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260903.V1_22_3';
+import { TaskEvidenceService } from '../../services/task-evidence-service.js?v=20260903.V1_22_3';
+import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260903.V1_22_3';
+import { PeriodReadService } from '../../services/period-read-service.js?v=20260903.V1_22_3';
+import { TaskReadService } from '../../services/task-read-service.js?v=20260903.V1_22_3';
+import { Permissions } from '../../core/permissions.js?v=20260903.V1_22_3';
+import { UserContext } from '../../core/user-context.js?v=20260903.V1_22_3';
+import { APP_VERSION } from '../../core/app-version.js?v=20260903.V1_22_3';
+import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260903.V1_22_3';
+import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260903.V1_22_3';
 import {
   KPI2B as KPI2C, M01_GROUPS, COMMON_CRITERIA, commonCriteriaForProfile, reportFormTypeForProfile, calculateTaskScore, calculateKpiSummary,
   proposedRating, resolveQualityRating, ratingName, round2, progressRateFromDates, convertAppendix04Rate, calculateMilestoneProgress, calculateBonusScore
-} from '../../kpi-engine.js?v=20260903.V1_22_2';
-import { resolveKpiReviewer, canReviewKpiOwner } from '../../core/kpi-review-authority.js?v=20260903.V1_22_2';
-import { ModalService } from '../../core/modal-service.js?v=20260903.V1_22_2';
+} from '../../kpi-engine.js?v=20260903.V1_22_3';
+import { resolveKpiReviewer, canReviewKpiOwner } from '../../core/kpi-review-authority.js?v=20260903.V1_22_3';
+import { ModalService } from '../../core/modal-service.js?v=20260903.V1_22_3';
+import { exportFormattedKpiWorkbook } from '../../services/xlsx-export-service.js?v=20260903.V1_22_3';
 
 export const KpiWorkflowState = {
   user: null,
@@ -2250,6 +2251,54 @@ function evidenceCellHtml(files = [], task = {}) {
   return `${clean(task.evidenceText) ? `<span>${esc(task.evidenceText)}</span><br>` : ''}${safeHttpUrl(task.evidenceUrl || task.evidenceLink) ? evidenceLinkHtml(task.evidenceUrl || task.evidenceLink,'Mở liên kết')+'<br>' : ''}${links}${more}`;
 }
 
+function scorecardSummaryData(userId, summaryData = summaryForUserCombined(userId)) {
+  const scoredTasks = personalTasksForUser(userId).filter(taskRequiresOfficialEvaluation);
+  const exceededCount = scoredTasks.reduce((count, task) => {
+    const evaluation = KpiWorkflowState.evaluations.find(item => item.taskId === task.id && item.ownerUserId === userId);
+    return count + (scorecardExceededLabel(evaluation) === 'X' ? 1 : 0);
+  }, 0);
+  return {
+    A: Number(summaryData?.A || 0),
+    B: Number(summaryData?.B || 0),
+    kpi70: summaryData?.hasCalculationBasis === true ? Number(summaryData?.kpi70 || 0) : null,
+    bonusC: Number(summaryData?.bonusC || 0),
+    exceededCount,
+    hasCalculationBasis: summaryData?.hasCalculationBasis === true
+  };
+}
+
+function scorecardSummaryTableHtml(data = {}) {
+  const kpiValue = data.hasCalculationBasis ? fmt(data.kpi70) : 'Chưa đủ cơ sở';
+  return `<table class="kpi-score-summary-table"><tbody>
+    <tr><th colspan="5">Điểm giá trị A</th><td>${fmt(data.A)}</td><th colspan="4">Điểm giá trị B</th><td>${fmt(data.B)}</td></tr>
+    <tr><th colspan="10">KPI % (trục 4) = B/A*70 điểm (nếu B&gt;A thì KPI là 70)</th><td>${esc(kpiValue)}</td></tr>
+    <tr><th colspan="10">Tổng số công việc vượt tiến độ và đạt yêu cầu chất lượng</th><td>${Number(data.exceededCount || 0)}</td></tr>
+    <tr><th colspan="10">Tổng số điểm thưởng đối với các công việc vượt tiến độ và đạt yêu cầu chất lượng <em>(nếu có)</em></th><td>${fmt(data.bonusC)}</td></tr>
+  </tbody></table>`;
+}
+
+function scorecardSummaryCardsHtml(data = {}) {
+  return `<section class="kpi-score-summary-cards">
+    <div><span>Điểm giá trị A</span><strong>${fmt(data.A)}</strong></div>
+    <div><span>Điểm giá trị B</span><strong>${fmt(data.B)}</strong></div>
+    <div><span>KPI trục 4 /70</span><strong>${data.hasCalculationBasis ? fmt(data.kpi70) : 'Chưa đủ cơ sở'}</strong></div>
+    <div><span>Công việc vượt yêu cầu</span><strong>${Number(data.exceededCount || 0)}</strong></div>
+    <div><span>Tổng điểm thưởng</span><strong>${fmt(data.bonusC)}</strong></div>
+  </section>`;
+}
+
+function evidenceExportText(files = [], task = {}) {
+  const parts = [];
+  if (clean(task.evidenceText)) parts.push(clean(task.evidenceText));
+  if (safeHttpUrl(task.evidenceUrl || task.evidenceLink)) parts.push(safeHttpUrl(task.evidenceUrl || task.evidenceLink));
+  files.forEach(file => {
+    const label = clean(file?.fileName || 'Tệp minh chứng');
+    const url = safeHttpUrl(file?.fileUrl);
+    parts.push(url ? `${label}: ${url}` : label);
+  });
+  return parts.filter(Boolean).join('\n') || '—';
+}
+
 function attachSynchronizedHorizontalScroll(root) {
   const wrap = root?.querySelector('.kpi-scorecard-desktop .kpi-table-wrap');
   const table = wrap?.querySelector('table');
@@ -2285,7 +2334,8 @@ async function openUserScorecard(userId) {
     const files = evidenceMap.get(task.id) || [];
     return `<article class="kpi-score-card"><strong>${esc(task.taskCode || '')} — ${esc(task.title || '')}</strong><div><span>Điểm chuẩn ${fmt(task.baseScore)}</span><span>Hệ số ${coefficientPercent(task.difficultyCoefficient)}</span><span>Tối đa ${fmt(task.maximumConvertedScore)}</span></div><div><span>Tiến độ ${applied.progressRate ?? '—'}%</span><span>Kết quả ${applied.resultRate ?? '—'}%</span><span>Điểm thực tế <b>${applied.hasScore ? fmt(applied.convertedActualScore) : '—'}</b></span></div><div><span>Vượt yêu cầu: <b>${esc(scorecardExceededLabel(evaluation) || 'Không')}</b></span><span>Minh chứng: ${files.length} tệp</span></div></article>`;
   }).join('');
-  const root = modal(`Bảng KPI · ${user.fullName || user.email || ''}`, `<div class="kpi-scorecard-desktop"><div class="kpi-table-wrap"><table class="kpi-table kpi-wide-table"><thead><tr><th>STT</th><th>Tên công việc</th><th>Điểm chuẩn</th><th>Hệ số độ khó</th><th>Điểm quy đổi tối đa</th><th>Tiến độ</th><th>Kết quả</th><th>Điểm thực hiện</th><th>Điểm quy đổi thực tế</th><th>Vượt yêu cầu</th><th>Minh chứng</th></tr></thead><tbody>${rows || '<tr><td colspan="11">Chưa có nhiệm vụ KPI đã duyệt.</td></tr>'}</tbody></table></div></div><div class="kpi-scorecard-mobile">${cards || '<div class="kpi-empty">Chưa có nhiệm vụ KPI đã duyệt.</div>'}</div>`, '<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button>');
+  const scoreSummary = scorecardSummaryData(userId);
+  const root = modal(`Bảng KPI · ${user.fullName || user.email || ''}`, `<div class="kpi-scorecard-desktop"><div class="kpi-table-wrap"><table class="kpi-table kpi-wide-table"><thead><tr><th>STT</th><th>Tên công việc</th><th>Điểm chuẩn</th><th>Hệ số độ khó</th><th>Điểm quy đổi tối đa</th><th>Tiến độ</th><th>Kết quả</th><th>Điểm thực hiện</th><th>Điểm quy đổi thực tế</th><th>Vượt yêu cầu</th><th>Minh chứng</th></tr></thead><tbody>${rows || '<tr><td colspan="11">Chưa có nhiệm vụ KPI đã duyệt.</td></tr>'}</tbody></table>${scorecardSummaryTableHtml(scoreSummary)}</div></div><div class="kpi-scorecard-mobile">${cards || '<div class="kpi-empty">Chưa có nhiệm vụ KPI đã duyệt.</div>'}${scorecardSummaryCardsHtml(scoreSummary)}</div>`, '<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button>');
   attachSynchronizedHorizontalScroll(root);
 }
 
@@ -2354,7 +2404,7 @@ async function openProductCatalog(userId = KpiWorkflowState.user.uid) {
     return `<tr><td>${index+1}</td><td>${esc(task.title || task.standardTaskName || '')}</td><td>${esc(task.description || task.outputRequirement || task.standardTaskOutputRequirement || '')}</td><td>${esc(deadlineLabel)}</td><td>${esc(clean(task.workType).toUpperCase()==='DOT_XUAT'?'Đột xuất':'Thường xuyên')}</td><td>${fmt(task.baseScore)}</td><td>${coefficientPercent(task.difficultyCoefficient)}</td><td>${fmt(task.maximumConvertedScore)}</td><td>${esc(task.standardTaskMandatoryEvidence || task.mandatoryEvidence || '—')}</td></tr>`;
   }).join('');
   const title = productCatalogPeriodTitle(KpiWorkflowState.period, departmentName);
-  modal('Danh mục sản phẩm cá nhân', `<div id="kpiProductCatalogPrint" class="kpi-product-report kpi-report-print"><div class="kpi-product-heading"><strong>TRUNG TÂM BẢO TRỢ XÃ HỘI TÂN HIỆP</strong><h2>${esc(title)}</h2><p><strong>Họ và tên:</strong> ${esc(user.fullName || '')}</p><p><strong>Chức vụ:</strong> ${esc(userPositionWithDepartment(user))}</p></div><div class="kpi-table-wrap"><table class="kpi-report-table kpi-product-table"><thead><tr><th>TT</th><th>Tên công việc</th><th>Kết quả đầu ra</th><th>Thời hạn hoàn thành</th><th>Loại công việc</th><th>Điểm chuẩn</th><th>Hệ số độ khó</th><th>Điểm quy đổi tối đa</th><th>Minh chứng</th></tr></thead><tbody>${rows || '<tr><td colspan="9">Chưa có nhiệm vụ được duyệt.</td></tr>'}</tbody></table></div><div class="kpi-product-totals"><p><strong>Tổng số nhiệm vụ thực hiện trong kỳ:</strong> ${tasks.length}</p><p><strong>Tổng số nhiệm vụ vượt tiến độ/chất lượng:</strong> ${exceededSummaryForUser(userId,{officialOnly:true}).exceededTasks}</p></div><div class="kpi-product-signatures"><div><strong>XÁC NHẬN CỦA LÃNH ĐẠO, ĐƠN VỊ</strong><br><em>(Ký, ghi rõ họ tên)</em><div class="kpi-signature-space"></div></div><div><strong>NGƯỜI LẬP DANH MỤC SẢN PHẨM</strong><br><em>(Ký, ghi rõ họ tên)</em><div class="kpi-signature-space"></div><strong>${esc(user.fullName || '')}</strong></div></div></div>`, '<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button><button id="kpiPrintProductCatalog" class="kpi-button" type="button">🖨️ In danh mục</button>');
+  modal('Danh mục sản phẩm cá nhân', `<div id="kpiProductCatalogPrint" class="kpi-product-report kpi-report-print"><div class="m01-top kpi-product-official-header"><div class="m01-agency"><strong>SỞ Y TẾ<br>THÀNH PHỐ HỒ CHÍ MINH<br>TRUNG TÂM BẢO TRỢ XÃ HỘI TÂN HIỆP</strong></div><div class="m01-national"><strong>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</strong><div class="m01-motto"><strong>Độc lập - Tự do - Hạnh phúc</strong></div></div></div><div class="kpi-product-heading"><h2>${esc(title)}</h2><p><strong>Họ và tên:</strong> ${esc(user.fullName || '')}</p><p><strong>Chức vụ:</strong> ${esc(userPositionWithDepartment(user))}</p></div><div class="kpi-table-wrap"><table class="kpi-report-table kpi-product-table"><thead><tr><th>TT</th><th>Tên công việc</th><th>Kết quả đầu ra</th><th>Thời hạn hoàn thành</th><th>Loại công việc</th><th>Điểm chuẩn</th><th>Hệ số độ khó</th><th>Điểm quy đổi tối đa</th><th>Minh chứng</th></tr></thead><tbody>${rows || '<tr><td colspan="9">Chưa có nhiệm vụ được duyệt.</td></tr>'}</tbody></table></div><div class="kpi-product-totals"><p><strong>Tổng số nhiệm vụ thực hiện trong kỳ:</strong> ${tasks.length}</p><p><strong>Tổng số nhiệm vụ vượt tiến độ/chất lượng:</strong> ${exceededSummaryForUser(userId,{officialOnly:true}).exceededTasks}</p></div><div class="kpi-product-signatures"><div><strong>XÁC NHẬN CỦA LÃNH ĐẠO, ĐƠN VỊ</strong><br><em>(Ký, ghi rõ họ tên)</em><div class="kpi-signature-space"></div></div><div><strong>NGƯỜI LẬP DANH MỤC SẢN PHẨM</strong><br><em>(Ký, ghi rõ họ tên)</em><div class="kpi-signature-space"></div><strong>${esc(user.fullName || '')}</strong></div></div></div>`, '<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button><button id="kpiPrintProductCatalog" class="kpi-button" type="button">🖨️ In danh mục</button>');
   el('kpiPrintProductCatalog')?.addEventListener('click',()=>window.print());
 }
 
@@ -3733,38 +3783,48 @@ async function openReport() {
     </div>
   </div>`;
 
-  const excelHtml = `<div id="kpiExcelPreview" class="kpi-hidden"><div class="kpi-score-state ${scoreState.className}"><span class="kpi-score-state-icon">${scoreState.code === 'OFFICIAL' ? '✓' : '✎'}</span><div><strong>${esc(scoreState.label)}</strong><span>${esc(scoreState.detail)}</span></div></div><div class="kpi-scorecard-desktop"><div class="kpi-table-wrap"><table class="kpi-table kpi-wide-table"><thead><tr><th>STT</th><th>Tên nhiệm vụ</th><th>Điểm chuẩn</th><th>Hệ số độ khó</th><th>Điểm quy đổi tối đa</th><th>Tiến độ</th><th>Kết quả</th><th>Điểm thực hiện</th><th>Điểm quy đổi thực tế</th><th>Vượt yêu cầu</th><th>Minh chứng</th></tr></thead><tbody>${mine.map((t, i) => { const evaluation=evaluationFor(t.id); const applied=evaluationScoreSnapshot(evaluation); return `<tr><td>${i + 1}</td><td><strong>${esc(t.taskCode || '')}</strong><br>${esc(t.title)}</td><td>${fmt(t.baseScore)}</td><td>${coefficientPercent(t.difficultyCoefficient)}</td><td>${fmt(t.maximumConvertedScore)}</td><td>${applied.progressRate ?? ''}${applied.progressRate !== null ? '%' : ''}</td><td>${applied.resultRate ?? ''}${applied.resultRate !== null ? '%' : ''}</td><td>${applied.hasScore ? fmt(applied.executionScore) : ''}</td><td><strong>${applied.hasScore ? fmt(applied.convertedActualScore) : ''}</strong></td><td class="m01-center">${esc(scorecardExceededLabel(evaluation))}</td><td>${evidenceCellHtml(evidenceMap.get(t.id) || [], t)}</td></tr>`; }).join('')}</tbody></table></div></div><div class="kpi-scorecard-mobile">${mine.map(t=>{const evaluation=evaluationFor(t.id);const applied=evaluationScoreSnapshot(evaluation);const files=evidenceMap.get(t.id)||[];return `<article class="kpi-score-card"><strong>${esc(t.taskCode||'')} — ${esc(t.title||'')}</strong><div><span>Điểm chuẩn ${fmt(t.baseScore)}</span><span>Hệ số ${coefficientPercent(t.difficultyCoefficient)}</span><span>Tối đa ${fmt(t.maximumConvertedScore)}</span></div><div><span>Tiến độ ${applied.progressRate??'—'}%</span><span>Kết quả ${applied.resultRate??'—'}%</span><span>Điểm thực tế <b>${applied.hasScore?fmt(applied.convertedActualScore):'—'}</b></span></div><div><span>Vượt yêu cầu: <b>${esc(scorecardExceededLabel(evaluation)||'Không')}</b></span><span>Minh chứng: ${files.length} tệp</span></div></article>`}).join('')}</div></div>`;
+  const reportScoreSummary = scorecardSummaryData(KpiWorkflowState.user.uid, s);
+  const excelHtml = `<div id="kpiExcelPreview" class="kpi-hidden"><div class="kpi-score-state ${scoreState.className}"><span class="kpi-score-state-icon">${scoreState.code === 'OFFICIAL' ? '✓' : '✎'}</span><div><strong>${esc(scoreState.label)}</strong><span>${esc(scoreState.detail)}</span></div></div><div class="kpi-scorecard-desktop"><div class="kpi-table-wrap"><table class="kpi-table kpi-wide-table"><thead><tr><th>STT</th><th>Tên công việc</th><th>Điểm chuẩn</th><th>Hệ số độ khó</th><th>Điểm quy đổi tối đa</th><th>Tiến độ</th><th>Kết quả</th><th>Điểm thực hiện</th><th>Điểm quy đổi thực tế</th><th>Vượt yêu cầu</th><th>Minh chứng</th></tr></thead><tbody>${mine.map((t, i) => { const evaluation=evaluationFor(t.id); const applied=evaluationScoreSnapshot(evaluation); return `<tr><td>${i + 1}</td><td><strong>${esc(t.taskCode || '')}</strong><br>${esc(t.title)}</td><td>${fmt(t.baseScore)}</td><td>${coefficientPercent(t.difficultyCoefficient)}</td><td>${fmt(t.maximumConvertedScore)}</td><td>${applied.progressRate ?? ''}${applied.progressRate !== null ? '%' : ''}</td><td>${applied.resultRate ?? ''}${applied.resultRate !== null ? '%' : ''}</td><td>${applied.hasScore ? fmt(applied.executionScore) : ''}</td><td><strong>${applied.hasScore ? fmt(applied.convertedActualScore) : ''}</strong></td><td class="m01-center">${esc(scorecardExceededLabel(evaluation))}</td><td>${evidenceCellHtml(evidenceMap.get(t.id) || [], t)}</td></tr>`; }).join('')}</tbody></table>${scorecardSummaryTableHtml(reportScoreSummary)}</div></div><div class="kpi-scorecard-mobile">${mine.map(t=>{const evaluation=evaluationFor(t.id);const applied=evaluationScoreSnapshot(evaluation);const files=evidenceMap.get(t.id)||[];return `<article class="kpi-score-card"><strong>${esc(t.taskCode||'')} — ${esc(t.title||'')}</strong><div><span>Điểm chuẩn ${fmt(t.baseScore)}</span><span>Hệ số ${coefficientPercent(t.difficultyCoefficient)}</span><span>Tối đa ${fmt(t.maximumConvertedScore)}</span></div><div><span>Tiến độ ${applied.progressRate??'—'}%</span><span>Kết quả ${applied.resultRate??'—'}%</span><span>Điểm thực tế <b>${applied.hasScore?fmt(applied.convertedActualScore):'—'}</b></span></div><div><span>Vượt yêu cầu: <b>${esc(scorecardExceededLabel(evaluation)||'Không')}</b></span><span>Minh chứng: ${files.length} tệp</span></div></article>`}).join('')}${scorecardSummaryCardsHtml(reportScoreSummary)}</div></div>`;
 
-  modal(`Báo cáo KPI cá nhân · ${formLabel}`, `<div class="kpi-preview-tabs kpi-no-print"><button id="kpiPdfTab" class="kpi-button secondary active" type="button">${formLabel}</button><button id="kpiExcelTab" class="kpi-button secondary" type="button">Bảng tính điểm</button></div>${pdfHtml}${excelHtml}`, '<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button><button id="kpiExportCsv" class="kpi-button secondary" type="button">📊 Xuất bảng điểm</button><button id="kpiPrintReport" class="kpi-button" type="button">🖨️ In biểu mẫu</button>');
+  modal(`Báo cáo KPI cá nhân · ${formLabel}`, `<div class="kpi-preview-tabs kpi-no-print"><button id="kpiPdfTab" class="kpi-button secondary active" type="button">${formLabel}</button><button id="kpiExcelTab" class="kpi-button secondary" type="button">Bảng tính điểm</button></div>${pdfHtml}${excelHtml}`, '<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button><button id="kpiExportXlsx" class="kpi-button secondary" type="button">📊 Xuất bảng điểm</button><button id="kpiPrintReport" class="kpi-button" type="button">🖨️ In biểu mẫu</button>');
   el('kpiPdfTab').addEventListener('click', () => { el('kpiPdfPreview').classList.remove('kpi-hidden'); el('kpiExcelPreview').classList.add('kpi-hidden'); el('kpiPdfTab').classList.add('active'); el('kpiExcelTab').classList.remove('active'); el('kpiPrintReport').classList.remove('kpi-hidden'); });
   el('kpiExcelTab').addEventListener('click', () => { el('kpiPdfPreview').classList.add('kpi-hidden'); el('kpiExcelPreview').classList.remove('kpi-hidden'); el('kpiPdfTab').classList.remove('active'); el('kpiExcelTab').classList.add('active'); el('kpiPrintReport').classList.add('kpi-hidden'); });
   el('kpiPrintReport').addEventListener('click', () => window.print());
-  el('kpiExportCsv')?.addEventListener('click', () => exportReportCsv(mine, s, reportDepartmentId));
+  el('kpiExportXlsx')?.addEventListener('click', () => exportReportXlsx(mine, s, reportDepartmentId, evidenceMap));
 }
 
-function exportReportCsv(tasks, summaryData, departmentId = profileDepartmentId()){
-  const quote = value => `"${String(value ?? '').replaceAll('"','""')}"`;
-  const state = scoreStateForUserCombined(KpiWorkflowState.user.uid);
-  const rows = [['STT','Tên nhiệm vụ','Điểm chuẩn','Hệ số độ khó','Điểm quy đổi tối đa','Tiến độ áp dụng','Chất lượng áp dụng','Điểm thực hiện công việc','Điểm quy đổi thực tế','Vượt yêu cầu','Điểm thưởng nhiệm vụ','Trạng thái điểm']];
-  tasks.forEach((task,index)=>{
-    const applied=evaluationScoreSnapshot(evaluationFor(task.id));
-    const evaluation=evaluationFor(task.id); rows.push([index+1,task.title||'',task.baseScore||0,coefficientPercent(task.difficultyCoefficient),task.maximumConvertedScore||0,applied.progressRate??'',applied.resultRate??'',applied.hasScore?applied.executionScore:'',applied.hasScore?applied.convertedActualScore:'',scorecardExceededLabel(evaluation),applied.bonusScore||'',applied.label]);
+function exportReportXlsx(tasks, summaryData, departmentId = profileDepartmentId(), evidenceMap = new Map()) {
+  const summaryForExport = scorecardSummaryData(KpiWorkflowState.user.uid, summaryData);
+  const workbookRows = tasks.map((task, index) => {
+    const evaluation = evaluationFor(task.id);
+    const applied = evaluationScoreSnapshot(evaluation);
+    return {
+      index: index + 1,
+      taskCode: task.taskCode || '',
+      title: task.title || '',
+      baseScore: Number(task.baseScore || 0),
+      coefficientLabel: coefficientPercent(task.difficultyCoefficient),
+      maximumConvertedScore: Number(task.maximumConvertedScore || 0),
+      progressLabel: applied.progressRate == null ? '' : `${applied.progressRate}%`,
+      resultLabel: applied.resultRate == null ? '' : `${applied.resultRate}%`,
+      executionScore: applied.hasScore ? Number(applied.executionScore || 0) : '',
+      actualScore: applied.hasScore ? Number(applied.convertedActualScore || 0) : '',
+      exceededLabel: scorecardExceededLabel(evaluation),
+      evidence: evidenceExportText(evidenceMap.get(task.id) || [], task)
+    };
   });
-  rows.push([]);
-  rows.push(['Trạng thái báo cáo',state.label]);
-  rows.push(['A · Điểm kế hoạch',summaryData.A]);
-  rows.push(['B · Điểm thực tế',summaryData.B]);
-  rows.push(['Điểm công việc /70',summaryData.kpi70]);
-  rows.push(['C · Điểm thưởng',summaryData.bonusC ?? 0]);
-  rows.push(['Tiêu chí chung /30',summaryData.common30]);
-  rows.push(['Tổng /100',summaryData.total100]);
-  const csv='\ufeff'+rows.map(row=>row.map(quote).join(';')).join('\r\n');
-  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');
-  a.href=url;
-  a.download=`Bao_cao_KPI_${normalizeDepartment(departmentId)}_${KpiWorkflowState.period?.id||'ky'}_${KpiWorkflowState.profile?.fullName||'ca_nhan'}.csv`;
-  document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
+  const periodLabel = clean(KpiWorkflowState.period?.name || KpiWorkflowState.period?.id || '');
+  const safeDepartment = normalizeDepartment(departmentId) || 'DON_VI';
+  const fullName = clean(KpiWorkflowState.profile?.fullName || 'ca_nhan');
+  exportFormattedKpiWorkbook({
+    fileName: `Bang_tinh_diem_KPI_${safeDepartment}_${KpiWorkflowState.period?.id || 'ky'}_${fullName}.xlsx`,
+    sheetName: 'Bảng tính điểm',
+    periodLabel,
+    employeeName: fullName,
+    employeePosition: userPositionWithDepartment(KpiWorkflowState.profile || {}),
+    rows: workbookRows,
+    summary: summaryForExport
+  });
 }
 
 async function audit(action, detail){try{await addDoc(collection(db,'kpiAuditLogs'),{appVersion:APP_VERSION,periodId:KpiWorkflowState.period?.id||'',action,detail,scopeUserId:KpiWorkflowState.user.uid,scopeDepartmentId:activeScopeDepartmentId()||KpiWorkflowState.profile.departmentId||'',performedByUserId:KpiWorkflowState.user.uid,performedByName:KpiWorkflowState.profile.fullName||'',performedByRole:KpiWorkflowState.profile.role||'',performedAt:serverTimestamp()});}catch(error){console.warn('Không ghi được KPI audit log',error);}}
