@@ -1,26 +1,26 @@
-import { auth, db } from '../../firebase-config.js?v=20260903.V1_22_1';
+import { auth, db } from '../../firebase-config.js?v=20260903.V1_22_2';
 import {
   addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, onSnapshot, query,
   serverTimestamp, setDoc, Timestamp, updateDoc, where, limit, writeBatch
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
-import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260903.V1_22_1';
-import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260903.V1_22_1';
-import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260903.V1_22_1';
-import { TaskEvidenceService } from '../../services/task-evidence-service.js?v=20260903.V1_22_1';
-import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260903.V1_22_1';
-import { PeriodReadService } from '../../services/period-read-service.js?v=20260903.V1_22_1';
-import { TaskReadService } from '../../services/task-read-service.js?v=20260903.V1_22_1';
-import { Permissions } from '../../core/permissions.js?v=20260903.V1_22_1';
-import { UserContext } from '../../core/user-context.js?v=20260903.V1_22_1';
-import { APP_VERSION } from '../../core/app-version.js?v=20260903.V1_22_1';
-import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260903.V1_22_1';
-import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260903.V1_22_1';
+import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260903.V1_22_2';
+import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260903.V1_22_2';
+import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260903.V1_22_2';
+import { TaskEvidenceService } from '../../services/task-evidence-service.js?v=20260903.V1_22_2';
+import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260903.V1_22_2';
+import { PeriodReadService } from '../../services/period-read-service.js?v=20260903.V1_22_2';
+import { TaskReadService } from '../../services/task-read-service.js?v=20260903.V1_22_2';
+import { Permissions } from '../../core/permissions.js?v=20260903.V1_22_2';
+import { UserContext } from '../../core/user-context.js?v=20260903.V1_22_2';
+import { APP_VERSION } from '../../core/app-version.js?v=20260903.V1_22_2';
+import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260903.V1_22_2';
+import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260903.V1_22_2';
 import {
   KPI2B as KPI2C, M01_GROUPS, COMMON_CRITERIA, commonCriteriaForProfile, reportFormTypeForProfile, calculateTaskScore, calculateKpiSummary,
   proposedRating, resolveQualityRating, ratingName, round2, progressRateFromDates, convertAppendix04Rate, calculateMilestoneProgress, calculateBonusScore
-} from '../../kpi-engine.js?v=20260903.V1_22_1';
-import { resolveKpiReviewer, canReviewKpiOwner } from '../../core/kpi-review-authority.js?v=20260903.V1_22_1';
-import { ModalService } from '../../core/modal-service.js?v=20260903.V1_22_1';
+} from '../../kpi-engine.js?v=20260903.V1_22_2';
+import { resolveKpiReviewer, canReviewKpiOwner } from '../../core/kpi-review-authority.js?v=20260903.V1_22_2';
+import { ModalService } from '../../core/modal-service.js?v=20260903.V1_22_2';
 
 export const KpiWorkflowState = {
   user: null,
@@ -231,6 +231,16 @@ function kpiRealtimeScope() {
   const professionalCenterScope = allCenterScope && !fullScopeRole();
   const cdtnDepartmentScope = departmentId === 'CDTN' && canManageCdtnWorkspace();
   const reportDepartmentScope = departmentId !== 'CDTN' && departmentId !== 'ALL' && KpiWorkflowState.mode === 'reports' && isLeader();
+  const managerHomeDepartmentId = profileDepartmentId();
+  /*
+   * V1.22.2: Trưởng/Phó chỉ được mở rộng VIEW workload của nhân viên thuộc chính đơn vị mình.
+   * Đây không phải authority duyệt/chấm; registrations/evaluations vẫn dùng ma trận quyền cũ.
+   */
+  const managerMonitoringScope = KpiWorkflowState.mode === 'plans'
+    && isLeader()
+    && managerHomeDepartmentId
+    && managerHomeDepartmentId !== 'CDTN'
+    && (departmentId === managerHomeDepartmentId || (departmentId === 'ALL' && globalRole()));
   const taskDepartmentScope = departmentId !== 'ALL' && (globalRole() || cdtnDepartmentScope || isDepartmentHead() || reportDepartmentScope
     || hasActiveApprovalDelegation('APPROVE_REGISTRATIONS', departmentId)
     || hasActiveApprovalDelegation('CONFIRM_EVALUATIONS', departmentId)
@@ -241,25 +251,52 @@ function kpiRealtimeScope() {
     || hasActiveApprovalDelegation('CONFIRM_EVALUATIONS', departmentId));
   const combinedDepartmentReportScope = KpiWorkflowState.mode === 'reports'
     && departmentId !== 'ALL' && departmentId !== 'CDTN' && taskDepartmentScope;
-  return { departmentId, fullCenterScope, professionalCenterScope, cdtnDepartmentScope, taskDepartmentScope, registrationDepartmentScope, evaluationDepartmentScope, combinedDepartmentReportScope };
+  return {
+    departmentId,
+    fullCenterScope,
+    professionalCenterScope,
+    cdtnDepartmentScope,
+    taskDepartmentScope,
+    registrationDepartmentScope,
+    evaluationDepartmentScope,
+    combinedDepartmentReportScope,
+    managerMonitoringScope,
+    managerHomeDepartmentId
+  };
 }
 
 function kpiRealtimeQueries(kind) {
   const periodId = KpiWorkflowState.period?.id;
   if (!periodId || !KpiWorkflowState.user?.uid) return [];
   const scope = kpiRealtimeScope();
-  const { departmentId, fullCenterScope, professionalCenterScope, taskDepartmentScope, registrationDepartmentScope, evaluationDepartmentScope, combinedDepartmentReportScope } = scope;
+  const {
+    departmentId,
+    fullCenterScope,
+    professionalCenterScope,
+    taskDepartmentScope,
+    registrationDepartmentScope,
+    evaluationDepartmentScope,
+    combinedDepartmentReportScope,
+    managerMonitoringScope,
+    managerHomeDepartmentId
+  } = scope;
   const col = collection(db, kind);
   const q = (...constraints) => query(col, ...constraints);
 
   if (kind === 'tasks') {
     if (fullCenterScope) return [q(where('periodId','==',periodId), limit(5000))];
-    if (professionalCenterScope) return [q(where('periodId','==',periodId), where('primaryDepartmentId','in',PROFESSIONAL_DEPARTMENT_IDS), limit(5000))];
+    if (professionalCenterScope) {
+      const references = [q(where('periodId','==',periodId), where('primaryDepartmentId','in',PROFESSIONAL_DEPARTMENT_IDS), limit(5000))];
+      if (managerMonitoringScope) {
+        references.push(q(where('periodId','==',periodId), where('homeDepartmentId','==',managerHomeDepartmentId), limit(2000)));
+      }
+      return references;
+    }
     if (departmentId === 'CDTN' && taskDepartmentScope) return [
       q(where('periodId','==',periodId), where('primaryDepartmentId','==','CDTN'), limit(1000)),
       q(where('periodId','==',periodId), where('organizationId','==','CDTN'), limit(1000))
     ];
-    if (combinedDepartmentReportScope) return [
+    if (combinedDepartmentReportScope || managerMonitoringScope) return [
       q(where('periodId','==',periodId), where('primaryDepartmentId','==',departmentId), limit(2000)),
       q(where('periodId','==',periodId), where('homeDepartmentId','==',departmentId), limit(2000))
     ];
@@ -810,6 +847,7 @@ function renderManagementToolbar() {
   toolbar.querySelectorAll('[data-kpi-scope]').forEach(button => button.addEventListener('click', async () => {
     const nextScope = button.dataset.kpiScope || (globalRole() ? 'ALL' : profileDepartmentId());
     if (nextScope === activeScopeDepartmentId()) return;
+    stopKpiRealtime();
     KpiWorkflowState.scopeDepartmentId = nextScope;
     KpiWorkflowState.tasks = [];
     KpiWorkflowState.registrations = [];
@@ -817,10 +855,12 @@ function renderManagementToolbar() {
     KpiWorkflowState.commonAll = [];
     message(`Đang tải phạm vi ${departmentDisplayName(nextScope)}...`);
     await loadAll();
+    startKpiRealtime();
   }));
   toolbar.querySelector('#kpiMobileScopeSelect')?.addEventListener('change', async event => {
     const nextScope = normalizeDepartment(event.currentTarget.value);
     if (!nextScope || nextScope === 'ALL' || nextScope === activeScopeDepartmentId()) return;
+    stopKpiRealtime();
     KpiWorkflowState.scopeDepartmentId = nextScope;
     KpiWorkflowState.tasks = [];
     KpiWorkflowState.registrations = [];
@@ -828,6 +868,7 @@ function renderManagementToolbar() {
     KpiWorkflowState.commonAll = [];
     message(`Đang tải phạm vi ${departmentDisplayName(nextScope)}...`);
     await loadAll();
+    startKpiRealtime();
   });
   el('kpiCommonButton')?.addEventListener('click', openCommonCriteria);
   el('kpiLockPlan')?.addEventListener('click', lockDepartmentPlan);
@@ -1123,6 +1164,12 @@ async function loadAll() {
     const evaluationDepartmentScope = departmentId !== 'ALL' && (globalRole() || cdtnDepartmentScope || isDepartmentHead() || reportDepartmentScope
       || hasActiveApprovalDelegation('CONFIRM_EVALUATIONS', departmentId));
     const userDepartmentScope = taskDepartmentScope || registrationDepartmentScope || evaluationDepartmentScope;
+    const managerHomeDepartmentId = profileDepartmentId();
+    const managerMonitoringScope = KpiWorkflowState.mode === 'plans'
+      && isLeader()
+      && managerHomeDepartmentId
+      && managerHomeDepartmentId !== 'CDTN'
+      && (departmentId === managerHomeDepartmentId || (departmentId === 'ALL' && globalRole()));
     const combinedDepartmentReportScope = KpiWorkflowState.mode === 'reports'
       && departmentId !== 'ALL'
       && departmentId !== 'CDTN'
@@ -1131,17 +1178,22 @@ async function loadAll() {
     const taskRequest = fullCenterScope
       ? getDocs(query(collection(db, 'tasks'), where('periodId', '==', periodId), limit(5000)))
       : professionalCenterScope
-        ? getDocs(query(collection(db, 'tasks'), where('periodId', '==', periodId), where('primaryDepartmentId', 'in', PROFESSIONAL_DEPARTMENT_IDS), limit(5000)))
+        ? mergeAvailableSnapshotRequests([
+            getDocs(query(collection(db, 'tasks'), where('periodId', '==', periodId), where('primaryDepartmentId', 'in', PROFESSIONAL_DEPARTMENT_IDS), limit(5000))),
+            ...(managerMonitoringScope
+              ? [getDocs(query(collection(db, 'tasks'), where('periodId', '==', periodId), where('homeDepartmentId', '==', managerHomeDepartmentId), limit(2000)))]
+              : [])
+          ], managerMonitoringScope ? 'nhiệm vụ chuyên môn toàn Trung tâm và workload kiêm nhiệm của đơn vị' : 'nhiệm vụ chuyên môn toàn Trung tâm')
         : departmentId === 'CDTN' && taskDepartmentScope
           ? mergeAvailableSnapshotRequests([
               getDocs(query(collection(db, 'tasks'), where('periodId', '==', periodId), where('primaryDepartmentId', '==', 'CDTN'), limit(1000))),
               getDocs(query(collection(db, 'tasks'), where('periodId', '==', periodId), where('organizationId', '==', 'CDTN'), limit(1000)))
             ], 'nhiệm vụ Chi đoàn')
-          : combinedDepartmentReportScope
+          : (combinedDepartmentReportScope || managerMonitoringScope)
             ? mergeAvailableSnapshotRequests([
                 getDocs(query(collection(db, 'tasks'), where('periodId', '==', periodId), where('primaryDepartmentId', '==', departmentId), limit(2000))),
                 getDocs(query(collection(db, 'tasks'), where('periodId', '==', periodId), where('homeDepartmentId', '==', departmentId), limit(2000)))
-              ], 'nhiệm vụ chuyên môn và Chi đoàn của đơn vị')
+              ], managerMonitoringScope ? 'nhiệm vụ chuyên môn và workload kiêm nhiệm của đơn vị' : 'nhiệm vụ chuyên môn và Chi đoàn của đơn vị')
             : taskDepartmentScope
               ? getDocs(query(collection(db, 'tasks'), where('periodId', '==', periodId), where('primaryDepartmentId', '==', departmentId), limit(2000)))
               : getDocs(query(collection(db, 'tasks'), where('periodId', '==', periodId), where('ownerUserId', '==', KpiWorkflowState.user.uid), limit(300)));
@@ -1208,7 +1260,7 @@ async function loadAll() {
         ? getDocs(query(collection(db, 'users'), where('departmentId', 'in', PROFESSIONAL_DEPARTMENT_IDS), limit(500)))
         : cdtnAggregateScope
           ? loadCdtnUsers()
-          : userDepartmentScope
+          : (userDepartmentScope || managerMonitoringScope)
             ? getDocs(query(collection(db, 'users'), where('departmentId', '==', departmentId), limit(300)))
             : Promise.resolve(null);
     const profileRequest = getDoc(doc(db, 'kpiProfiles', `${periodId}_${KpiWorkflowState.user.uid}`))
@@ -1255,7 +1307,7 @@ async function loadAll() {
       ? loadedUsers
       : cdtnDepartmentScope
         ? loadedUsers
-        : userDepartmentScope
+        : (userDepartmentScope || managerMonitoringScope)
           ? loadedUsers.filter(item => normalizeDepartment(item.departmentId) === departmentId)
           : loadedUsers.filter(item => item.id === KpiWorkflowState.user.uid);
 
@@ -1325,6 +1377,20 @@ function itemInActiveScope(item) {
     ? taskScopeDepartmentId(item)
     : normalizeDepartment(item?.departmentId);
   return !scope || scope === 'ALL' || itemDepartmentId === scope;
+}
+
+function taskInPlanMonitoringScope(task) {
+  if (itemInActiveScope(task)) return true;
+  if (KpiWorkflowState.mode !== 'plans' || !isLeader()) return false;
+  const scope = activeScopeDepartmentId();
+  const homeDepartmentId = profileDepartmentId();
+  return Boolean(
+    scope
+    && scope === homeDepartmentId
+    && scope !== 'CDTN'
+    && taskScopeDepartmentId(task) === 'CDTN'
+    && normalizeDepartment(task?.homeDepartmentId) === homeDepartmentId
+  );
 }
 
 function taskForCurrentUser(task) {
@@ -1560,7 +1626,7 @@ function visiblePeople() {
   }
   return all.filter(user => user.id === KpiWorkflowState.user.uid);
 }
-function rowsForPerson(uid){return KpiWorkflowState.tasks.filter(t=>t.ownerUserId===uid&&t.active!==false&&itemInActiveScope(t));}
+function rowsForPerson(uid){return KpiWorkflowState.tasks.filter(t=>t.ownerUserId===uid&&t.active!==false&&taskInPlanMonitoringScope(t));}
 function regsForPerson(uid){return KpiWorkflowState.registrations.filter(r=>r.userId===uid&&r.active!==false&&itemInActiveScope(r));}
 function renderPlanDashboard() {
   const target = el('kpiTaskList');
