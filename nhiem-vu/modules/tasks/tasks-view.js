@@ -1,11 +1,11 @@
-import { UserContext } from "../../core/user-context.js?v=20260902.V1_22_0";
-import { Permissions } from "../../core/permissions.js?v=20260902.V1_22_0";
-import { ToastService } from "../../core/toast-service.js?v=20260902.V1_22_0";
-import { TaskReadService } from "../../services/task-read-service.js?v=20260902.V1_22_0";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260902.V1_22_0";
-import { openTaskCreateModal } from "./task-form-modal.js?v=20260902.V1_22_0";
-import { openTaskDetailModal } from "./task-detail-modal.js?v=20260902.V1_22_0";
-import { effectiveDepartmentAssignmentStatus } from "../../core/task-display-order.js?v=20260902.V1_22_0";
+import { UserContext } from "../../core/user-context.js?v=20260903.V1_22_1";
+import { Permissions } from "../../core/permissions.js?v=20260903.V1_22_1";
+import { ToastService } from "../../core/toast-service.js?v=20260903.V1_22_1";
+import { TaskReadService } from "../../services/task-read-service.js?v=20260903.V1_22_1";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260903.V1_22_1";
+import { openTaskCreateModal } from "./task-form-modal.js?v=20260903.V1_22_1";
+import { openTaskDetailModal } from "./task-detail-modal.js?v=20260903.V1_22_1";
+import { effectiveDepartmentAssignmentStatus } from "../../core/task-display-order.js?v=20260903.V1_22_1";
 
 let renderSequence = 0;
 let currentTasks = [];
