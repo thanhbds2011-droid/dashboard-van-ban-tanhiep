@@ -4,8 +4,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { UserContext } from '../core/user-context.js?v=20260903.V1_22_2';
-import { Permissions } from '../core/permissions.js?v=20260903.V1_22_2';
+import { UserContext } from '../core/user-context.js?v=20260903.V1_22_3';
+import { Permissions } from '../core/permissions.js?v=20260903.V1_22_3';
 import { calculateTaskScore } from '../kpi-engine.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -43,13 +43,13 @@ function assertBalanced(text) {
   assert.deepEqual(stack, []);
 }
 
-test('V1.22.2 version/build/cache are synchronized', () => {
+test('Current production version/build/cache are synchronized after V1.22.2 baseline', () => {
   const ver = read('core/app-version.js');
-  assert.match(ver, /APP_VERSION\s*=\s*["']1\.22\.2["']/);
-  assert.match(ver, /BUILD_VERSION\s*=\s*["']20260903\.V1_22_2["']/);
-  assert.match(ver, /CACHE_NAME\s*=\s*["']nhiem-vu-20260903-v1-22-2["']/);
-  assert.match(read('index.html'), /20260903\.V1_22_2/);
-  assert.match(read('sw.js'), /20260903\.V1_22_2/);
+  assert.match(ver, /APP_VERSION\s*=\s*["']1\.22\.3["']/);
+  assert.match(ver, /BUILD_VERSION\s*=\s*["']20260903\.V1_22_3["']/);
+  assert.match(ver, /CACHE_NAME\s*=\s*["']nhiem-vu-20260903-v1-22-3["']/);
+  assert.match(read('index.html'), /20260903\.V1_22_3/);
+  assert.match(read('sw.js'), /20260903\.V1_22_3/);
 });
 
 test('KPI scoring contract 10/12, 30/70 and coefficients stays unchanged', () => {
