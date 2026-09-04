@@ -1,27 +1,27 @@
-import { auth, db } from '../../firebase-config.js?v=20260903.V1_22_3';
+import { auth, db } from '../../firebase-config.js?v=20260903.V1_22_5';
 import {
   addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, onSnapshot, query,
   serverTimestamp, setDoc, Timestamp, updateDoc, where, limit, writeBatch
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
-import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260903.V1_22_3';
-import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260903.V1_22_3';
-import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260903.V1_22_3';
-import { TaskEvidenceService } from '../../services/task-evidence-service.js?v=20260903.V1_22_3';
-import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260903.V1_22_3';
-import { PeriodReadService } from '../../services/period-read-service.js?v=20260903.V1_22_3';
-import { TaskReadService } from '../../services/task-read-service.js?v=20260903.V1_22_3';
-import { Permissions } from '../../core/permissions.js?v=20260903.V1_22_3';
-import { UserContext } from '../../core/user-context.js?v=20260903.V1_22_3';
-import { APP_VERSION } from '../../core/app-version.js?v=20260903.V1_22_3';
-import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260903.V1_22_3';
-import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260903.V1_22_3';
+import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260903.V1_22_5';
+import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260903.V1_22_5';
+import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260903.V1_22_5';
+import { TaskEvidenceService } from '../../services/task-evidence-service.js?v=20260903.V1_22_5';
+import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260903.V1_22_5';
+import { PeriodReadService } from '../../services/period-read-service.js?v=20260903.V1_22_5';
+import { TaskReadService } from '../../services/task-read-service.js?v=20260903.V1_22_5';
+import { Permissions } from '../../core/permissions.js?v=20260903.V1_22_5';
+import { UserContext } from '../../core/user-context.js?v=20260903.V1_22_5';
+import { APP_VERSION } from '../../core/app-version.js?v=20260903.V1_22_5';
+import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260903.V1_22_5';
+import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260903.V1_22_5';
 import {
   KPI2B as KPI2C, M01_GROUPS, COMMON_CRITERIA, commonCriteriaForProfile, reportFormTypeForProfile, calculateTaskScore, calculateKpiSummary,
   proposedRating, resolveQualityRating, ratingName, round2, progressRateFromDates, convertAppendix04Rate, calculateMilestoneProgress, calculateBonusScore
-} from '../../kpi-engine.js?v=20260903.V1_22_3';
-import { resolveKpiReviewer, canReviewKpiOwner } from '../../core/kpi-review-authority.js?v=20260903.V1_22_3';
-import { ModalService } from '../../core/modal-service.js?v=20260903.V1_22_3';
-import { exportFormattedKpiWorkbook } from '../../services/xlsx-export-service.js?v=20260903.V1_22_3';
+} from '../../kpi-engine.js?v=20260903.V1_22_5';
+import { resolveKpiReviewer, canReviewKpiOwner } from '../../core/kpi-review-authority.js?v=20260903.V1_22_5';
+import { ModalService } from '../../core/modal-service.js?v=20260903.V1_22_5';
+import { exportFormattedKpiWorkbook } from '../../services/xlsx-export-service.js?v=20260903.V1_22_5';
 
 export const KpiWorkflowState = {
   user: null,
@@ -179,13 +179,88 @@ function bindKpiRealtimeCleanup() {
   });
 }
 
+function refreshReadonlyKpiModal(root = el('kpiModalRoot')) {
+  if (!root?.isConnected) return false;
+  const kind = clean(root.dataset.kpiReadonlyModal).toLowerCase();
+  if (!kind) return false;
+
+  try {
+    if (kind === 'scorecard') {
+      const userId = clean(root.dataset.kpiUserId);
+      if (!userId) return false;
+      const summary = scorecardSummaryData(userId);
+      root.querySelectorAll('[data-kpi-score-summary-table]').forEach(node => { node.outerHTML = scorecardSummaryTableHtml(summary); });
+      root.querySelectorAll('[data-kpi-score-summary-cards]').forEach(node => { node.outerHTML = scorecardSummaryCardsHtml(summary); });
+      return true;
+    }
+
+    if (kind === 'report') {
+      const userId = clean(root.dataset.kpiUserId || KpiWorkflowState.user?.uid);
+      if (!userId) return false;
+      const summary = summaryForUserCombined(userId);
+      const scoreSummary = scorecardSummaryData(userId, summary);
+      const scoreState = scoreStateForUserCombined(userId);
+
+      root.querySelectorAll('[data-kpi-score-summary-table]').forEach(node => { node.outerHTML = scorecardSummaryTableHtml(scoreSummary); });
+      root.querySelectorAll('[data-kpi-score-summary-cards]').forEach(node => { node.outerHTML = scorecardSummaryCardsHtml(scoreSummary); });
+      root.querySelectorAll('[data-kpi-report-score-state]').forEach(node => {
+        node.className = `m01-score-preview kpi-no-print ${scoreState.className}`;
+        if (node.dataset.kpiReportScoreState === 'excel') node.className = `kpi-score-state ${scoreState.className}`;
+        node.innerHTML = node.dataset.kpiReportScoreState === 'excel'
+          ? `<span class="kpi-score-state-icon">${scoreState.code === 'OFFICIAL' ? '✓' : '✎'}</span><div><strong>${esc(scoreState.label)}</strong><span>${esc(scoreState.detail)}</span></div>`
+          : `<strong>${esc(scoreState.label)}</strong><span>${esc(scoreState.detail)}</span>`;
+      });
+
+      root.querySelectorAll('[data-kpi-report-task-note]').forEach(node => {
+        const taskId = clean(node.dataset.kpiReportTaskNote);
+        const evaluation = KpiWorkflowState.evaluations.find(item => item.taskId === taskId && item.ownerUserId === userId);
+        node.textContent = reportTaskNote(evaluation);
+      });
+
+      root.querySelectorAll('[data-kpi-report-bonus-task]').forEach(row => {
+        const taskId = clean(row.dataset.kpiReportBonusTask);
+        const evaluation = KpiWorkflowState.evaluations.find(item => item.taskId === taskId && item.ownerUserId === userId);
+        const score = evaluationScoreSnapshot(evaluation);
+        const pending = score.bonusRequested === true && score.bonusDecision === 'PENDING' && score.bonusRequestedScore > 0;
+        const approved = score.official && score.bonusAwarded && score.bonusScore > 0;
+        if (!pending && !approved) { row.remove(); return; }
+        const basis = approved ? Number(score.bonusBasisScore || score.actualScore || 0) : Number(score.convertedActualScore || score.actualScore || 0);
+        const value = approved ? Number(score.bonusScore || 0) : Number(score.bonusRequestedScore || 0);
+        const basisNode = row.querySelector('[data-kpi-report-bonus-basis]');
+        const valueNode = row.querySelector('[data-kpi-report-bonus-value]');
+        const noteNode = row.querySelector('[data-kpi-report-bonus-note]');
+        if (basisNode) basisNode.textContent = `${fmt(basis)} × 5%`;
+        if (valueNode) valueNode.textContent = fmt(value);
+        if (noteNode) noteNode.textContent = pending ? 'Chưa xác nhận' : '';
+      });
+
+      const presentation = bonusPresentationForUser(userId);
+      root.querySelectorAll('[data-kpi-report-bonus-total]').forEach(node => { node.textContent = fmt(presentation.displayBonus); });
+      root.querySelectorAll('[data-kpi-report-bonus-total-note]').forEach(node => {
+        node.textContent = presentation.hasPendingBonus
+          ? (presentation.approvedBonus > 0 ? `Chưa xác nhận · Đã xác nhận ${fmt(presentation.approvedBonus)} điểm` : 'Chưa xác nhận')
+          : '';
+      });
+      root.querySelectorAll('[data-kpi-report-grand-total]').forEach(node => { node.textContent = summary.total100 == null ? '—' : fmt(summary.total100); });
+      return true;
+    }
+  } catch (error) {
+    console.warn('Không thể cập nhật modal KPI chỉ đọc:', error);
+  }
+  return false;
+}
+
 function scheduleKpiLiveRender() {
   if (!kpiRouteActive()) return;
   if (kpiRealtimeTimer) window.clearTimeout(kpiRealtimeTimer);
   kpiRealtimeTimer = window.setTimeout(function renderWhenReady() {
     if (!kpiRouteActive()) return;
-    /* Dữ liệu state được cập nhật ngay, nhưng không phá modal người dùng đang nhập. */
-    if (document.querySelector('.modal-backdrop:not(.hidden), .kpi-modal:not(.kpi-hidden)')) {
+    /* Dữ liệu state được cập nhật ngay. Modal chỉ đọc được refresh có mục tiêu; form nhập liệu vẫn được bảo vệ. */
+    const openKpiModal = el('kpiModalRoot');
+    const otherModalOpen = document.querySelector('.modal-backdrop:not(.hidden)');
+    if (openKpiModal?.isConnected && refreshReadonlyKpiModal(openKpiModal)) {
+      /* Không đóng modal; tiếp tục render màn hình nền từ cùng state authoritative. */
+    } else if (openKpiModal?.isConnected || otherModalOpen || document.querySelector('.kpi-modal:not(.kpi-hidden)')) {
       kpiRealtimeTimer = window.setTimeout(renderWhenReady, 700);
       return;
     }
@@ -2229,6 +2304,49 @@ function bonusSummaryForUser(userId) {
   return { approved:round2(Math.min(7,approved)), pending:round2(pending) };
 }
 
+function bonusPresentationValues(approved = 0, pending = 0) {
+  const approvedBonus = round2(Math.min(7, Math.max(0, Number(approved || 0))));
+  const pendingBonus = round2(Math.max(0, Number(pending || 0)));
+  const hasPendingBonus = pendingBonus > 0;
+  const displayBonus = hasPendingBonus
+    ? round2(Math.min(7, approvedBonus + pendingBonus))
+    : approvedBonus;
+  return { approvedBonus, pendingBonus, displayBonus, hasPendingBonus };
+}
+
+function bonusPresentationForUser(userId) {
+  const bonus = bonusSummaryForUser(userId);
+  return bonusPresentationValues(bonus.approved, bonus.pending);
+}
+
+const KPI_SYSTEM_REVIEWER_COMMENTS = new Set([
+  'Xác nhận theo điểm tự đánh giá đã chọn hàng loạt.'
+]);
+
+function evaluationBusinessNotes(evaluation = null) {
+  if (!evaluation) return [];
+  const notes = [];
+  const reviewerComment = clean(evaluation.reviewerComment);
+  if (reviewerComment && !KPI_SYSTEM_REVIEWER_COMMENTS.has(reviewerComment)) notes.push(reviewerComment);
+  if (clean(evaluation.bonusDecision).toUpperCase() === 'REJECTED' && clean(evaluation.bonusDecisionReason)) {
+    notes.push(`Điểm thưởng: ${clean(evaluation.bonusDecisionReason)}`);
+  }
+  if (clean(evaluation.exceededDecision).toUpperCase() === 'REJECTED' && clean(evaluation.exceededDecisionReason)) {
+    notes.push(`Vượt yêu cầu: ${clean(evaluation.exceededDecisionReason)}`);
+  }
+  if (clean(evaluation.adminCorrectionReason)) notes.push(`Điều chỉnh: ${clean(evaluation.adminCorrectionReason)}`);
+  return [...new Set(notes)];
+}
+
+function reportTaskNote(evaluation = null) {
+  const businessNotes = evaluationBusinessNotes(evaluation);
+  const applied = evaluationScoreSnapshot(evaluation);
+  if (applied.hasScore && !applied.official) {
+    return businessNotes.length ? `Chưa xác nhận · ${businessNotes.join(' · ')}` : 'Chưa xác nhận';
+  }
+  return businessNotes.join(' · ');
+}
+
 async function evidenceMapForTasks(tasks = []) {
   const entries = await Promise.all((tasks || []).map(async task => {
     try { return [task.id, await TaskEvidenceService.list(task)]; }
@@ -2257,33 +2375,47 @@ function scorecardSummaryData(userId, summaryData = summaryForUserCombined(userI
     const evaluation = KpiWorkflowState.evaluations.find(item => item.taskId === task.id && item.ownerUserId === userId);
     return count + (scorecardExceededLabel(evaluation) === 'X' ? 1 : 0);
   }, 0);
+  const bonusPresentation = bonusPresentationForUser(userId);
   return {
     A: Number(summaryData?.A || 0),
     B: Number(summaryData?.B || 0),
     kpi70: summaryData?.hasCalculationBasis === true ? Number(summaryData?.kpi70 || 0) : null,
+    // bonusC luôn là điểm thưởng CHÍNH THỨC authoritative từ scoring engine.
     bonusC: Number(summaryData?.bonusC || 0),
+    bonusApproved: bonusPresentation.approvedBonus,
+    bonusPending: bonusPresentation.pendingBonus,
+    bonusDisplay: bonusPresentation.displayBonus,
+    bonusHasPending: bonusPresentation.hasPendingBonus,
     exceededCount,
     hasCalculationBasis: summaryData?.hasCalculationBasis === true
   };
 }
 
+function bonusSummaryValueHtml(data = {}) {
+  if (!data.bonusHasPending) return `<strong>${fmt(data.bonusApproved)}</strong>`;
+  const confirmed = Number(data.bonusApproved || 0) > 0
+    ? `<br><span class="kpi-small">Đã xác nhận: ${fmt(data.bonusApproved)} điểm</span>`
+    : '';
+  return `<strong>${fmt(data.bonusDisplay)} điểm</strong> <span class="kpi-bonus-pending">(Chưa xác nhận)</span>${confirmed}`;
+}
+
 function scorecardSummaryTableHtml(data = {}) {
   const kpiValue = data.hasCalculationBasis ? fmt(data.kpi70) : 'Chưa đủ cơ sở';
-  return `<table class="kpi-score-summary-table"><tbody>
+  return `<table class="kpi-score-summary-table" data-kpi-score-summary-table><tbody>
     <tr><th colspan="5">Điểm giá trị A</th><td>${fmt(data.A)}</td><th colspan="4">Điểm giá trị B</th><td>${fmt(data.B)}</td></tr>
     <tr><th colspan="10">KPI % (trục 4) = B/A*70 điểm (nếu B&gt;A thì KPI là 70)</th><td>${esc(kpiValue)}</td></tr>
     <tr><th colspan="10">Tổng số công việc vượt tiến độ và đạt yêu cầu chất lượng</th><td>${Number(data.exceededCount || 0)}</td></tr>
-    <tr><th colspan="10">Tổng số điểm thưởng đối với các công việc vượt tiến độ và đạt yêu cầu chất lượng <em>(nếu có)</em></th><td>${fmt(data.bonusC)}</td></tr>
+    <tr><th colspan="10">Tổng số điểm thưởng đối với các công việc vượt tiến độ và đạt yêu cầu chất lượng <em>(nếu có)</em></th><td>${bonusSummaryValueHtml(data)}</td></tr>
   </tbody></table>`;
 }
 
 function scorecardSummaryCardsHtml(data = {}) {
-  return `<section class="kpi-score-summary-cards">
+  return `<section class="kpi-score-summary-cards" data-kpi-score-summary-cards>
     <div><span>Điểm giá trị A</span><strong>${fmt(data.A)}</strong></div>
     <div><span>Điểm giá trị B</span><strong>${fmt(data.B)}</strong></div>
     <div><span>KPI trục 4 /70</span><strong>${data.hasCalculationBasis ? fmt(data.kpi70) : 'Chưa đủ cơ sở'}</strong></div>
     <div><span>Công việc vượt yêu cầu</span><strong>${Number(data.exceededCount || 0)}</strong></div>
-    <div><span>Tổng điểm thưởng</span><strong>${fmt(data.bonusC)}</strong></div>
+    <div><span>Tổng điểm thưởng</span>${bonusSummaryValueHtml(data)}</div>
   </section>`;
 }
 
@@ -2336,14 +2468,49 @@ async function openUserScorecard(userId) {
   }).join('');
   const scoreSummary = scorecardSummaryData(userId);
   const root = modal(`Bảng KPI · ${user.fullName || user.email || ''}`, `<div class="kpi-scorecard-desktop"><div class="kpi-table-wrap"><table class="kpi-table kpi-wide-table"><thead><tr><th>STT</th><th>Tên công việc</th><th>Điểm chuẩn</th><th>Hệ số độ khó</th><th>Điểm quy đổi tối đa</th><th>Tiến độ</th><th>Kết quả</th><th>Điểm thực hiện</th><th>Điểm quy đổi thực tế</th><th>Vượt yêu cầu</th><th>Minh chứng</th></tr></thead><tbody>${rows || '<tr><td colspan="11">Chưa có nhiệm vụ KPI đã duyệt.</td></tr>'}</tbody></table>${scorecardSummaryTableHtml(scoreSummary)}</div></div><div class="kpi-scorecard-mobile">${cards || '<div class="kpi-empty">Chưa có nhiệm vụ KPI đã duyệt.</div>'}${scorecardSummaryCardsHtml(scoreSummary)}</div>`, '<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button>');
+  root.dataset.kpiReadonlyModal = 'scorecard';
+  root.dataset.kpiUserId = userId;
   attachSynchronizedHorizontalScroll(root);
 }
 
+function periodQuarterMeta(period = {}) {
+  const romanMap = { 1:'I', 2:'II', 3:'III', 4:'IV' };
+  const romanToNumber = { I:1, II:2, III:3, IV:4 };
+  const directQuarter = Number(period.quarter);
+  let quarter = Number.isInteger(directQuarter) && directQuarter >= 1 && directQuarter <= 4 ? directQuarter : 0;
+  let year = Number(period.year);
+  if (!Number.isInteger(year) || year < 1900 || year > 9999) year = 0;
+
+  const periodId = clean(period.id || period.periodId);
+  const idMatch = /^(\d{4})-Q([1-4])$/i.exec(periodId);
+  if (idMatch) {
+    if (!year) year = Number(idMatch[1]);
+    if (!quarter) quarter = Number(idMatch[2]);
+  }
+
+  const periodName = clean(period.name);
+  const nameMatch = /Quý\s+(IV|III|II|I|[1-4])(?:\s+năm\s+(\d{4}))?/i.exec(periodName);
+  if (nameMatch) {
+    const token = String(nameMatch[1] || '').toUpperCase();
+    const namedQuarter = Number(token) || romanToNumber[token] || 0;
+    if (!quarter && namedQuarter >= 1 && namedQuarter <= 4) quarter = namedQuarter;
+    if (!year && nameMatch[2]) year = Number(nameMatch[2]);
+  }
+
+  // Legacy fallback only: metadata kỳ (quarter/id/name/year) luôn được ưu tiên.
+  const dateMatch = /^(\d{4})-(\d{2})-\d{2}$/.exec(clean(period.startDate || period.endDate));
+  if (dateMatch) {
+    if (!year) year = Number(dateMatch[1]);
+    if (!quarter) quarter = Math.ceil(Number(dateMatch[2]) / 3);
+  }
+
+  return { quarter, year, roman: romanMap[quarter] || '' };
+}
+
 function periodQuarterLabel(period = {}) {
-  const match = /^(\d{4})-(\d{2})-\d{2}$/.exec(clean(period.startDate));
-  if (!match) return clean(period.name || '');
-  const q = Math.ceil(Number(match[2]) / 3);
-  return `QUÝ ${({1:'I',2:'II',3:'III',4:'IV'})[q] || q} NĂM ${match[1]}`;
+  const meta = periodQuarterMeta(period);
+  if (!meta.quarter) return clean(period.name || '');
+  return `QUÝ ${meta.roman || meta.quarter}${meta.year ? ` NĂM ${meta.year}` : ''}`;
 }
 
 function userPositionWithDepartment(user = {}) {
@@ -2367,11 +2534,12 @@ function productCatalogTasksForUser(userId) {
 }
 
 function productCatalogPeriodTitle(period = {}, departmentName = '') {
-  const match = /^(\d{4})-(\d{2})-\d{2}$/.exec(clean(period.startDate));
-  if (!match) return `DANH MỤC SẢN PHẨM CHUẨN ${clean(period.name)} ${clean(departmentName).toLocaleUpperCase('vi')}`.replace(/\s+/g,' ').trim();
-  const quarter = Math.ceil(Number(match[2]) / 3);
-  const roman = ({1:'I',2:'II',3:'III',4:'IV'})[quarter] || quarter;
-  return `DANH MỤC SẢN PHẨM CHUẨN QUÝ ${roman} ${clean(departmentName).toLocaleUpperCase('vi')} NĂM ${match[1]}`;
+  const meta = periodQuarterMeta(period);
+  const department = clean(departmentName).toLocaleUpperCase('vi');
+  if (meta.quarter) {
+    return `DANH MỤC SẢN PHẨM CHUẨN QUÝ ${meta.roman || meta.quarter} ${department}${meta.year ? ` NĂM ${meta.year}` : ''}`.replace(/\s+/g,' ').trim();
+  }
+  return `DANH MỤC SẢN PHẨM CHUẨN ${clean(period.name)} ${department}`.replace(/\s+/g,' ').trim();
 }
 
 function productCatalogDeadlineLabel(task = {}) {
@@ -3691,8 +3859,9 @@ async function openReport() {
   }).join('');
 
   const taskRows = mine.map((task, index) => {
-    const applied = evaluationScoreSnapshot(evaluationFor(task.id));
-    return `<tr class="m01-task-row"><td class="m01-center">${index + 1}</td><td colspan="4">${esc(task.title || '')}</td><td class="m01-center">${fmt(task.maximumConvertedScore || 0)}</td><td class="m01-center">${applied.hasScore ? fmt(applied.actualScore) : ''}</td><td>${applied.hasScore ? esc(applied.shortLabel) : ''}</td></tr>`;
+    const evaluation = evaluationFor(task.id);
+    const applied = evaluationScoreSnapshot(evaluation);
+    return `<tr class="m01-task-row"><td class="m01-center">${index + 1}</td><td colspan="4">${esc(task.title || '')}</td><td class="m01-center">${fmt(task.maximumConvertedScore || 0)}</td><td class="m01-center">${applied.hasScore ? fmt(applied.actualScore) : ''}</td><td data-kpi-report-task-note="${esc(task.id)}">${esc(reportTaskNote(evaluation))}</td></tr>`;
   }).join('');
 
   const bonusTasks = mine.map(task => {
@@ -3704,21 +3873,22 @@ async function openReport() {
       task, score, pending, approved,
       basisScore: approved ? Number(score.bonusBasisScore || score.actualScore || 0) : Number(score.convertedActualScore || score.actualScore || 0),
       displayBonus: approved ? Number(score.bonusScore || 0) : Number(score.bonusRequestedScore || 0),
-      statusText: approved ? 'Đã chấp thuận' : 'Chờ xác nhận'
+      statusText: pending ? 'Chưa xác nhận' : ''
     };
   }).filter(Boolean);
   const reportBonusC = round2(Math.min(7, bonusTasks.filter(item => item.approved).reduce((sum,item)=>sum+Math.max(0,Number(item.displayBonus||0)),0)));
+  const reportBonusPresentation = bonusPresentationForUser(KpiWorkflowState.user.uid);
   const reportTotal100 = s.hasCalculationBasis ? round2(Math.min(100, Number(s.kpi70 || 0) + Number(commonScore.total || 0) + reportBonusC)) : null;
   const officialRatingState = scoreState.code === 'OFFICIAL';
   const reportRatingInfo = reportTotal100 == null ? { code:'NO_BASIS', totalTasks:mine.length, exceededTasks:0, rate:0 } : ratingForUser(KpiWorkflowState.user.uid, reportTotal100, { officialOnly:officialRatingState });
   const reportRating = ratingName(reportRatingInfo.code);
   const exceededSentence = reportTotal100 == null ? '' : `Có ${reportRatingInfo.exceededTasks}/${reportRatingInfo.totalTasks} nhiệm vụ ${officialRatingState ? 'được xác nhận ' : 'tự đánh giá '}hoàn thành vượt mức yêu cầu về tiến độ/chất lượng, đạt tỷ lệ ${fmt(reportRatingInfo.rate)}%. Đề xuất “${reportRating}”.`;
-  const bonusRows = bonusTasks.map((item,index)=>`<tr class="m01-bonus-item"><td class="m01-center">${index+1}</td><td colspan="4">${esc(item.task.title || '')}</td><td class="m01-center">${fmt(item.basisScore)} × 5%</td><td class="m01-center"><strong>${fmt(item.displayBonus)}</strong></td><td>${esc(item.statusText)}</td></tr>`).join('');
+  const bonusRows = bonusTasks.map((item,index)=>`<tr class="m01-bonus-item" data-kpi-report-bonus-task="${esc(item.task.id)}"><td class="m01-center">${index+1}</td><td colspan="4">${esc(item.task.title || '')}</td><td class="m01-center" data-kpi-report-bonus-basis>${fmt(item.basisScore)} × 5%</td><td class="m01-center"><strong data-kpi-report-bonus-value>${fmt(item.displayBonus)}</strong></td><td data-kpi-report-bonus-note>${esc(item.statusText)}</td></tr>`).join('');
 
-  const startMatch = /^(\d{4})-(\d{2})-\d{2}$/.exec(clean(KpiWorkflowState.period.startDate));
-  const quarterNumber = startMatch ? Math.ceil(Number(startMatch[2]) / 3) : 0;
-  const quarterRoman = ({ 1:'I', 2:'II', 3:'III', 4:'IV' })[quarterNumber] || '';
-  const quarterText = quarterRoman && startMatch ? `Quý ${quarterRoman}, Năm ${startMatch[1]}` : (clean(KpiWorkflowState.period.name) || 'Quý …, Năm …');
+  const reportPeriodMeta = periodQuarterMeta(KpiWorkflowState.period);
+  const quarterText = reportPeriodMeta.quarter && reportPeriodMeta.year
+    ? `Quý ${reportPeriodMeta.roman}, Năm ${reportPeriodMeta.year}`
+    : (clean(KpiWorkflowState.period.name) || 'Quý …, Năm …');
   const birthDate = dateVi(profileValue('dateOfBirth', 'birthDate', 'birthday'));
   const partyPosition = profileValue('partyPosition', 'dangPosition');
   const governmentPosition = profileValue('governmentPosition', 'position');
@@ -3741,7 +3911,7 @@ async function openReport() {
     </div>
     <h1>BẢN TỰ ĐÁNH GIÁ, XẾP LOẠI CỦA CÁ NHÂN</h1><h2>${esc(quarterText)}</h2>
     <div class="m01-profile"><div><strong>Họ và tên:</strong> ${esc(profile.fullName || '')}<span class="m01-spacer"></span><strong>Ngày sinh:</strong> ${esc(birthDate)}</div><div><strong>Chức vụ Đảng:</strong> ${esc(partyPosition)}</div><div><strong>Chức vụ chính quyền:</strong> ${esc(governmentPosition)}</div><div><strong>Chức vụ đoàn thể:</strong> ${esc(unionPosition)}</div><div><strong>Đơn vị công tác:</strong> ${esc(departmentName)}</div></div>
-    <div class="m01-score-preview kpi-no-print ${scoreState.className}"><strong>${esc(scoreState.label)}</strong><span>${esc(scoreState.detail)}</span></div>
+    <div class="m01-score-preview kpi-no-print ${scoreState.className}" data-kpi-report-score-state="pdf"><strong>${esc(scoreState.label)}</strong><span>${esc(scoreState.detail)}</span></div>
     <div class="m01-section-title"><strong>I. Tự đánh giá kết quả thực hiện nhiệm vụ</strong></div>
     <div class="m01-intro">Trên cơ sở nhiệm vụ được giao, cá nhân tự đánh giá về kết quả thực hiện nhiệm vụ theo quý như sau:</div>
     <table class="kpi-report-table m01-table">
@@ -3768,7 +3938,8 @@ async function openReport() {
 
         <tr class="m01-part-row"><td class="m01-center">C</td><td colspan="4">ĐIỂM THƯỞNG<br><small>(Mỗi công việc được xác nhận nổi trội, sáng kiến mới được tính điểm thưởng bằng 5% tổng điểm KPI đạt được của công việc cụ thể)</small></td><td class="m01-center">Điểm tối đa<br>(07 điểm)</td><td class="m01-center">Điểm đạt được<br>= Tổng điểm thưởng các công việc</td><td></td></tr>
         ${bonusRows || '<tr class="m01-bonus-item"><td class="m01-center">—</td><td colspan="4">Không có công việc đề nghị/được xác nhận điểm thưởng.</td><td></td><td class="m01-center">0</td><td></td></tr>'}
-        <tr class="m01-grand-total"><td colspan="5">TỔNG (A + B + C) =</td><td class="m01-center">Tối đa 100 điểm</td><td class="m01-center"><strong>${reportTotal100 == null ? '—' : fmt(reportTotal100)}</strong></td><td></td></tr>
+        <tr class="m01-total-row"><td colspan="5">TỔNG (C) = Tổng điểm thưởng các công việc</td><td class="m01-center">07</td><td class="m01-center"><strong data-kpi-report-bonus-total>${fmt(reportBonusPresentation.displayBonus)}</strong></td><td data-kpi-report-bonus-total-note>${reportBonusPresentation.hasPendingBonus ? esc(reportBonusPresentation.approvedBonus > 0 ? `Chưa xác nhận · Đã xác nhận ${fmt(reportBonusPresentation.approvedBonus)} điểm` : 'Chưa xác nhận') : ''}</td></tr>
+        <tr class="m01-grand-total"><td colspan="5">TỔNG (A + B + C) =</td><td class="m01-center">Tối đa 100 điểm</td><td class="m01-center"><strong data-kpi-report-grand-total>${reportTotal100 == null ? '—' : fmt(reportTotal100)}</strong></td><td></td></tr>
       </tbody>
     </table>
     <div class="m01-proposal"><strong>II. Tự đề xuất xếp loại mức chất lượng:</strong> ${esc(reportRating)}</div>
@@ -3784,13 +3955,18 @@ async function openReport() {
   </div>`;
 
   const reportScoreSummary = scorecardSummaryData(KpiWorkflowState.user.uid, s);
-  const excelHtml = `<div id="kpiExcelPreview" class="kpi-hidden"><div class="kpi-score-state ${scoreState.className}"><span class="kpi-score-state-icon">${scoreState.code === 'OFFICIAL' ? '✓' : '✎'}</span><div><strong>${esc(scoreState.label)}</strong><span>${esc(scoreState.detail)}</span></div></div><div class="kpi-scorecard-desktop"><div class="kpi-table-wrap"><table class="kpi-table kpi-wide-table"><thead><tr><th>STT</th><th>Tên công việc</th><th>Điểm chuẩn</th><th>Hệ số độ khó</th><th>Điểm quy đổi tối đa</th><th>Tiến độ</th><th>Kết quả</th><th>Điểm thực hiện</th><th>Điểm quy đổi thực tế</th><th>Vượt yêu cầu</th><th>Minh chứng</th></tr></thead><tbody>${mine.map((t, i) => { const evaluation=evaluationFor(t.id); const applied=evaluationScoreSnapshot(evaluation); return `<tr><td>${i + 1}</td><td><strong>${esc(t.taskCode || '')}</strong><br>${esc(t.title)}</td><td>${fmt(t.baseScore)}</td><td>${coefficientPercent(t.difficultyCoefficient)}</td><td>${fmt(t.maximumConvertedScore)}</td><td>${applied.progressRate ?? ''}${applied.progressRate !== null ? '%' : ''}</td><td>${applied.resultRate ?? ''}${applied.resultRate !== null ? '%' : ''}</td><td>${applied.hasScore ? fmt(applied.executionScore) : ''}</td><td><strong>${applied.hasScore ? fmt(applied.convertedActualScore) : ''}</strong></td><td class="m01-center">${esc(scorecardExceededLabel(evaluation))}</td><td>${evidenceCellHtml(evidenceMap.get(t.id) || [], t)}</td></tr>`; }).join('')}</tbody></table>${scorecardSummaryTableHtml(reportScoreSummary)}</div></div><div class="kpi-scorecard-mobile">${mine.map(t=>{const evaluation=evaluationFor(t.id);const applied=evaluationScoreSnapshot(evaluation);const files=evidenceMap.get(t.id)||[];return `<article class="kpi-score-card"><strong>${esc(t.taskCode||'')} — ${esc(t.title||'')}</strong><div><span>Điểm chuẩn ${fmt(t.baseScore)}</span><span>Hệ số ${coefficientPercent(t.difficultyCoefficient)}</span><span>Tối đa ${fmt(t.maximumConvertedScore)}</span></div><div><span>Tiến độ ${applied.progressRate??'—'}%</span><span>Kết quả ${applied.resultRate??'—'}%</span><span>Điểm thực tế <b>${applied.hasScore?fmt(applied.convertedActualScore):'—'}</b></span></div><div><span>Vượt yêu cầu: <b>${esc(scorecardExceededLabel(evaluation)||'Không')}</b></span><span>Minh chứng: ${files.length} tệp</span></div></article>`}).join('')}${scorecardSummaryCardsHtml(reportScoreSummary)}</div></div>`;
+  const excelHtml = `<div id="kpiExcelPreview" class="kpi-hidden"><div class="kpi-score-state ${scoreState.className}" data-kpi-report-score-state="excel"><span class="kpi-score-state-icon">${scoreState.code === 'OFFICIAL' ? '✓' : '✎'}</span><div><strong>${esc(scoreState.label)}</strong><span>${esc(scoreState.detail)}</span></div></div><div class="kpi-scorecard-desktop"><div class="kpi-table-wrap"><table class="kpi-table kpi-wide-table"><thead><tr><th>STT</th><th>Tên công việc</th><th>Điểm chuẩn</th><th>Hệ số độ khó</th><th>Điểm quy đổi tối đa</th><th>Tiến độ</th><th>Kết quả</th><th>Điểm thực hiện</th><th>Điểm quy đổi thực tế</th><th>Vượt yêu cầu</th><th>Minh chứng</th></tr></thead><tbody>${mine.map((t, i) => { const evaluation=evaluationFor(t.id); const applied=evaluationScoreSnapshot(evaluation); return `<tr><td>${i + 1}</td><td><strong>${esc(t.taskCode || '')}</strong><br>${esc(t.title)}</td><td>${fmt(t.baseScore)}</td><td>${coefficientPercent(t.difficultyCoefficient)}</td><td>${fmt(t.maximumConvertedScore)}</td><td>${applied.progressRate ?? ''}${applied.progressRate !== null ? '%' : ''}</td><td>${applied.resultRate ?? ''}${applied.resultRate !== null ? '%' : ''}</td><td>${applied.hasScore ? fmt(applied.executionScore) : ''}</td><td><strong>${applied.hasScore ? fmt(applied.convertedActualScore) : ''}</strong></td><td class="m01-center">${esc(scorecardExceededLabel(evaluation))}</td><td>${evidenceCellHtml(evidenceMap.get(t.id) || [], t)}</td></tr>`; }).join('')}</tbody></table>${scorecardSummaryTableHtml(reportScoreSummary)}</div></div><div class="kpi-scorecard-mobile">${mine.map(t=>{const evaluation=evaluationFor(t.id);const applied=evaluationScoreSnapshot(evaluation);const files=evidenceMap.get(t.id)||[];return `<article class="kpi-score-card"><strong>${esc(t.taskCode||'')} — ${esc(t.title||'')}</strong><div><span>Điểm chuẩn ${fmt(t.baseScore)}</span><span>Hệ số ${coefficientPercent(t.difficultyCoefficient)}</span><span>Tối đa ${fmt(t.maximumConvertedScore)}</span></div><div><span>Tiến độ ${applied.progressRate??'—'}%</span><span>Kết quả ${applied.resultRate??'—'}%</span><span>Điểm thực tế <b>${applied.hasScore?fmt(applied.convertedActualScore):'—'}</b></span></div><div><span>Vượt yêu cầu: <b>${esc(scorecardExceededLabel(evaluation)||'Không')}</b></span><span>Minh chứng: ${files.length} tệp</span></div></article>`}).join('')}${scorecardSummaryCardsHtml(reportScoreSummary)}</div></div>`;
 
-  modal(`Báo cáo KPI cá nhân · ${formLabel}`, `<div class="kpi-preview-tabs kpi-no-print"><button id="kpiPdfTab" class="kpi-button secondary active" type="button">${formLabel}</button><button id="kpiExcelTab" class="kpi-button secondary" type="button">Bảng tính điểm</button></div>${pdfHtml}${excelHtml}`, '<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button><button id="kpiExportXlsx" class="kpi-button secondary" type="button">📊 Xuất bảng điểm</button><button id="kpiPrintReport" class="kpi-button" type="button">🖨️ In biểu mẫu</button>');
+  const reportRoot = modal(`Báo cáo KPI cá nhân · ${formLabel}`, `<div class="kpi-preview-tabs kpi-no-print"><button id="kpiPdfTab" class="kpi-button secondary active" type="button">${formLabel}</button><button id="kpiExcelTab" class="kpi-button secondary" type="button">Bảng tính điểm</button></div>${pdfHtml}${excelHtml}`, '<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button><button id="kpiExportXlsx" class="kpi-button secondary" type="button">📊 Xuất bảng điểm</button><button id="kpiPrintReport" class="kpi-button" type="button">🖨️ In biểu mẫu</button>');
+  reportRoot.dataset.kpiReadonlyModal = 'report';
+  reportRoot.dataset.kpiUserId = KpiWorkflowState.user.uid;
   el('kpiPdfTab').addEventListener('click', () => { el('kpiPdfPreview').classList.remove('kpi-hidden'); el('kpiExcelPreview').classList.add('kpi-hidden'); el('kpiPdfTab').classList.add('active'); el('kpiExcelTab').classList.remove('active'); el('kpiPrintReport').classList.remove('kpi-hidden'); });
   el('kpiExcelTab').addEventListener('click', () => { el('kpiPdfPreview').classList.add('kpi-hidden'); el('kpiExcelPreview').classList.remove('kpi-hidden'); el('kpiPdfTab').classList.remove('active'); el('kpiExcelTab').classList.add('active'); el('kpiPrintReport').classList.add('kpi-hidden'); });
   el('kpiPrintReport').addEventListener('click', () => window.print());
-  el('kpiExportXlsx')?.addEventListener('click', () => exportReportXlsx(mine, s, reportDepartmentId, evidenceMap));
+  el('kpiExportXlsx')?.addEventListener('click', () => {
+    const currentTasks = personalTasksForUser(KpiWorkflowState.user.uid).filter(taskRequiresOfficialEvaluation);
+    exportReportXlsx(currentTasks, summaryForUserCombined(KpiWorkflowState.user.uid), reportDepartmentId, evidenceMap);
+  });
 }
 
 function exportReportXlsx(tasks, summaryData, departmentId = profileDepartmentId(), evidenceMap = new Map()) {
