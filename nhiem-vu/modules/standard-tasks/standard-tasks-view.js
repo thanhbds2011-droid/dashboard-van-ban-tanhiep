@@ -1,12 +1,12 @@
-import { UserContext } from "../../core/user-context.js?v=20260903.V1_22_3";
-import { Permissions } from "../../core/permissions.js?v=20260903.V1_22_3";
-import { ToastService } from "../../core/toast-service.js?v=20260903.V1_22_3";
-import { ModalService } from "../../core/modal-service.js?v=20260903.V1_22_3";
-import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260903.V1_22_3";
-import { PeriodReadService } from "../../services/period-read-service.js?v=20260903.V1_22_3";
-import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260903.V1_22_3";
-import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260903.V1_22_3";
-import { deriveDeadlinePlan, deadlineRuleDescription, requiresManualDeadline, isEventDrivenFrequency, canonicalFrequency, STANDARD_FREQUENCIES, WEEKDAY_OPTIONS } from "../../core/deadline-engine.js?v=20260903.V1_22_3";
+import { UserContext } from "../../core/user-context.js?v=20260903.V1_22_5";
+import { Permissions } from "../../core/permissions.js?v=20260903.V1_22_5";
+import { ToastService } from "../../core/toast-service.js?v=20260903.V1_22_5";
+import { ModalService } from "../../core/modal-service.js?v=20260903.V1_22_5";
+import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260903.V1_22_5";
+import { PeriodReadService } from "../../services/period-read-service.js?v=20260903.V1_22_5";
+import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260903.V1_22_5";
+import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260903.V1_22_5";
+import { deriveDeadlinePlan, deadlineRuleDescription, requiresManualDeadline, isEventDrivenFrequency, canonicalFrequency, STANDARD_FREQUENCIES, WEEKDAY_OPTIONS } from "../../core/deadline-engine.js?v=20260903.V1_22_5";
 
 let currentCatalogAccess = {
   canManage: false,
