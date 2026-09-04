@@ -41,13 +41,13 @@ function assertBalanced(text) {
   assert.deepEqual(stack, []);
 }
 
-test('V1.22.1 business-rule regression remains under current V1.22.5 build', () => {
+test('V1.22.1 business-rule regression remains under current V1.22.6 build', () => {
   const ver = read('core/app-version.js');
-  assert.match(ver, /APP_VERSION\s*=\s*["']1\.22\.5["']/);
-  assert.match(ver, /BUILD_VERSION\s*=\s*["']20260903\.V1_22_5["']/);
-  assert.match(ver, /CACHE_NAME\s*=\s*["']nhiem-vu-20260903-v1-22-5["']/);
-  assert.match(read('index.html'), /20260903\.V1_22_5/);
-  assert.match(read('sw.js'), /20260903\.V1_22_5/);
+  assert.match(ver, /APP_VERSION\s*=\s*["']1\.22\.6["']/);
+  assert.match(ver, /BUILD_VERSION\s*=\s*["']20260904\.V1_22_6["']/);
+  assert.match(ver, /CACHE_NAME\s*=\s*["']nhiem-vu-20260904-v1-22-6["']/);
+  assert.match(read('index.html'), /20260904\.V1_22_6/);
+  assert.match(read('sw.js'), /20260904\.V1_22_6/);
 });
 
 test('KPI scoring contract 10/12, 30/70 and coefficients stays unchanged', () => {
