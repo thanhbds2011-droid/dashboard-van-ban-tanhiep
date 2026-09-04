@@ -213,18 +213,37 @@ export function buildKpiWorkbookBlob({
     { value: Number(summary.exceededCount || 0), style: 8 }
   ], { height: 28 }));
   rowNumber += 1;
+  const bonusHasPending = summary.bonusHasPending === true;
+  const bonusApproved = Number(summary.bonusApproved ?? summary.bonusC ?? 0);
+  const bonusPending = Number(summary.bonusPending || 0);
+  const bonusDisplay = Number(summary.bonusDisplay ?? bonusApproved);
+  const bonusDisplayText = bonusHasPending
+    ? `${bonusDisplay.toLocaleString('vi-VN', { maximumFractionDigits:2 })} điểm (Chưa xác nhận)`
+    : bonusApproved;
   sheetRows.push(makeRow(rowNumber, [
     { value: 'Tổng số điểm thưởng đối với các công việc vượt tiến độ và đạt yêu cầu chất lượng (nếu có)', style: 7 }, ...Array(9).fill({ value:'', style:7 }),
-    { value: Number(summary.bonusC || 0), style: 8 }
+    { value: bonusDisplayText, style: bonusHasPending ? 9 : 8 }
   ], { height: 36 }));
+  const bonusSummaryRow = rowNumber;
+
+  let confirmedBonusRow = 0;
+  if (bonusHasPending && bonusApproved > 0) {
+    rowNumber += 1;
+    confirmedBonusRow = rowNumber;
+    sheetRows.push(makeRow(rowNumber, [
+      { value: 'Trong đó điểm thưởng đã xác nhận', style: 7 }, ...Array(9).fill({ value:'', style:7 }),
+      { value: bonusApproved, style: 8 }
+    ], { height: 25 }));
+  }
 
   const merges = [
     'A1:K1', 'A2:K2', 'A3:F3', 'G3:K3',
     `A${summaryStart}:E${summaryStart}`, `G${summaryStart}:J${summaryStart}`,
     `A${summaryStart + 1}:J${summaryStart + 1}`,
     `A${summaryStart + 2}:J${summaryStart + 2}`,
-    `A${summaryStart + 3}:J${summaryStart + 3}`
+    `A${bonusSummaryRow}:J${bonusSummaryRow}`
   ];
+  if (confirmedBonusRow) merges.push(`A${confirmedBonusRow}:J${confirmedBonusRow}`);
 
   const colsXml = columns.map((column, index) => `<col min="${index + 1}" max="${index + 1}" width="${column.width}" customWidth="1"/>`).join('');
   const mergeXml = `<mergeCells count="${merges.length}">${merges.map(ref => `<mergeCell ref="${ref}"/>`).join('')}</mergeCells>`;

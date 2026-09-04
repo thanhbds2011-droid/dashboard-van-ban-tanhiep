@@ -5,12 +5,12 @@
  * - Chỉ Bí thư được tạo/quản lý đầu việc trong phạm vi Chi đoàn; Phó Bí thư/Ủy viên BCH là vai trò thực hiện hoặc được ủy quyền nghiệp vụ khác.
  * - Quyền tạo, sửa và xóa được tách riêng; Firestore Rules là lớp bảo vệ cuối cùng.
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260903.V1_22_3";
-import { UserContext } from "../core/user-context.js?v=20260903.V1_22_3";
-import { Permissions } from "../core/permissions.js?v=20260903.V1_22_3";
-import { validateDeadlineConfiguration, isEventDrivenFrequency, canonicalFrequency, isStandardFrequency } from "../core/deadline-engine.js?v=20260903.V1_22_3";
+import { FirebaseService } from "../core/firebase-service.js?v=20260903.V1_22_5";
+import { UserContext } from "../core/user-context.js?v=20260903.V1_22_5";
+import { Permissions } from "../core/permissions.js?v=20260903.V1_22_5";
+import { validateDeadlineConfiguration, isEventDrivenFrequency, canonicalFrequency, isStandardFrequency } from "../core/deadline-engine.js?v=20260903.V1_22_5";
 
-const SYNC_VERSION = "20260903.V1_22_3";
+const SYNC_VERSION = "20260903.V1_22_5";
 const MAX_STANDARD_TASK_NAME_LENGTH = 1000;
 const STANDARD_TASK_COLLECTION = "standardTasks";
 const SEQUENCE_COLLECTION = "standardTaskSequences";
