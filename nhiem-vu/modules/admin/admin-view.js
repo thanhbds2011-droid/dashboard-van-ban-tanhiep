@@ -1,9 +1,9 @@
-import { UserContext } from "../../core/user-context.js?v=20260903.V1_22_5";
-import { Permissions } from "../../core/permissions.js?v=20260903.V1_22_5";
-import { ToastService } from "../../core/toast-service.js?v=20260903.V1_22_5";
-import { ModalService } from "../../core/modal-service.js?v=20260903.V1_22_5";
-import { AdminReadService } from "../../services/admin-read-service.js?v=20260903.V1_22_5";
-import { AdminMaintenanceService } from "../../services/admin-maintenance-service.js?v=20260903.V1_22_5";
+import { UserContext } from "../../core/user-context.js?v=20260904.V1_22_7";
+import { Permissions } from "../../core/permissions.js?v=20260904.V1_22_7";
+import { ToastService } from "../../core/toast-service.js?v=20260904.V1_22_7";
+import { ModalService } from "../../core/modal-service.js?v=20260904.V1_22_7";
+import { AdminReadService } from "../../services/admin-read-service.js?v=20260904.V1_22_7";
+import { AdminMaintenanceService } from "../../services/admin-maintenance-service.js?v=20260904.V1_22_7";
 
 let currentDiagnostic = null;
 
@@ -26,7 +26,7 @@ function render(outlet, user, diagnostic) {
   const repairable = diagnostic.repairableTaskIds.length;
   const warnings = diagnostic.issues.filter(item => item.level === "WARNING").length;
   outlet.innerHTML = `<section class="page-card">
-    <div class="page-header"><div><h2>Quản trị hệ thống</h2><p>Chẩn đoán dữ liệu, nhật ký và bảo trì có kiểm soát.</p></div><span class="role-badge">ADMIN · V1.22.1</span></div>
+    <div class="page-header"><div><h2>Quản trị hệ thống</h2><p>Chẩn đoán dữ liệu, nhật ký và bảo trì có kiểm soát.</p></div><span class="role-badge">ADMIN · V1.22.7</span></div>
     <div class="success-banner">Tài khoản <strong>${escapeHtml(user.fullName || user.email)}</strong> đang thao tác trong phạm vi quản trị.</div>
     <div class="summary-grid compact-grid">
       ${metric("Tài khoản hoạt động", counts.users ?? "—")}
@@ -42,6 +42,7 @@ function render(outlet, user, diagnostic) {
       <button id="btnAdminAudit" class="admin-action-card" type="button"><span>📜</span><strong>Nhật ký hệ thống</strong><small>Xem taskLogs và kpiAuditLogs mới nhất.</small></button>
       <button id="btnAdminRepair" class="admin-action-card${repairable ? " warning" : ""}" type="button" ${repairable ? "" : "disabled"}><span>🧰</span><strong>Chuẩn hóa phạm vi nhiệm vụ</strong><small>${repairable ? `${repairable} nhiệm vụ có thể sửa tự động.` : "Không có nhiệm vụ cần sửa."}</small></button>
       <button id="btnAdminCorrection" class="admin-action-card warning" type="button"><span>🛠️</span><strong>Sửa sai dữ liệu KPI</strong><small>Hủy/mở lại theo trạng thái, luôn giữ lịch sử và minh chứng.</small></button>
+      <button id="btnAdminEventDrivenReset" class="admin-action-card warning" type="button"><span>↩️</span><strong>Mở lại → Khi phát sinh</strong><small>Chỉ ADMIN: mở lại đăng ký recurring sạch, giữ nội dung và hủy mềm task cũ.</small></button>
       <button id="btnAdminCleanup" class="admin-action-card danger" type="button"><span>🗄️</span><strong>Lưu trữ và dọn kỳ</strong><small>Thực hiện tại phân hệ KPI sau khi có tệp Drive và SHA-256.</small></button>
     </div>
     ${diagnostic.unavailable.length ? `<div class="warning-banner">Không đọc được: ${diagnostic.unavailable.map(escapeHtml).join(", ")}.</div>` : ""}
@@ -63,6 +64,7 @@ function bindActions(outlet, user) {
 
   document.getElementById("btnAdminAudit")?.addEventListener("click", showLogs);
   document.getElementById("btnAdminCorrection")?.addEventListener("click", openAdminCorrection);
+  document.getElementById("btnAdminEventDrivenReset")?.addEventListener("click", openAdminEventDrivenReset);
   document.getElementById("btnAdminRepair")?.addEventListener("click", async event => {
     const ids = currentDiagnostic?.repairableTaskIds || [];
     if (!ids.length) return;
@@ -103,6 +105,176 @@ async function showLogs() {
   } catch (error) { ToastService.error(error.message || "Không đọc được nhật ký."); }
 }
 
+
+
+async function openAdminEventDrivenReset() {
+  try {
+    const candidates = await AdminMaintenanceService.listEventDrivenResetCandidates();
+    if (!candidates.length) {
+      return ToastService.info?.("Không có đăng ký recurring APPROVED phù hợp để kiểm tra.")
+        || ToastService.success("Không có đăng ký recurring APPROVED phù hợp để kiểm tra.");
+    }
+
+    const periods = [...new Map(candidates.map(item => [String(item.periodId || "").trim(), item.periodName || item.periodId || ""])).entries()]
+      .filter(([id]) => id)
+      .sort((a,b) => a[0].localeCompare(b[0]));
+    const departments = [...new Set(candidates.map(item => String(item.departmentId || "").trim()).filter(Boolean))]
+      .sort((a,b) => a.localeCompare(b, "vi"));
+    const periodOptions = `<option value="">Tất cả kỳ</option>` + periods.map(([id,name]) => `<option value="${escapeHtml(id)}">${escapeHtml(name || id)}</option>`).join("");
+    const departmentOptions = `<option value="">Tất cả Phòng/Khu/Scope</option>` + departments.map(id => `<option value="${escapeHtml(id)}">${escapeHtml(id)}</option>`).join("");
+
+    const html = `<div class="admin-correction-form">
+      <p><strong>Chức năng chỉ dành cho ADMIN.</strong> Hệ thống không xóa registration và không đổi quy tắc chấm điểm. Chỉ đăng ký sạch mới được mở lại; task cũ được hủy mềm, milestone cũ giữ lịch sử.</p>
+      <div class="standard-personal-row-grid">
+        <label><span>Kỳ</span><select id="adminEventPeriod">${periodOptions}</select></label>
+        <label><span>Phòng/Khu/Scope</span><select id="adminEventDepartment">${departmentOptions}</select></label>
+      </div>
+      <label><span>Tìm nhanh</span><input id="adminEventSearch" type="search" placeholder="Tên nhân viên, mã hoặc nội dung đầu việc"></label>
+      <div class="admin-correction-preview"><strong>Chọn tối đa 50 đăng ký.</strong> Sau khi bấm “Kiểm tra trước”, hệ thống sẽ revalidate progress, minh chứng, lượt phát sinh, đánh giá, điều chỉnh, điểm, milestone và trạng thái kỳ.</div>
+      <div class="admin-diagnostic-table" style="max-height:48vh;overflow:auto">
+        <table style="min-width:980px"><thead><tr>
+          <th><input id="adminEventSelectAll" type="checkbox" aria-label="Chọn tất cả đang hiển thị"></th>
+          <th>Nhân viên</th><th>Phòng/Khu</th><th>Đầu việc</th><th>Tần suất hiện tại</th><th>Trạng thái</th>
+        </tr></thead><tbody id="adminEventRows"></tbody></table>
+      </div>
+      <div id="adminEventSelectionSummary" class="admin-correction-preview">Chưa chọn đăng ký.</div>
+      <label><span>Lý do xử lý *</span><textarea id="adminEventReason" rows="3" maxlength="1000" placeholder="Ví dụ: Điều chỉnh đăng ký trong giai đoạn triển khai ban đầu tháng 09/2026"></textarea></label>
+    </div>`;
+
+    const modal = await ModalService.open({
+      title:"Mở lại đăng ký và chuyển sang Khi phát sinh",
+      eyebrow:"ADMIN · SYSTEM CORRECTION",
+      messageHtml:html,
+      confirmText:"Kiểm tra trước",
+      cancelText:"Hủy",
+      danger:true,
+      beforeConfirm:async root => {
+        const selectedIds = [...root.querySelectorAll('[data-admin-event-registration]:checked')].map(input => input.value);
+        const reason = String(root.querySelector("#adminEventReason")?.value || "").trim();
+        if (!selectedIds.length) throw new Error("Hãy chọn ít nhất một đăng ký.");
+        if (selectedIds.length > 50) throw new Error("Mỗi lần chỉ được chọn tối đa 50 đăng ký.");
+        if (!reason) throw new Error("Phải nhập lý do xử lý.");
+
+        const previews = [];
+        for (const registrationId of selectedIds) {
+          const candidate = candidates.find(item => item.id === registrationId);
+          try {
+            const preview = await AdminMaintenanceService.eventDrivenResetPreview({ id:registrationId });
+            previews.push({ candidate, preview });
+          } catch (error) {
+            previews.push({ candidate, preview:{ canApply:false, blockers:[error?.message || "Không kiểm tra được dữ liệu."], counts:{} } });
+          }
+        }
+        const safe = previews.filter(item => item.preview?.canApply && !item.preview?.alreadyApplied);
+        const already = previews.filter(item => item.preview?.alreadyApplied);
+        const blocked = previews.filter(item => !item.preview?.canApply);
+        const previewRows = previews.map(({candidate,preview}) => {
+          const owner = candidate?.userName || candidate?.ownerName || candidate?.userId || "";
+          const code = candidate?.standardTaskCode || candidate?.taskCode || "";
+          const title = candidate?.title || candidate?.standardTaskName || "";
+          const state = preview?.alreadyApplied ? "Đã xử lý trước đó" : preview?.canApply ? "Có thể xử lý" : "Cần kiểm tra thủ công";
+          const detail = preview?.canApply
+            ? `Milestone: ${Number(preview.counts?.milestones || 0)} · completed: ${Number(preview.counts?.completedMilestones || 0)} · evidence: ${Number(preview.counts?.evidenceFiles || 0)} · work item: ${Number(preview.counts?.workItems || 0)}`
+            : (preview?.blockers || []).join(" ");
+          return `<tr><td>${escapeHtml(owner)}</td><td>${escapeHtml(code)} — ${escapeHtml(title)}</td><td><strong>${escapeHtml(state)}</strong><br><small>${escapeHtml(detail)}</small></td></tr>`;
+        }).join("");
+        const confirmed = await ModalService.open({
+          title:"Preview trước khi xử lý",
+          eyebrow:"ADMIN · PREVIEW",
+          messageHtml:`<div class="admin-correction-preview"><strong>${safe.length}</strong> có thể xử lý · <strong>${blocked.length}</strong> bị khóa · <strong>${already.length}</strong> đã xử lý trước đó.</div><div class="admin-diagnostic-table" style="max-height:50vh;overflow:auto"><table><thead><tr><th>Nhân viên</th><th>Đầu việc</th><th>Kết quả kiểm tra</th></tr></thead><tbody>${previewRows}</tbody></table></div><p><strong>Không thay scoring 100/80/60/0.</strong> Task cũ chỉ hủy mềm; registration gốc được giữ và chuyển về PENDING / Khi phát sinh.</p>`,
+          confirmText:safe.length ? `Xử lý ${safe.length} đăng ký` : "Đóng",
+          cancelText:"Quay lại",
+          danger:true,
+          showCancel:safe.length > 0
+        });
+        if (!confirmed || !safe.length) throw new Error("Chưa thực hiện thay đổi.");
+
+        const result = await AdminMaintenanceService.applyEventDrivenResetBatch({
+          records:safe.map(item => ({ id:item.candidate?.id })),
+          reason
+        });
+        const resultRows = result.results.map(item => `<tr><td>${escapeHtml(item.registrationId)}</td><td>${item.ok ? "✅ Thành công" : "⚠️ Không xử lý"}</td><td>${escapeHtml(item.message || "")}</td></tr>`).join("");
+        await ModalService.open({
+          title:"Kết quả xử lý",
+          eyebrow:"ADMIN · AUDIT",
+          messageHtml:`<div class="admin-correction-preview">Thành công: <strong>${result.succeeded}</strong> · Không xử lý/lỗi: <strong>${result.failed}</strong>.</div><div class="admin-diagnostic-table"><table><thead><tr><th>Registration ID</th><th>Kết quả</th><th>Ghi chú</th></tr></thead><tbody>${resultRows}</tbody></table></div>`,
+          confirmText:"Đóng",
+          showCancel:false
+        });
+      },
+      onOpen:async root => {
+        const period = root.querySelector("#adminEventPeriod");
+        const department = root.querySelector("#adminEventDepartment");
+        const search = root.querySelector("#adminEventSearch");
+        const rows = root.querySelector("#adminEventRows");
+        const selectAll = root.querySelector("#adminEventSelectAll");
+        const summary = root.querySelector("#adminEventSelectionSummary");
+        const selected = new Set();
+
+        const visibleCandidates = () => {
+          const periodValue = String(period?.value || "");
+          const departmentValue = String(department?.value || "");
+          const query = String(search?.value || "").trim().toLocaleLowerCase("vi");
+          return candidates.filter(item => {
+            if (periodValue && String(item.periodId || "") !== periodValue) return false;
+            if (departmentValue && String(item.departmentId || "") !== departmentValue) return false;
+            if (!query) return true;
+            return [item.userName,item.standardTaskCode,item.taskCode,item.title,item.standardTaskName,item.frequency]
+              .some(value => String(value || "").toLocaleLowerCase("vi").includes(query));
+          });
+        };
+        const updateSummary = () => {
+          summary.innerHTML = `Đã chọn <strong>${selected.size}</strong>/50 đăng ký. Chỉ các dòng qua Preview mới được xử lý.`;
+        };
+        const renderRows = () => {
+          const visible = visibleCandidates();
+          rows.innerHTML = visible.length ? visible.map(item => `<tr>
+            <td><input type="checkbox" data-admin-event-registration value="${escapeHtml(item.id)}" ${selected.has(item.id) ? "checked" : ""}></td>
+            <td>${escapeHtml(item.userName || item.userId || "")}</td>
+            <td>${escapeHtml(item.departmentId || "")}</td>
+            <td><strong>${escapeHtml(item.standardTaskCode || item.taskCode || "")}</strong><br><small>${escapeHtml(item.title || item.standardTaskName || "")}</small></td>
+            <td>${escapeHtml(item.frequency || "")}</td>
+            <td>${escapeHtml(item.status || "")}</td>
+          </tr>`).join("") : `<tr><td colspan="6">Không có đăng ký phù hợp bộ lọc.</td></tr>`;
+          rows.querySelectorAll('[data-admin-event-registration]').forEach(input => input.addEventListener("change", event => {
+            const id = event.currentTarget.value;
+            if (event.currentTarget.checked) {
+              if (selected.size >= 50) {
+                event.currentTarget.checked = false;
+                ToastService.error("Mỗi lần chỉ chọn tối đa 50 đăng ký.");
+                return;
+              }
+              selected.add(id);
+            } else selected.delete(id);
+            updateSummary();
+          }));
+          if (selectAll) selectAll.checked = visible.length > 0 && visible.every(item => selected.has(item.id));
+        };
+        [period,department,search].forEach(control => control?.addEventListener(control === search ? "input" : "change", renderRows));
+        selectAll?.addEventListener("change", event => {
+          const visible = visibleCandidates();
+          if (event.currentTarget.checked) {
+            for (const item of visible) {
+              if (selected.size >= 50) break;
+              selected.add(item.id);
+            }
+          } else {
+            visible.forEach(item => selected.delete(item.id));
+          }
+          renderRows();
+          updateSummary();
+        });
+        renderRows();
+        updateSummary();
+      }
+    });
+    if (modal) ToastService.success("Đã hoàn tất phiên xử lý ADMIN.");
+  } catch (error) {
+    if ((error?.message || "") !== "Chưa thực hiện thay đổi.") {
+      ToastService.error(error?.message || "Không mở được chức năng chuyển Khi phát sinh.");
+    }
+  }
+}
 
 async function openAdminCorrection() {
   try {
