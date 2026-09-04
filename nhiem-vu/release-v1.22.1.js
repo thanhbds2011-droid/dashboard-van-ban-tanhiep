@@ -1,5 +1,5 @@
 /** Release marker V1.22.1 - UAT authorization fixes + UI refinement. */
-import { APP_VERSION, BUILD_VERSION } from "./core/app-version.js?v=20260903.V1_22_3";
+import { APP_VERSION, BUILD_VERSION } from "./core/app-version.js?v=20260903.V1_22_5";
 
 window.__NHIEM_VU_RELEASE__ = Object.freeze({
   version: APP_VERSION,

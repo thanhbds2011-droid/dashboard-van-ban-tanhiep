@@ -1,4 +1,4 @@
-import { BUILD_VERSION } from "./core/app-version.js?v=20260903.V1_22_3";
+import { BUILD_VERSION } from "./core/app-version.js?v=20260903.V1_22_5";
 
 let deferredInstallPrompt = null;
 let refreshing = false;
