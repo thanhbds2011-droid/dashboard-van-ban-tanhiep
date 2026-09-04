@@ -4,24 +4,23 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { buildKpiWorkbookBlob } from '../services/xlsx-export-service.js?v=20260903.V1_22_5';
+import { buildKpiWorkbookBlob } from '../services/xlsx-export-service.js?v=20260904.V1_22_6';
 import { calculateBonusScore, calculateKpiSummary } from '../kpi-engine.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const appRoot = path.resolve(here, '..');
 const releaseRoot = path.resolve(appRoot, '..');
-const baselineRoot = '/mnt/data/dashboard-van-ban-tanhiep-v1.22.4-production';
 const read = rel => fs.readFileSync(path.join(appRoot, rel), 'utf8');
 const sha256File = file => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 
-test('V1.22.5 version/build/cache and release marker are synchronized', () => {
+test('V1.22.6 version/build/cache and release marker are synchronized', () => {
   const version = read('core/app-version.js');
-  assert.match(version, /APP_VERSION\s*=\s*["']1\.22\.5["']/);
-  assert.match(version, /BUILD_VERSION\s*=\s*["']20260903\.V1_22_5["']/);
-  assert.match(version, /CACHE_NAME\s*=\s*["']nhiem-vu-20260903-v1-22-5["']/);
+  assert.match(version, /APP_VERSION\s*=\s*["']1\.22\.6["']/);
+  assert.match(version, /BUILD_VERSION\s*=\s*["']20260904\.V1_22_6["']/);
+  assert.match(version, /CACHE_NAME\s*=\s*["']nhiem-vu-20260904-v1-22-6["']/);
   const index = read('index.html');
-  assert.match(index, /release-v1\.22\.5\.js\?v=20260903\.V1_22_5/);
-  assert.match(read('sw.js'), /BUILD_VERSION = "20260903\.V1_22_5"/);
+  assert.match(index, /release-v1\.22\.6\.js\?v=20260904\.V1_22_6/);
+  assert.match(read('sw.js'), /BUILD_VERSION = "20260904\.V1_22_6"/);
 });
 
 test('Provisional bonus presentation is separate from official bonus and respects cap 7', () => {
@@ -86,9 +85,9 @@ test('Report quarter continues to use period metadata, not startDate month', () 
   assert.doesNotMatch(workflow, /const quarterNumber = startMatch \? Math\.ceil\(Number\(startMatch\[2\]\) \/ 3\)/);
 });
 
-test('Firestore Rules and indexes remain byte-identical to V1.22.4 package', () => {
-  assert.equal(sha256File(path.join(releaseRoot, 'firestore.rules')), sha256File(path.join(baselineRoot, 'firestore.rules')));
-  assert.equal(sha256File(path.join(releaseRoot, 'firestore.indexes.json')), sha256File(path.join(baselineRoot, 'firestore.indexes.json')));
+test('Firestore Rules and indexes remain the locked production artifacts', () => {
+  assert.equal(sha256File(path.join(releaseRoot, 'firestore.rules')), '97e790bbd89afe41867d91dc1656d1f43eff2e7bc60d3c443656e918b811c2c4');
+  assert.equal(sha256File(path.join(releaseRoot, 'firestore.indexes.json')), 'cf681aca804f70acf644471be86f7e99dc1399c75966f37b680d572a8f2ad5bc');
   const indexes = JSON.parse(fs.readFileSync(path.join(releaseRoot, 'firestore.indexes.json'), 'utf8'));
   assert.equal(indexes.indexes.length, 21);
 });
