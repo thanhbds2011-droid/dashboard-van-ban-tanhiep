@@ -1,10 +1,10 @@
-import { UserContext } from "../../core/user-context.js?v=20260903.V1_22_3";
-import { Permissions } from "../../core/permissions.js?v=20260903.V1_22_3";
-import { ToastService } from "../../core/toast-service.js?v=20260903.V1_22_3";
-import { ModalService } from "../../core/modal-service.js?v=20260903.V1_22_3";
-import { DepartmentReadService } from "../../services/department-read-service.js?v=20260903.V1_22_3";
-import { UserReadService } from "../../services/user-read-service.js?v=20260903.V1_22_3";
-import { ExecutiveDirectiveService } from "../../services/executive-directive-service.js?v=20260903.V1_22_3";
+import { UserContext } from "../../core/user-context.js?v=20260903.V1_22_5";
+import { Permissions } from "../../core/permissions.js?v=20260903.V1_22_5";
+import { ToastService } from "../../core/toast-service.js?v=20260903.V1_22_5";
+import { ModalService } from "../../core/modal-service.js?v=20260903.V1_22_5";
+import { DepartmentReadService } from "../../services/department-read-service.js?v=20260903.V1_22_5";
+import { UserReadService } from "../../services/user-read-service.js?v=20260903.V1_22_5";
+import { ExecutiveDirectiveService } from "../../services/executive-directive-service.js?v=20260903.V1_22_5";
 
 let state = {
   directives: [],
