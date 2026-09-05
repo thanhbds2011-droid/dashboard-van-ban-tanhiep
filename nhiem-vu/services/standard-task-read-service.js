@@ -1,8 +1,8 @@
 /** Đọc danh mục đầu việc theo đơn vị, vai trò và vai trò kiêm nhiệm. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260904.V1_22_7";
-import { UserContext } from "../core/user-context.js?v=20260904.V1_22_7";
-import { Permissions } from "../core/permissions.js?v=20260904.V1_22_7";
-import { PeriodReadService } from "./period-read-service.js?v=20260904.V1_22_7";
+import { FirebaseService } from "../core/firebase-service.js?v=20260904.V1_23_0";
+import { UserContext } from "../core/user-context.js?v=20260904.V1_23_0";
+import { Permissions } from "../core/permissions.js?v=20260904.V1_23_0";
+import { PeriodReadService } from "./period-read-service.js?v=20260904.V1_23_0";
 
 const CATALOG_CACHE_MS = 5 * 60 * 1000;
 const PROFESSIONAL_DEPARTMENT_IDS = Object.freeze(["BGD", "TCHC", "CTXH", "KHTC", "YT", "KI", "KII", "KIII"]);
@@ -65,10 +65,12 @@ function canRegisterItem(item, user = UserContext.requireUser()) {
   if (item?.active === false) return false;
   if (upper(item?.sourceType) === "EXECUTIVE_DIRECTIVE" && clean(item?.sourcePeriodId) && clean(item.sourcePeriodId) !== clean(activePeriodId)) return false;
   if (departmentId === "CDTN") return canRegisterCdtnItem(item);
-  if (departmentId !== upper(user.departmentId)) return false;
+  if (!Permissions.canRegisterForDepartment(user, departmentId)) return false;
 
-  if (Permissions.isDirector(user)) return departmentId === "BGD" && ["ALL_DEPARTMENT", "MANAGEMENT"].includes(audience);
-  if (Permissions.isDepartmentLeader(user) || Permissions.isDepartmentHead(user) || Permissions.isDepartmentDeputy(user)) {
+  if (departmentId === "BGD") return Permissions.isDirector(user) && ["ALL_DEPARTMENT", "MANAGEMENT"].includes(audience);
+
+  const authority = Permissions.authorityForDepartment(user, departmentId);
+  if (["HEAD", "DEPUTY"].includes(authority.authority)) {
     return ["ALL_DEPARTMENT", "MANAGEMENT"].includes(audience);
   }
 
@@ -80,8 +82,10 @@ function canViewItem(item, user = UserContext.requireUser()) {
   if (Permissions.canViewAllScopes()) return true;
   if (Permissions.canViewAllDepartments() && PROFESSIONAL_DEPARTMENT_IDS.includes(departmentId)) return true;
   if (departmentId === "CDTN") return canRegisterCdtnItem(item) || Permissions.isCdtnCatalogManager();
-  if (departmentId !== upper(user.departmentId)) return false;
-  if (Permissions.isDepartmentLeader()) return true;
+  if (!Permissions.canViewDepartmentScope(user, departmentId)) return false;
+
+  if (Permissions.hasActingHeadAuthority(user, departmentId) || Permissions.hasActingOversightAuthority(user, departmentId)) return true;
+  if (Permissions.isDepartmentLeader(user) && upper(user.departmentId) === departmentId) return true;
   return canRegisterItem(item, user);
 }
 
@@ -120,7 +124,6 @@ function sourceReferences() {
   }
 
   if (Permissions.isTchcDepartmentLeader()) {
-    // Trưởng/Phó TCHC xem toàn bộ danh mục chuyên môn; Chi đoàn chỉ tải nếu có additionalRoles phù hợp.
     const queries = [FirebaseService.query(
       reference,
       FirebaseService.where("departmentId", "in", PROFESSIONAL_DEPARTMENT_IDS),
@@ -138,18 +141,26 @@ function sourceReferences() {
   }
 
   const queries = [];
-  if (Permissions.isDepartmentLeader()) {
+  const viewDepartments = Permissions.getViewDepartmentIds(user)
+    .filter(id => id !== "ALL" && PROFESSIONAL_DEPARTMENT_IDS.includes(id));
+  const hasExpandedProfessionalScope = viewDepartments.length > 1
+    || (user.actingHeadDepartmentIds || []).length > 0
+    || (user.actingOversightDepartmentIds || []).length > 0;
+
+  if (hasExpandedProfessionalScope) {
+    // Tối đa 8 Phòng/Khu chuyên môn; phù hợp giới hạn toán tử `in` và tránh nhiều listener.
+    queries.push(FirebaseService.query(
+      reference,
+      FirebaseService.where("departmentId", "in", viewDepartments.slice(0, 10)),
+      FirebaseService.limit(2000)
+    ));
+  } else if (Permissions.isDepartmentLeader()) {
     queries.push(FirebaseService.query(
       reference,
       FirebaseService.where("departmentId", "==", upper(user.departmentId)),
       FirebaseService.limit(1000)
     ));
   } else {
-    /*
-     * Nhân viên đọc toàn bộ đầu việc ALL_DEPARTMENT của đúng đơn vị.
-     * isCoreTaskDefault chỉ là metadata KPI; isManagementTask là metadata tương thích cũ.
-     * Hai cờ này không được ghi đè audienceType và làm mất đầu việc của nhân viên.
-     */
     queries.push(FirebaseService.query(
       reference,
       FirebaseService.where("departmentId", "==", upper(user.departmentId)),
@@ -159,11 +170,7 @@ function sourceReferences() {
   }
 
   if (Permissions.isCdtnLeadership()) {
-    queries.push(FirebaseService.query(
-      reference,
-      FirebaseService.where("departmentId", "==", "CDTN"),
-      FirebaseService.limit(500)
-    ));
+    queries.push(FirebaseService.query(reference, FirebaseService.where("departmentId", "==", "CDTN"), FirebaseService.limit(500)));
   } else if (Permissions.isCdtnExecutiveMember()) {
     queries.push(audienceQuery(reference, "CDTN", "CDTN_EXECUTIVE"));
     queries.push(audienceQuery(reference, "CDTN", "CDTN_MEMBER"));
@@ -175,7 +182,7 @@ function sourceReferences() {
 
 function currentCacheKey() {
   const user = UserContext.requireUser();
-  return [user.uid, user.role, user.departmentId, ...(user.additionalRoles || [])].join("|");
+  return [user.uid, user.role, user.departmentId, ...(user.additionalRoles || []), ...(user.actingHeadDepartmentIds || []), ...(user.actingOversightDepartmentIds || [])].join("|");
 }
 
 async function readAllReferences(options = {}) {

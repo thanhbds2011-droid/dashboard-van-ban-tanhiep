@@ -1,8 +1,8 @@
 /** Đọc nhiệm vụ theo kỳ hiện hành, phạm vi tài khoản và bộ nhớ đệm ngắn. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260904.V1_22_7";
-import { UserContext } from "../core/user-context.js?v=20260904.V1_22_7";
-import { Permissions } from "../core/permissions.js?v=20260904.V1_22_7";
-import { PeriodReadService } from "./period-read-service.js?v=20260904.V1_22_7";
+import { FirebaseService } from "../core/firebase-service.js?v=20260904.V1_23_0";
+import { UserContext } from "../core/user-context.js?v=20260904.V1_23_0";
+import { Permissions } from "../core/permissions.js?v=20260904.V1_23_0";
+import { PeriodReadService } from "./period-read-service.js?v=20260904.V1_23_0";
 
 const TASK_CACHE_MS = 2 * 60 * 1000;
 const PROFESSIONAL_DEPARTMENT_IDS = Object.freeze(["BGD", "TCHC", "CTXH", "KHTC", "YT", "KI", "KII", "KIII"]);
@@ -64,7 +64,15 @@ function scopedReferences(periodId) {
 
   if (Permissions.isDepartmentLeader()) {
     const departmentId = user.departmentId;
+    const viewDepartments = Permissions.getViewDepartmentIds(user).filter(id => id && id !== "ALL").slice(0, 10);
+    const hasActingScope = viewDepartments.some(id => id !== departmentId);
     const references = [
+      ...(hasActingScope ? [FirebaseService.query(
+        reference,
+        periodFilter,
+        FirebaseService.where("primaryDepartmentId", "in", viewDepartments),
+        FirebaseService.limit(3000)
+      )] : []),
       FirebaseService.query(
         reference,
         periodFilter,
@@ -130,7 +138,7 @@ function scopedReferences(periodId) {
 
 function cacheKey(periodId) {
   const user = UserContext.requireUser();
-  return [user.uid, user.role, user.departmentId, periodId].join("|");
+  return [user.uid, user.role, user.departmentId, ...(user.actingHeadDepartmentIds || []), ...(user.actingOversightDepartmentIds || []), periodId].join("|");
 }
 
 async function runReference(reference) {

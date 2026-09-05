@@ -6,8 +6,9 @@
  * - send() chỉ xếp hàng gửi và trả về ngay. taskLogs/Apps Script bridge vẫn là lớp dự phòng.
  * - eventId ổn định khi sự kiện đã có taskLog để chống gửi trùng.
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260904.V1_22_7";
-import { NOTIFICATION_WEB_APP_URL } from "../notification-config.js?v=20260904.V1_22_7";
+import { FirebaseService } from "../core/firebase-service.js?v=20260904.V1_23_0";
+import { NOTIFICATION_WEB_APP_URL } from "../notification-config.js?v=20260904.V1_23_0";
+import { UserNotificationService } from "./user-notification-service.js?v=20260904.V1_23_0";
 
 function clean(value) { return String(value ?? "").trim(); }
 function buildEventId(action, taskId, eventId = "") {
@@ -57,14 +58,22 @@ export const TaskNotificationService = Object.freeze({
   async send(action, taskId, eventData = {}, options = {}) {
     const normalizedAction = clean(action).toUpperCase();
     const normalizedTaskId = clean(taskId);
-    if (!normalizedTaskId || !normalizedAction || !NOTIFICATION_WEB_APP_URL || NOTIFICATION_WEB_APP_URL.includes("DAN_LINK_WEB_APP")) {
-      return false;
-    }
+    if (!normalizedTaskId || !normalizedAction) return false;
+    const normalizedEventData = eventData && typeof eventData === "object" && !Array.isArray(eventData) ? eventData : {};
+    const eventId = buildEventId(normalizedAction, normalizedTaskId, options?.eventId);
+
+    // Notification Center là read-model trong Firestore và không phụ thuộc OneSignal/Apps Script.
+    // Không await: lỗi notification tuyệt đối không được chặn business write.
+    Promise.resolve()
+      .then(() => UserNotificationService.notifyTaskAction(normalizedAction, normalizedTaskId, normalizedEventData, eventId))
+      .catch(error => console.warn("Không tạo được thông báo trong ứng dụng; nghiệp vụ chính vẫn đã lưu:", error));
+
+    if (!NOTIFICATION_WEB_APP_URL || NOTIFICATION_WEB_APP_URL.includes("DAN_LINK_WEB_APP")) return true;
     enqueue({
       action: normalizedAction,
       taskId: normalizedTaskId,
-      eventData: eventData && typeof eventData === "object" && !Array.isArray(eventData) ? eventData : {},
-      eventId: buildEventId(normalizedAction, normalizedTaskId, options?.eventId)
+      eventData: normalizedEventData,
+      eventId
     });
     // Quan trọng: caller có await send() cũng không còn chờ getIdToken/fetch Apps Script.
     return true;

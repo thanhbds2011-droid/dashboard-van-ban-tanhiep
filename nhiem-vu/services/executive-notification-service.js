@@ -2,8 +2,8 @@
  * Thông báo riêng cho Chỉ đạo điều hành V1.11.1 - non-blocking dispatch.
  * Không dùng taskLogs, taskPushSubscriptions hoặc TaskNotificationService.
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260904.V1_22_7";
-import { EXECUTIVE_NOTIFICATION_WEB_APP_URL } from "../executive-notification-config.js?v=20260904.V1_22_7";
+import { FirebaseService } from "../core/firebase-service.js?v=20260904.V1_23_0";
+import { EXECUTIVE_NOTIFICATION_WEB_APP_URL } from "../executive-notification-config.js?v=20260904.V1_23_0";
 
 const LOGS = "executiveNotificationLogs";
 function clean(value) { return String(value ?? "").trim(); }

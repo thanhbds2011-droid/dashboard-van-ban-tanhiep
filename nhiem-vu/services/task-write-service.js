@@ -1,14 +1,14 @@
 /** Tạo, phân công, tiếp nhận, cập nhật tiến độ và hoàn thành nhiệm vụ. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260904.V1_22_7";
-import { UserContext } from "../core/user-context.js?v=20260904.V1_22_7";
-import { Permissions } from "../core/permissions.js?v=20260904.V1_22_7";
-import { TaskLogService } from "./task-log-service.js?v=20260904.V1_22_7";
-import { TaskWorkItemService } from "./task-work-item-service.js?v=20260904.V1_22_7";
-import { PeriodReadService } from "./period-read-service.js?v=20260904.V1_22_7";
-import { TaskNotificationService } from "./task-notification-service.js?v=20260904.V1_22_7";
-import { APP_VERSION, BUILD_VERSION } from "../core/app-version.js?v=20260904.V1_22_7";
-import { deadlineDateFromKey, isDateKey } from "../core/deadline-engine.js?v=20260904.V1_22_7";
-import { confirmWriteWithServerRecovery } from "./firestore-write-recovery.js?v=20260904.V1_22_7";
+import { FirebaseService } from "../core/firebase-service.js?v=20260904.V1_23_0";
+import { UserContext } from "../core/user-context.js?v=20260904.V1_23_0";
+import { Permissions } from "../core/permissions.js?v=20260904.V1_23_0";
+import { TaskLogService } from "./task-log-service.js?v=20260904.V1_23_0";
+import { TaskWorkItemService } from "./task-work-item-service.js?v=20260904.V1_23_0";
+import { PeriodReadService } from "./period-read-service.js?v=20260904.V1_23_0";
+import { TaskNotificationService } from "./task-notification-service.js?v=20260904.V1_23_0";
+import { APP_VERSION, BUILD_VERSION } from "../core/app-version.js?v=20260904.V1_23_0";
+import { deadlineDateFromKey, isDateKey } from "../core/deadline-engine.js?v=20260904.V1_23_0";
+import { confirmWriteWithServerRecovery } from "./firestore-write-recovery.js?v=20260904.V1_23_0";
 
 const TASK_WRITE_BUILD_VERSION = BUILD_VERSION;
 const MAX_CODE_SCAN = 1000;
@@ -469,9 +469,10 @@ export const TaskWriteService = Object.freeze({
     const user = UserContext.requireUser();
     const taskDepartmentId = normalizeDepartmentId(task?.primaryDepartmentId);
     const userDepartmentId = normalizeDepartmentId(user?.departmentId);
-    const mayAccept = Permissions.isDepartmentLeader()
-      && taskDepartmentId
-      && taskDepartmentId === userDepartmentId;
+    const mayAccept = Boolean(taskDepartmentId && (
+      (Permissions.isDepartmentLeader(user) && taskDepartmentId === userDepartmentId)
+      || Permissions.hasDirectHeadAuthorityForDepartment(user, taskDepartmentId)
+    ));
 
     if (!mayAccept) {
       throw new Error("Chỉ Trưởng/Phó Phòng/Khu phụ trách mới được xác nhận tiếp nhận nhiệm vụ.");
@@ -581,7 +582,7 @@ export const TaskWriteService = Object.freeze({
     const userDepartmentId = String(user?.departmentId || "").trim().toUpperCase();
     const delegatedTaskCreator = await hasTaskCreateDelegation(user, taskDepartmentId);
     /* System privilege ADMIN không thay business position khi phân công nhiệm vụ. */
-    const mayAssign = (Permissions.hasUnitApprovalAuthority(user) && taskDepartmentId === userDepartmentId)
+    const mayAssign = Permissions.hasDirectHeadAuthorityForDepartment(user, taskDepartmentId)
       || (delegatedTaskCreator && String(task?.createdByUserId || "").trim() === String(user.uid || "").trim());
 
     if (!mayAssign) {
