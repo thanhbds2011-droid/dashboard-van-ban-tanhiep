@@ -1,53 +1,42 @@
-import { UserContext } from "../../core/user-context.js?v=20260904.V1_22_7";
-import { Permissions } from "../../core/permissions.js?v=20260904.V1_22_7";
-import { ToastService } from "../../core/toast-service.js?v=20260904.V1_22_7";
-import { ModalService } from "../../core/modal-service.js?v=20260904.V1_22_7";
-import { AdminReadService } from "../../services/admin-read-service.js?v=20260904.V1_22_7";
-import { AdminMaintenanceService } from "../../services/admin-maintenance-service.js?v=20260904.V1_22_7";
+import { UserContext } from "../../core/user-context.js?v=20260904.V1_23_0";
+import { Permissions } from "../../core/permissions.js?v=20260904.V1_23_0";
+import { ToastService } from "../../core/toast-service.js?v=20260904.V1_23_0";
+import { ModalService } from "../../core/modal-service.js?v=20260904.V1_23_0";
+import { AdminReadService } from "../../services/admin-read-service.js?v=20260904.V1_23_0";
+import { AdminMaintenanceService } from "../../services/admin-maintenance-service.js?v=20260904.V1_23_0";
 
 let currentDiagnostic = null;
 
 export async function renderAdminView(outlet) {
   const user = UserContext.requireUser();
   if (!Permissions.isAdmin()) return renderDenied(outlet, user);
-  outlet.innerHTML = loadingCard("Đang kiểm tra dữ liệu production…");
-  try {
-    currentDiagnostic = await AdminReadService.diagnostics();
-    render(outlet, user, currentDiagnostic);
-    bindActions(outlet, user);
-  } catch (error) {
-    outlet.innerHTML = errorCard("Không thể tải dữ liệu quản trị", error);
-  }
+  // V1.23.0: mở Quản trị không tự quét toàn bộ collection. Chẩn đoán chỉ chạy khi người dùng yêu cầu.
+  currentDiagnostic = null;
+  render(outlet, user, null);
+  bindActions(outlet, user);
 }
 
-function render(outlet, user, diagnostic) {
-  const counts = diagnostic.counts || {};
-  const errors = diagnostic.issues.filter(item => item.level === "ERROR").length;
-  const repairable = diagnostic.repairableTaskIds.length;
-  const warnings = diagnostic.issues.filter(item => item.level === "WARNING").length;
+function render(outlet, user, diagnostic = null) {
+  const repairable = diagnostic?.repairableTaskIds?.length || 0;
+  const diagnosticBlock = diagnostic
+    ? `${diagnostic.unavailable?.length ? `<div class="warning-banner">Không đọc được: ${diagnostic.unavailable.map(escapeHtml).join(", ")}.</div>` : ""}
+       ${issueTable(diagnostic.issues || [])}
+       <p class="helper-text">Kiểm tra lúc ${escapeHtml(diagnostic.checkedAt?.toLocaleString?.("vi-VN") || "vừa xong")}. Không có thao tác sửa nào chạy tự động.</p>`
+    : `<div class="admin-correction-preview"><strong>Chưa chạy chẩn đoán.</strong> Bấm “Kiểm tra lại dữ liệu” khi cần quét cấu trúc production. Việc mở màn hình Quản trị không phát sinh lượt đọc chẩn đoán tự động.</div>`;
+
   outlet.innerHTML = `<section class="page-card">
-    <div class="page-header"><div><h2>Quản trị hệ thống</h2><p>Chẩn đoán dữ liệu, nhật ký và bảo trì có kiểm soát.</p></div><span class="role-badge">ADMIN · V1.22.7</span></div>
+    <div class="page-header"><div><h2>Quản trị hệ thống</h2><p>Công cụ quản trị và bảo trì có kiểm soát.</p></div><span class="role-badge">ADMIN · V1.23.0</span></div>
     <div class="success-banner">Tài khoản <strong>${escapeHtml(user.fullName || user.email)}</strong> đang thao tác trong phạm vi quản trị.</div>
-    <div class="summary-grid compact-grid">
-      ${metric("Tài khoản hoạt động", counts.users ?? "—")}
-      ${metric("Đầu việc chuẩn", counts.standardTasks ?? "—")}
-      ${metric("Nhiệm vụ trong Firestore", counts.tasks ?? "—")}
-      ${metric("Kỳ đánh giá", counts.evaluationPeriods ?? "—")}
-      ${metric("Lỗi cần xử lý", errors)}
-      ${metric("Cảnh báo", warnings)}
-    </div>
     <div class="admin-tools-grid">
       <a class="admin-action-card" href="#/kpi/periods"><span>🗓️</span><strong>Quản lý kỳ đánh giá</strong><small>Tạo, kích hoạt, kết thúc và lưu trữ kỳ.</small></a>
-      <button id="btnAdminCheckData" class="admin-action-card" type="button"><span>🔍</span><strong>Kiểm tra lại dữ liệu</strong><small>Quét lại các collection nền theo quyền ADMIN.</small></button>
+      <button id="btnAdminCheckData" class="admin-action-card" type="button"><span>🔍</span><strong>Kiểm tra lại dữ liệu</strong><small>Chỉ quét collection khi ADMIN chủ động yêu cầu.</small></button>
       <button id="btnAdminAudit" class="admin-action-card" type="button"><span>📜</span><strong>Nhật ký hệ thống</strong><small>Xem taskLogs và kpiAuditLogs mới nhất.</small></button>
-      <button id="btnAdminRepair" class="admin-action-card${repairable ? " warning" : ""}" type="button" ${repairable ? "" : "disabled"}><span>🧰</span><strong>Chuẩn hóa phạm vi nhiệm vụ</strong><small>${repairable ? `${repairable} nhiệm vụ có thể sửa tự động.` : "Không có nhiệm vụ cần sửa."}</small></button>
+      <button id="btnAdminRepair" class="admin-action-card${repairable ? " warning" : ""}" type="button" ${repairable ? "" : "disabled"}><span>🧰</span><strong>Chuẩn hóa phạm vi nhiệm vụ</strong><small>${diagnostic ? (repairable ? `${repairable} nhiệm vụ có thể sửa tự động.` : "Không có nhiệm vụ cần sửa.") : "Chạy Kiểm tra lại dữ liệu trước khi sử dụng."}</small></button>
       <button id="btnAdminCorrection" class="admin-action-card warning" type="button"><span>🛠️</span><strong>Sửa sai dữ liệu KPI</strong><small>Hủy/mở lại theo trạng thái, luôn giữ lịch sử và minh chứng.</small></button>
       <button id="btnAdminEventDrivenReset" class="admin-action-card warning" type="button"><span>↩️</span><strong>Mở lại → Khi phát sinh</strong><small>Chỉ ADMIN: mở lại đăng ký recurring sạch, giữ nội dung và hủy mềm task cũ.</small></button>
       <button id="btnAdminCleanup" class="admin-action-card danger" type="button"><span>🗄️</span><strong>Lưu trữ và dọn kỳ</strong><small>Thực hiện tại phân hệ KPI sau khi có tệp Drive và SHA-256.</small></button>
     </div>
-    ${diagnostic.unavailable.length ? `<div class="warning-banner">Không đọc được: ${diagnostic.unavailable.map(escapeHtml).join(", ")}.</div>` : ""}
-    ${issueTable(diagnostic.issues)}
-    <p class="helper-text">Kiểm tra lúc ${escapeHtml(diagnostic.checkedAt.toLocaleString("vi-VN"))}. Không có thao tác sửa nào chạy tự động.</p>
+    ${diagnosticBlock}
   </section>`;
 }
 
