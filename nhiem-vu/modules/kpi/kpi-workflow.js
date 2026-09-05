@@ -1,27 +1,28 @@
-import { auth, db } from '../../firebase-config.js?v=20260904.V1_22_7';
+import { auth, db } from '../../firebase-config.js?v=20260904.V1_23_0';
 import {
   addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, onSnapshot, query,
   serverTimestamp, setDoc, Timestamp, updateDoc, where, limit, writeBatch
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
-import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260904.V1_22_7';
-import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260904.V1_22_7';
-import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260904.V1_22_7';
-import { TaskEvidenceService } from '../../services/task-evidence-service.js?v=20260904.V1_22_7';
-import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260904.V1_22_7';
-import { PeriodReadService } from '../../services/period-read-service.js?v=20260904.V1_22_7';
-import { TaskReadService } from '../../services/task-read-service.js?v=20260904.V1_22_7';
-import { Permissions } from '../../core/permissions.js?v=20260904.V1_22_7';
-import { UserContext } from '../../core/user-context.js?v=20260904.V1_22_7';
-import { APP_VERSION } from '../../core/app-version.js?v=20260904.V1_22_7';
-import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260904.V1_22_7';
-import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260904.V1_22_7';
+import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260904.V1_23_0';
+import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260904.V1_23_0';
+import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260904.V1_23_0';
+import { TaskEvidenceService } from '../../services/task-evidence-service.js?v=20260904.V1_23_0';
+import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260904.V1_23_0';
+import { PeriodReadService } from '../../services/period-read-service.js?v=20260904.V1_23_0';
+import { TaskReadService } from '../../services/task-read-service.js?v=20260904.V1_23_0';
+import { Permissions } from '../../core/permissions.js?v=20260904.V1_23_0';
+import { UserContext } from '../../core/user-context.js?v=20260904.V1_23_0';
+import { APP_VERSION } from '../../core/app-version.js?v=20260904.V1_23_0';
+import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260904.V1_23_0';
+import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260904.V1_23_0';
 import {
   KPI2B as KPI2C, M01_GROUPS, COMMON_CRITERIA, commonCriteriaForProfile, reportFormTypeForProfile, calculateTaskScore, calculateKpiSummary,
   proposedRating, resolveQualityRating, ratingName, round2, progressRateFromDates, convertAppendix04Rate, calculateMilestoneProgress, calculateBonusScore
-} from '../../kpi-engine.js?v=20260904.V1_22_7';
-import { resolveKpiReviewer, canReviewKpiOwner } from '../../core/kpi-review-authority.js?v=20260904.V1_22_7';
-import { ModalService } from '../../core/modal-service.js?v=20260904.V1_22_7';
-import { exportFormattedKpiWorkbook } from '../../services/xlsx-export-service.js?v=20260904.V1_22_7';
+} from '../../kpi-engine.js?v=20260904.V1_23_0';
+import { resolveKpiReviewer, canReviewKpiOwner } from '../../core/kpi-review-authority.js?v=20260904.V1_23_0';
+import { ModalService } from '../../core/modal-service.js?v=20260904.V1_23_0';
+import { exportFormattedKpiWorkbook, exportProductCatalogWorkbook } from '../../services/xlsx-export-service.js?v=20260904.V1_23_0';
+import { exportDomToDocx } from '../../services/docx-export-service.js?v=20260904.V1_23_0';
 
 export const KpiWorkflowState = {
   user: null,
@@ -317,13 +318,19 @@ function kpiRealtimeScope() {
     && managerHomeDepartmentId
     && managerHomeDepartmentId !== 'CDTN'
     && (departmentId === managerHomeDepartmentId || (departmentId === 'ALL' && globalRole()));
-  const taskDepartmentScope = departmentId !== 'ALL' && (globalRole() || cdtnDepartmentScope || isDepartmentHead() || reportDepartmentScope
+  const actingViewScope = departmentId !== 'ALL' && departmentId !== 'CDTN'
+    && Permissions.canViewDepartmentScope(KpiWorkflowState.profile, departmentId)
+    && departmentId !== managerHomeDepartmentId;
+  const actingApprovalScope = departmentId !== 'ALL' && departmentId !== 'CDTN'
+    && Permissions.hasHeadAuthorityForDepartment(KpiWorkflowState.profile, departmentId);
+  const primaryHeadScope = isDepartmentHead() && departmentId === managerHomeDepartmentId;
+  const taskDepartmentScope = departmentId !== 'ALL' && (globalRole() || cdtnDepartmentScope || primaryHeadScope || actingViewScope || reportDepartmentScope
     || hasActiveApprovalDelegation('APPROVE_REGISTRATIONS', departmentId)
     || hasActiveApprovalDelegation('CONFIRM_EVALUATIONS', departmentId)
     || hasActiveApprovalDelegation('LOCK_PLAN', departmentId));
-  const registrationDepartmentScope = departmentId !== 'ALL' && (globalRole() || cdtnDepartmentScope || isDepartmentHead() || reportDepartmentScope
+  const registrationDepartmentScope = departmentId !== 'ALL' && (globalRole() || cdtnDepartmentScope || primaryHeadScope || actingApprovalScope || reportDepartmentScope
     || hasActiveApprovalDelegation('APPROVE_REGISTRATIONS', departmentId));
-  const evaluationDepartmentScope = departmentId !== 'ALL' && (globalRole() || cdtnDepartmentScope || isDepartmentHead() || reportDepartmentScope
+  const evaluationDepartmentScope = departmentId !== 'ALL' && (globalRole() || cdtnDepartmentScope || primaryHeadScope || actingViewScope || reportDepartmentScope
     || hasActiveApprovalDelegation('CONFIRM_EVALUATIONS', departmentId));
   const combinedDepartmentReportScope = KpiWorkflowState.mode === 'reports'
     && departmentId !== 'ALL' && departmentId !== 'CDTN' && taskDepartmentScope;
@@ -520,7 +527,12 @@ const normalizeUserRecord = (data = {}, documentId = '') => {
     departmentId: normalizeDepartment(data.departmentId),
     position: clean(data.position),
     leaderLevel: clean(data.leaderLevel).toUpperCase(),
+    approvalAuthority: clean(data.approvalAuthority).toUpperCase(),
+    approvalAuthorityPresent: Object.prototype.hasOwnProperty.call(data || {}, 'approvalAuthority'),
+    isDepartmentHead: typeof data.isDepartmentHead === 'boolean' ? data.isDepartmentHead : null,
     additionalRoles: Array.isArray(data.additionalRoles) ? data.additionalRoles.map(role => clean(role).toUpperCase()) : [],
+    actingHeadDepartmentIds: Array.isArray(data.actingHeadDepartmentIds) ? data.actingHeadDepartmentIds.map(normalizeDepartment).filter(Boolean) : [],
+    actingOversightDepartmentIds: Array.isArray(data.actingOversightDepartmentIds) ? data.actingOversightDepartmentIds.map(normalizeDepartment).filter(Boolean) : [],
     cdtnRole: clean(data.cdtnRole).toUpperCase(),
     cdtnRoleLabel: clean(data.cdtnRoleLabel),
     active: data.active === true
@@ -642,6 +654,8 @@ function activeScopeDepartmentId() {
     return globalRole() ? 'ALL' : profileDepartmentId();
   }
   if (globalRole()) return selected || 'ALL';
+  const allowed = Permissions.getViewDepartmentIds(KpiWorkflowState.profile).filter(id => id && id !== 'ALL');
+  if (selected && allowed.includes(selected)) return selected;
   return profileDepartmentId();
 }
 
@@ -660,8 +674,32 @@ function sameDepartment(data) {
 function registrationInApproverDepartment(registration) {
   const departmentId = normalizeDepartment(registration?.departmentId);
   if (!departmentId) return false;
-  if (departmentId === 'CDTN') return true;
-  return departmentId === profileDepartmentId();
+  if (departmentId === 'CDTN') return Permissions.isCdtnMember();
+  if (departmentId === 'BGD') return Permissions.isDirector();
+  return Permissions.getApprovalDepartmentIds(KpiWorkflowState.profile).includes(departmentId);
+}
+
+async function loadDepartmentAuthorityUsers(departmentId) {
+  const target = normalizeDepartment(departmentId);
+  if (!target || target === 'ALL') return [];
+  try {
+    const directorySnapshot = await getDoc(doc(db, 'departmentAuthorities', target));
+    if (!directorySnapshot.exists()) return [];
+    const data = directorySnapshot.data() || {};
+    const ids = [...new Set([
+      ...(Array.isArray(data.approvalUserIds) ? data.approvalUserIds : []),
+      ...(Array.isArray(data.notificationRecipientUserIds) ? data.notificationRecipientUserIds : [])
+    ].map(clean).filter(Boolean))].slice(0, 20);
+    if (!ids.length) return [];
+    const results = await Promise.allSettled(ids.map(id => getDoc(doc(db, 'users', id))));
+    return results
+      .filter(result => result.status === 'fulfilled' && result.value?.exists?.())
+      .map(result => normalizeUserRecord(result.value.data(), result.value.id))
+      .filter(user => user.active === true);
+  } catch (error) {
+    if (!isPermissionDeniedError(error)) console.warn('Không tải được danh bạ authority Phòng/Khu:', error);
+    return [];
+  }
 }
 
 function departmentHasActiveHead(departmentId) {
@@ -710,7 +748,7 @@ function canApproveRegistration(registration) {
     && ownerIsHead;
   if (directorFallback) return true;
 
-  const delegated = hasActiveApprovalDelegation('APPROVE_REGISTRATIONS', profileDepartmentId());
+  const delegated = hasActiveApprovalDelegation('APPROVE_REGISTRATIONS', registrationDepartmentId);
   if (ownerIsHead) return false;
   if (ownerIsDeputy) {
     return Permissions.canApproveRegistrationForDepartment(registrationDepartmentId, delegated)
@@ -723,7 +761,8 @@ function canApproveRegistration(registration) {
 }
 
 function canViewDepartmentData() {
-  const reportScope = KpiWorkflowState.mode === 'reports' && isLeader();
+  const target = activeScopeDepartmentId();
+  const reportScope = KpiWorkflowState.mode === 'reports' && isLeader() && Permissions.canViewDepartmentScope(KpiWorkflowState.profile, target);
   if (isCdtnScope()) {
     return fullScopeRole()
       || Permissions.isCdtnLeadership()
@@ -732,11 +771,11 @@ function canViewDepartmentData() {
       || hasActiveApprovalDelegation('LOCK_PLAN', 'CDTN');
   }
   return globalRole()
-    || isDepartmentHead()
+    || Permissions.hasHeadAuthorityForDepartment(KpiWorkflowState.profile, target)
     || reportScope
-    || hasActiveApprovalDelegation('APPROVE_REGISTRATIONS', profileDepartmentId())
-    || hasActiveApprovalDelegation('CONFIRM_EVALUATIONS', profileDepartmentId())
-    || hasActiveApprovalDelegation('LOCK_PLAN', profileDepartmentId());
+    || hasActiveApprovalDelegation('APPROVE_REGISTRATIONS', target)
+    || hasActiveApprovalDelegation('CONFIRM_EVALUATIONS', target)
+    || hasActiveApprovalDelegation('LOCK_PLAN', target);
 }
 
 function canViewDepartmentReport() {
@@ -751,10 +790,12 @@ function canViewDepartmentReport() {
 
 function planManagementDepartmentId() {
   if (isCdtnScope()) return 'CDTN';
-  // V1.21.1: Trưởng/Phụ trách khóa đúng Phòng/Khu của mình, kể cả khi đang xem Toàn Trung tâm.
+  const target = activeScopeDepartmentId();
+  // V1.23.0: direct acting HEAD khóa đúng target scope; oversight chỉ xem/duyệt, không khóa kế hoạch.
+  if (Permissions.hasDirectHeadAuthorityForDepartment(KpiWorkflowState.profile, target)) return target;
   if (isDepartmentHead()) return profileDepartmentId();
   if (!globalRole()) return profileDepartmentId();
-  return activeScopeDepartmentId();
+  return target;
 }
 
 function canLockPlan() {
@@ -763,9 +804,11 @@ function canLockPlan() {
       || Permissions.isCdtnLeadership()
       || hasActiveApprovalDelegation('LOCK_PLAN', 'CDTN');
   }
-  return Permissions.canLockDepartmentPlan(
-    hasActiveApprovalDelegation('LOCK_PLAN', profileDepartmentId())
-  );
+  const target = activeScopeDepartmentId();
+  return Permissions.hasDirectHeadAuthorityForDepartment(KpiWorkflowState.profile, target)
+    || (Permissions.isDepartmentDeputy(KpiWorkflowState.profile)
+      && target === profileDepartmentId()
+      && hasActiveApprovalDelegation('LOCK_PLAN', target));
 }
 
 function canConfirmEvaluations() {
@@ -774,9 +817,12 @@ function canConfirmEvaluations() {
       || hasActiveApprovalDelegation('CONFIRM_EVALUATIONS', 'CDTN')
       || directorApprovalAvailable('CONFIRM_EVALUATIONS');
   }
-  return Permissions.canConfirmEvaluations(
-    hasActiveApprovalDelegation('CONFIRM_EVALUATIONS', profileDepartmentId())
-  );
+  const target = activeScopeDepartmentId();
+  return Permissions.hasDirectHeadAuthorityForDepartment(KpiWorkflowState.profile, target)
+    || (Permissions.isDepartmentDeputy(KpiWorkflowState.profile)
+      && target === profileDepartmentId()
+      && hasActiveApprovalDelegation('CONFIRM_EVALUATIONS', target))
+    || directorApprovalAvailable('CONFIRM_EVALUATIONS');
 }
 
 function canApproveDepartmentPlanTask(task) {
@@ -784,9 +830,10 @@ function canApproveDepartmentPlanTask(task) {
     ? Permissions.canApproveCdtnRegistrations(
       hasActiveApprovalDelegation('APPROVE_REGISTRATIONS', 'CDTN')
     )
-    : Permissions.canApproveStaffRegistrations(
-      hasActiveApprovalDelegation('APPROVE_REGISTRATIONS', profileDepartmentId())
-    );
+    : (Permissions.hasHeadAuthorityForDepartment(KpiWorkflowState.profile, activeScopeDepartmentId())
+      || (Permissions.isDepartmentDeputy(KpiWorkflowState.profile)
+        && activeScopeDepartmentId() === profileDepartmentId()
+        && hasActiveApprovalDelegation('APPROVE_REGISTRATIONS', activeScopeDepartmentId())));
   return Boolean(
     task &&
     hasPermission &&
@@ -877,12 +924,13 @@ function renderManagementToolbar() {
       { value: 'ALL', label: 'Toàn Trung tâm' },
       ...departments.map(departmentId => ({ value: departmentId, label: departmentDisplayName(departmentId) }))
     ], selectedScope));
-  } else if (Permissions.isCdtnMember()) {
-    const options = [
-      { value: profileDepartmentId(), label: departmentDisplayName(profileDepartmentId()) },
-      { value: 'CDTN', label: 'Chi đoàn Trung tâm' }
-    ];
-    parts.push(scopeSwitchHtml(options, selectedScope));
+  } else {
+    const viewDepartments = Permissions.getViewDepartmentIds(KpiWorkflowState.profile).filter(id => id && id !== 'ALL');
+    if (viewDepartments.length > 1 || Permissions.isCdtnMember()) {
+      const options = viewDepartments.map(value => ({ value, label: departmentDisplayName(value) }));
+      if (Permissions.isCdtnMember()) options.push({ value: 'CDTN', label: 'Chi đoàn Trung tâm' });
+      parts.push(scopeSwitchHtml(options, selectedScope));
+    }
   }
 
   if (
@@ -1231,13 +1279,19 @@ async function loadAll() {
     const cdtnDepartmentScope = departmentId === 'CDTN' && canManageCdtnWorkspace();
     const cdtnAggregateScope = departmentId === 'CDTN' && (fullScopeRole() || cdtnDepartmentScope);
     const reportDepartmentScope = departmentId !== 'CDTN' && departmentId !== 'ALL' && KpiWorkflowState.mode === 'reports' && isLeader();
-    const taskDepartmentScope = departmentId !== 'ALL' && (globalRole() || cdtnDepartmentScope || isDepartmentHead() || reportDepartmentScope
+    const actingViewScope = departmentId !== 'ALL' && departmentId !== 'CDTN'
+      && Permissions.canViewDepartmentScope(KpiWorkflowState.profile, departmentId)
+      && departmentId !== homeDepartmentId;
+    const actingApprovalScope = departmentId !== 'ALL' && departmentId !== 'CDTN'
+      && Permissions.hasHeadAuthorityForDepartment(KpiWorkflowState.profile, departmentId);
+    const primaryHeadScope = isDepartmentHead() && departmentId === homeDepartmentId;
+    const taskDepartmentScope = departmentId !== 'ALL' && (globalRole() || cdtnDepartmentScope || primaryHeadScope || actingViewScope || reportDepartmentScope
       || hasActiveApprovalDelegation('APPROVE_REGISTRATIONS', departmentId)
       || hasActiveApprovalDelegation('CONFIRM_EVALUATIONS', departmentId)
       || hasActiveApprovalDelegation('LOCK_PLAN', departmentId));
-    const registrationDepartmentScope = departmentId !== 'ALL' && (globalRole() || cdtnDepartmentScope || isDepartmentHead() || reportDepartmentScope
+    const registrationDepartmentScope = departmentId !== 'ALL' && (globalRole() || cdtnDepartmentScope || primaryHeadScope || actingApprovalScope || reportDepartmentScope
       || hasActiveApprovalDelegation('APPROVE_REGISTRATIONS', departmentId));
-    const evaluationDepartmentScope = departmentId !== 'ALL' && (globalRole() || cdtnDepartmentScope || isDepartmentHead() || reportDepartmentScope
+    const evaluationDepartmentScope = departmentId !== 'ALL' && (globalRole() || cdtnDepartmentScope || primaryHeadScope || actingViewScope || reportDepartmentScope
       || hasActiveApprovalDelegation('CONFIRM_EVALUATIONS', departmentId));
     const userDepartmentScope = taskDepartmentScope || registrationDepartmentScope || evaluationDepartmentScope;
     const managerHomeDepartmentId = profileDepartmentId();
@@ -1397,8 +1451,18 @@ async function loadAll() {
     if (!KpiWorkflowState.users.some(item => item.id === KpiWorkflowState.user.uid)) {
       KpiWorkflowState.users.push(normalizeUserRecord(KpiWorkflowState.profile, KpiWorkflowState.user.uid));
     }
+
+    // V1.23.0: người duyệt acting/oversight có departmentId chính ở đơn vị khác; nạp tối đa
+    // vài profile authority từ directory thay vì query toàn bộ ~140 users.
+    if (departmentId && departmentId !== 'ALL' && departmentId !== 'CDTN') {
+      const authorityUsers = await loadDepartmentAuthorityUsers(departmentId);
+      authorityUsers.forEach(authorityUser => {
+        if (!KpiWorkflowState.users.some(existing => existing.id === authorityUser.id)) KpiWorkflowState.users.push(authorityUser);
+      });
+    }
+
     // V1.18.0: Trưởng Phòng/Khu và Bí thư cần biết Giám đốc để định tuyến hồ sơ tự chấm lên đúng cấp.
-    if ((isDepartmentHead() || Permissions.isCdtnSecretary()) && !KpiWorkflowState.users.some(item => normalizeDepartment(item.departmentId) === 'BGD')) {
+    if ((isDepartmentHead() || Permissions.hasDirectHeadAuthorityForDepartment(KpiWorkflowState.profile, departmentId) || Permissions.isCdtnSecretary()) && !KpiWorkflowState.users.some(item => normalizeDepartment(item.departmentId) === 'BGD')) {
       try {
         const bgdSnapshot = await getDocs(query(collection(db, 'users'), where('departmentId', '==', 'BGD'), limit(20)));
         bgdSnapshot.docs.forEach(item => {
@@ -2572,7 +2636,19 @@ async function openProductCatalog(userId = KpiWorkflowState.user.uid) {
     return `<tr><td>${index+1}</td><td>${esc(task.title || task.standardTaskName || '')}</td><td>${esc(task.description || task.outputRequirement || task.standardTaskOutputRequirement || '')}</td><td>${esc(deadlineLabel)}</td><td>${esc(clean(task.workType).toUpperCase()==='DOT_XUAT'?'Đột xuất':'Thường xuyên')}</td><td>${fmt(task.baseScore)}</td><td>${coefficientPercent(task.difficultyCoefficient)}</td><td>${fmt(task.maximumConvertedScore)}</td><td>${esc(task.standardTaskMandatoryEvidence || task.mandatoryEvidence || '—')}</td></tr>`;
   }).join('');
   const title = productCatalogPeriodTitle(KpiWorkflowState.period, departmentName);
-  modal('Danh mục sản phẩm cá nhân', `<div id="kpiProductCatalogPrint" class="kpi-product-report kpi-report-print"><div class="m01-top kpi-product-official-header"><div class="m01-agency"><strong>SỞ Y TẾ<br>THÀNH PHỐ HỒ CHÍ MINH<br>TRUNG TÂM BẢO TRỢ XÃ HỘI TÂN HIỆP</strong></div><div class="m01-national"><strong>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</strong><div class="m01-motto"><strong>Độc lập - Tự do - Hạnh phúc</strong></div></div></div><div class="kpi-product-heading"><h2>${esc(title)}</h2><p><strong>Họ và tên:</strong> ${esc(user.fullName || '')}</p><p><strong>Chức vụ:</strong> ${esc(userPositionWithDepartment(user))}</p></div><div class="kpi-table-wrap"><table class="kpi-report-table kpi-product-table"><thead><tr><th>TT</th><th>Tên công việc</th><th>Kết quả đầu ra</th><th>Thời hạn hoàn thành</th><th>Loại công việc</th><th>Điểm chuẩn</th><th>Hệ số độ khó</th><th>Điểm quy đổi tối đa</th><th>Minh chứng</th></tr></thead><tbody>${rows || '<tr><td colspan="9">Chưa có nhiệm vụ được duyệt.</td></tr>'}</tbody></table></div><div class="kpi-product-totals"><p><strong>Tổng số nhiệm vụ thực hiện trong kỳ:</strong> ${tasks.length}</p><p><strong>Tổng số nhiệm vụ vượt tiến độ/chất lượng:</strong> ${exceededSummaryForUser(userId,{officialOnly:true}).exceededTasks}</p></div><div class="kpi-product-signatures"><div><strong>XÁC NHẬN CỦA LÃNH ĐẠO, ĐƠN VỊ</strong><br><em>(Ký, ghi rõ họ tên)</em><div class="kpi-signature-space"></div></div><div><strong>NGƯỜI LẬP DANH MỤC SẢN PHẨM</strong><br><em>(Ký, ghi rõ họ tên)</em><div class="kpi-signature-space"></div><strong>${esc(user.fullName || '')}</strong></div></div></div>`, '<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button><button id="kpiPrintProductCatalog" class="kpi-button" type="button">🖨️ In danh mục</button>');
+  const exceededCount = exceededSummaryForUser(userId,{officialOnly:true}).exceededTasks;
+  modal('Danh mục sản phẩm cá nhân', `<div id="kpiProductCatalogPrint" class="kpi-product-report kpi-report-print"><div class="m01-top kpi-product-official-header"><div class="m01-agency"><strong>SỞ Y TẾ<br>THÀNH PHỐ HỒ CHÍ MINH<br>TRUNG TÂM BẢO TRỢ XÃ HỘI TÂN HIỆP</strong></div><div class="m01-national"><strong>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</strong><div class="m01-motto"><strong>Độc lập - Tự do - Hạnh phúc</strong></div></div></div><div class="kpi-product-heading"><h2>${esc(title)}</h2><p><strong>Họ và tên:</strong> ${esc(user.fullName || '')}</p><p><strong>Chức vụ:</strong> ${esc(userPositionWithDepartment(user))}</p></div><div class="kpi-table-wrap"><table class="kpi-report-table kpi-product-table"><thead><tr><th>TT</th><th>Tên công việc</th><th>Kết quả đầu ra</th><th>Thời hạn hoàn thành</th><th>Loại công việc</th><th>Điểm chuẩn</th><th>Hệ số độ khó</th><th>Điểm quy đổi tối đa</th><th>Minh chứng</th></tr></thead><tbody>${rows || '<tr><td colspan="9">Chưa có nhiệm vụ được duyệt.</td></tr>'}</tbody></table></div><div class="kpi-product-totals"><p><strong>Tổng số nhiệm vụ thực hiện trong kỳ:</strong> ${tasks.length}</p><p><strong>Tổng số nhiệm vụ vượt tiến độ/chất lượng:</strong> ${exceededCount}</p></div><div class="kpi-product-signatures"><div><strong>XÁC NHẬN CỦA LÃNH ĐẠO, ĐƠN VỊ</strong><br><em>(Ký, ghi rõ họ tên)</em><div class="kpi-signature-space"></div></div><div><strong>NGƯỜI LẬP DANH MỤC SẢN PHẨM</strong><br><em>(Ký, ghi rõ họ tên)</em><div class="kpi-signature-space"></div><strong>${esc(user.fullName || '')}</strong></div></div></div>`, '<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button><button id="kpiExportProductCatalogXlsx" class="kpi-button secondary" type="button">📊 Xuất Excel (.xlsx)</button><button id="kpiPrintProductCatalog" class="kpi-button" type="button">🖨️ In danh mục</button>');
+  el('kpiExportProductCatalogXlsx')?.addEventListener('click',()=>{
+    const periodLabel = clean(KpiWorkflowState.period?.name || KpiWorkflowState.period?.id || '');
+    const safeDepartment = normalizeDepartment(user.departmentId) || 'DON_VI';
+    exportProductCatalogWorkbook({
+      fileName:`Danh_muc_san_pham_${KpiWorkflowState.period?.id || 'ky'}_${safeDepartment}_${clean(user.fullName || 'ca_nhan')}.xlsx`,
+      sheetName:'Danh mục sản phẩm', periodLabel, employeeName:clean(user.fullName || ''),
+      employeePosition:userPositionWithDepartment(user), departmentName,
+      rows:tasks.map((task,index)=>({index:index+1,taskCode:task.taskCode||'',title:task.title||task.standardTaskName||'',outputRequirement:task.description||task.outputRequirement||task.standardTaskOutputRequirement||'',deadlineLabel:productCatalogDeadlineLabel(task),workTypeLabel:clean(task.workType).toUpperCase()==='DOT_XUAT'?'Đột xuất':'Thường xuyên',baseScore:Number(task.baseScore||0),coefficientLabel:coefficientPercent(task.difficultyCoefficient),maximumConvertedScore:Number(task.maximumConvertedScore||0),evidence:task.standardTaskMandatoryEvidence||task.mandatoryEvidence||'—'})),
+      exceededCount
+    });
+  });
   el('kpiPrintProductCatalog')?.addEventListener('click',()=>window.print());
 }
 
@@ -3957,12 +4033,21 @@ async function openReport() {
   const reportScoreSummary = scorecardSummaryData(KpiWorkflowState.user.uid, s);
   const excelHtml = `<div id="kpiExcelPreview" class="kpi-hidden"><div class="kpi-score-state ${scoreState.className}" data-kpi-report-score-state="excel"><span class="kpi-score-state-icon">${scoreState.code === 'OFFICIAL' ? '✓' : '✎'}</span><div><strong>${esc(scoreState.label)}</strong><span>${esc(scoreState.detail)}</span></div></div><div class="kpi-scorecard-desktop"><div class="kpi-table-wrap"><table class="kpi-table kpi-wide-table"><thead><tr><th>STT</th><th>Tên công việc</th><th>Điểm chuẩn</th><th>Hệ số độ khó</th><th>Điểm quy đổi tối đa</th><th>Tiến độ</th><th>Kết quả</th><th>Điểm thực hiện</th><th>Điểm quy đổi thực tế</th><th>Vượt yêu cầu</th><th>Minh chứng</th></tr></thead><tbody>${mine.map((t, i) => { const evaluation=evaluationFor(t.id); const applied=evaluationScoreSnapshot(evaluation); return `<tr><td>${i + 1}</td><td><strong>${esc(t.taskCode || '')}</strong><br>${esc(t.title)}</td><td>${fmt(t.baseScore)}</td><td>${coefficientPercent(t.difficultyCoefficient)}</td><td>${fmt(t.maximumConvertedScore)}</td><td>${applied.progressRate ?? ''}${applied.progressRate !== null ? '%' : ''}</td><td>${applied.resultRate ?? ''}${applied.resultRate !== null ? '%' : ''}</td><td>${applied.hasScore ? fmt(applied.executionScore) : ''}</td><td><strong>${applied.hasScore ? fmt(applied.convertedActualScore) : ''}</strong></td><td class="m01-center">${esc(scorecardExceededLabel(evaluation))}</td><td>${evidenceCellHtml(evidenceMap.get(t.id) || [], t)}</td></tr>`; }).join('')}</tbody></table>${scorecardSummaryTableHtml(reportScoreSummary)}</div></div><div class="kpi-scorecard-mobile">${mine.map(t=>{const evaluation=evaluationFor(t.id);const applied=evaluationScoreSnapshot(evaluation);const files=evidenceMap.get(t.id)||[];return `<article class="kpi-score-card"><strong>${esc(t.taskCode||'')} — ${esc(t.title||'')}</strong><div><span>Điểm chuẩn ${fmt(t.baseScore)}</span><span>Hệ số ${coefficientPercent(t.difficultyCoefficient)}</span><span>Tối đa ${fmt(t.maximumConvertedScore)}</span></div><div><span>Tiến độ ${applied.progressRate??'—'}%</span><span>Kết quả ${applied.resultRate??'—'}%</span><span>Điểm thực tế <b>${applied.hasScore?fmt(applied.convertedActualScore):'—'}</b></span></div><div><span>Vượt yêu cầu: <b>${esc(scorecardExceededLabel(evaluation)||'Không')}</b></span><span>Minh chứng: ${files.length} tệp</span></div></article>`}).join('')}${scorecardSummaryCardsHtml(reportScoreSummary)}</div></div>`;
 
-  const reportRoot = modal(`Báo cáo KPI cá nhân · ${formLabel}`, `<div class="kpi-preview-tabs kpi-no-print"><button id="kpiPdfTab" class="kpi-button secondary active" type="button">${formLabel}</button><button id="kpiExcelTab" class="kpi-button secondary" type="button">Bảng tính điểm</button></div>${pdfHtml}${excelHtml}`, '<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button><button id="kpiExportXlsx" class="kpi-button secondary" type="button">📊 Xuất bảng điểm</button><button id="kpiPrintReport" class="kpi-button" type="button">🖨️ In biểu mẫu</button>');
+  const reportRoot = modal(`Báo cáo KPI cá nhân · ${formLabel}`, `<div class="kpi-preview-tabs kpi-no-print"><button id="kpiPdfTab" class="kpi-button secondary active" type="button">${formLabel}</button><button id="kpiExcelTab" class="kpi-button secondary" type="button">Bảng tính điểm</button></div>${pdfHtml}${excelHtml}`, '<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button><button id="kpiExportDocx" class="kpi-button secondary" type="button">📄 Xuất Word (.docx)</button><button id="kpiExportXlsx" class="kpi-button secondary" type="button">📊 Xuất Excel (.xlsx)</button><button id="kpiPrintReport" class="kpi-button" type="button">🖨️ In biểu mẫu</button>');
   reportRoot.dataset.kpiReadonlyModal = 'report';
   reportRoot.dataset.kpiUserId = KpiWorkflowState.user.uid;
   el('kpiPdfTab').addEventListener('click', () => { el('kpiPdfPreview').classList.remove('kpi-hidden'); el('kpiExcelPreview').classList.add('kpi-hidden'); el('kpiPdfTab').classList.add('active'); el('kpiExcelTab').classList.remove('active'); el('kpiPrintReport').classList.remove('kpi-hidden'); });
   el('kpiExcelTab').addEventListener('click', () => { el('kpiPdfPreview').classList.add('kpi-hidden'); el('kpiExcelPreview').classList.remove('kpi-hidden'); el('kpiPdfTab').classList.remove('active'); el('kpiExcelTab').classList.add('active'); el('kpiPrintReport').classList.add('kpi-hidden'); });
   el('kpiPrintReport').addEventListener('click', () => window.print());
+  el('kpiExportDocx')?.addEventListener('click', () => {
+    const periodLabel = clean(KpiWorkflowState.period?.name || KpiWorkflowState.period?.id || '');
+    const fullName = clean(KpiWorkflowState.profile?.fullName || 'ca_nhan');
+    exportDomToDocx(el('kpiPdfPreview'), {
+      fileName:`Bao_cao_KPI_${formLabel.replace(/\s+/g,'_')}_${KpiWorkflowState.period?.id || 'ky'}_${fullName}.docx`,
+      title:`Báo cáo KPI cá nhân ${formLabel}${periodLabel ? ` - ${periodLabel}` : ''}`,
+      creator:'Trung tâm Bảo trợ xã hội Tân Hiệp'
+    });
+  });
   el('kpiExportXlsx')?.addEventListener('click', () => {
     const currentTasks = personalTasksForUser(KpiWorkflowState.user.uid).filter(taskRequiresOfficialEvaluation);
     exportReportXlsx(currentTasks, summaryForUserCombined(KpiWorkflowState.user.uid), reportDepartmentId, evidenceMap);
