@@ -1,14 +1,15 @@
 /** Ứng dụng quản lý nhiệm vụ và đánh giá KPI. */
-import { Router } from "./core/router.js?v=20260904.V1_22_7";
-import { APP_VERSION_LABEL, BUILD_VERSION } from "./core/app-version.js?v=20260904.V1_22_7";
-import { AuthService } from "./core/auth-service.js?v=20260904.V1_22_7";
-import { Permissions } from "./core/permissions.js?v=20260904.V1_22_7";
-import { ToastService } from "./core/toast-service.js?v=20260904.V1_22_7";
-import { FirebaseService } from "./core/firebase-service.js?v=20260904.V1_22_7";
-import { UserContext } from "./core/user-context.js?v=20260904.V1_22_7";
-import { PeriodReadService } from "./services/period-read-service.js?v=20260904.V1_22_7";
-import { ExecutivePushSubscriptionService } from "./services/executive-push-subscription-service.js?v=20260904.V1_22_7";
-import { ExecutiveInAppAlertService } from "./services/executive-in-app-alert-service.js?v=20260904.V1_22_7";
+import { Router } from "./core/router.js?v=20260904.V1_23_0";
+import { APP_VERSION_LABEL, BUILD_VERSION } from "./core/app-version.js?v=20260904.V1_23_0";
+import { AuthService } from "./core/auth-service.js?v=20260904.V1_23_0";
+import { Permissions } from "./core/permissions.js?v=20260904.V1_23_0";
+import { ToastService } from "./core/toast-service.js?v=20260904.V1_23_0";
+import { FirebaseService } from "./core/firebase-service.js?v=20260904.V1_23_0";
+import { UserContext } from "./core/user-context.js?v=20260904.V1_23_0";
+import { PeriodReadService } from "./services/period-read-service.js?v=20260904.V1_23_0";
+import { ExecutivePushSubscriptionService } from "./services/executive-push-subscription-service.js?v=20260904.V1_23_0";
+import { ExecutiveInAppAlertService } from "./services/executive-in-app-alert-service.js?v=20260904.V1_23_0";
+import { NotificationCenter } from "./modules/notifications/notification-center.js?v=20260904.V1_23_0";
 
 let currentPushUser = null;
 let saveCurrentPushSnapshot = null;
@@ -37,15 +38,15 @@ function lazyRoute(modulePath, exportName) {
   };
 }
 
-const renderDashboardView = lazyRoute("./modules/dashboard/dashboard-view.js?v=20260904.V1_22_7", "renderDashboardView");
-const renderExecutiveDirectivesView = lazyRoute("./modules/executive-directives/executive-directives-view.js?v=20260904.V1_22_7", "renderExecutiveDirectivesView");
-const renderTasksView = lazyRoute("./modules/tasks/tasks-view.js?v=20260904.V1_22_7", "renderTasksView");
-const renderStandardTasksView = lazyRoute("./modules/standard-tasks/standard-tasks-view.js?v=20260904.V1_22_7", "renderStandardTasksView");
-const renderPeriodsView = lazyRoute("./modules/periods/periods-view.js?v=20260904.V1_22_7", "renderPeriodsView");
-const renderPlansView = lazyRoute("./modules/plans/plans-view.js?v=20260904.V1_22_7", "renderPlansView");
-const renderEvaluationsView = lazyRoute("./modules/evaluations/evaluations-view.js?v=20260904.V1_22_7", "renderEvaluationsView");
-const renderReportsView = lazyRoute("./modules/reports/reports-view.js?v=20260904.V1_22_7", "renderReportsView");
-const renderAdminView = lazyRoute("./modules/admin/admin-view.js?v=20260904.V1_22_7", "renderAdminView");
+const renderDashboardView = lazyRoute("./modules/dashboard/dashboard-view.js?v=20260904.V1_23_0", "renderDashboardView");
+const renderExecutiveDirectivesView = lazyRoute("./modules/executive-directives/executive-directives-view.js?v=20260904.V1_23_0", "renderExecutiveDirectivesView");
+const renderTasksView = lazyRoute("./modules/tasks/tasks-view.js?v=20260904.V1_23_0", "renderTasksView");
+const renderStandardTasksView = lazyRoute("./modules/standard-tasks/standard-tasks-view.js?v=20260904.V1_23_0", "renderStandardTasksView");
+const renderPeriodsView = lazyRoute("./modules/periods/periods-view.js?v=20260904.V1_23_0", "renderPeriodsView");
+const renderPlansView = lazyRoute("./modules/plans/plans-view.js?v=20260904.V1_23_0", "renderPlansView");
+const renderEvaluationsView = lazyRoute("./modules/evaluations/evaluations-view.js?v=20260904.V1_23_0", "renderEvaluationsView");
+const renderReportsView = lazyRoute("./modules/reports/reports-view.js?v=20260904.V1_23_0", "renderReportsView");
+const renderAdminView = lazyRoute("./modules/admin/admin-view.js?v=20260904.V1_23_0", "renderAdminView");
 
 async function purgeRuntimeCaches() {
   if (!("caches" in window)) return;
@@ -103,6 +104,7 @@ async function recoverSession(reason = "SESSION_MISMATCH") {
     try { stopInAppTaskAlerts?.(); } catch (_) { /* listener đã đóng */ }
     stopInAppTaskAlerts = null;
     ExecutiveInAppAlertService.stop();
+    NotificationCenter.stop();
     await ExecutivePushSubscriptionService.stop({ deactivate: false }).catch(() => null);
 
     if (repeated) {
@@ -183,6 +185,7 @@ async function bootstrap() {
   initializePushNotifications(user);
   bindPushSubscriptionSync(user);
   bindPushSettings(user);
+  NotificationCenter.start(user);
   void bindInAppTaskAssignmentAlerts(user);
   ExecutivePushSubscriptionService.start(user)
     .catch(error => console.warn("Chưa đồng bộ được Push Chỉ đạo điều hành:", error));
@@ -274,6 +277,7 @@ function bindLogout() {
       stopInAppTaskAlerts = null;
       await ExecutivePushSubscriptionService.stop({ deactivate: true });
       ExecutiveInAppAlertService.stop();
+      NotificationCenter.stop();
       await window.TaskPush?.logout?.();
       await AuthService.logout();
     } catch (error) {
@@ -366,12 +370,8 @@ function bindPushSubscriptionSync(user) {
 }
 
 function bindPushSettings(user) {
-  const openButtons = [
-    document.getElementById("btnPushSettings"),
-    document.getElementById("btnMobilePushSettings")
-  ].filter(Boolean);
   const modal = document.getElementById("pushSettingsModal");
-  if (!openButtons.length || !modal) return;
+  if (!modal) return;
 
   const closeButtons = [
     document.getElementById("btnClosePushSettings"),
@@ -470,19 +470,10 @@ function bindPushSettings(user) {
     document.body.classList.remove("modal-open");
   };
 
-  openButtons.forEach(button => {
-    if (button.dataset.pushSettingsBound === "V1.10.2") return;
-    button.dataset.pushSettingsBound = "V1.10.2";
-    button.addEventListener("click", () => {
-      open();
-      if (button.id === "btnMobilePushSettings") {
-        document.getElementById("v3Navigation")?.classList.remove("open");
-        const overlay = document.getElementById("navOverlay");
-        if (overlay) overlay.hidden = true;
-        document.getElementById("btnMobileMenu")?.setAttribute("aria-expanded", "false");
-      }
-    });
-  });
+  if (modal.dataset.pushSettingsEventBound !== "V1.23.0") {
+    modal.dataset.pushSettingsEventBound = "V1.23.0";
+    window.addEventListener("app:open-push-settings", open);
+  }
   closeButtons.forEach(button => button.addEventListener("click", close));
   modal.addEventListener("click", event => { if (event.target === modal) close(); });
   document.addEventListener("keydown", event => { if (event.key === "Escape" && !modal.classList.contains("hidden")) close(); });

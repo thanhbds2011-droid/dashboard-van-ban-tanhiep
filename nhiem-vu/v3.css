@@ -1314,3 +1314,18 @@ textarea.app-dialog-input{min-height:104px}.app-dialog-input:focus{outline:2px s
     grid-template-columns: 1fr !important;
   }
 }
+
+/* ==================== V1.23.0 · NOTIFICATION CENTER ==================== */
+.header-notification-button,.mobile-notification-settings{position:relative}
+.notification-unread-badge{position:absolute;top:-7px;right:-7px;min-width:20px;height:20px;padding:0 5px;border-radius:999px;background:#d92d20;color:#fff;font-size:.68rem;font-weight:800;line-height:20px;text-align:center;box-shadow:0 0 0 2px #176f9f;z-index:2}
+.mobile-notification-settings .notification-unread-badge{top:5px;right:10px;box-shadow:0 0 0 2px #fff}
+.notification-center-card{width:min(720px,calc(100vw - 28px));max-height:min(84vh,820px);display:flex;flex-direction:column;overflow:hidden}
+.notification-center-toolbar{display:flex;gap:.65rem;justify-content:flex-end;flex-wrap:wrap;padding:.9rem 1.3rem;border-bottom:1px solid #e2edf3;background:#f9fcfd}
+.notification-center-list{overflow:auto;padding:.45rem 0;min-height:180px}
+.notification-item{width:100%;display:flex;gap:.8rem;align-items:flex-start;text-align:left;border:0;border-bottom:1px solid #edf2f5;background:#fff;padding:1rem 1.3rem;cursor:pointer;font:inherit;color:inherit}
+.notification-item:hover{background:#f6fbfd}.notification-item.is-unread{background:#f0f8fc}.notification-item.is-read{opacity:.78}
+.notification-dot{width:9px;height:9px;border-radius:50%;background:transparent;margin-top:.45rem;flex:0 0 auto}.notification-item.is-unread .notification-dot{background:#1479ad}
+.notification-item-body{display:flex;flex-direction:column;gap:.28rem;min-width:0}.notification-item-body strong{font-size:.92rem;color:#0b4262}.notification-item-body>span{font-size:.88rem;line-height:1.5;color:#344b59}.notification-item-body small{font-size:.76rem;color:#778995}
+.notification-empty{padding:2.5rem 1rem;text-align:center;color:#71838e}.notification-empty>span{display:block;font-size:2rem;margin-bottom:.5rem}.notification-empty strong{display:block;color:#31596d}.notification-empty p{margin:.35rem 0 0}
+.route-render-host{min-width:0}
+@media(max-width:640px){.notification-center-toolbar{justify-content:stretch}.notification-center-toolbar button{flex:1 1 180px}.notification-center-card{max-height:90vh}.notification-item{padding:.9rem 1rem}}

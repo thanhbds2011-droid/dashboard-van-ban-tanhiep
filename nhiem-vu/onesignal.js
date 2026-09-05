@@ -68,21 +68,19 @@
    * TRẠNG THÁI NỘI BỘ
    * ======================================================= */
 
-  const state = {
+  const GLOBAL_STATE_KEY = "__TAN_HIEP_TASK_PUSH_SINGLETON_V1__";
+  const state = window[GLOBAL_STATE_KEY] || (window[GLOBAL_STATE_KEY] = {
     OneSignal: null,
-
     initialized: false,
     initializingPromise: null,
-
+    initializedAppId: "",
     currentUid: null,
     currentProfile: null,
-
     listenersBound: false,
     buttonsBound: false,
-
     subscriptionWaitPromise: null,
     backgroundSyncPromise: null
-  };
+  });
 
   /* =======================================================
    * HÀM HỖ TRỢ
@@ -401,13 +399,19 @@
                   PUSH_PROVIDER.safariWebId;
               }
 
-              await OneSignal.init(initOptions);
+              try {
+                await OneSignal.init(initOptions);
+              } catch (initError) {
+                const message = String(initError?.message || initError || "").toLowerCase();
+                // Mixed cache/reload có thể đưa cùng SDK tới đây lần hai. Nếu SDK đã khởi tạo
+                // đúng origin/App ID thì tái sử dụng thay vì biến Push thành lỗi toàn ứng dụng.
+                if (!message.includes("already initialized") && !message.includes("already been initialized")) throw initError;
+                console.info("OneSignal đã được khởi tạo trước đó; tái sử dụng singleton hiện tại.");
+              }
 
-              state.OneSignal =
-                OneSignal;
-
-              state.initialized =
-                true;
+              state.OneSignal = OneSignal;
+              state.initialized = true;
+              state.initializedAppId = ONESIGNAL_APP_ID;
 
               bindOneSignalListeners(
                 OneSignal
@@ -436,14 +440,8 @@
               resolve(OneSignal);
 
             } catch (error) {
-              state.OneSignal =
-                null;
-
-              state.initialized =
-                false;
-
-              state.initializingPromise =
-                null;
+              state.initializingPromise = null;
+              if (!state.OneSignal) state.initialized = false;
 
               console.error(
                 "OneSignal.init() thất bại:",
@@ -1039,16 +1037,15 @@
         error
       );
 
+      // Push là kênh bổ sung; không hiển thị banner lỗi lớn trên mọi màn hình.
+      // Trạng thái chi tiết được hiển thị trong “Cài đặt Push” của Trung tâm thông báo.
       setStatus({
         mode: "error",
-        title:
-          "Chưa khởi tạo được thông báo",
-        text:
-          "Ứng dụng vẫn hoạt động nhưng tính năng thông báo chưa sẵn sàng.",
-        showBox: true,
-        showAction: true,
-        actionText:
-          "Thử lại"
+        title: "Thông báo Push chưa sẵn sàng",
+        text: "Ứng dụng và Trung tâm thông báo vẫn hoạt động bình thường.",
+        showBox: false,
+        showAction: false,
+        actionText: "Thử lại"
       });
     }
   }
