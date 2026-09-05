@@ -31,15 +31,19 @@ function normalizeText(value) {
   return String(value ?? "").trim();
 }
 
-function normalizeAdditionalRoles(value) {
-  const roles = Array.isArray(value) ? value : [];
+function normalizeCodeArray(value) {
+  const values = Array.isArray(value) ? value : [];
   return Object.freeze([
     ...new Set(
-      roles
-        .map(role => normalizeText(role).toUpperCase())
+      values
+        .map(item => normalizeText(item).toUpperCase())
         .filter(Boolean)
     )
-  ]);
+  ].sort());
+}
+
+function normalizeAdditionalRoles(value) {
+  return normalizeCodeArray(value);
 }
 
 function normalizeUser(user = {}) {
@@ -56,6 +60,8 @@ function normalizeUser(user = {}) {
     approvalAuthorityPresent: user.approvalAuthorityPresent === true,
     isDepartmentHead: typeof user.isDepartmentHead === "boolean" ? user.isDepartmentHead : null,
     additionalRoles: normalizeAdditionalRoles(user.additionalRoles),
+    actingHeadDepartmentIds: normalizeCodeArray(user.actingHeadDepartmentIds),
+    actingOversightDepartmentIds: normalizeCodeArray(user.actingOversightDepartmentIds),
     employeeCode: normalizeText(user.employeeCode),
     active: user.active === true
   });

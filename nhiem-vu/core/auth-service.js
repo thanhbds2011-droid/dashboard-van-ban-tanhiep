@@ -13,8 +13,8 @@
  * - Giữ nguyên UID Firebase và mô hình accessAccounts hiện hữu.
  */
 
-import { FirebaseService } from "./firebase-service.js?v=20260904.V1_22_7";
-import { UserContext } from "./user-context.js?v=20260904.V1_22_7";
+import { FirebaseService } from "./firebase-service.js?v=20260904.V1_23_0";
+import { UserContext } from "./user-context.js?v=20260904.V1_23_0";
 
 const LOGIN_URL = "./login.html";
 const AUTH_TIMEOUT_MS = 10000;
@@ -35,6 +35,10 @@ function clean(value) { return String(value ?? "").trim(); }
 function normalizeEmail(value) { return clean(value).toLowerCase(); }
 function normalizeRole(value) { return clean(value).toUpperCase(); }
 function normalizeDepartment(value) { return clean(value).toUpperCase(); }
+function normalizeCodeArray(value) {
+  const items = Array.isArray(value) ? value : [];
+  return [...new Set(items.map(normalizeDepartment).filter(Boolean))].sort();
+}
 function normalizeAdditionalRoles(value) {
   const roles = Array.isArray(value) ? value : [];
   return [...new Set(roles.map(normalizeRole).filter(Boolean))].sort();
@@ -46,6 +50,7 @@ function hasOwn(object, key) { return Object.prototype.hasOwnProperty.call(objec
 const PROFILE_SCOPE_FIELDS = Object.freeze([
   "email", "fullName", "departmentId", "role", "position", "leaderLevel", "approvalAuthority",
   "isDepartmentHead", "teamId", "employeeCode", "additionalRoles",
+  "actingHeadDepartmentIds", "actingOversightDepartmentIds",
   "taskNotificationCoordinator", "active"
 ]);
 
@@ -63,6 +68,8 @@ function profileScopeFingerprint(profile = {}) {
     teamId: clean(profile.teamId).toUpperCase(),
     employeeCode: clean(profile.employeeCode),
     additionalRoles: normalizeAdditionalRoles(profile.additionalRoles),
+    actingHeadDepartmentIds: normalizeCodeArray(profile.actingHeadDepartmentIds),
+    actingOversightDepartmentIds: normalizeCodeArray(profile.actingOversightDepartmentIds),
     taskNotificationCoordinator: profile.taskNotificationCoordinator === true,
     active: profile.active === true
   };
@@ -84,6 +91,8 @@ function contextPayload(firebaseUser, profile = {}) {
     approvalAuthorityPresent: hasOwn(profile, "approvalAuthority"),
     isDepartmentHead: typeof profile.isDepartmentHead === "boolean" ? profile.isDepartmentHead : null,
     additionalRoles: profile.additionalRoles || [],
+    actingHeadDepartmentIds: profile.actingHeadDepartmentIds || [],
+    actingOversightDepartmentIds: profile.actingOversightDepartmentIds || [],
     active: profile.active === true
   };
 }
@@ -337,6 +346,12 @@ function buildProfileFromAccess(firebaseUser, accessEmail, access, existingProfi
     additionalRoles: hasOwn(access, "additionalRoles")
       ? normalizeAdditionalRoles(access.additionalRoles)
       : normalizeAdditionalRoles(existingProfile?.additionalRoles),
+    actingHeadDepartmentIds: hasOwn(access, "actingHeadDepartmentIds")
+      ? normalizeCodeArray(access.actingHeadDepartmentIds)
+      : normalizeCodeArray(existingProfile?.actingHeadDepartmentIds),
+    actingOversightDepartmentIds: hasOwn(access, "actingOversightDepartmentIds")
+      ? normalizeCodeArray(access.actingOversightDepartmentIds)
+      : normalizeCodeArray(existingProfile?.actingOversightDepartmentIds),
     taskNotificationCoordinator: access.taskNotificationCoordinator === true,
     active: true
   };
@@ -363,6 +378,8 @@ function profileNeedsSync(existingProfile, desiredProfile) {
   if (existingProfile.active !== true) return true;
   if ((existingProfile.taskNotificationCoordinator === true) !== (desiredProfile.taskNotificationCoordinator === true)) return true;
   if (JSON.stringify(normalizeAdditionalRoles(existingProfile.additionalRoles)) !== JSON.stringify(normalizeAdditionalRoles(desiredProfile.additionalRoles))) return true;
+  if (JSON.stringify(normalizeCodeArray(existingProfile.actingHeadDepartmentIds)) !== JSON.stringify(normalizeCodeArray(desiredProfile.actingHeadDepartmentIds))) return true;
+  if (JSON.stringify(normalizeCodeArray(existingProfile.actingOversightDepartmentIds)) !== JSON.stringify(normalizeCodeArray(desiredProfile.actingOversightDepartmentIds))) return true;
   const existingHead = typeof existingProfile.isDepartmentHead === "boolean" ? existingProfile.isDepartmentHead : null;
   const desiredHead = typeof desiredProfile.isDepartmentHead === "boolean" ? desiredProfile.isDepartmentHead : null;
   return existingHead !== desiredHead;

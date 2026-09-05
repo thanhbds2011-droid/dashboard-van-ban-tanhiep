@@ -2,7 +2,7 @@
  * Lớp kiểm tra quyền dùng thống nhất cho giao diện.
  * Firestore Security Rules vẫn là lớp kiểm soát bắt buộc ở phía dữ liệu.
  */
-import { UserContext } from "./user-context.js?v=20260904.V1_22_7";
+import { UserContext } from "./user-context.js?v=20260904.V1_23_0";
 
 function clean(value) {
   return String(value ?? "").trim();
@@ -85,6 +85,27 @@ function profileHasAdditionalRole(user, ...roles) {
 
 function sameDepartment(user, departmentId) {
   return activeUser(user) && upper(user?.departmentId) === upper(departmentId);
+}
+
+
+function normalizedDepartmentArray(value) {
+  const source = Array.isArray(value) ? value : [];
+  return [...new Set(source.map(upper).filter(Boolean))].sort();
+}
+
+function actingHeadDepartments(user) {
+  return normalizedDepartmentArray(user?.actingHeadDepartmentIds);
+}
+
+function actingOversightDepartments(user) {
+  return normalizedDepartmentArray(user?.actingOversightDepartmentIds);
+}
+
+function hasActingDepartment(user, field, departmentId) {
+  if (!activeUser(user)) return false;
+  const target = upper(departmentId);
+  if (!target || ["BGD", "CDTN"].includes(target)) return false;
+  return normalizedDepartmentArray(user?.[field]).includes(target);
 }
 
 function createdByCurrentUser(task, user) {
@@ -222,6 +243,111 @@ export const Permissions = Object.freeze({
     );
   },
 
+  isPrimaryDepartmentHead(user = UserContext.getUser()) {
+    return this.isDepartmentHead(user);
+  },
+
+  hasActingHeadAuthority(user = UserContext.getUser(), departmentId = "") {
+    return hasActingDepartment(user, "actingHeadDepartmentIds", departmentId);
+  },
+
+  hasActingOversightAuthority(user = UserContext.getUser(), departmentId = "") {
+    return hasActingDepartment(user, "actingOversightDepartmentIds", departmentId);
+  },
+
+  hasDirectHeadAuthorityForDepartment(user = UserContext.getUser(), departmentId = "") {
+    const target = upper(departmentId);
+    if (!activeUser(user) || !target) return false;
+    if (target === "BGD") return this.isDirectorHead(user);
+    if (target === "CDTN") return this.isCdtnSecretary(user);
+    return (this.isDepartmentHead(user) && sameDepartment(user, target))
+      || this.hasActingHeadAuthority(user, target);
+  },
+
+  hasHeadAuthorityForDepartment(user = UserContext.getUser(), departmentId = "") {
+    const target = upper(departmentId);
+    if (!activeUser(user) || !target) return false;
+    if (target === "BGD") return this.isDirectorHead(user);
+    if (target === "CDTN") return this.isCdtnSecretary(user);
+    return this.hasDirectHeadAuthorityForDepartment(user, target)
+      || this.hasActingOversightAuthority(user, target);
+  },
+
+  authorityForDepartment(user = UserContext.getUser(), departmentId = "") {
+    const target = upper(departmentId);
+    if (!activeUser(user) || !target) return Object.freeze({ authority: "", leaderLevel: "", isDepartmentHead: false, scopeType: "NONE" });
+    if (target === "CDTN") {
+      const isHead = this.isCdtnSecretary(user);
+      return Object.freeze({ authority: isHead ? "HEAD" : "", leaderLevel: isHead ? "HEAD" : "", isDepartmentHead: isHead, scopeType: "CDTN" });
+    }
+    if (target === "BGD") {
+      const level = this.isDirectorHead(user) ? "HEAD" : (this.isDirectorDeputy(user) ? "DEPUTY" : "");
+      return Object.freeze({ authority: level, leaderLevel: level, isDepartmentHead: level === "HEAD", scopeType: "BGD" });
+    }
+    if (this.hasActingHeadAuthority(user, target)) {
+      return Object.freeze({ authority: "HEAD", leaderLevel: "HEAD", isDepartmentHead: true, scopeType: "DIRECT_ACTING_SCOPE" });
+    }
+    if (this.hasActingOversightAuthority(user, target)) {
+      return Object.freeze({ authority: "HEAD", leaderLevel: "HEAD", isDepartmentHead: true, scopeType: "OVERSIGHT_SCOPE" });
+    }
+    if (sameDepartment(user, target)) {
+      const level = this.isDepartmentHead(user) ? "HEAD" : (this.isDepartmentDeputy(user) ? "DEPUTY" : "");
+      return Object.freeze({ authority: level, leaderLevel: level, isDepartmentHead: level === "HEAD", scopeType: "PRIMARY_SCOPE" });
+    }
+    return Object.freeze({ authority: "", leaderLevel: "", isDepartmentHead: false, scopeType: "NONE" });
+  },
+
+  getViewDepartmentIds(user = UserContext.getUser()) {
+    if (!activeUser(user)) return [];
+    if (this.canViewAllDepartments(user)) return ["ALL"];
+    const ids = new Set([upper(user?.departmentId)]);
+    actingHeadDepartments(user).forEach(id => ids.add(id));
+    actingOversightDepartments(user).forEach(id => ids.add(id));
+    return [...ids].filter(Boolean);
+  },
+
+  getRegistrationDepartmentIds(user = UserContext.getUser()) {
+    if (!activeUser(user)) return [];
+    const ids = new Set([upper(user?.departmentId)]);
+    actingHeadDepartments(user).forEach(id => ids.add(id));
+    return [...ids].filter(Boolean);
+  },
+
+  getApprovalDepartmentIds(user = UserContext.getUser()) {
+    if (!activeUser(user)) return [];
+    const ids = new Set();
+    if (this.isDepartmentHead(user)) ids.add(upper(user?.departmentId));
+    actingHeadDepartments(user).forEach(id => ids.add(id));
+    actingOversightDepartments(user).forEach(id => ids.add(id));
+    return [...ids].filter(Boolean);
+  },
+
+  canViewDepartmentScope(user = UserContext.getUser(), departmentId = "") {
+    const target = upper(departmentId);
+    if (!activeUser(user) || !target) return false;
+    if (target === "CDTN") return this.isCdtnMember(user) || this.canViewAllScopes(user);
+    if (target === "BGD") return this.isDirector(user) || this.canViewAllScopes(user);
+    if (this.canViewAllDepartments(user)) return true;
+    return this.getViewDepartmentIds(user).includes(target);
+  },
+
+  canRegisterForDepartment(user = UserContext.getUser(), departmentId = "") {
+    const target = upper(departmentId);
+    if (!activeUser(user) || !target) return false;
+    if (target === "CDTN") return this.isCdtnMember(user);
+    if (target === "BGD") return this.isDirector(user) && sameDepartment(user, "BGD");
+    return this.getRegistrationDepartmentIds(user).includes(target);
+  },
+
+  canApproveForDepartment(user = UserContext.getUser(), departmentId = "", hasDelegation = false) {
+    const target = upper(departmentId);
+    if (!activeUser(user) || !target) return false;
+    if (target === "CDTN") return this.isCdtnSecretary(user) || hasDelegation === true;
+    if (target === "BGD") return this.isDirectorHead(user) || hasDelegation === true;
+    return this.hasHeadAuthorityForDepartment(user, target)
+      || (this.isDepartmentDeputy(user) && sameDepartment(user, target) && hasDelegation === true);
+  },
+
   canApproveRegistrationForDepartment(departmentId = "", hasDelegation = false) {
     const user = UserContext.getUser();
     const targetDepartmentId = upper(departmentId);
@@ -232,8 +358,7 @@ export const Permissions = Object.freeze({
     if (targetDepartmentId === "BGD") {
       return this.isDirectorHead(user) || hasDelegation === true;
     }
-    return (this.isDepartmentHead(user) && sameDepartment(user, targetDepartmentId))
-      || (this.isDepartmentDeputy(user) && sameDepartment(user, targetDepartmentId) && hasDelegation === true);
+    return this.canApproveForDepartment(user, targetDepartmentId, hasDelegation);
   },
 
   canAccessAdmin() {
@@ -399,8 +524,8 @@ export const Permissions = Object.freeze({
 
     if (departmentId === "CDTN") return this.isCdtnExecutiveMember(user);
     if (departmentId === "BGD") return this.isDirector(user) && sameDepartment(user, "BGD");
-    return sameDepartment(user, departmentId)
-      && (this.isDepartmentHead(user) || this.isDepartmentDeputy(user));
+    return this.hasDirectHeadAuthorityForDepartment(user, departmentId)
+      || (sameDepartment(user, departmentId) && this.isDepartmentDeputy(user));
   },
 
   canCancelRegistrationForEmployee(registration, planLocked = false, hasDelegation = false) {
