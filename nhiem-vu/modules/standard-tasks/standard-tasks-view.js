@@ -1,12 +1,12 @@
-import { UserContext } from "../../core/user-context.js?v=20260904.V1_22_7";
-import { Permissions } from "../../core/permissions.js?v=20260904.V1_22_7";
-import { ToastService } from "../../core/toast-service.js?v=20260904.V1_22_7";
-import { ModalService } from "../../core/modal-service.js?v=20260904.V1_22_7";
-import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260904.V1_22_7";
-import { PeriodReadService } from "../../services/period-read-service.js?v=20260904.V1_22_7";
-import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260904.V1_22_7";
-import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260904.V1_22_7";
-import { deriveDeadlinePlan, deadlineRuleDescription, requiresManualDeadline, isEventDrivenFrequency, canonicalFrequency, STANDARD_FREQUENCIES, WEEKDAY_OPTIONS } from "../../core/deadline-engine.js?v=20260904.V1_22_7";
+import { UserContext } from "../../core/user-context.js?v=20260904.V1_23_0";
+import { Permissions } from "../../core/permissions.js?v=20260904.V1_23_0";
+import { ToastService } from "../../core/toast-service.js?v=20260904.V1_23_0";
+import { ModalService } from "../../core/modal-service.js?v=20260904.V1_23_0";
+import { StandardTaskReadService } from "../../services/standard-task-read-service.js?v=20260904.V1_23_0";
+import { PeriodReadService } from "../../services/period-read-service.js?v=20260904.V1_23_0";
+import { StandardTaskWriteService } from "../../services/standard-task-write-service.js?v=20260904.V1_23_0";
+import { TaskRegistrationService } from "../../services/task-registration-service.js?v=20260904.V1_23_0";
+import { deriveDeadlinePlan, deadlineRuleDescription, requiresManualDeadline, isEventDrivenFrequency, canonicalFrequency, STANDARD_FREQUENCIES, WEEKDAY_OPTIONS } from "../../core/deadline-engine.js?v=20260904.V1_23_0";
 
 let currentCatalogAccess = {
   canManage: false,
@@ -604,7 +604,7 @@ function renderAvailableTask(item, registrationOpen, catalogAccess) {
     <div class="data-row-main">
       <strong>${escapeHtml(item.code || item.id)} — ${escapeHtml(item.name || "")}</strong>
       <small>${escapeHtml(item.outputRequirement || "")}</small>
-      <div class="standard-task-tags">${standardTaskSourceBadge(item)}${workTypeBadge(item)}${registrationFrequency ? `<span class="status-pill neutral">${escapeHtml(registrationFrequency)}</span>` : ""}</div>
+      <div class="standard-task-tags">${standardTaskSourceBadge(item)}${workTypeBadge(item)}${item.frequency ? `<span class="status-pill neutral">${escapeHtml(item.frequency)}</span>` : ""}</div>
       ${registrationEligible ? "" : '<small class="registration-restriction">Đầu việc này chỉ hiển thị để tra cứu; vai trò hiện tại không thuộc đối tượng đăng ký.</small>'}
     </div>
     <div class="data-row-meta">
