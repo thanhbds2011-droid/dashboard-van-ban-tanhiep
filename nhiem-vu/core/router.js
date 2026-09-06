@@ -43,18 +43,26 @@ export class Router {
       return;
     }
 
+    // V1.23.0: mỗi lần resolve có một host riêng đang gắn vào DOM.
+    // Khi route mới bắt đầu, host cũ bị tháo khỏi DOM ngay. Handler cũ vẫn có thể
+    // hoàn tất Promise nhưng chỉ ghi vào host đã detached, không thể ghi đè route mới.
+    const routeHost = document.createElement("div");
+    routeHost.className = "route-render-host";
+    routeHost.dataset.routeSequence = String(sequence);
+    routeHost.innerHTML = renderLoadingState();
+    this.outlet.replaceChildren(routeHost);
+
     try {
       this.outlet.setAttribute("aria-busy", "true");
-      this.outlet.innerHTML = renderLoadingState();
-      await handler(this.outlet, { route, router: this });
-      if (sequence !== this.resolveSequence) return;
+      await handler(routeHost, { route, router: this, sequence });
+      if (sequence !== this.resolveSequence || !routeHost.isConnected) return;
       window.scrollTo({ top: 0, behavior: "smooth" });
       document.dispatchEvent(new CustomEvent("v3:route-changed", { detail: { route } }));
     } catch (error) {
-      if (sequence !== this.resolveSequence) return;
+      if (sequence !== this.resolveSequence || !routeHost.isConnected) return;
       if (String(error?.code || "") === "USER_CONTEXT_MISSING") {
         console.warn("Router tạm dừng vì ngữ cảnh phiên chưa đồng bộ:", error);
-        this.outlet.innerHTML = `<section class="page-card"><h2>Đang đồng bộ phiên đăng nhập…</h2><p>Ứng dụng đang xác nhận tài khoản hiện tại. Màn hình sẽ tự tải lại nếu cần.</p></section>`;
+        routeHost.innerHTML = `<section class="page-card"><h2>Đang đồng bộ phiên đăng nhập…</h2><p>Ứng dụng đang xác nhận tài khoản hiện tại. Màn hình sẽ tự tải lại nếu cần.</p></section>`;
         if (error?.transient !== true) {
           try {
             window.dispatchEvent(new CustomEvent("app:session-recovery-needed", {
@@ -65,7 +73,7 @@ export class Router {
         return;
       }
       console.error("Router render error:", error);
-      this.outlet.innerHTML = `<section class="page-card error-card"><h2>Không thể hiển thị màn hình</h2><p>${escapeHtml(error?.message || "Lỗi không xác định.")}</p></section>`;
+      routeHost.innerHTML = `<section class="page-card error-card"><h2>Không thể hiển thị màn hình</h2><p>${escapeHtml(error?.message || "Lỗi không xác định.")}</p></section>`;
     } finally {
       if (sequence === this.resolveSequence) this.outlet.removeAttribute("aria-busy");
     }
