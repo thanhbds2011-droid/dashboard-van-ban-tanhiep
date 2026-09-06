@@ -1,7 +1,7 @@
 /** Đọc người dùng theo đúng phạm vi Firestore Rules. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260904.V1_23_0";
-import { UserContext } from "../core/user-context.js?v=20260904.V1_23_0";
-import { Permissions } from "../core/permissions.js?v=20260904.V1_23_0";
+import { FirebaseService } from "../core/firebase-service.js?v=20260903.V1_22_5";
+import { UserContext } from "../core/user-context.js?v=20260903.V1_22_5";
+import { Permissions } from "../core/permissions.js?v=20260903.V1_22_5";
 
 const CACHE_MS = 5 * 60 * 1000;
 const caches = new Map();
@@ -20,7 +20,7 @@ function normalize(items = []) {
 function scopeKey() {
   const user = UserContext.requireUser();
   if (Permissions.canViewAllDepartments()) return `${user.uid}|ALL`;
-  if (Permissions.isDepartmentLeader()) return `${user.uid}|DEPARTMENT|${Permissions.getViewDepartmentIds(user).join(",")}`;
+  if (Permissions.isDepartmentLeader()) return `${user.uid}|DEPARTMENT|${user.departmentId}`;
   return `${user.uid}|SELF`;
 }
 
@@ -56,11 +56,12 @@ async function readAuthorizedUsers() {
   }
 
   if (Permissions.isDepartmentLeader()) {
-    const viewDepartments = Permissions.getViewDepartmentIds(user).filter(id => id && id !== "ALL").slice(0, 10);
-    const reference = viewDepartments.length > 1
-      ? FirebaseService.query(users, FirebaseService.where("departmentId", "in", viewDepartments), FirebaseService.limit(1000))
-      : FirebaseService.query(users, FirebaseService.where("departmentId", "==", user.departmentId), FirebaseService.limit(500));
-    return normalize(mapSnapshot(await FirebaseService.getDocs(reference)));
+    const query = FirebaseService.query(
+      users,
+      FirebaseService.where("departmentId", "==", user.departmentId),
+      FirebaseService.limit(500)
+    );
+    return normalize(mapSnapshot(await FirebaseService.getDocs(query)));
   }
 
   const snapshot = await FirebaseService.getDoc(

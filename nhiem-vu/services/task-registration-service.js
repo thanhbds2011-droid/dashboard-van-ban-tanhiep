@@ -1,12 +1,11 @@
-import { FirebaseService } from "../core/firebase-service.js?v=20260904.V1_23_0";
-import { UserContext } from "../core/user-context.js?v=20260904.V1_23_0";
-import { Permissions } from "../core/permissions.js?v=20260904.V1_23_0";
-import { TaskLogService } from "./task-log-service.js?v=20260904.V1_23_0";
-import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260904.V1_23_0";
-import { PeriodReadService } from "./period-read-service.js?v=20260904.V1_23_0";
-import { UserNotificationService } from "./user-notification-service.js?v=20260904.V1_23_0";
-import { APP_VERSION } from "../core/app-version.js?v=20260904.V1_23_0";
-import { deriveDeadlinePlan, deadlineDateFromKey, isDateKey, requiresManualDeadline, isEventDrivenFrequency, canonicalFrequency } from "../core/deadline-engine.js?v=20260904.V1_23_0";
+import { FirebaseService } from "../core/firebase-service.js?v=20260903.V1_22_5";
+import { UserContext } from "../core/user-context.js?v=20260903.V1_22_5";
+import { Permissions } from "../core/permissions.js?v=20260903.V1_22_5";
+import { TaskLogService } from "./task-log-service.js?v=20260903.V1_22_5";
+import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260903.V1_22_5";
+import { PeriodReadService } from "./period-read-service.js?v=20260903.V1_22_5";
+import { APP_VERSION } from "../core/app-version.js?v=20260903.V1_22_5";
+import { deriveDeadlinePlan, deadlineDateFromKey, isDateKey, requiresManualDeadline, isEventDrivenFrequency, canonicalFrequency } from "../core/deadline-engine.js?v=20260903.V1_22_5";
 
 const clean = value => String(value ?? "").trim();
 const upper = value => clean(value).toUpperCase();
@@ -209,10 +208,10 @@ function canApprove(registration, reviewer) {
   }
 
   if (Permissions.isDepartmentDeputy(ownerProfile)) {
-    return Permissions.hasHeadAuthorityForDepartment(reviewer, registrationDepartment);
+    return Permissions.isDepartmentHead(reviewer) && upper(reviewer.departmentId) === registrationDepartment;
   }
 
-  return Permissions.hasHeadAuthorityForDepartment(reviewer, registrationDepartment);
+  return Permissions.isDepartmentHead(reviewer) && upper(reviewer.departmentId) === registrationDepartment;
 }
 
 function emptyTaskField(value) {
@@ -744,7 +743,6 @@ function taskPayload(registration, reviewer, options = {}) {
 
 async function createApprovedTasks(registrations, reviewer, options = {}) {
   const taskIds = [];
-  const approvedNotifications = [];
   let batch = FirebaseService.writeBatch(FirebaseService.db);
   let writeCount = 0;
 
@@ -846,18 +844,9 @@ async function createApprovedTasks(registrations, reviewer, options = {}) {
     ));
     writeCount += 1;
     taskIds.push(taskReference.id);
-    approvedNotifications.push({ registration, taskId: taskReference.id, taskCode: code });
   }
 
   await commitCurrentBatch();
-  // Best-effort: phê duyệt đã commit trước; notification không được làm rollback nghiệp vụ.
-  void Promise.allSettled(approvedNotifications.map(item =>
-    UserNotificationService.notifyRegistrationDecision(item.registration, reviewer, "APPROVED", {
-      taskId: item.taskId,
-      taskCode: item.taskCode,
-      eventId: `REG_APPROVED_${item.registration.id}_${item.taskId}`
-    })
-  ));
   return taskIds;
 }
 
@@ -880,7 +869,7 @@ export const TaskRegistrationService = Object.freeze({
 
   async getWorkspacePlans(periodId) {
     const user = UserContext.requireUser();
-    const departments = Permissions.getRegistrationDepartmentIds(user);
+    const departments = [upper(user.departmentId)];
     if (Permissions.isCdtnMember()) departments.push("CDTN");
     const entries = await Promise.all(departments.map(async departmentId => [
       departmentId,
@@ -980,8 +969,8 @@ export const TaskRegistrationService = Object.freeze({
       const workspaceId = StandardTaskReadService.workspaceId(item, user);
       const workType = standardWorkType(item.workType);
       const autoApprove = workspaceId === "CDTN"
-        ? Permissions.isCdtnSecretary(user)
-        : (Permissions.hasDirectHeadAuthorityForDepartment(user, workspaceId) || (Permissions.isDirector(user) && workspaceId === "BGD"));
+        ? Permissions.isCdtnSecretary()
+        : (Permissions.isDepartmentHead(user) || (Permissions.isDirector() && workspaceId === "BGD"));
       const itemKey = String(item.id || item.code || "");
       const suppliedRows = Array.isArray(options?.personalItems?.[itemKey])
         ? options.personalItems[itemKey].filter(Boolean)
@@ -1069,10 +1058,9 @@ export const TaskRegistrationService = Object.freeze({
           userName: user.fullName || "",
           userPosition: user.position || "",
           userRole: user.role || "",
-          // V1.23.0: snapshot authority theo workspace. Một Phó ở đơn vị chính có thể là HEAD tại đơn vị kiêm nhiệm.
-          userLeaderLevel: Permissions.authorityForDepartment(user, workspaceId).leaderLevel || "",
-          userApprovalAuthority: Permissions.authorityForDepartment(user, workspaceId).authority || "",
-          userIsDepartmentHead: Permissions.authorityForDepartment(user, workspaceId).isDepartmentHead === true,
+          userLeaderLevel: user.leaderLevel || "",
+          userApprovalAuthority: user.approvalAuthority || "",
+          userIsDepartmentHead: user.isDepartmentHead === true,
           userAdditionalRoles: Array.isArray(user.additionalRoles) ? user.additionalRoles : [],
           workType,
           planType: workType === "DOT_XUAT" ? "DOT_XUAT" : "KE_HOACH",
@@ -1247,7 +1235,6 @@ export const TaskRegistrationService = Object.freeze({
     }
 
     const batch = FirebaseService.writeBatch(FirebaseService.db);
-    const rejectionNotifications = [];
     for (const item of selected) {
       batch.update(FirebaseService.doc(FirebaseService.db, "taskRegistrations", item.id), {
         status: "REJECTED",
@@ -1257,22 +1244,14 @@ export const TaskRegistrationService = Object.freeze({
         rejectedByName: reviewer.fullName || "",
         updatedAt: FirebaseService.serverTimestamp()
       });
-      const auditReference = kpiAuditRef();
-      batch.set(auditReference, registrationAuditPayload(
+      batch.set(kpiAuditRef(), registrationAuditPayload(
         "TASK_REGISTRATION_REJECTED",
         item,
         reviewer,
         { registrationId: item.id, oldStatus: "PENDING", newStatus: "REJECTED", reason: rejectionReason }
       ));
-      rejectionNotifications.push({ item, eventId: `KPIAUDIT_${auditReference.id}` });
     }
     await batch.commit();
-    void Promise.allSettled(rejectionNotifications.map(({ item, eventId }) =>
-      UserNotificationService.notifyRegistrationDecision(item, reviewer, "REJECTED", {
-        reason: rejectionReason,
-        eventId
-      })
-    ));
     return selected.length;
   },
 

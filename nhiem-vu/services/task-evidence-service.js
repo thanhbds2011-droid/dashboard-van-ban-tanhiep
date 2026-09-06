@@ -2,10 +2,9 @@
  * Nhiều tệp minh chứng cho nhiệm vụ KPI - V1.16.0.
  * Mỗi tệp là một document riêng để có thể bổ sung dần mà không ghi đè tệp cũ.
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260904.V1_23_0";
-import { UserContext } from "../core/user-context.js?v=20260904.V1_23_0";
-import { Permissions } from "../core/permissions.js?v=20260904.V1_23_0";
-import { UserNotificationService } from "./user-notification-service.js?v=20260904.V1_23_0";
+import { FirebaseService } from "../core/firebase-service.js?v=20260903.V1_22_5";
+import { UserContext } from "../core/user-context.js?v=20260903.V1_22_5";
+import { Permissions } from "../core/permissions.js?v=20260903.V1_22_5";
 
 const COLLECTION = "taskEvidenceFiles";
 export const MAX_EVIDENCE_FILES_PER_TASK = 20;
@@ -25,8 +24,7 @@ function mayManage(task) {
       || Permissions.isAdmin()
       || Permissions.isDirector()
       || (taskDepartmentId(task) === "CDTN" && Permissions.isCdtnLeadership(user))
-      || (Permissions.isDepartmentLeader(user) && taskDepartmentId(task) === clean(user.departmentId, 40).toUpperCase())
-      || Permissions.hasDirectHeadAuthorityForDepartment(user, taskDepartmentId(task))
+      || (Permissions.isDepartmentLeader() && taskDepartmentId(task) === clean(user.departmentId, 40).toUpperCase())
     )
   );
 }
@@ -152,12 +150,6 @@ export const TaskEvidenceService = Object.freeze({
       records.push({ id: reference.id, ...payload });
     }
     await batch.commit();
-    if (String(task.ownerUserId || "") === String(user.uid || "")) {
-      void UserNotificationService.notifyTaskAction("TASK_EVIDENCE_UPDATED", task.id, {
-        taskCode: task.taskCode || "",
-        evidenceIds: records.map(item => item.id).join(",")
-      }, `EVIDENCE_ADD_${records.map(item => item.id).join("_")}`);
-    }
     return records;
   },
 
@@ -177,12 +169,6 @@ export const TaskEvidenceService = Object.freeze({
         updatedByName: user.fullName || ""
       }
     );
-    if (String(task.ownerUserId || "") === String(user.uid || "")) {
-      void UserNotificationService.notifyTaskAction("TASK_EVIDENCE_UPDATED", task.id, {
-        taskCode: task.taskCode || "",
-        evidenceId: evidence.id
-      }, `EVIDENCE_REMOVE_${evidence.id}_${Date.now()}`);
-    }
   },
 
   forScope(files = [], scopeType = "TASK", scopeId = "") {

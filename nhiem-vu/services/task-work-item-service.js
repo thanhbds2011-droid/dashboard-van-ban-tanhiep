@@ -1,16 +1,15 @@
 /** Quản lý các lượt công việc phát sinh bên trong một nhiệm vụ KPI. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260904.V1_23_0";
-import { UserContext } from "../core/user-context.js?v=20260904.V1_23_0";
-import { Permissions } from "../core/permissions.js?v=20260904.V1_23_0";
-import { UserNotificationService } from "./user-notification-service.js?v=20260904.V1_23_0";
-import { progressRateFromDates } from "../kpi-engine.js?v=20260904.V1_23_0";
+import { FirebaseService } from "../core/firebase-service.js?v=20260903.V1_22_5";
+import { UserContext } from "../core/user-context.js?v=20260903.V1_22_5";
+import { Permissions } from "../core/permissions.js?v=20260903.V1_22_5";
+import { progressRateFromDates } from "../kpi-engine.js?v=20260903.V1_22_5";
 import {
   ATTENDANCE_STATUSES,
   WORK_ITEM_TYPES,
   calculateWorkItemSummary,
   convertActualRate,
   normalizeWorkItemType
-} from "../work-item-score-engine.js?v=20260904.V1_23_0";
+} from "../work-item-score-engine.js?v=20260903.V1_22_5";
 
 const COLLECTION = "taskWorkItems";
 const ALLOWED_RATES = Object.freeze([100, 80, 60, 0]);
@@ -64,8 +63,7 @@ function mayManage(task) {
       Permissions.isAdmin() ||
       Permissions.isDirector() ||
       (String(task.primaryDepartmentId || "").toUpperCase() === "CDTN" && Permissions.isCdtnLeadership(user)) ||
-      (Permissions.isDepartmentLeader(user) && String(task.primaryDepartmentId || "").toUpperCase() === String(user.departmentId || "").toUpperCase()) ||
-      Permissions.hasDirectHeadAuthorityForDepartment(user, String(task.primaryDepartmentId || task.departmentId || "").toUpperCase())
+      (Permissions.isDepartmentLeader() && String(task.primaryDepartmentId || "") === String(user.departmentId || ""))
     )
   );
 }
@@ -73,7 +71,7 @@ function mayManage(task) {
 function mayEditItem(task, item) {
   const user = UserContext.requireUser();
   if (!mayManage(task)) return false;
-  if (Permissions.isAdmin() || Permissions.isDirector() || Permissions.isDepartmentLeader(user) || Permissions.hasDirectHeadAuthorityForDepartment(user, String(task?.primaryDepartmentId || task?.departmentId || "").toUpperCase()) || (String(task?.primaryDepartmentId || "").toUpperCase() === "CDTN" && Permissions.isCdtnLeadership(user))) return true;
+  if (Permissions.isAdmin() || Permissions.isDirector() || Permissions.isDepartmentLeader() || (String(task?.primaryDepartmentId || "").toUpperCase() === "CDTN" && Permissions.isCdtnLeadership(user))) return true;
   return task.ownerUserId === user.uid && (!item || item.ownerUserId === user.uid);
 }
 
@@ -303,13 +301,6 @@ export const TaskWorkItemService = Object.freeze({
 
     await FirebaseService.setDoc(reference, payload, { merge: true });
     await syncEventDrivenParentSummary(task);
-    if (String(task.ownerUserId || "") === String(user.uid || "")) {
-      const eventId = `WORKITEM_${existingItem?.id ? "UPDATE" : "CREATE"}_${reference.id}_${Date.now()}`;
-      void UserNotificationService.notifyTaskAction("TASK_WORK_ITEM_UPDATED", task.id, {
-        taskCode: task.taskCode || "",
-        workItemId: reference.id
-      }, eventId);
-    }
     return { id: reference.id, ...payload };
   },
 
@@ -331,11 +322,5 @@ export const TaskWorkItemService = Object.freeze({
       }
     );
     await syncEventDrivenParentSummary(task);
-    if (String(task.ownerUserId || "") === String(user.uid || "")) {
-      void UserNotificationService.notifyTaskAction("TASK_WORK_ITEM_UPDATED", task.id, {
-        taskCode: task.taskCode || "",
-        workItemId: item.id
-      }, `WORKITEM_REMOVE_${item.id}_${Date.now()}`);
-    }
   }
 });
