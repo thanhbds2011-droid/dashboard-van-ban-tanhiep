@@ -99,29 +99,6 @@ function delegationActive(delegation, permissionName, departmentId = "", today =
 function userId(user) { return clean(user?.id || user?.uid); }
 function findUser(users, id) { return (users || []).find(user => userId(user) === clean(id)) || null; }
 function sameDepartment(a, b) { return upper(a?.departmentId) && upper(a?.departmentId) === upper(b?.departmentId); }
-function departmentList(user, field) {
-  return [...new Set((Array.isArray(user?.[field]) ? user[field] : []).map(upper).filter(Boolean))];
-}
-function hasActingHeadForScope(user, departmentId) {
-  const scope = upper(departmentId);
-  return Boolean(scope && !["BGD", "CDTN"].includes(scope) && departmentList(user, "actingHeadDepartmentIds").includes(scope));
-}
-function hasActingOversightForScope(user, departmentId) {
-  const scope = upper(departmentId);
-  return Boolean(scope && !["BGD", "CDTN"].includes(scope) && departmentList(user, "actingOversightDepartmentIds").includes(scope));
-}
-export function isDirectHeadAuthorityForScope(user = {}, departmentId = "") {
-  const scope = upper(departmentId);
-  if (!scope) return false;
-  if (scope === "BGD") return isDirectorHead(user);
-  if (scope === "CDTN") return isCdtnSecretary(user);
-  return (isUnitApprovalAuthorityProfile(user) && upper(user.departmentId) === scope)
-    || hasActingHeadForScope(user, scope);
-}
-export function isHeadAuthorityForScope(user = {}, departmentId = "") {
-  return isDirectHeadAuthorityForScope(user, departmentId)
-    || hasActingOversightForScope(user, departmentId);
-}
 function activeCandidates(users, predicate, ownerId) {
   return (users || []).filter(user => user?.active === true && userId(user) !== clean(ownerId) && predicate(user));
 }
@@ -140,17 +117,11 @@ function delegateUser(users, delegations, departmentId, permission, predicate, o
   const user = findUser(users, delegation.delegateUserId);
   return user && user.active === true && predicate(user) ? user : null;
 }
-function unitKpiAuthorities(users, departmentId, ownerId) {
+function unitAuthorities(users, departmentId, ownerId) {
   const department = upper(departmentId);
-  /*
-   * V1.23.0 FINAL BUSINESS RULE:
-   * - PRIMARY HEAD và DIRECT ACTING HEAD được xác nhận KPI trong scope.
-   * - OVERSIGHT HEAD chỉ xem/duyệt registration, KHÔNG tự động xác nhận KPI.
-   * Giữ tách biệt approval authority và scoring authority để không cấp dư quyền.
-   */
   return activeCandidates(
     users,
-    user => isDirectHeadAuthorityForScope(user, department),
+    user => isUnitApprovalAuthorityProfile(user) && upper(user.departmentId) === department,
     ownerId
   );
 }
@@ -186,23 +157,18 @@ export function resolveKpiReviewers({ users = [], delegations = [], owner, scope
   if (isDirectorHead(owner)) return [];
   if (isDirectorDeputy(owner)) return activeCandidates(users, isDirectorHead, ownerId);
 
-  // V1.23.0: authority phải tính theo scope. Một Phó ở đơn vị chính có thể là HEAD
-  // trực tiếp tại Khu kiêm nhiệm; khi tự chấm trong scope đó phải chuyển lên BGD.
-  if (isDirectHeadAuthorityForScope(owner, scope)) {
-    return directorReviewers(users, delegations, ownerId);
-  }
-
-  // Giữ tương thích primary HEAD hiện hành.
-  if (isUnitApprovalAuthorityProfile(owner) && upper(owner.departmentId) === scope) {
+  // Người đang giữ Quyền phê duyệt đơn vị (dù chức danh là Trưởng hay Phó phụ trách)
+  // tự chấm phải chuyển lên BGD.
+  if (isUnitApprovalAuthorityProfile(owner)) {
     return directorReviewers(users, delegations, ownerId);
   }
 
   const ownerSystemRole = upper(owner.role);
-  const ownerIsDeputy = isDepartmentDeputyProfile(owner) && upper(owner.departmentId) === scope;
+  const ownerIsDeputy = isDepartmentDeputyProfile(owner);
   const ownerIsAdminStaff = ownerSystemRole === "ADMIN" && !isUnitApprovalAuthorityProfile(owner) && !ownerIsDeputy;
   const ownerKpiRole = ownerIsDeputy ? "DEPARTMENT_LEADER" : (ownerIsAdminStaff ? "STAFF" : ownerSystemRole);
   if (["STAFF", "TCHC_COORDINATOR", "DEPARTMENT_LEADER"].includes(ownerKpiRole)) {
-    const authorities = unitKpiAuthorities(users, scope || owner.departmentId, ownerId);
+    const authorities = unitAuthorities(users, scope || owner.departmentId, ownerId);
     if (ownerKpiRole === "DEPARTMENT_LEADER" && !ownerIsDeputy) return [];
 
     // Với nhân viên: Phó được ủy quyền có quyền bổ sung, người phụ trách đơn vị vẫn giữ quyền gốc.
