@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildKpiWorkbookBlob } from '../services/xlsx-export-service.js?v=20260903.V1_22_5';
+import { buildKpiWorkbookBlob } from '../services/xlsx-export-service.js?v=20260904.V1_22_6';
 import { calculateKpiSummary } from '../kpi-engine.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -12,15 +12,15 @@ const releaseRoot = path.resolve(appRoot, '..');
 const read = rel => fs.readFileSync(path.join(appRoot, rel), 'utf8');
 const readRelease = rel => fs.readFileSync(path.join(releaseRoot, rel), 'utf8');
 
-test('V1.22.4 feature set remains packaged under current V1.22.5 build', () => {
+test('V1.22.4 feature set remains packaged under current V1.22.6 build', () => {
   const version = read('core/app-version.js');
-  assert.match(version, /APP_VERSION\s*=\s*["']1\.22\.5["']/);
-  assert.match(version, /BUILD_VERSION\s*=\s*["']20260903\.V1_22_5["']/);
-  assert.match(version, /CACHE_NAME\s*=\s*["']nhiem-vu-20260903-v1-22-5["']/);
+  assert.match(version, /APP_VERSION\s*=\s*["']1\.22\.6["']/);
+  assert.match(version, /BUILD_VERSION\s*=\s*["']20260904\.V1_22_6["']/);
+  assert.match(version, /CACHE_NAME\s*=\s*["']nhiem-vu-20260904-v1-22-6["']/);
   const index = read('index.html');
-  assert.match(index, /ui-v1\.22\.3\.css\?v=20260903\.V1_22_5/);
-  assert.match(index, /release-v1\.22\.5\.js\?v=20260903\.V1_22_5/);
-  assert.match(read('sw.js'), /BUILD_VERSION = "20260903\.V1_22_5"/);
+  assert.match(index, /ui-v1\.22\.3\.css\?v=20260904\.V1_22_6/);
+  assert.match(index, /release-v1\.22\.6\.js\?v=20260904\.V1_22_6/);
+  assert.match(read('sw.js'), /BUILD_VERSION = "20260904\.V1_22_6"/);
 });
 
 test('Score tables use Tên công việc and expose A/B/KPI/X/bonus summaries without changing scoring engine', () => {
