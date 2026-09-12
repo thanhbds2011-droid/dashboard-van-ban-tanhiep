@@ -1,17 +1,17 @@
 /** Chi tiết, phân công và các lượt công việc phát sinh của nhiệm vụ. */
-import { UserContext } from "../../core/user-context.js?v=20260904.V1_23_0";
-import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260904.V1_23_0";
-import { ModalService } from "../../core/modal-service.js?v=20260904.V1_23_0";
-import { Permissions } from "../../core/permissions.js?v=20260904.V1_23_0";
-import { effectiveDepartmentAssignmentStatus, isTerminalTask } from "../../core/task-display-order.js?v=20260904.V1_23_0";
-import { UserReadService } from "../../services/user-read-service.js?v=20260904.V1_23_0";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260904.V1_23_0";
-import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260904.V1_23_0";
-import { TaskEvidenceService } from "../../services/task-evidence-service.js?v=20260904.V1_23_0";
-import { StagedEvidenceUploader } from "../../services/staged-evidence-uploader.js?v=20260904.V1_23_0";
-import { openTaskProgressModal } from "./task-progress-modal.js?v=20260904.V1_23_0";
-import { mountTaskAdjustmentPanel } from "./task-adjustment-panel.js?v=20260904.V1_23_0";
-import { TaskLogService } from "../../services/task-log-service.js?v=20260904.V1_23_0";
+import { UserContext } from "../../core/user-context.js?v=20260911.V1_23_1";
+import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260911.V1_23_1";
+import { ModalService } from "../../core/modal-service.js?v=20260911.V1_23_1";
+import { Permissions } from "../../core/permissions.js?v=20260911.V1_23_1";
+import { effectiveDepartmentAssignmentStatus, isTerminalTask } from "../../core/task-display-order.js?v=20260911.V1_23_1";
+import { UserReadService } from "../../services/user-read-service.js?v=20260911.V1_23_1";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260911.V1_23_1";
+import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260911.V1_23_1";
+import { TaskEvidenceService } from "../../services/task-evidence-service.js?v=20260911.V1_23_1";
+import { StagedEvidenceUploader } from "../../services/staged-evidence-uploader.js?v=20260911.V1_23_1";
+import { openTaskProgressModal } from "./task-progress-modal.js?v=20260911.V1_23_1";
+import { mountTaskAdjustmentPanel } from "./task-adjustment-panel.js?v=20260911.V1_23_1";
+import { TaskLogService } from "../../services/task-log-service.js?v=20260911.V1_23_1";
 
 const TEAM_LABELS = Object.freeze({
   BAO_VE: "Tổ Bảo vệ",
@@ -211,6 +211,16 @@ function evidenceHtml(item, evidenceFiles = []) {
     ? `<a class="primary-link" target="_blank" rel="noopener" href="${escapeHtml(url)}">📎 ${escapeHtml(item.evidenceFileName || "Mở minh chứng")}</a>`
     : "";
   return `${item.evidenceText ? `<small>Minh chứng: ${escapeHtml(item.evidenceText)}</small>` : ""}${list}${legacy}`;
+}
+
+function taskEvidenceHistoryHtml(task, evidenceFiles = []) {
+  const activeFiles = (evidenceFiles || []).filter(file => file.active !== false);
+  const storedFiles = activeFiles.length
+    ? `<div class="task-evidence-file-list">${activeFiles.map((file, index) => `<div class="task-evidence-file-row"><span class="task-evidence-file-index">${index + 1}</span><div><strong>${escapeHtml(file.fileName || "Tệp minh chứng")}</strong><small>${file.scopeType === "WORK_ITEM" ? "Lượt phát sinh" : file.scopeType === "MILESTONE" ? "Mốc định kỳ" : "Nhiệm vụ"}</small></div><a class="secondary-button compact-button" target="_blank" rel="noopener" href="${escapeHtml(safeExternalUrl(file.fileUrl) || "#")}">Mở</a></div>`).join("")}</div>`
+    : (safeExternalUrl(task.evidenceUrl)
+      ? `<a class="primary-link" target="_blank" rel="noopener" href="${escapeHtml(safeExternalUrl(task.evidenceUrl))}">📎 ${escapeHtml(task.evidenceFileName || "Mở tệp minh chứng")}</a>`
+      : '<p>Chưa có tệp minh chứng.</p>');
+  return `${storedFiles}${task.evidenceText ? `<p>${escapeHtml(task.evidenceText)}</p>` : ""}`;
 }
 
 function workItemContent(item, type, evidenceFiles = []) {
@@ -460,8 +470,14 @@ function openWorkItemEditor(task, item, onSaved, existingEvidenceFiles = []) {
     box.textContent = message || "";
   };
   const renderStaged = () => {
+    const snapshot = staged.snapshot();
     const target = overlay.querySelector("#workItemUploadStatus");
-    if (target) target.innerHTML = workItemStagedEvidenceHtml(staged.snapshot());
+    const box = overlay.querySelector("#workItemEvidenceStagedBox");
+    const hasVisible = snapshot.some(entry =>
+      entry.committed !== true && !["DISCARDED", "REMOVED"].includes(entry.status)
+    );
+    if (target) target.innerHTML = workItemStagedEvidenceHtml(snapshot);
+    if (box) box.hidden = !hasVisible;
   };
   const refreshSaveState = () => {
     const button = overlay.querySelector("#saveWorkItemButton");
@@ -717,7 +733,7 @@ export async function openTaskDetailModal(task, { onSaved }) {
         </section>
 
         <section class="task-detail-tab-panel" data-task-panel="history">
-          <section class="detail-section"><h3>Minh chứng</h3>${evidenceFiles.length ? `<div class="task-evidence-file-list">${evidenceFiles.map((file,index)=>`<div class="task-evidence-file-row"><span class="task-evidence-file-index">${index+1}</span><div><strong>${escapeHtml(file.fileName || "Tệp minh chứng")}</strong><small>${file.scopeType === "WORK_ITEM" ? "Lượt phát sinh" : file.scopeType === "MILESTONE" ? "Mốc định kỳ" : "Nhiệm vụ"}</small></div><a class="secondary-button compact-button" target="_blank" rel="noopener" href="${escapeHtml(safeExternalUrl(file.fileUrl) || "#")}">Mở</a></div>`).join("")}</div>` : (safeExternalUrl(task.evidenceUrl) ? `<a class="primary-link" target="_blank" rel="noopener" href="${escapeHtml(safeExternalUrl(task.evidenceUrl))}">📎 ${escapeHtml(task.evidenceFileName || "Mở tệp minh chứng")}</a>` : '<p>Chưa có tệp minh chứng.</p>')}${task.evidenceText ? `<p>${escapeHtml(task.evidenceText)}</p>` : ""}</section>
+          <section class="detail-section"><h3>Minh chứng</h3><div id="taskEvidenceHistoryContent">${taskEvidenceHistoryHtml(task, evidenceFiles)}</div></section>
           <section class="detail-section"><h3>Lịch sử thao tác</h3>${renderTaskLogs(taskLogs)}</section>
         </section>
       </div>
@@ -758,9 +774,11 @@ export async function openTaskDetailModal(task, { onSaved }) {
     const list = overlay.querySelector("#taskWorkItemList");
     const summary = overlay.querySelector("#taskWorkItemSummary");
     const noOccurrence = overlay.querySelector("#taskNoOccurrence");
+    const evidenceHistory = overlay.querySelector("#taskEvidenceHistoryContent");
     if (list) list.innerHTML = workItemRows(workItems, canEditWorkItems, task, evidenceFiles);
     if (summary) summary.innerHTML = workItemSummaryHtml(workItems, task);
     if (noOccurrence) noOccurrence.innerHTML = noOccurrenceHtml(task, workItems, isOwner);
+    if (evidenceHistory) evidenceHistory.innerHTML = taskEvidenceHistoryHtml(task, evidenceFiles);
     bindWorkItemActions();
   };
 
