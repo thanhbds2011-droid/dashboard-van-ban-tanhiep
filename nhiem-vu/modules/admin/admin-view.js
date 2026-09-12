@@ -1,9 +1,9 @@
-import { UserContext } from "../../core/user-context.js?v=20260904.V1_23_0";
-import { Permissions } from "../../core/permissions.js?v=20260904.V1_23_0";
-import { ToastService } from "../../core/toast-service.js?v=20260904.V1_23_0";
-import { ModalService } from "../../core/modal-service.js?v=20260904.V1_23_0";
-import { AdminReadService } from "../../services/admin-read-service.js?v=20260904.V1_23_0";
-import { AdminMaintenanceService } from "../../services/admin-maintenance-service.js?v=20260904.V1_23_0";
+import { UserContext } from "../../core/user-context.js?v=20260911.V1_23_1";
+import { Permissions } from "../../core/permissions.js?v=20260911.V1_23_1";
+import { ToastService } from "../../core/toast-service.js?v=20260911.V1_23_1";
+import { ModalService } from "../../core/modal-service.js?v=20260911.V1_23_1";
+import { AdminReadService } from "../../services/admin-read-service.js?v=20260911.V1_23_1";
+import { AdminMaintenanceService } from "../../services/admin-maintenance-service.js?v=20260911.V1_23_1";
 
 let currentDiagnostic = null;
 
@@ -25,7 +25,7 @@ function render(outlet, user, diagnostic = null) {
     : `<div class="admin-correction-preview"><strong>Chưa chạy chẩn đoán.</strong> Bấm “Kiểm tra lại dữ liệu” khi cần quét cấu trúc production. Việc mở màn hình Quản trị không phát sinh lượt đọc chẩn đoán tự động.</div>`;
 
   outlet.innerHTML = `<section class="page-card">
-    <div class="page-header"><div><h2>Quản trị hệ thống</h2><p>Công cụ quản trị và bảo trì có kiểm soát.</p></div><span class="role-badge">ADMIN · V1.23.0</span></div>
+    <div class="page-header"><div><h2>Quản trị hệ thống</h2><p>Công cụ quản trị và bảo trì có kiểm soát.</p></div><span class="role-badge">ADMIN · V1.23.1</span></div>
     <div class="success-banner">Tài khoản <strong>${escapeHtml(user.fullName || user.email)}</strong> đang thao tác trong phạm vi quản trị.</div>
     <div class="admin-tools-grid">
       <a class="admin-action-card" href="#/kpi/periods"><span>🗓️</span><strong>Quản lý kỳ đánh giá</strong><small>Tạo, kích hoạt, kết thúc và lưu trữ kỳ.</small></a>
