@@ -1,28 +1,28 @@
-import { auth, db } from '../../firebase-config.js?v=20260904.V1_23_0';
+import { auth, db } from '../../firebase-config.js?v=20260911.V1_23_1';
 import {
   addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, onSnapshot, query,
   serverTimestamp, setDoc, Timestamp, updateDoc, where, limit, writeBatch
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
-import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260904.V1_23_0';
-import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260904.V1_23_0';
-import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260904.V1_23_0';
-import { TaskEvidenceService } from '../../services/task-evidence-service.js?v=20260904.V1_23_0';
-import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260904.V1_23_0';
-import { PeriodReadService } from '../../services/period-read-service.js?v=20260904.V1_23_0';
-import { TaskReadService } from '../../services/task-read-service.js?v=20260904.V1_23_0';
-import { Permissions } from '../../core/permissions.js?v=20260904.V1_23_0';
-import { UserContext } from '../../core/user-context.js?v=20260904.V1_23_0';
-import { APP_VERSION } from '../../core/app-version.js?v=20260904.V1_23_0';
-import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260904.V1_23_0';
-import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260904.V1_23_0';
+import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260911.V1_23_1';
+import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260911.V1_23_1';
+import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260911.V1_23_1';
+import { TaskEvidenceService } from '../../services/task-evidence-service.js?v=20260911.V1_23_1';
+import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260911.V1_23_1';
+import { PeriodReadService } from '../../services/period-read-service.js?v=20260911.V1_23_1';
+import { TaskReadService } from '../../services/task-read-service.js?v=20260911.V1_23_1';
+import { Permissions } from '../../core/permissions.js?v=20260911.V1_23_1';
+import { UserContext } from '../../core/user-context.js?v=20260911.V1_23_1';
+import { APP_VERSION } from '../../core/app-version.js?v=20260911.V1_23_1';
+import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260911.V1_23_1';
+import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260911.V1_23_1';
 import {
   KPI2B as KPI2C, M01_GROUPS, COMMON_CRITERIA, commonCriteriaForProfile, reportFormTypeForProfile, calculateTaskScore, calculateKpiSummary,
   proposedRating, resolveQualityRating, ratingName, round2, progressRateFromDates, convertAppendix04Rate, calculateMilestoneProgress, calculateBonusScore
-} from '../../kpi-engine.js?v=20260904.V1_23_0';
-import { resolveKpiReviewer, canReviewKpiOwner } from '../../core/kpi-review-authority.js?v=20260904.V1_23_0';
-import { ModalService } from '../../core/modal-service.js?v=20260904.V1_23_0';
-import { exportFormattedKpiWorkbook, exportProductCatalogWorkbook } from '../../services/xlsx-export-service.js?v=20260904.V1_23_0';
-import { exportDomToDocx } from '../../services/docx-export-service.js?v=20260904.V1_23_0';
+} from '../../kpi-engine.js?v=20260911.V1_23_1';
+import { resolveKpiReviewer, canReviewKpiOwner } from '../../core/kpi-review-authority.js?v=20260911.V1_23_1';
+import { ModalService } from '../../core/modal-service.js?v=20260911.V1_23_1';
+import { exportFormattedKpiWorkbook, exportProductCatalogWorkbook } from '../../services/xlsx-export-service.js?v=20260911.V1_23_1';
+import { exportDomToDocx } from '../../services/docx-export-service.js?v=20260911.V1_23_1';
 
 export const KpiWorkflowState = {
   user: null,
@@ -2041,13 +2041,19 @@ function openPersonPlanDetail(uid) {
       const groupPending = registrations.filter(reg => groupKeyFor(reg) === key && reg.status === 'PENDING' && canApproveRegistration(reg));
       const groupName = item.standardTaskName || item.title || '';
       const groupCode = item.standardTaskCode || item.taskCode || '';
-      groupHeader = `<tr class="kpi-registration-group-row"><td colspan="7"><div><strong>${esc(groupCode)} — ${esc(groupName)}</strong><span>${count} công việc cá nhân</span>${groupPending.length ? `<button class="kpi-button danger" type="button" data-reject-registration-group="${esc(key)}">Không duyệt cả nhóm</button>` : ''}</div></td></tr>`;
+      groupHeader = `<tr class="kpi-registration-group-row"><td colspan="8"><div><strong>${esc(groupCode)} — ${esc(groupName)}</strong><span>${count} công việc cá nhân</span>${groupPending.length ? `<button class="kpi-button danger" type="button" data-reject-registration-group="${esc(key)}">Không duyệt cả nhóm</button>` : ''}</div></td></tr>`;
     }
     const canManagerCancel = item.kind === 'registration' && canCancelRegistrationAsManager(item);
     const personalLabel = count > 1 ? (item.title || item.description || item.standardTaskName || '') : (item.standardTaskName || item.title || '');
+    const outputRequirement = clean(
+      item.kind === 'registration'
+        ? item.description
+        : (item.expectedOutput || item.description)
+    );
     return `${groupHeader}<tr>
       <td>${item.kind === 'registration' && item.status === 'PENDING' ? `<input type="checkbox" data-reg-review value="${esc(item.id)}" ${canApproveRegistration(item) ? 'checked' : 'disabled'}>` : '—'}</td>
       <td>${count > 1 ? `<span class="kpi-small">Công việc cá nhân ${Number(item.personalItemOrder || 0) || ''}</span><br>` : `<strong>${esc(item.standardTaskCode || item.taskCode || '')}</strong><br>`}${esc(personalLabel)}</td>
+      <td>${esc(outputRequirement || '—')}</td>
       <td>${fmt(item.baseScore)}</td><td>${coefficientPercent(item.difficultyCoefficient)}</td><td>${fmt(item.maximumConvertedScore)}</td>
       <td>${esc(item.status === 'PENDING' ? 'Chờ duyệt' : item.status === 'REJECTED' ? 'Không duyệt' : item.planApprovalStatus === 'APPROVED' || item.status === 'APPROVED' ? 'Đã duyệt' : item.status || '')}</td>
       <td>${item.kind === 'registration' && item.status === 'PENDING' && canApproveRegistration(item)
@@ -2060,7 +2066,7 @@ function openPersonPlanDetail(uid) {
     <div class="registration-modal-tools">
       ${canApprove ? '<button id="regSelectAll" class="kpi-button secondary" type="button">Chọn tất cả</button><button id="regClearAll" class="kpi-button secondary" type="button">Bỏ chọn tất cả</button>' : ''}
     </div>
-    <div class="kpi-table-wrap registration-plan-table-wrap"><table class="kpi-table registration-plan-table"><thead><tr><th>Duyệt</th><th>Đầu việc</th><th>Điểm chuẩn</th><th>Hệ số độ khó</th><th>Điểm tối đa</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>
+    <div class="kpi-table-wrap registration-plan-table-wrap"><table class="kpi-table registration-plan-table"><thead><tr><th>Duyệt</th><th>Đầu việc</th><th>Kết quả đầu ra</th><th>Điểm chuẩn</th><th>Hệ số độ khó</th><th>Điểm tối đa</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>
       ${tableRows}
     </tbody></table></div>`,
     canApprove ? '<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button><button id="personProductCatalog" class="kpi-button secondary" type="button">Danh mục sản phẩm</button><button id="regApproveSelected" class="kpi-button" type="button">Duyệt mục đã chọn</button>' : '<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button><button id="personProductCatalog" class="kpi-button" type="button">Danh mục sản phẩm</button>'
