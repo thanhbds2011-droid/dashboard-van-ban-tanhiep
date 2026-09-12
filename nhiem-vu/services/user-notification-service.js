@@ -4,8 +4,8 @@
  * taskLogs/kpiAuditLogs vẫn là audit/source of truth. Collection này chỉ là read-model UX.
  * Mọi thao tác phát thông báo là best-effort và tuyệt đối không chặn business write.
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260904.V1_23_0";
-import { UserContext } from "../core/user-context.js?v=20260904.V1_23_0";
+import { FirebaseService } from "../core/firebase-service.js?v=20260911.V1_23_1";
+import { UserContext } from "../core/user-context.js?v=20260911.V1_23_1";
 
 const clean = value => String(value ?? "").trim();
 const upper = value => clean(value).toUpperCase();

@@ -6,9 +6,9 @@
  * - send() chỉ xếp hàng gửi và trả về ngay. taskLogs/Apps Script bridge vẫn là lớp dự phòng.
  * - eventId ổn định khi sự kiện đã có taskLog để chống gửi trùng.
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260904.V1_23_0";
-import { NOTIFICATION_WEB_APP_URL } from "../notification-config.js?v=20260904.V1_23_0";
-import { UserNotificationService } from "./user-notification-service.js?v=20260904.V1_23_0";
+import { FirebaseService } from "../core/firebase-service.js?v=20260911.V1_23_1";
+import { NOTIFICATION_WEB_APP_URL } from "../notification-config.js?v=20260911.V1_23_1";
+import { UserNotificationService } from "./user-notification-service.js?v=20260911.V1_23_1";
 
 function clean(value) { return String(value ?? "").trim(); }
 function buildEventId(action, taskId, eventId = "") {

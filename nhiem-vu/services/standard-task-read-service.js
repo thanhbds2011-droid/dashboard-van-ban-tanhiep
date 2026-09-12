@@ -1,8 +1,8 @@
 /** Đọc danh mục đầu việc theo đơn vị, vai trò và vai trò kiêm nhiệm. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260904.V1_23_0";
-import { UserContext } from "../core/user-context.js?v=20260904.V1_23_0";
-import { Permissions } from "../core/permissions.js?v=20260904.V1_23_0";
-import { PeriodReadService } from "./period-read-service.js?v=20260904.V1_23_0";
+import { FirebaseService } from "../core/firebase-service.js?v=20260911.V1_23_1";
+import { UserContext } from "../core/user-context.js?v=20260911.V1_23_1";
+import { Permissions } from "../core/permissions.js?v=20260911.V1_23_1";
+import { PeriodReadService } from "./period-read-service.js?v=20260911.V1_23_1";
 
 const CATALOG_CACHE_MS = 5 * 60 * 1000;
 const PROFESSIONAL_DEPARTMENT_IDS = Object.freeze(["BGD", "TCHC", "CTXH", "KHTC", "YT", "KI", "KII", "KIII"]);
