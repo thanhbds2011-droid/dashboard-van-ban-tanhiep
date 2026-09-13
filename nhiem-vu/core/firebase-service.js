@@ -4,7 +4,7 @@
  * Không khởi tạo Firebase lần thứ hai.
  */
 
-import { app, auth, db } from "../firebase-config.js?v=20260911.V1_23_1";
+import { app, auth, db } from "../firebase-config.js?v=20260913.V1_23_2";
 
 import {
   onAuthStateChanged,
