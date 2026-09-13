@@ -1,28 +1,28 @@
-import { auth, db } from '../../firebase-config.js?v=20260911.V1_23_1';
+import { auth, db } from '../../firebase-config.js?v=20260913.V1_23_2';
 import {
   addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, onSnapshot, query,
   serverTimestamp, setDoc, Timestamp, updateDoc, where, limit, writeBatch
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
-import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260911.V1_23_1';
-import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260911.V1_23_1';
-import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260911.V1_23_1';
-import { TaskEvidenceService } from '../../services/task-evidence-service.js?v=20260911.V1_23_1';
-import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260911.V1_23_1';
-import { PeriodReadService } from '../../services/period-read-service.js?v=20260911.V1_23_1';
-import { TaskReadService } from '../../services/task-read-service.js?v=20260911.V1_23_1';
-import { Permissions } from '../../core/permissions.js?v=20260911.V1_23_1';
-import { UserContext } from '../../core/user-context.js?v=20260911.V1_23_1';
-import { APP_VERSION } from '../../core/app-version.js?v=20260911.V1_23_1';
-import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260911.V1_23_1';
-import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260911.V1_23_1';
+import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260913.V1_23_2';
+import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260913.V1_23_2';
+import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260913.V1_23_2';
+import { TaskEvidenceService } from '../../services/task-evidence-service.js?v=20260913.V1_23_2';
+import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260913.V1_23_2';
+import { PeriodReadService } from '../../services/period-read-service.js?v=20260913.V1_23_2';
+import { TaskReadService } from '../../services/task-read-service.js?v=20260913.V1_23_2';
+import { Permissions } from '../../core/permissions.js?v=20260913.V1_23_2';
+import { UserContext } from '../../core/user-context.js?v=20260913.V1_23_2';
+import { APP_VERSION } from '../../core/app-version.js?v=20260913.V1_23_2';
+import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260913.V1_23_2';
+import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260913.V1_23_2';
 import {
   KPI2B as KPI2C, M01_GROUPS, COMMON_CRITERIA, commonCriteriaForProfile, reportFormTypeForProfile, calculateTaskScore, calculateKpiSummary,
   proposedRating, resolveQualityRating, ratingName, round2, progressRateFromDates, convertAppendix04Rate, calculateMilestoneProgress, calculateBonusScore
-} from '../../kpi-engine.js?v=20260911.V1_23_1';
-import { resolveKpiReviewer, canReviewKpiOwner } from '../../core/kpi-review-authority.js?v=20260911.V1_23_1';
-import { ModalService } from '../../core/modal-service.js?v=20260911.V1_23_1';
-import { exportFormattedKpiWorkbook, exportProductCatalogWorkbook } from '../../services/xlsx-export-service.js?v=20260911.V1_23_1';
-import { exportDomToDocx } from '../../services/docx-export-service.js?v=20260911.V1_23_1';
+} from '../../kpi-engine.js?v=20260913.V1_23_2';
+import { resolveKpiReviewer, canReviewKpiOwner } from '../../core/kpi-review-authority.js?v=20260913.V1_23_2';
+import { ModalService } from '../../core/modal-service.js?v=20260913.V1_23_2';
+import { exportFormattedKpiWorkbook, exportProductCatalogWorkbook } from '../../services/xlsx-export-service.js?v=20260913.V1_23_2';
+import { exportDomToDocx } from '../../services/docx-export-service.js?v=20260913.V1_23_2';
 
 export const KpiWorkflowState = {
   user: null,
