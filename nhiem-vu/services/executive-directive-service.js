@@ -8,12 +8,11 @@
  * - executiveDirectiveStates (trạng thái hiện hành theo Phòng/Khu)
  * - executiveWeeklyReports
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260911.V1_23_1";
-import { UserContext } from "../core/user-context.js?v=20260911.V1_23_1";
-import { Permissions } from "../core/permissions.js?v=20260911.V1_23_1";
-import { ExecutiveNotificationService } from "./executive-notification-service.js?v=20260911.V1_23_1";
-import { PeriodReadService } from "./period-read-service.js?v=20260911.V1_23_1";
-import { APP_VERSION } from "../core/app-version.js?v=20260911.V1_23_1";
+import { FirebaseService } from "../core/firebase-service.js?v=20260913.V1_23_2";
+import { UserContext } from "../core/user-context.js?v=20260913.V1_23_2";
+import { Permissions } from "../core/permissions.js?v=20260913.V1_23_2";
+import { PeriodReadService } from "./period-read-service.js?v=20260913.V1_23_2";
+import { APP_VERSION } from "../core/app-version.js?v=20260913.V1_23_2";
 
 const DIRECTIVES = "executiveDirectives";
 const UPDATES = "executiveDirectiveUpdates";
@@ -218,51 +217,13 @@ function transitionAllowed(previous, next) {
   return false;
 }
 function dispatchPushInBackground(action, directiveId, eventData = {}, options = {}) {
-  const normalizedAction = upper(action);
-  const normalizedDirectiveId = clean(directiveId);
-  const eventId = clean(options?.eventId);
-
-  console.info("[EXEC PUSH] Đã xếp hàng gửi nền:", {
-    action: normalizedAction,
-    directiveId: normalizedDirectiveId,
-    eventId
-  });
-
-  // Không await ở critical path: dữ liệu nghiệp vụ đã commit thành công trước khi đến đây.
-  // keepalive trong ExecutiveNotificationService giúp request tiếp tục gửi khi UI chuyển trạng thái.
-  void ExecutiveNotificationService.send(
-    normalizedAction,
-    normalizedDirectiveId,
-    eventData,
-    { ...options, confirmDelivery: false }
-  ).then(result => {
-    const status = upper(result?.status);
-    if (["SENT", "SUBMITTED", "NO_SUBSCRIPTIONS"].includes(status)) {
-      console.info("[EXEC PUSH] Đã chuyển sang backend:", {
-        action: normalizedAction,
-        directiveId: normalizedDirectiveId,
-        eventId: clean(result?.eventId) || eventId,
-        status
-      });
-    } else {
-      console.warn("[EXEC PUSH] Backend chưa xác nhận nhận sự kiện:", {
-        action: normalizedAction,
-        directiveId: normalizedDirectiveId,
-        eventId: clean(result?.eventId) || eventId,
-        status: status || "NO_RESULT",
-        result
-      });
-    }
-  }).catch(error => {
-    console.error("[EXEC PUSH] Gửi nền gặp lỗi:", {
-      action: normalizedAction,
-      directiveId: normalizedDirectiveId,
-      eventId,
-      error: error?.message || String(error)
-    });
-  });
-
-  return { ok: true, status: "QUEUED", eventId };
+  // V1.23.2: toàn bộ notification đã tắt. Không gọi backend, không poll log.
+  return {
+    ok: true,
+    status: "DISABLED",
+    notificationsDisabled: true,
+    eventId: clean(options?.eventId)
+  };
 }
 
 
