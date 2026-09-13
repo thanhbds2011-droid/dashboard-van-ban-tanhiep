@@ -1,5 +1,5 @@
 /** Release marker V1.23.1 - registration review output visibility + staged evidence UI refresh. */
-import { APP_VERSION, BUILD_VERSION } from "./core/app-version.js?v=20260911.V1_23_1";
+import { APP_VERSION, BUILD_VERSION } from "./core/app-version.js?v=20260913.V1_23_2";
 
 window.__KPI_RELEASE__ = Object.freeze({
   appVersion: APP_VERSION,

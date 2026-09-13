@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0f5f8f">
-  <meta name="app-build" content="20260911.V1_23_1">
+  <meta name="app-build" content="20260913.V1_23_2">
   <meta name="description" content="Hệ thống quản lý nhiệm vụ và đánh giá KPI">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -13,19 +13,19 @@
   <title>Nhiệm vụ và đánh giá KPI</title>
   <link rel="icon" type="image/png" href="./icons/favicon-64.png">
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
-  <link rel="manifest" href="./manifest.webmanifest?v=20260911.V1_23_1">
+  <link rel="manifest" href="./manifest.webmanifest?v=20260913.V1_23_2">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./v3.css?v=20260911.V1_23_1">
-  <link rel="stylesheet" href="./kpi.css?v=20260911.V1_23_1">
-  <link rel="stylesheet" href="./ai-assistant.css?v=20260911.V1_23_1">
-  <link rel="stylesheet" href="./ui-v1.3.0.css?v=20260911.V1_23_1">
-  <link rel="stylesheet" href="./ui-v1.10.1.css?v=20260911.V1_23_1">
-  <link rel="stylesheet" href="./ui-v1.10.2.css?v=20260911.V1_23_1">
-  <link rel="stylesheet" href="./ui-task-detail-tabs-hotfix.css?v=20260911.V1_23_1">
-  <link rel="stylesheet" href="./executive-directives.css?v=20260911.V1_23_1">
-  <link rel="stylesheet" href="./ui-v1.22.3.css?v=20260911.V1_23_1">
+  <link rel="stylesheet" href="./v3.css?v=20260913.V1_23_2">
+  <link rel="stylesheet" href="./kpi.css?v=20260913.V1_23_2">
+  <link rel="stylesheet" href="./ai-assistant.css?v=20260913.V1_23_2">
+  <link rel="stylesheet" href="./ui-v1.3.0.css?v=20260913.V1_23_2">
+  <link rel="stylesheet" href="./ui-v1.10.1.css?v=20260913.V1_23_2">
+  <link rel="stylesheet" href="./ui-v1.10.2.css?v=20260913.V1_23_2">
+  <link rel="stylesheet" href="./ui-task-detail-tabs-hotfix.css?v=20260913.V1_23_2">
+  <link rel="stylesheet" href="./executive-directives.css?v=20260913.V1_23_2">
+  <link rel="stylesheet" href="./ui-v1.22.3.css?v=20260913.V1_23_2">
 </head>
 <body class="v3-body">
   <header class="v3-header">
@@ -41,7 +41,6 @@
         <div id="currentUserAvatar" class="user-avatar" aria-hidden="true">ND</div>
         <div id="currentUserInfo" class="v3-user-info">Đang tải tài khoản…</div>
         <button id="btnInstallApp" type="button" class="header-button hidden" title="Cài đặt ứng dụng">⬇ <span>Cài ứng dụng</span></button>
-        <button id="btnPushSettings" type="button" class="header-button header-notification-button" title="Cài đặt thông báo">🔔 <span>Thông báo</span></button>
         <button id="btnLogout" type="button" class="header-button">Đăng xuất</button>
         <button id="btnMobileMenu" type="button" class="mobile-menu-button" aria-label="Mở menu" aria-expanded="false">☰</button>
       </div>
@@ -56,36 +55,11 @@
     <a href="#/kpi" data-route="#/kpi"><span aria-hidden="true">📊</span>Kế hoạch KPI</a>
     <a href="#/reports" data-route="#/reports"><span aria-hidden="true">📄</span>Báo cáo</a>
     <a id="adminMenuItem" href="#/admin" data-route="#/admin" hidden><span aria-hidden="true">⚙️</span>Quản trị</a>
-    <button id="btnMobilePushSettings" type="button" class="mobile-logout-button mobile-notification-settings"><span aria-hidden="true">🔔</span>Cài đặt thông báo</button>
     <button id="btnMobileLogout" type="button" class="mobile-logout-button"><span aria-hidden="true">↪</span>Đăng xuất</button>
   </nav>
   <div id="navOverlay" class="nav-overlay" hidden></div>
 
-  <section id="pushStatusBox" class="push-status-box hidden" aria-live="polite"><div><strong id="pushStatusTitle">Thông báo nhiệm vụ</strong><span id="pushStatusText"></span></div><button id="pushStatusAction" type="button" class="secondary-button hidden">Bật thông báo</button></section>
-
-  <div id="pushSettingsModal" class="app-modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="pushSettingsTitle">
-    <section class="app-modal-card push-settings-card">
-      <header class="app-modal-header">
-        <div><span class="modal-kicker">Thiết bị hiện tại</span><h2 id="pushSettingsTitle">🔔 Cài đặt thông báo</h2><p>Kiểm tra trạng thái nhận thông báo trên thiết bị và tài khoản đang đăng nhập.</p></div>
-        <button id="btnClosePushSettings" class="modal-close-button" type="button" aria-label="Đóng">×</button>
-      </header>
-      <div id="pushSettingsState" class="push-settings-state">Đang kiểm tra…</div>
-      <dl class="push-settings-grid">
-        <div><dt>Quyền thông báo</dt><dd id="pushSettingPermission">—</dd></div>
-        <div><dt>Đăng ký nhận thông báo</dt><dd id="pushSettingOptedIn">—</dd></div>
-        <div><dt>Mã thiết bị</dt><dd id="pushSettingSubscription">—</dd></div>
-        <div><dt>Tài khoản nhận</dt><dd id="pushSettingUid">—</dd></div>
-        <div><dt>Liên kết hệ thống</dt><dd id="pushSettingFirestore">—</dd></div><div><dt>Chỉ đạo điều hành</dt><dd id="pushSettingExecutive">—</dd></div>
-        <div><dt>Kiểm tra lúc</dt><dd id="pushSettingUpdatedAt">—</dd></div>
-      </dl>
-      <div class="push-settings-help">Nếu quyền bị chặn, bấm biểu tượng cài đặt cạnh thanh địa chỉ → Quyền trang web → Thông báo → Cho phép, rồi tải lại trang.</div>
-      <footer class="app-modal-actions">
-        <button id="btnPushRequestPermission" class="secondary-button" type="button">Bật/Mở quyền</button>
-        <button id="btnPushResync" class="primary-button" type="button">↻ Đồng bộ lại</button>
-        <button id="btnPushSettingsDone" class="secondary-button" type="button">Đóng</button>
-      </footer>
-    </section>
-  </div>
+  <!-- V1.23.2: Notification Center / OneSignal UI đã tắt. -->
 
   <section id="offlineBanner" class="system-banner offline-banner hidden" role="status">Mất kết nối Internet. Dữ liệu đang hiển thị chỉ để xem; vui lòng kết nối lại trước khi lưu.</section>
   <section id="appUpdateBanner" class="system-banner update-banner hidden" role="status"><span>Đã có phiên bản ứng dụng mới.</span><div><button id="btnApplyUpdate" class="primary-button" type="button">Cập nhật ngay</button><button id="btnDismissUpdate" class="secondary-button" type="button">Để sau</button></div></section>
@@ -103,10 +77,10 @@
     <section class="page-card"><div class="skeleton skeleton-title"></div><div class="skeleton skeleton-line"></div></section>
   </main>
 
-  <footer class="v3-footer">Quản lý giao việc • Theo dõi tiến độ • Lưu minh chứng • Đánh giá kết quả • <span id="appVersionLabel">V1.22.3</span></footer>
+  <footer class="v3-footer">Quản lý giao việc • Theo dõi tiến độ • Lưu minh chứng • Đánh giá kết quả • <span id="appVersionLabel">V1.23.2</span></footer>
 
   <script>
-    window.__APP_HTML_BUILD__ = "20260911.V1_23_1";
+    window.__APP_HTML_BUILD__ = "20260913.V1_23_2";
   </script>
   <script>
   (() => {
@@ -142,10 +116,8 @@
     window.setTimeout(showRecovery, 15000);
   })();
   </script>
-  <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
-  <script src="./onesignal.js?v=20260911.V1_23_1" defer></script>
-  <script type="module" src="./pwa.js?v=20260911.V1_23_1" defer></script>
-  <script type="module" src="./app-v3.js?v=20260911.V1_23_1"></script>
-  <script type="module" src="./release-v1.23.1.js?v=20260911.V1_23_1"></script>
+  <script type="module" src="./pwa.js?v=20260913.V1_23_2" defer></script>
+  <script type="module" src="./app-v3.js?v=20260913.V1_23_2"></script>
+  <script type="module" src="./release-v1.23.2.js?v=20260913.V1_23_2"></script>
 </body>
 </html>
