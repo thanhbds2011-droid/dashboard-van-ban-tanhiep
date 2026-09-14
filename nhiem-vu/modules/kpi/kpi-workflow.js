@@ -1,28 +1,28 @@
-import { auth, db } from '../../firebase-config.js?v=20260913.V1_23_2';
+import { auth, db } from '../../firebase-config.js?v=20260914.V1_24_2';
 import {
   addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, onSnapshot, query,
   serverTimestamp, setDoc, Timestamp, updateDoc, where, limit, writeBatch
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
-import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260913.V1_23_2';
-import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260913.V1_23_2';
-import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260913.V1_23_2';
-import { TaskEvidenceService } from '../../services/task-evidence-service.js?v=20260913.V1_23_2';
-import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260913.V1_23_2';
-import { PeriodReadService } from '../../services/period-read-service.js?v=20260913.V1_23_2';
-import { TaskReadService } from '../../services/task-read-service.js?v=20260913.V1_23_2';
-import { Permissions } from '../../core/permissions.js?v=20260913.V1_23_2';
-import { UserContext } from '../../core/user-context.js?v=20260913.V1_23_2';
-import { APP_VERSION } from '../../core/app-version.js?v=20260913.V1_23_2';
-import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260913.V1_23_2';
-import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260913.V1_23_2';
+import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260914.V1_24_2';
+import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260914.V1_24_2';
+import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260914.V1_24_2';
+import { TaskEvidenceService } from '../../services/task-evidence-service.js?v=20260914.V1_24_2';
+import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260914.V1_24_2';
+import { PeriodReadService } from '../../services/period-read-service.js?v=20260914.V1_24_2';
+import { TaskReadService } from '../../services/task-read-service.js?v=20260914.V1_24_2';
+import { Permissions } from '../../core/permissions.js?v=20260914.V1_24_2';
+import { UserContext } from '../../core/user-context.js?v=20260914.V1_24_2';
+import { APP_VERSION } from '../../core/app-version.js?v=20260914.V1_24_2';
+import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260914.V1_24_2';
+import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260914.V1_24_2';
 import {
   KPI2B as KPI2C, M01_GROUPS, COMMON_CRITERIA, commonCriteriaForProfile, reportFormTypeForProfile, calculateTaskScore, calculateKpiSummary,
   proposedRating, resolveQualityRating, ratingName, round2, progressRateFromDates, convertAppendix04Rate, calculateMilestoneProgress, calculateBonusScore
-} from '../../kpi-engine.js?v=20260913.V1_23_2';
-import { resolveKpiReviewer, canReviewKpiOwner } from '../../core/kpi-review-authority.js?v=20260913.V1_23_2';
-import { ModalService } from '../../core/modal-service.js?v=20260913.V1_23_2';
-import { exportFormattedKpiWorkbook, exportProductCatalogWorkbook } from '../../services/xlsx-export-service.js?v=20260913.V1_23_2';
-import { exportDomToDocx } from '../../services/docx-export-service.js?v=20260913.V1_23_2';
+} from '../../kpi-engine.js?v=20260914.V1_24_2';
+import { resolveKpiReviewer, canReviewKpiOwner } from '../../core/kpi-review-authority.js?v=20260914.V1_24_2';
+import { ModalService } from '../../core/modal-service.js?v=20260914.V1_24_2';
+import { exportFormattedKpiWorkbook, exportProductCatalogWorkbook } from '../../services/xlsx-export-service.js?v=20260914.V1_24_2';
+import { exportDomToDocx } from '../../services/docx-export-service.js?v=20260914.V1_24_2';
 
 export const KpiWorkflowState = {
   user: null,
@@ -294,7 +294,7 @@ async function manualRefreshKpi() {
   const button = el('kpiRefresh');
   if (button) button.disabled = true;
 
-  kpiReloadPromise = Promise.resolve(loadAll()).finally(() => {
+  kpiReloadPromise = Promise.resolve(loadAll({ realtimeBootstrap: true })).finally(() => {
     kpiReloadPromise = null;
     if (button?.isConnected) button.disabled = false;
   });
@@ -428,37 +428,62 @@ function kpiRealtimeQueries(kind) {
   return [];
 }
 
-function subscribeKpiStateCollection(collectionName, stateKey) {
+function subscribeKpiStateCollection(collectionName, stateKey, options = {}) {
   const queryRefs = kpiRealtimeQueries(collectionName);
-  if (!queryRefs.length) return;
+  if (!queryRefs.length) return Promise.resolve([]);
   const snapshots = queryRefs.map(() => null);
-  queryRefs.forEach((queryRef, index) => {
-    const unsubscribe = onSnapshot(queryRef, snapshot => {
-      snapshots[index] = new Map(snapshot.docs.map(item => [item.id, { id:item.id, ...item.data() }]));
+  const failures = queryRefs.map(() => null);
+  let initialResolved = false;
+
+  return new Promise((resolve, reject) => {
+    const emit = () => {
       if (snapshots.some(item => item === null)) return;
       const merged = new Map();
       snapshots.forEach(map => map.forEach((value,key) => merged.set(key,value)));
       KpiWorkflowState[stateKey] = [...merged.values()];
       if (stateKey === 'commonAll') KpiWorkflowState.common = commonAssessmentForUser(KpiWorkflowState.user.uid, activeScopeDepartmentId());
-      scheduleKpiLiveRender();
-    }, error => {
-      console.warn(`Theo dõi trực tiếp ${collectionName} bị gián đoạn:`, error);
-      const state = el('kpiRealtimeState');
-      if (state) { state.textContent = 'Đồng bộ trực tiếp tạm gián đoạn'; state.classList.remove('is-live'); }
+
+      const isInitialEmission = !initialResolved;
+      if (!initialResolved) {
+        initialResolved = true;
+        if (failures.every(Boolean)) {
+          reject(failures.find(Boolean) || new Error(`Không thể tải ${collectionName}.`));
+        } else {
+          resolve(KpiWorkflowState[stateKey]);
+        }
+      }
+      if (!(isInitialEmission && options.suppressInitialRender === true)) scheduleKpiLiveRender();
+    };
+
+    queryRefs.forEach((queryRef, index) => {
+      const unsubscribe = onSnapshot(queryRef, snapshot => {
+        snapshots[index] = new Map(snapshot.docs.map(item => [item.id, { id:item.id, ...item.data() }]));
+        failures[index] = null;
+        emit();
+      }, error => {
+        console.warn(`Theo dõi trực tiếp ${collectionName} bị gián đoạn:`, error);
+        snapshots[index] = new Map();
+        failures[index] = error || new Error(`Không thể theo dõi ${collectionName}.`);
+        const state = el('kpiRealtimeState');
+        if (state) { state.textContent = 'Đồng bộ trực tiếp tạm gián đoạn'; state.classList.remove('is-live'); }
+        emit();
+      });
+      kpiLiveUnsubscribers.push(unsubscribe);
     });
-    kpiLiveUnsubscribers.push(unsubscribe);
   });
 }
 
-function startKpiRealtime() {
+function startKpiRealtime(options = {}) {
   stopKpiRealtime();
   bindKpiRealtimeCleanup();
-  if (!KpiWorkflowState.period || !kpiRouteActive()) return;
+  if (!KpiWorkflowState.period || !kpiRouteActive()) return Promise.resolve([]);
 
-  subscribeKpiStateCollection('tasks', 'tasks');
-  subscribeKpiStateCollection('taskRegistrations', 'registrations');
-  subscribeKpiStateCollection('taskEvaluations', 'evaluations');
-  subscribeKpiStateCollection('commonCriteriaAssessments', 'commonAll');
+  const initialLoads = [
+    subscribeKpiStateCollection('tasks', 'tasks', options),
+    subscribeKpiStateCollection('taskRegistrations', 'registrations', options),
+    subscribeKpiStateCollection('taskEvaluations', 'evaluations', options),
+    subscribeKpiStateCollection('commonCriteriaAssessments', 'commonAll', options)
+  ];
 
   const state = el('kpiRealtimeState');
   if (state) {
@@ -466,6 +491,20 @@ function startKpiRealtime() {
     state.classList.remove('kpi-hidden');
     state.classList.add('is-live');
   }
+  return Promise.all(initialLoads);
+}
+
+function kpiStateSnapshot(items = []) {
+  return {
+    docs: (items || []).map(item => ({
+      id: item.id,
+      data: () => {
+        const data = { ...item };
+        delete data.id;
+        return data;
+      }
+    }))
+  };
 }
 
 function assessmentRate(value, label) {
@@ -978,8 +1017,7 @@ function renderManagementToolbar() {
     KpiWorkflowState.evaluations = [];
     KpiWorkflowState.commonAll = [];
     message(`Đang tải phạm vi ${departmentDisplayName(nextScope)}...`);
-    await loadAll();
-    startKpiRealtime();
+    await loadAll({ realtimeBootstrap: true });
   }));
   toolbar.querySelector('#kpiMobileScopeSelect')?.addEventListener('change', async event => {
     const nextScope = normalizeDepartment(event.currentTarget.value);
@@ -991,8 +1029,7 @@ function renderManagementToolbar() {
     KpiWorkflowState.evaluations = [];
     KpiWorkflowState.commonAll = [];
     message(`Đang tải phạm vi ${departmentDisplayName(nextScope)}...`);
-    await loadAll();
-    startKpiRealtime();
+    await loadAll({ realtimeBootstrap: true });
   });
   el('kpiCommonButton')?.addEventListener('click', openCommonCriteria);
   el('kpiLockPlan')?.addEventListener('click', lockDepartmentPlan);
@@ -1179,8 +1216,9 @@ async function loadCdtnUsers() {
   return users;
 }
 
-async function loadAll() {
+async function loadAll(options = {}) {
   if (!KpiWorkflowState.user || !KpiWorkflowState.profile) return;
+  const realtimeBootstrap = options.realtimeBootstrap === true && kpiRouteActive();
   try {
     message('Đang tải dữ liệu đánh giá...');
     const canBrowseCompletedPeriods = Permissions.canManageEvaluationPeriods() || activeRole('ADMIN');
@@ -1305,7 +1343,15 @@ async function loadAll() {
       && departmentId !== 'CDTN'
       && taskDepartmentScope;
 
-    const taskRequest = fullCenterScope
+    /* V1.24.1 QUOTA SAFE: initial snapshot của 4 collection realtime là bootstrap dữ liệu chính. */
+    const realtimeInitial = realtimeBootstrap
+      ? startKpiRealtime({ suppressInitialRender: true })
+      : null;
+    const realtimeSnapshot = stateKey => realtimeInitial.then(() => kpiStateSnapshot(KpiWorkflowState[stateKey]));
+
+    const taskRequest = realtimeBootstrap
+      ? realtimeSnapshot('tasks')
+      : fullCenterScope
       ? getDocs(query(collection(db, 'tasks'), where('periodId', '==', periodId), limit(5000)))
       : professionalCenterScope
         ? mergeAvailableSnapshotRequests([
@@ -1328,7 +1374,9 @@ async function loadAll() {
               ? getDocs(query(collection(db, 'tasks'), where('periodId', '==', periodId), where('primaryDepartmentId', '==', departmentId), limit(2000)))
               : getDocs(query(collection(db, 'tasks'), where('periodId', '==', periodId), where('ownerUserId', '==', KpiWorkflowState.user.uid), limit(300)));
 
-    const registrationRequest = fullCenterScope
+    const registrationRequest = realtimeBootstrap
+      ? realtimeSnapshot('registrations')
+      : fullCenterScope
       ? getDocs(query(collection(db, 'taskRegistrations'), where('periodId', '==', periodId), limit(5000)))
       : professionalCenterScope
         ? getDocs(query(collection(db, 'taskRegistrations'), where('periodId', '==', periodId), where('departmentId', 'in', PROFESSIONAL_DEPARTMENT_IDS), limit(5000)))
@@ -1346,7 +1394,9 @@ async function loadAll() {
               ? getDocs(query(collection(db, 'taskRegistrations'), where('periodId', '==', periodId), where('departmentId', '==', departmentId), limit(2000)))
               : getDocs(query(collection(db, 'taskRegistrations'), where('periodId', '==', periodId), where('userId', '==', KpiWorkflowState.user.uid), limit(300)));
 
-    const evaluationRequest = fullCenterScope
+    const evaluationRequest = realtimeBootstrap
+      ? realtimeSnapshot('evaluations')
+      : fullCenterScope
       ? getDocs(query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId), limit(5000)))
       : professionalCenterScope
         ? getDocs(query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId), where('departmentId', 'in', PROFESSIONAL_DEPARTMENT_IDS), limit(5000)))
@@ -1364,7 +1414,9 @@ async function loadAll() {
               ? getDocs(query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId), where('departmentId', '==', departmentId), limit(2000)))
               : getDocs(query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId), where('ownerUserId', '==', KpiWorkflowState.user.uid), limit(300)));
 
-    const commonRequest = fullCenterScope
+    const commonRequest = realtimeBootstrap
+      ? realtimeSnapshot('commonAll')
+      : fullCenterScope
       ? getDocs(query(collection(db, 'commonCriteriaAssessments'), where('periodId', '==', periodId), limit(2000)))
       : professionalCenterScope
         ? getDocs(query(collection(db, 'commonCriteriaAssessments'), where('periodId', '==', periodId), where('departmentId', 'in', PROFESSIONAL_DEPARTMENT_IDS), limit(2000)))
@@ -2041,19 +2093,13 @@ function openPersonPlanDetail(uid) {
       const groupPending = registrations.filter(reg => groupKeyFor(reg) === key && reg.status === 'PENDING' && canApproveRegistration(reg));
       const groupName = item.standardTaskName || item.title || '';
       const groupCode = item.standardTaskCode || item.taskCode || '';
-      groupHeader = `<tr class="kpi-registration-group-row"><td colspan="8"><div><strong>${esc(groupCode)} — ${esc(groupName)}</strong><span>${count} công việc cá nhân</span>${groupPending.length ? `<button class="kpi-button danger" type="button" data-reject-registration-group="${esc(key)}">Không duyệt cả nhóm</button>` : ''}</div></td></tr>`;
+      groupHeader = `<tr class="kpi-registration-group-row"><td colspan="7"><div><strong>${esc(groupCode)} — ${esc(groupName)}</strong><span>${count} công việc cá nhân</span>${groupPending.length ? `<button class="kpi-button danger" type="button" data-reject-registration-group="${esc(key)}">Không duyệt cả nhóm</button>` : ''}</div></td></tr>`;
     }
     const canManagerCancel = item.kind === 'registration' && canCancelRegistrationAsManager(item);
     const personalLabel = count > 1 ? (item.title || item.description || item.standardTaskName || '') : (item.standardTaskName || item.title || '');
-    const outputRequirement = clean(
-      item.kind === 'registration'
-        ? item.description
-        : (item.expectedOutput || item.description)
-    );
     return `${groupHeader}<tr>
       <td>${item.kind === 'registration' && item.status === 'PENDING' ? `<input type="checkbox" data-reg-review value="${esc(item.id)}" ${canApproveRegistration(item) ? 'checked' : 'disabled'}>` : '—'}</td>
       <td>${count > 1 ? `<span class="kpi-small">Công việc cá nhân ${Number(item.personalItemOrder || 0) || ''}</span><br>` : `<strong>${esc(item.standardTaskCode || item.taskCode || '')}</strong><br>`}${esc(personalLabel)}</td>
-      <td>${esc(outputRequirement || '—')}</td>
       <td>${fmt(item.baseScore)}</td><td>${coefficientPercent(item.difficultyCoefficient)}</td><td>${fmt(item.maximumConvertedScore)}</td>
       <td>${esc(item.status === 'PENDING' ? 'Chờ duyệt' : item.status === 'REJECTED' ? 'Không duyệt' : item.planApprovalStatus === 'APPROVED' || item.status === 'APPROVED' ? 'Đã duyệt' : item.status || '')}</td>
       <td>${item.kind === 'registration' && item.status === 'PENDING' && canApproveRegistration(item)
@@ -2066,7 +2112,7 @@ function openPersonPlanDetail(uid) {
     <div class="registration-modal-tools">
       ${canApprove ? '<button id="regSelectAll" class="kpi-button secondary" type="button">Chọn tất cả</button><button id="regClearAll" class="kpi-button secondary" type="button">Bỏ chọn tất cả</button>' : ''}
     </div>
-    <div class="kpi-table-wrap registration-plan-table-wrap"><table class="kpi-table registration-plan-table"><thead><tr><th>Duyệt</th><th>Đầu việc</th><th>Kết quả đầu ra</th><th>Điểm chuẩn</th><th>Hệ số độ khó</th><th>Điểm tối đa</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>
+    <div class="kpi-table-wrap registration-plan-table-wrap"><table class="kpi-table registration-plan-table"><thead><tr><th>Duyệt</th><th>Đầu việc</th><th>Điểm chuẩn</th><th>Hệ số độ khó</th><th>Điểm tối đa</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>
       ${tableRows}
     </tbody></table></div>`,
     canApprove ? '<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button><button id="personProductCatalog" class="kpi-button secondary" type="button">Danh mục sản phẩm</button><button id="regApproveSelected" class="kpi-button" type="button">Duyệt mục đã chọn</button>' : '<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button><button id="personProductCatalog" class="kpi-button" type="button">Danh mục sản phẩm</button>'
@@ -3171,9 +3217,36 @@ async function openSelfAssessment(taskId) {
     const bonusRequestReason = bonusRequested ? clean(el('kpiBonusRequestReason')?.value) : '';
     if (bonusRequested && !bonusRequestReason) { showSelfFormError('Vui lòng nêu căn cứ khi đề nghị điểm thưởng.', el('kpiBonusRequestReason')); return; }
     const bonusRequestedScore = bonusRequested ? calculateBonusScore(score.actual, 0.05) : 0;
-    const evaluationScope = taskScopeDepartmentId(task) || KpiWorkflowState.profile.departmentId || '';
+    const evaluationScope = taskScopeDepartmentId(task) || profileDepartmentId() || '';
+    const existingEvaluationDepartmentId = normalizeDepartment(ev.departmentId);
+    const existingEvaluationHomeDepartmentId = normalizeDepartment(ev.homeDepartmentId);
+
+    // V1.24.2: Chi đoàn là một scope nghiệp vụ độc lập với Phòng/Khu chính.
+    // Không được kế thừa departmentId legacy của evaluation khi task hiện thuộc CDTN.
+    if (evaluationScope === 'CDTN' && !Permissions.isCdtnMember()) {
+      showSelfFormError('Tài khoản hiện chưa có vai trò Chi đoàn trong hồ sơ quyền. Vui lòng đồng bộ DANH MỤC TÀI KHOẢN (additionalRoles) rồi đăng nhập lại trước khi tự đánh giá nhiệm vụ Chi đoàn.');
+      return;
+    }
+    if (evaluationScope === 'CDTN' && ev.id && existingEvaluationDepartmentId !== 'CDTN') {
+      showSelfFormError('Hồ sơ tự đánh giá Chi đoàn này được tạo bởi phiên bản cũ với phạm vi không còn hợp lệ. Quản trị viên cần chạy bảo trì “V1.24.2 - Sửa scope tự đánh giá Chi đoàn” trước khi tiếp tục; hệ thống không tự xóa hoặc ghi đè lịch sử.');
+      return;
+    }
+
+    const evaluationDepartmentId = evaluationScope === 'CDTN'
+      ? 'CDTN'
+      : (existingEvaluationDepartmentId || evaluationScope);
+    const evaluationHomeDepartmentId = existingEvaluationHomeDepartmentId
+      || (evaluationScope === 'CDTN'
+        ? profileDepartmentId()
+        : normalizeDepartment(task.homeDepartmentId || profileDepartmentId()));
+
+    if (evaluationScope === 'CDTN' && !evaluationHomeDepartmentId) {
+      showSelfFormError('Không xác định được Phòng/Khu chính của tài khoản để lập hồ sơ tự đánh giá Chi đoàn. Vui lòng đồng bộ tài khoản trước khi thử lại.');
+      return;
+    }
+
     const evaluationPayload = {
-      periodId: KpiWorkflowState.period.id, taskId: task.id, taskCode: task.taskCode || '', ownerUserId: KpiWorkflowState.user.uid, ownerName: KpiWorkflowState.profile.fullName || '', ownerRole: KpiWorkflowState.profile.role || '', departmentId: clean(ev.departmentId) || evaluationScope,
+      periodId: KpiWorkflowState.period.id, taskId: task.id, taskCode: task.taskCode || '', ownerUserId: KpiWorkflowState.user.uid, ownerName: KpiWorkflowState.profile.fullName || '', ownerRole: KpiWorkflowState.profile.role || '', departmentId: evaluationDepartmentId,
       trackingMode: itemized ? 'ITEMIZED' : 'FINAL_OUTPUT', actualWorkItemCount: itemized ? workSummary.count : null, actualCompletedCount: itemized ? workSummary.completedCount : null, actualOnTimeCount: itemized ? workSummary.onTimeCount : null, actualQualifiedCount: itemized ? workSummary.qualifiedCount : null, actualProgressRate: itemized ? workSummary.actualProgressRate : null, actualResultRate: itemized ? workSummary.actualResultRate : null,
       progressCalculationMode: recurring ? 'MILESTONE_AUTO' : eventDriven ? 'WORK_ITEM_AUTO' : 'DEADLINE_AUTO',
       progressMilestoneDueCount: recurring ? milestoneSummary.dueMilestones : null,
@@ -3189,7 +3262,7 @@ async function openSelfAssessment(taskId) {
       ownerLeaderLevel: clean(KpiWorkflowState.profile.leaderLevel || ''), ownerAdditionalRoles: Array.isArray(KpiWorkflowState.profile.additionalRoles) ? KpiWorkflowState.profile.additionalRoles : [],
       status: 'PENDING_REVIEW', formulaVersion: 'KPI_2026_PHU_LUC_4_AUTO_PROGRESS_V7', updatedAt: serverTimestamp(), createdAt: ev.createdAt || serverTimestamp()
     };
-    evaluationPayload.homeDepartmentId = clean(task.homeDepartmentId || KpiWorkflowState.profile.departmentId || '');
+    evaluationPayload.homeDepartmentId = evaluationHomeDepartmentId;
     if (evaluationScope === 'CDTN') evaluationPayload.organizationId = 'CDTN';
     try {
       await setDoc(doc(db, 'taskEvaluations', `${KpiWorkflowState.period.id}_${task.id}`), evaluationPayload, { merge: true });
@@ -4122,8 +4195,7 @@ export async function renderKpiWorkflow(outlet, options = {}) {
     return;
   }
   mount();
-  await loadAll();
-  startKpiRealtime();
+  await loadAll({ realtimeBootstrap: true });
   if (options.openReport === true && KpiWorkflowState.period) {
     openReport();
   }
