@@ -1,2 +1,2 @@
-import { renderKpiWorkflow } from "../kpi/kpi-workflow.js?v=20260913.V1_23_2";
+import { renderKpiWorkflow } from "../kpi/kpi-workflow.js?v=20260914.V1_24_2";
 export async function renderPeriodsView(outlet){ await renderKpiWorkflow(outlet); }
