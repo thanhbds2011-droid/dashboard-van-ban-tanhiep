@@ -1,4 +1,4 @@
-const BUILD_VERSION = "20260914.V1_24_2";
+const BUILD_VERSION = "20260914.V1_24_3";
 const CACHE_NAME = "nhiem-vu-" + BUILD_VERSION.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 const versioned = path => `${path}?v=${BUILD_VERSION}`;
 const SHELL = [
