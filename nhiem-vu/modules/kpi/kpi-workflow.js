@@ -1,28 +1,28 @@
-import { auth, db } from '../../firebase-config.js?v=20260914.V1_24_2';
+import { auth, db } from '../../firebase-config.js?v=20260914.V1_24_3';
 import {
   addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, onSnapshot, query,
   serverTimestamp, setDoc, Timestamp, updateDoc, where, limit, writeBatch
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
-import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260914.V1_24_2';
-import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260914.V1_24_2';
-import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260914.V1_24_2';
-import { TaskEvidenceService } from '../../services/task-evidence-service.js?v=20260914.V1_24_2';
-import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260914.V1_24_2';
-import { PeriodReadService } from '../../services/period-read-service.js?v=20260914.V1_24_2';
-import { TaskReadService } from '../../services/task-read-service.js?v=20260914.V1_24_2';
-import { Permissions } from '../../core/permissions.js?v=20260914.V1_24_2';
-import { UserContext } from '../../core/user-context.js?v=20260914.V1_24_2';
-import { APP_VERSION } from '../../core/app-version.js?v=20260914.V1_24_2';
-import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260914.V1_24_2';
-import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260914.V1_24_2';
+import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260914.V1_24_3';
+import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260914.V1_24_3';
+import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260914.V1_24_3';
+import { TaskEvidenceService } from '../../services/task-evidence-service.js?v=20260914.V1_24_3';
+import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260914.V1_24_3';
+import { PeriodReadService } from '../../services/period-read-service.js?v=20260914.V1_24_3';
+import { TaskReadService } from '../../services/task-read-service.js?v=20260914.V1_24_3';
+import { Permissions } from '../../core/permissions.js?v=20260914.V1_24_3';
+import { UserContext } from '../../core/user-context.js?v=20260914.V1_24_3';
+import { APP_VERSION } from '../../core/app-version.js?v=20260914.V1_24_3';
+import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260914.V1_24_3';
+import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260914.V1_24_3';
 import {
   KPI2B as KPI2C, M01_GROUPS, COMMON_CRITERIA, commonCriteriaForProfile, reportFormTypeForProfile, calculateTaskScore, calculateKpiSummary,
   proposedRating, resolveQualityRating, ratingName, round2, progressRateFromDates, convertAppendix04Rate, calculateMilestoneProgress, calculateBonusScore
-} from '../../kpi-engine.js?v=20260914.V1_24_2';
-import { resolveKpiReviewer, canReviewKpiOwner } from '../../core/kpi-review-authority.js?v=20260914.V1_24_2';
-import { ModalService } from '../../core/modal-service.js?v=20260914.V1_24_2';
-import { exportFormattedKpiWorkbook, exportProductCatalogWorkbook } from '../../services/xlsx-export-service.js?v=20260914.V1_24_2';
-import { exportDomToDocx } from '../../services/docx-export-service.js?v=20260914.V1_24_2';
+} from '../../kpi-engine.js?v=20260914.V1_24_3';
+import { resolveKpiReviewer, canReviewKpiOwner } from '../../core/kpi-review-authority.js?v=20260914.V1_24_3';
+import { ModalService } from '../../core/modal-service.js?v=20260914.V1_24_3';
+import { exportFormattedKpiWorkbook, exportProductCatalogWorkbook } from '../../services/xlsx-export-service.js?v=20260914.V1_24_3';
+import { exportDomToDocx } from '../../services/docx-export-service.js?v=20260914.V1_24_3';
 
 export const KpiWorkflowState = {
   user: null,
@@ -324,6 +324,16 @@ function kpiRealtimeScope() {
   const actingApprovalScope = departmentId !== 'ALL' && departmentId !== 'CDTN'
     && Permissions.hasHeadAuthorityForDepartment(KpiWorkflowState.profile, departmentId);
   const primaryHeadScope = isDepartmentHead() && departmentId === managerHomeDepartmentId;
+  /*
+   * V1.24.3: mọi lãnh đạo đang xem đúng Phòng/Khu chính phải nhận được cả hồ sơ
+   * Chi đoàn của viên chức thuộc Phòng/Khu đó qua homeDepartmentId.
+   * Phạm vi này KHÔNG mở rộng sang đơn vị acting/kiêm nhiệm khác vì Rules chỉ cho
+   * homeDepartmentLeaderCanView() khi sameDepartment(homeDepartmentId).
+   */
+  const primaryHomeDepartmentLeaderScope = isLeader()
+    && managerHomeDepartmentId
+    && managerHomeDepartmentId !== 'CDTN'
+    && departmentId === managerHomeDepartmentId;
   const taskDepartmentScope = departmentId !== 'ALL' && (globalRole() || cdtnDepartmentScope || primaryHeadScope || actingViewScope || reportDepartmentScope
     || hasActiveApprovalDelegation('APPROVE_REGISTRATIONS', departmentId)
     || hasActiveApprovalDelegation('CONFIRM_EVALUATIONS', departmentId)
@@ -344,7 +354,8 @@ function kpiRealtimeScope() {
     evaluationDepartmentScope,
     combinedDepartmentReportScope,
     managerMonitoringScope,
-    managerHomeDepartmentId
+    managerHomeDepartmentId,
+    primaryHomeDepartmentLeaderScope
   };
 }
 
@@ -361,7 +372,8 @@ function kpiRealtimeQueries(kind) {
     evaluationDepartmentScope,
     combinedDepartmentReportScope,
     managerMonitoringScope,
-    managerHomeDepartmentId
+    managerHomeDepartmentId,
+    primaryHomeDepartmentLeaderScope
   } = scope;
   const col = collection(db, kind);
   const q = (...constraints) => query(col, ...constraints);
@@ -394,7 +406,7 @@ function kpiRealtimeQueries(kind) {
       q(where('periodId','==',periodId), where('departmentId','==','CDTN'), limit(1000)),
       q(where('periodId','==',periodId), where('organizationId','==','CDTN'), limit(1000))
     ];
-    if (combinedDepartmentReportScope) return [
+    if (combinedDepartmentReportScope || primaryHomeDepartmentLeaderScope) return [
       q(where('periodId','==',periodId), where('departmentId','==',departmentId), limit(2000)),
       q(where('periodId','==',periodId), where('homeDepartmentId','==',departmentId), limit(2000))
     ];
@@ -409,7 +421,7 @@ function kpiRealtimeQueries(kind) {
       q(where('periodId','==',periodId), where('departmentId','==','CDTN'), limit(1000)),
       q(where('periodId','==',periodId), where('organizationId','==','CDTN'), limit(1000))
     ];
-    if (combinedDepartmentReportScope) return [
+    if (combinedDepartmentReportScope || primaryHomeDepartmentLeaderScope) return [
       q(where('periodId','==',periodId), where('departmentId','==',departmentId), limit(2000)),
       q(where('periodId','==',periodId), where('homeDepartmentId','==',departmentId), limit(2000))
     ];
@@ -1338,6 +1350,10 @@ async function loadAll(options = {}) {
       && managerHomeDepartmentId
       && managerHomeDepartmentId !== 'CDTN'
       && (departmentId === managerHomeDepartmentId || (departmentId === 'ALL' && globalRole()));
+    const primaryHomeDepartmentLeaderScope = isLeader()
+      && managerHomeDepartmentId
+      && managerHomeDepartmentId !== 'CDTN'
+      && departmentId === managerHomeDepartmentId;
     const combinedDepartmentReportScope = KpiWorkflowState.mode === 'reports'
       && departmentId !== 'ALL'
       && departmentId !== 'CDTN'
@@ -1385,7 +1401,7 @@ async function loadAll(options = {}) {
               getDocs(query(collection(db, 'taskRegistrations'), where('periodId', '==', periodId), where('departmentId', '==', 'CDTN'), limit(1000))),
               getDocs(query(collection(db, 'taskRegistrations'), where('periodId', '==', periodId), where('organizationId', '==', 'CDTN'), limit(1000)))
             ], 'đăng ký nhiệm vụ Chi đoàn')
-          : combinedDepartmentReportScope
+          : (combinedDepartmentReportScope || primaryHomeDepartmentLeaderScope)
             ? mergeAvailableSnapshotRequests([
                 getDocs(query(collection(db, 'taskRegistrations'), where('periodId', '==', periodId), where('departmentId', '==', departmentId), limit(2000))),
                 getDocs(query(collection(db, 'taskRegistrations'), where('periodId', '==', periodId), where('homeDepartmentId', '==', departmentId), limit(2000)))
@@ -1405,7 +1421,7 @@ async function loadAll(options = {}) {
               getDocs(query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId), where('departmentId', '==', 'CDTN'), limit(1000))),
               getDocs(query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId), where('organizationId', '==', 'CDTN'), limit(1000)))
             ], 'đánh giá nhiệm vụ Chi đoàn')
-          : combinedDepartmentReportScope
+          : (combinedDepartmentReportScope || primaryHomeDepartmentLeaderScope)
             ? mergeAvailableSnapshotRequests([
                 getDocs(query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId), where('departmentId', '==', departmentId), limit(2000))),
                 getDocs(query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId), where('homeDepartmentId', '==', departmentId), limit(2000)))
@@ -1593,6 +1609,33 @@ function taskForCurrentUser(task) {
   return task.ownerUserId === KpiWorkflowState.user.uid || task.createdByUserId === KpiWorkflowState.user.uid;
 }
 function evaluationFor(taskId){ return KpiWorkflowState.evaluations.find(e => e.taskId === taskId); }
+
+/*
+ * V1.24.3: safety fallback cho TỰ ĐÁNH GIÁ.
+ * Nếu evaluation của chính người dùng chưa nằm trong state do scope màn hình rộng
+ * (Trưởng/Phó, acting, báo cáo...), chỉ đọc đúng evaluations của chính UID trong kỳ.
+ * Không full-scan; query này đã là fallback production hiện hữu và được Rules cho phép.
+ */
+async function loadOwnEvaluationForTask(taskId, { force = false } = {}) {
+  const existing = evaluationFor(taskId);
+  if (existing && !force) return existing;
+  const periodId = KpiWorkflowState.period?.id;
+  const ownerUserId = KpiWorkflowState.user?.uid;
+  if (!periodId || !ownerUserId || !taskId) return existing || null;
+
+  const snapshot = await getDocs(query(
+    collection(db, 'taskEvaluations'),
+    where('periodId', '==', periodId),
+    where('ownerUserId', '==', ownerUserId),
+    limit(300)
+  ));
+  const ownEvaluations = snapshot.docs.map(item => ({ id:item.id, ...item.data() }));
+  const merged = new Map(KpiWorkflowState.evaluations.map(item => [item.id, item]));
+  ownEvaluations.forEach(item => merged.set(item.id, item));
+  KpiWorkflowState.evaluations = [...merged.values()];
+  return KpiWorkflowState.evaluations.find(item => item.taskId === taskId && item.ownerUserId === ownerUserId) || null;
+}
+
 function milestonesForTask(taskId){ return KpiWorkflowState.milestones.filter(item => item.taskId === taskId && item.active !== false).sort((a,b)=>Number(a.sequence||0)-Number(b.sequence||0)||clean(a.dueDateKey).localeCompare(clean(b.dueDateKey))); }
 function hasNumericValue(value) {
   return value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value));
@@ -3056,7 +3099,17 @@ function scoreBreakdownHtml(task, score, options = {}) {
 
 async function openSelfAssessment(taskId) {
   const task = KpiWorkflowState.tasks.find(t => t.id === taskId); if (!task) return;
-  const ev = evaluationFor(taskId) || {};
+  let ev = evaluationFor(taskId) || null;
+  if (!ev) {
+    try {
+      ev = await loadOwnEvaluationForTask(taskId);
+    } catch (error) {
+      if (!isPermissionDeniedError(error)) {
+        console.warn('Không thể nạp bổ sung hồ sơ tự đánh giá của chính người dùng:', error);
+      }
+    }
+  }
+  ev = ev || {};
   if (String(task.noOccurrenceStatus || '').toUpperCase() === 'CONFIRMED') {
     ModalService.alert('Đầu việc đã được xác nhận không phát sinh, đã loại khỏi A và không thực hiện chấm điểm.');
     return;
@@ -3245,27 +3298,63 @@ async function openSelfAssessment(taskId) {
       return;
     }
 
-    const evaluationPayload = {
-      periodId: KpiWorkflowState.period.id, taskId: task.id, taskCode: task.taskCode || '', ownerUserId: KpiWorkflowState.user.uid, ownerName: KpiWorkflowState.profile.fullName || '', ownerRole: KpiWorkflowState.profile.role || '', departmentId: evaluationDepartmentId,
-      trackingMode: itemized ? 'ITEMIZED' : 'FINAL_OUTPUT', actualWorkItemCount: itemized ? workSummary.count : null, actualCompletedCount: itemized ? workSummary.completedCount : null, actualOnTimeCount: itemized ? workSummary.onTimeCount : null, actualQualifiedCount: itemized ? workSummary.qualifiedCount : null, actualProgressRate: itemized ? workSummary.actualProgressRate : null, actualResultRate: itemized ? workSummary.actualResultRate : null,
-      progressCalculationMode: recurring ? 'MILESTONE_AUTO' : eventDriven ? 'WORK_ITEM_AUTO' : 'DEADLINE_AUTO',
+    const progressCalculationMode = recurring ? 'MILESTONE_AUTO' : eventDriven ? 'WORK_ITEM_AUTO' : 'DEADLINE_AUTO';
+    const selfAssessmentFields = {
+      progressCalculationMode,
       progressMilestoneDueCount: recurring ? milestoneSummary.dueMilestones : null,
       progressMilestoneAverageRate: recurring ? milestoneSummary.averageRate : null,
       progressCalculatedAt: serverTimestamp(),
       selfProgressRate: progress, selfResultRate: result, selfExecutionScore: score.execution, selfActualScore: score.actual, selfComment: comment,
-      confirmedProgressRate: null, confirmedResultRate: null, confirmedExecutionScore: null, confirmedActualScore: null, reviewerEmail: reviewer.email, reviewerUserId: reviewer.uid, reviewerName: reviewer.name,
+      confirmedProgressRate: null, confirmedResultRate: null, confirmedExecutionScore: null, confirmedActualScore: null,
+      reviewerEmail: reviewer.email, reviewerUserId: reviewer.uid, reviewerName: reviewer.name,
       isExceededRequirement: exceeded, exceededRequirementDescription: exceededText,
       confirmedExceededRequirement: null, exceededDecision: exceeded ? 'PENDING' : 'NOT_REQUESTED', exceededDecisionReason: '', exceededDecisionByUserId: '', exceededDecisionByName: '', exceededDecisionAt: null,
-      bonusRequested, bonusRequestType, bonusRequestReason, bonusRequestRate: bonusRequested ? 0.05 : 0, bonusRequestedBasisScore: bonusRequested ? score.actual : 0, bonusRequestedScore, bonusRequestedAt: bonusRequested ? serverTimestamp() : null,
-      bonusDecision: bonusRequested ? 'PENDING' : 'NOT_REQUESTED', bonusDecisionReason: '', bonusDecisionByUserId: '', bonusDecisionByName: '', bonusDecisionAt: null,
-      bonusAwarded: false, bonusType: '', bonusRate: 0, bonusBasisScore: 0, bonusScore: 0, bonusConfirmedByUserId: '', bonusConfirmedByName: '', bonusConfirmedAt: null,
-      ownerLeaderLevel: clean(KpiWorkflowState.profile.leaderLevel || ''), ownerAdditionalRoles: Array.isArray(KpiWorkflowState.profile.additionalRoles) ? KpiWorkflowState.profile.additionalRoles : [],
-      status: 'PENDING_REVIEW', formulaVersion: 'KPI_2026_PHU_LUC_4_AUTO_PROGRESS_V7', updatedAt: serverTimestamp(), createdAt: ev.createdAt || serverTimestamp()
+      bonusRequested, bonusRequestType, bonusRequestReason, bonusRequestRate: bonusRequested ? 0.05 : 0,
+      bonusRequestedBasisScore: bonusRequested ? score.actual : 0, bonusRequestedScore,
+      bonusRequestedAt: bonusRequested ? serverTimestamp() : null,
+      bonusDecision: bonusRequested ? 'PENDING' : 'NOT_REQUESTED', bonusDecisionReason: '',
+      bonusDecisionByUserId: '', bonusDecisionByName: '', bonusDecisionAt: null,
+      bonusAwarded: false, bonusType: '', bonusRate: 0, bonusBasisScore: 0, bonusScore: 0,
+      bonusConfirmedByUserId: '', bonusConfirmedByName: '', bonusConfirmedAt: null,
+      ownerLeaderLevel: clean(KpiWorkflowState.profile.leaderLevel || ''),
+      ownerAdditionalRoles: Array.isArray(KpiWorkflowState.profile.additionalRoles) ? KpiWorkflowState.profile.additionalRoles : [],
+      status: 'PENDING_REVIEW',
+      formulaVersion: 'KPI_2026_PHU_LUC_4_AUTO_PROGRESS_V7',
+      updatedAt: serverTimestamp()
     };
-    evaluationPayload.homeDepartmentId = evaluationHomeDepartmentId;
-    if (evaluationScope === 'CDTN') evaluationPayload.organizationId = 'CDTN';
+    const evaluationId = `${KpiWorkflowState.period.id}_${task.id}`;
+    const createPayload = {
+      periodId: KpiWorkflowState.period.id,
+      taskId: task.id,
+      taskCode: task.taskCode || '',
+      ownerUserId: KpiWorkflowState.user.uid,
+      ownerName: KpiWorkflowState.profile.fullName || '',
+      ownerRole: KpiWorkflowState.profile.role || '',
+      departmentId: evaluationDepartmentId,
+      homeDepartmentId: evaluationHomeDepartmentId,
+      trackingMode: itemized ? 'ITEMIZED' : 'FINAL_OUTPUT',
+      actualWorkItemCount: itemized ? workSummary.count : null,
+      actualCompletedCount: itemized ? workSummary.completedCount : null,
+      actualOnTimeCount: itemized ? workSummary.onTimeCount : null,
+      actualQualifiedCount: itemized ? workSummary.qualifiedCount : null,
+      actualProgressRate: itemized ? workSummary.actualProgressRate : null,
+      actualResultRate: itemized ? workSummary.actualResultRate : null,
+      ...selfAssessmentFields,
+      createdAt: serverTimestamp()
+    };
+    if (evaluationScope === 'CDTN') createPayload.organizationId = 'CDTN';
+
     try {
-      await setDoc(doc(db, 'taskEvaluations', `${KpiWorkflowState.period.id}_${task.id}`), evaluationPayload, { merge: true });
+      if (ev.id) {
+        /*
+         * V1.24.3: evaluation đã tồn tại dùng UPDATE hẹp đúng whitelist ownerEvaluationUpdateOnly().
+         * Không ghi lại task/owner/scope/createdAt/tracking snapshot, tránh biến một lần tự đánh giá
+         * thành thay đổi metadata hoặc bị Rules từ chối khi hồ sơ legacy thiếu các field actual*.
+         */
+        await updateDoc(doc(db, 'taskEvaluations', ev.id), selfAssessmentFields);
+      } else {
+        await setDoc(doc(db, 'taskEvaluations', evaluationId), createPayload);
+      }
     } catch (error) {
       console.error('KPI_SELF_ASSESSMENT_DENIED', {
         taskId: task.id,
@@ -3275,7 +3364,7 @@ async function openSelfAssessment(taskId) {
         currentRole: KpiWorkflowState.profile.role || '',
         leaderLevel: KpiWorkflowState.profile.leaderLevel || '',
         profileDepartmentId: profileDepartmentId(),
-        evaluationDepartmentId: evaluationPayload.departmentId,
+        evaluationDepartmentId,
         taskScopeDepartmentId: evaluationScope,
         scoringEnabled: task.scoringEnabled,
         active: task.active,
@@ -3286,9 +3375,14 @@ async function openSelfAssessment(taskId) {
       return;
     }
     try {
-      await audit('SUBMIT_SELF_ASSESSMENT', { taskId, trackingMode: itemized ? 'ITEMIZED' : 'FINAL_OUTPUT', progressCalculationMode: evaluationPayload.progressCalculationMode, actualWorkItemCount: itemized ? workSummary.count : null, selfExecutionScore: score.execution, selfActualScore: score.actual, bonusRequested, bonusRequestType, bonusRequestedScore });
+      await audit('SUBMIT_SELF_ASSESSMENT', { taskId, trackingMode: itemized ? 'ITEMIZED' : 'FINAL_OUTPUT', progressCalculationMode, actualWorkItemCount: itemized ? workSummary.count : null, selfExecutionScore: score.execution, selfActualScore: score.actual, bonusRequested, bonusRequestType, bonusRequestedScore });
     } catch (auditError) {
       console.warn('Đã lưu tự đánh giá nhưng chưa ghi được nhật ký KPI:', auditError);
+    }
+    try {
+      await loadOwnEvaluationForTask(task.id, { force:true });
+    } catch (refreshError) {
+      console.warn('Đã lưu tự đánh giá nhưng chưa refresh được state cá nhân; realtime sẽ đồng bộ lại:', refreshError);
     }
     closeModal(); scheduleKpiLiveRender();
   });
