@@ -1,11 +1,11 @@
-import { UserContext } from "../../core/user-context.js?v=20260913.V1_23_2";
-import { Permissions } from "../../core/permissions.js?v=20260913.V1_23_2";
-import { ToastService } from "../../core/toast-service.js?v=20260913.V1_23_2";
-import { TaskReadService } from "../../services/task-read-service.js?v=20260913.V1_23_2";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260913.V1_23_2";
-import { openTaskCreateModal } from "./task-form-modal.js?v=20260913.V1_23_2";
-import { openTaskDetailModal } from "./task-detail-modal.js?v=20260913.V1_23_2";
-import { effectiveDepartmentAssignmentStatus } from "../../core/task-display-order.js?v=20260913.V1_23_2";
+import { UserContext } from "../../core/user-context.js?v=20260914.V1_24_2";
+import { Permissions } from "../../core/permissions.js?v=20260914.V1_24_2";
+import { ToastService } from "../../core/toast-service.js?v=20260914.V1_24_2";
+import { TaskReadService } from "../../services/task-read-service.js?v=20260914.V1_24_2";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260914.V1_24_2";
+import { openTaskCreateModal } from "./task-form-modal.js?v=20260914.V1_24_2";
+import { openTaskDetailModal } from "./task-detail-modal.js?v=20260914.V1_24_2";
+import { effectiveDepartmentAssignmentStatus, taskAcceptanceState } from "../../core/task-display-order.js?v=20260914.V1_24_2";
 
 let renderSequence = 0;
 let currentTasks = [];
@@ -83,14 +83,12 @@ export async function renderTasksView(outlet) {
   outlet.innerHTML = loadingCard("Đang tải danh sách nhiệm vụ…");
 
   try {
-    const [tasks, canCreateUnexpectedTask] = await Promise.all([
-      TaskReadService.list({ force: false }),
-      TaskWriteService.canCreateUnexpectedTask().catch(() => false)
-    ]);
-    currentTasks = tasks;
+    const canCreateUnexpectedTask = await TaskWriteService.canCreateUnexpectedTask().catch(() => false);
+    currentTasks = [];
     if (sequence !== renderSequence || currentOutlet !== outlet || window.location.hash !== "#/tasks") return;
     mountTasksPage(outlet, canCreateUnexpectedTask && !Permissions.isDirector());
     updateTasksPage(currentTasks);
+    /* V1.24.1 QUOTA SAFE: initial snapshot của chính listener là lần tải đầu; không getDocs() rồi đọc lại. */
     startTasksRealtime(outlet, sequence);
   } catch (error) {
     renderTaskLoadError(outlet, error);
@@ -133,12 +131,13 @@ function mountTasksPage(outlet, canCreateUnexpectedTask = false) {
       ${card("Trễ hạn", 0, "taskMetricOverdue")}
       ${card("Hoàn thành", 0, "taskMetricCompleted")}
       ${card("Chờ duyệt điều chỉnh", 0, "taskMetricAdjustment")}
-      ${card("Miễn đánh giá", 0, "taskMetricExempt")}
+      ${card("Không tính KPI", 0, "taskMetricExempt")}
     </div>
     <div class="toolbar tasks-toolbar tasks-toolbar-compact">
       <label class="field-grow"><span>Tìm kiếm</span><input id="taskSearch" type="search" placeholder="Tìm mã, tiêu đề, người thực hiện…"></label>
       ${(Permissions.canViewAllDepartments() || Permissions.isCdtnMember()) ? '<label><span>Phạm vi</span><select id="taskDepartmentFilter"><option value="ALL">Tất cả nhiệm vụ</option></select></label>' : ""}
-      <label><span>Trạng thái</span><select id="taskStatusFilter"><option value="ALL">Tất cả trạng thái</option><option value="IN_PROGRESS">Đang xử lý</option><option value="WAITING">Chờ tiếp nhận/phân công</option><option value="OVERDUE">Trễ hạn</option><option value="COMPLETED">Hoàn thành</option><option value="ADJUSTMENT_PENDING">Chờ duyệt điều chỉnh</option><option value="EXEMPT">Miễn đánh giá</option></select></label>
+      <label><span>Tiếp nhận</span><select id="taskAcceptanceFilter"><option value="ALL">Tất cả</option><option value="PENDING">Chưa xác nhận</option><option value="ACCEPTED">Đã xác nhận</option></select></label>
+      <label><span>Trạng thái</span><select id="taskStatusFilter"><option value="ALL">Tất cả trạng thái</option><option value="IN_PROGRESS">Đang xử lý</option><option value="WAITING">Chờ tiếp nhận/phân công</option><option value="OVERDUE">Trễ hạn</option><option value="COMPLETED">Hoàn thành</option><option value="ADJUSTMENT_PENDING">Chờ duyệt điều chỉnh</option><option value="EXEMPT">Không tính KPI</option></select></label>
       <button id="refreshTasks" class="secondary-button compact-sync-button" type="button" title="Cập nhật danh sách nhiệm vụ" aria-label="Cập nhật danh sách nhiệm vụ">↻</button>
     </div>
     <div id="taskWorkspaceContainer" class="task-workspace-grid">
@@ -176,6 +175,7 @@ function mountTasksPage(outlet, canCreateUnexpectedTask = false) {
   document.getElementById("refreshTasks")?.addEventListener("click", refreshOnce);
   document.getElementById("taskSearch")?.addEventListener("input", renderFilteredTasks);
   document.getElementById("taskStatusFilter")?.addEventListener("change", renderFilteredTasks);
+  document.getElementById("taskAcceptanceFilter")?.addEventListener("change", renderFilteredTasks);
   document.getElementById("taskDepartmentFilter")?.addEventListener("change", renderFilteredTasks);
   document.querySelectorAll("[data-task-scope]").forEach(button => button.addEventListener("click", () => {
     taskViewMode = button.dataset.taskScope === "MANAGEMENT" ? "MANAGEMENT" : "MINE";
@@ -221,8 +221,10 @@ function renderFilteredTasks() {
   const search = document.getElementById("taskSearch");
   const filter = document.getElementById("taskStatusFilter");
   const departmentFilter = document.getElementById("taskDepartmentFilter");
+  const acceptanceFilter = document.getElementById("taskAcceptanceFilter");
   const keyword = String(search?.value || "").trim().toLowerCase();
   const status = filter?.value || "ALL";
+  const acceptance = acceptanceFilter?.value || "ALL";
   const departmentId = departmentFilter?.value || "ALL";
   const filtered = scopedTasks(currentTasks).filter(task => {
     const text = [task.taskCode, task.title, task.ownerName, task.createdByName, taskWorkspaceId(task)].join(" ").toLowerCase();
@@ -233,9 +235,11 @@ function renderFilteredTasks() {
       (status === "WAITING" && !task._exempt && ["CHO_PHONG_KHU_TIEP_NHAN", "CHO_PHAN_CONG", "PENDING_ASSIGNMENT", "DA_PHAN_CONG", "MOI_TIEP_NHAN"].includes(task._status)) ||
       (status === "OVERDUE" && task._overdue) ||
       (status === "COMPLETED" && task._completed) ||
-      (status === "ADJUSTMENT_PENDING" && String(task.adjustmentStatus || "").toUpperCase() === "REQUESTED") ||
-      (status === "EXEMPT" && String(task.scoringStatus || "").toUpperCase() === "ADJUSTMENT_EXEMPT");
-    return keywordMatch && departmentMatch && statusMatch;
+      (status === "ADJUSTMENT_PENDING" && (String(task.adjustmentStatus || "").toUpperCase() === "REQUESTED" || String(task.noOccurrenceStatus || "").toUpperCase() === "REQUESTED")) ||
+      (status === "EXEMPT" && ["ADJUSTMENT_EXEMPT", "NO_OCCURRENCE_CONFIRMED"].includes(String(task.scoringStatus || "").toUpperCase()));
+    const acceptanceState = task._acceptanceState || taskAcceptanceState(task);
+    const acceptanceMatch = acceptance === "ALL" || acceptanceState === acceptance;
+    return keywordMatch && departmentMatch && statusMatch && acceptanceMatch;
   });
 
   const professional = filtered.filter(task => taskWorkspaceId(task) !== "CDTN");
@@ -269,7 +273,7 @@ function taskStatusDescriptor(task) {
   const adjustmentStatus = String(task.adjustmentStatus || "").toUpperCase();
   const status = String(task._status || task.status || "").toUpperCase();
   const departmentStatus = effectiveDepartmentAssignmentStatus(task);
-  if (scoringStatus === "ADJUSTMENT_EXEMPT") return { label: "Miễn đánh giá", className: "info" };
+  if (["ADJUSTMENT_EXEMPT", "NO_OCCURRENCE_CONFIRMED"].includes(scoringStatus)) return { label: "Không tính KPI", className: "info" };
   if (adjustmentStatus === "REQUESTED") return { label: "Chờ duyệt điều chỉnh", className: "warning" };
   if (task._overdue) return { label: "Trễ hạn", className: "danger" };
   const eventDriven = String(task.deadlineMode || "").toUpperCase() === "EVENT_DRIVEN";
@@ -309,10 +313,18 @@ function bindRows(tasks) {
   });
 }
 
+function acceptanceDescriptor(task) {
+  const state = task._acceptanceState || taskAcceptanceState(task);
+  if (state === "ACCEPTED") return { label: "Đã xác nhận", className: "accepted" };
+  if (state === "PENDING") return { label: "Chưa xác nhận", className: "pending" };
+  return null;
+}
+
 function renderTaskList(tasks, emptyTitle = "Không có nhiệm vụ trong phạm vi hiển thị") {
   if (!tasks.length) return `<div class="empty-state compact-empty-state"><div class="empty-icon">📋</div><strong>${escapeHtml(emptyTitle)}</strong><p>Hãy thay đổi bộ lọc hoặc chờ nhiệm vụ được giao.</p></div>`;
   return `<div class="data-list">${tasks.slice(0, 500).map(task => {
     const status = taskStatusDescriptor(task);
+    const acceptanceState = acceptanceDescriptor(task);
     const eventDriven = String(task.deadlineMode || "").toUpperCase() === "EVENT_DRIVEN";
     const eventCount = Math.max(0, Number(task.eventWorkItemCount || 0));
     const eventEligible = Math.max(0, Number(task.eventEligibleCount || 0));
@@ -335,7 +347,7 @@ function renderTaskList(tasks, emptyTitle = "Không có nhiệm vụ trong phạ
           ? `${eventCompleted || eventCount}/${eventCount || eventCompleted} lượt hoàn thành · KPI tiến độ ${eventProgress ?? 0}%`
           : (eventCount ? `${eventCount} lượt đã ghi nhận` : "Theo từng lượt phát sinh"))
       : formatDate(task._deadline);
-    return `<button type="button" class="data-row task-row-button" data-task-id="${escapeHtml(task.id)}"><div class="data-row-main"><strong>${escapeHtml(task.title || task.taskCode || "Nhiệm vụ không có tiêu đề")}</strong><small>${escapeHtml(task.taskCode || task.id)} • ${escapeHtml(DEPARTMENT_NAMES[taskWorkspaceId(task)] || taskWorkspaceId(task) || "-")} • ${escapeHtml(taskOwnerSummary(task))}</small><div class="progress-track"><span style="width:${Math.min(100, Math.max(0, progressValue))}%"></span></div></div><div class="data-row-meta"><span class="status-pill ${status.className}">${status.label}</span><small>${escapeHtml(secondary)}</small><strong>${escapeHtml(progressLabel)}</strong></div></button>`;
+    return `<button type="button" class="data-row task-row-button" data-task-id="${escapeHtml(task.id)}"><div class="data-row-main"><strong>${escapeHtml(task.title || task.taskCode || "Nhiệm vụ không có tiêu đề")}</strong><small>${escapeHtml(task.taskCode || task.id)} • ${escapeHtml(DEPARTMENT_NAMES[taskWorkspaceId(task)] || taskWorkspaceId(task) || "-")} • ${escapeHtml(taskOwnerSummary(task))}</small><div class="progress-track"><span style="width:${Math.min(100, Math.max(0, progressValue))}%"></span></div></div><div class="data-row-meta">${acceptanceState ? `<span class="task-acceptance-pill ${acceptanceState.className}">${acceptanceState.label}</span>` : ""}<span class="status-pill ${status.className}">${status.label}</span><small>${escapeHtml(secondary)}</small><strong>${escapeHtml(progressLabel)}</strong></div></button>`;
   }).join("")}</div>`;
 }
 

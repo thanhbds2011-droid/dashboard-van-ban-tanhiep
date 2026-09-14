@@ -1,17 +1,17 @@
 /** Chi tiết, phân công và các lượt công việc phát sinh của nhiệm vụ. */
-import { UserContext } from "../../core/user-context.js?v=20260913.V1_23_2";
-import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260913.V1_23_2";
-import { ModalService } from "../../core/modal-service.js?v=20260913.V1_23_2";
-import { Permissions } from "../../core/permissions.js?v=20260913.V1_23_2";
-import { effectiveDepartmentAssignmentStatus, isTerminalTask } from "../../core/task-display-order.js?v=20260913.V1_23_2";
-import { UserReadService } from "../../services/user-read-service.js?v=20260913.V1_23_2";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260913.V1_23_2";
-import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260913.V1_23_2";
-import { TaskEvidenceService } from "../../services/task-evidence-service.js?v=20260913.V1_23_2";
-import { StagedEvidenceUploader } from "../../services/staged-evidence-uploader.js?v=20260913.V1_23_2";
-import { openTaskProgressModal } from "./task-progress-modal.js?v=20260913.V1_23_2";
-import { mountTaskAdjustmentPanel } from "./task-adjustment-panel.js?v=20260913.V1_23_2";
-import { TaskLogService } from "../../services/task-log-service.js?v=20260913.V1_23_2";
+import { UserContext } from "../../core/user-context.js?v=20260914.V1_24_2";
+import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260914.V1_24_2";
+import { ModalService } from "../../core/modal-service.js?v=20260914.V1_24_2";
+import { Permissions } from "../../core/permissions.js?v=20260914.V1_24_2";
+import { effectiveDepartmentAssignmentStatus, isTerminalTask, taskAcceptanceState } from "../../core/task-display-order.js?v=20260914.V1_24_2";
+import { UserReadService } from "../../services/user-read-service.js?v=20260914.V1_24_2";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260914.V1_24_2";
+import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260914.V1_24_2";
+import { TaskEvidenceService } from "../../services/task-evidence-service.js?v=20260914.V1_24_2";
+import { StagedEvidenceUploader } from "../../services/staged-evidence-uploader.js?v=20260914.V1_24_2";
+import { openTaskProgressModal } from "./task-progress-modal.js?v=20260914.V1_24_2";
+import { mountTaskAdjustmentPanel } from "./task-adjustment-panel.js?v=20260914.V1_24_2";
+import { TaskLogService } from "../../services/task-log-service.js?v=20260914.V1_24_2";
 
 const TEAM_LABELS = Object.freeze({
   BAO_VE: "Tổ Bảo vệ",
@@ -141,15 +141,6 @@ function departmentAcceptanceLabel(task) {
   return "Theo dữ liệu cũ";
 }
 
-function canReviewNoOccurrence(task) {
-  const user = UserContext.requireUser();
-  if (task.ownerUserId === user.uid) return false;
-  const directApprover = String(
-    task.adjustmentApproverUserId || task.assignedByUserId || task.createdByUserId || ""
-  ) === user.uid;
-  return Permissions.isAdmin() || directApprover;
-}
-
 function coefficientLabel(value) {
   const coefficient = Number(value || 1);
   return `${Math.round(coefficient * 100)}%`;
@@ -211,16 +202,6 @@ function evidenceHtml(item, evidenceFiles = []) {
     ? `<a class="primary-link" target="_blank" rel="noopener" href="${escapeHtml(url)}">📎 ${escapeHtml(item.evidenceFileName || "Mở minh chứng")}</a>`
     : "";
   return `${item.evidenceText ? `<small>Minh chứng: ${escapeHtml(item.evidenceText)}</small>` : ""}${list}${legacy}`;
-}
-
-function taskEvidenceHistoryHtml(task, evidenceFiles = []) {
-  const activeFiles = (evidenceFiles || []).filter(file => file.active !== false);
-  const storedFiles = activeFiles.length
-    ? `<div class="task-evidence-file-list">${activeFiles.map((file, index) => `<div class="task-evidence-file-row"><span class="task-evidence-file-index">${index + 1}</span><div><strong>${escapeHtml(file.fileName || "Tệp minh chứng")}</strong><small>${file.scopeType === "WORK_ITEM" ? "Lượt phát sinh" : file.scopeType === "MILESTONE" ? "Mốc định kỳ" : "Nhiệm vụ"}</small></div><a class="secondary-button compact-button" target="_blank" rel="noopener" href="${escapeHtml(safeExternalUrl(file.fileUrl) || "#")}">Mở</a></div>`).join("")}</div>`
-    : (safeExternalUrl(task.evidenceUrl)
-      ? `<a class="primary-link" target="_blank" rel="noopener" href="${escapeHtml(safeExternalUrl(task.evidenceUrl))}">📎 ${escapeHtml(task.evidenceFileName || "Mở tệp minh chứng")}</a>`
-      : '<p>Chưa có tệp minh chứng.</p>');
-  return `${storedFiles}${task.evidenceText ? `<p>${escapeHtml(task.evidenceText)}</p>` : ""}`;
 }
 
 function workItemContent(item, type, evidenceFiles = []) {
@@ -470,14 +451,8 @@ function openWorkItemEditor(task, item, onSaved, existingEvidenceFiles = []) {
     box.textContent = message || "";
   };
   const renderStaged = () => {
-    const snapshot = staged.snapshot();
     const target = overlay.querySelector("#workItemUploadStatus");
-    const box = overlay.querySelector("#workItemEvidenceStagedBox");
-    const hasVisible = snapshot.some(entry =>
-      entry.committed !== true && !["DISCARDED", "REMOVED"].includes(entry.status)
-    );
-    if (target) target.innerHTML = workItemStagedEvidenceHtml(snapshot);
-    if (box) box.hidden = !hasVisible;
+    if (target) target.innerHTML = workItemStagedEvidenceHtml(staged.snapshot());
   };
   const refreshSaveState = () => {
     const button = overlay.querySelector("#saveWorkItemButton");
@@ -602,27 +577,12 @@ function openWorkItemEditor(task, item, onSaved, existingEvidenceFiles = []) {
   refreshSaveState();
 }
 
-function noOccurrenceHtml(task, workItems, isOwner) {
-  const status = String(task.noOccurrenceStatus || "NONE").toUpperCase();
-  if (status === "CONFIRMED") {
-    return `<div class="info-banner no-occurrence-banner is-confirmed"><strong>Đã xác nhận không phát sinh</strong><span>Đầu việc đã được loại khỏi điểm A và không cộng vào B của kỳ. Lý do: ${escapeHtml(task.noOccurrenceReason || "Không ghi lý do")}.</span></div>`;
-  }
-  if (status === "REQUESTED") {
-    return `<div class="info-banner no-occurrence-banner is-pending"><strong>Đang chờ xác nhận “Không phát sinh”</strong><span>${escapeHtml(task.noOccurrenceReason || "")}</span>${canReviewNoOccurrence(task) ? '<div class="no-occurrence-actions"><button id="confirmNoOccurrenceButton" class="primary-button compact-button" type="button">Xác nhận</button><button id="rejectNoOccurrenceButton" class="secondary-button compact-button" type="button">Không chấp thuận</button></div>' : ""}</div>`;
-  }
-  const rejection = status === "REJECTED"
-    ? `<span class="text-danger">Đề nghị trước chưa được chấp thuận: ${escapeHtml(task.noOccurrenceRejectionReason || "")}</span>`
-    : "";
-  if (isOwner && !workItems.length) {
-    return `<div class="info-banner no-occurrence-banner"><strong>Trong kỳ chưa có lượt công việc phát sinh</strong><span>Không chấm 0% hoặc 100%. Nếu chắc chắn không phát sinh, hãy gửi Trưởng phòng xác nhận để loại đầu việc khỏi A.</span>${rejection}<button id="requestNoOccurrenceButton" class="secondary-button compact-button" type="button">Đề nghị “Không phát sinh”</button></div>`;
-  }
-  return rejection ? `<div class="info-banner no-occurrence-banner">${rejection}</div>` : "";
-}
 
 export async function openTaskDetailModal(task, { onSaved }) {
   const currentUser = UserContext.requireUser();
   const isOwner = task.ownerUserId === currentUser.uid;
-  const accepted = task.assignmentStatus === "DA_TIEP_NHAN";
+  const acceptanceState = taskAcceptanceState(task);
+  const accepted = acceptanceState === "ACCEPTED";
   const completed = isTerminalTask(task);
   const eventDrivenTask = String(task.deadlineMode || "").toUpperCase() === "EVENT_DRIVEN";
   const adjustmentExempt = String(task.scoringStatus || "").toUpperCase() === "ADJUSTMENT_EXEMPT";
@@ -683,6 +643,7 @@ export async function openTaskDetailModal(task, { onSaved }) {
         <section class="task-detail-tab-panel is-active" data-task-panel="overview">
           <div class="detail-grid task-detail-summary task-detail-summary-compact">
             ${detail("Người thực hiện", ownerDisplayName(task))}
+            ${detail("Tiếp nhận", acceptanceDisplay(task))}
             ${detail("Trạng thái", statusName(task))}
             ${detail("Hạn hoàn thành", eventDrivenTask ? "Theo từng lượt phát sinh" : formatDate(task._deadline || task.deadline))}
             ${eventDrivenTask ? detail("Hoàn thành nghiệp vụ", completed ? "100%" : eventCompletionDisplay(task)) : detail("Tiến độ", taskProgressDisplay(task))}
@@ -711,7 +672,6 @@ export async function openTaskDetailModal(task, { onSaved }) {
           ${isOwner && !accepted && !completed ? '<div class="info-banner">Bạn cần xác nhận đã nhận nhiệm vụ trước khi cập nhật tiến độ, kết quả hoặc minh chứng.</div>' : ""}
           ${isItemizedTask(task) ? `<section class="detail-section task-work-items-section">
             <div class="detail-section-heading"><div><h3>${String(task.deadlineMode || "").toUpperCase() === "EVENT_DRIVEN" ? "Các lượt phát sinh" : labels.name}</h3></div>${canEditWorkItems ? `<button id="addWorkItemButton" class="primary-button compact-button" type="button">+ ${String(task.deadlineMode || "").toUpperCase() === "EVENT_DRIVEN" ? "Ghi nhận phát sinh" : labels.add}</button>` : ""}</div>
-            <div id="taskNoOccurrence">${noOccurrenceHtml(task, workItems, isOwner)}</div>
             <div id="taskWorkItemSummary">${workItemSummaryHtml(workItems, task)}</div>
             <div id="taskWorkItemList">${workItemRows(workItems, canEditWorkItems, task, evidenceFiles)}</div>
           </section>` : ["DAILY","WEEKLY","MONTHLY"].includes(String(task.milestoneMode || "").toUpperCase()) ? `<section class="detail-section"><h3>Tiến độ định kỳ</h3><div class="detail-grid task-evaluation-summary">${detail("Tiến độ", `${Number(task.progress || 0)}%`)}${detail("Mốc đã hoàn thành", `${Number(task.milestoneCompletedCount || 0)}/${Number(task.milestoneCount || 0)}`)}${detail("Trạng thái", statusName(task))}${detail("Mốc cuối", formatDate(task.deadline || task._deadline))}</div></section>` : `<div class="info-banner"><strong>Tiến độ nhiệm vụ</strong><span>${escapeHtml(statusName(task))} · ${Number(task.progress || 0)}%</span></div>`}
@@ -733,7 +693,7 @@ export async function openTaskDetailModal(task, { onSaved }) {
         </section>
 
         <section class="task-detail-tab-panel" data-task-panel="history">
-          <section class="detail-section"><h3>Minh chứng</h3><div id="taskEvidenceHistoryContent">${taskEvidenceHistoryHtml(task, evidenceFiles)}</div></section>
+          <section class="detail-section"><h3>Minh chứng</h3>${evidenceFiles.length ? `<div class="task-evidence-file-list">${evidenceFiles.map((file,index)=>`<div class="task-evidence-file-row"><span class="task-evidence-file-index">${index+1}</span><div><strong>${escapeHtml(file.fileName || "Tệp minh chứng")}</strong><small>${file.scopeType === "WORK_ITEM" ? "Lượt phát sinh" : file.scopeType === "MILESTONE" ? "Mốc định kỳ" : "Nhiệm vụ"}</small></div><a class="secondary-button compact-button" target="_blank" rel="noopener" href="${escapeHtml(safeExternalUrl(file.fileUrl) || "#")}">Mở</a></div>`).join("")}</div>` : (safeExternalUrl(task.evidenceUrl) ? `<a class="primary-link" target="_blank" rel="noopener" href="${escapeHtml(safeExternalUrl(task.evidenceUrl))}">📎 ${escapeHtml(task.evidenceFileName || "Mở tệp minh chứng")}</a>` : '<p>Chưa có tệp minh chứng.</p>')}${task.evidenceText ? `<p>${escapeHtml(task.evidenceText)}</p>` : ""}</section>
           <section class="detail-section"><h3>Lịch sử thao tác</h3>${renderTaskLogs(taskLogs)}</section>
         </section>
       </div>
@@ -773,12 +733,8 @@ export async function openTaskDetailModal(task, { onSaved }) {
     ]);
     const list = overlay.querySelector("#taskWorkItemList");
     const summary = overlay.querySelector("#taskWorkItemSummary");
-    const noOccurrence = overlay.querySelector("#taskNoOccurrence");
-    const evidenceHistory = overlay.querySelector("#taskEvidenceHistoryContent");
     if (list) list.innerHTML = workItemRows(workItems, canEditWorkItems, task, evidenceFiles);
     if (summary) summary.innerHTML = workItemSummaryHtml(workItems, task);
-    if (noOccurrence) noOccurrence.innerHTML = noOccurrenceHtml(task, workItems, isOwner);
-    if (evidenceHistory) evidenceHistory.innerHTML = taskEvidenceHistoryHtml(task, evidenceFiles);
     bindWorkItemActions();
   };
 
@@ -805,38 +761,6 @@ export async function openTaskDetailModal(task, { onSaved }) {
   overlay.querySelector("#addWorkItemButton")?.addEventListener("click", () => openWorkItemEditor(task, null, refreshWorkItems, evidenceFiles));
   bindWorkItemActions();
 
-  overlay.querySelector("#requestNoOccurrenceButton")?.addEventListener("click", async () => {
-    const reason = await ModalService.prompt("Nêu lý do đầu việc không phát sinh trong kỳ:", { title: "Đề nghị không phát sinh", label: "Lý do", required: true, confirmText: "Gửi đề nghị" });
-    if (reason === null) return;
-    try {
-      await TaskWriteService.requestNoOccurrence(task, reason);
-      close();
-      await onSaved?.();
-    } catch (error) {
-      await ModalService.alert(friendlyErrorMessage(error, "Không gửi được đề nghị."), { title: "Không gửi được đề nghị", danger: true });
-    }
-  });
-  overlay.querySelector("#confirmNoOccurrenceButton")?.addEventListener("click", async () => {
-    if (!await ModalService.confirm("Xác nhận không phát sinh và loại đầu việc này khỏi điểm A của kỳ?", { title: "Xác nhận không phát sinh", confirmText: "Xác nhận", danger: true })) return;
-    try {
-      await TaskWriteService.confirmNoOccurrence(task);
-      close();
-      await onSaved?.();
-    } catch (error) {
-      await ModalService.alert(friendlyErrorMessage(error, "Không xác nhận được đề nghị."), { title: "Không xác nhận được", danger: true });
-    }
-  });
-  overlay.querySelector("#rejectNoOccurrenceButton")?.addEventListener("click", async () => {
-    const reason = await ModalService.prompt("Nêu lý do không chấp thuận:", { title: "Không chấp thuận đề nghị", label: "Lý do", required: true, confirmText: "Không chấp thuận", danger: true });
-    if (reason === null) return;
-    try {
-      await TaskWriteService.rejectNoOccurrence(task, reason);
-      close();
-      await onSaved?.();
-    } catch (error) {
-      await ModalService.alert(friendlyErrorMessage(error, "Không xử lý được đề nghị."), { title: "Không xử lý được", danger: true });
-    }
-  });
 
   const teamSelect = overlay.querySelector("#assignTeam");
   const ownerSelect = overlay.querySelector("#assignOwner");
@@ -983,13 +907,26 @@ function taskProgressDisplay(task) {
   return `${Number(task?.eventProgressRate ?? 0)}%`;
 }
 
+function acceptanceDisplay(task) {
+  const state = taskAcceptanceState(task);
+  if (state === "ACCEPTED") {
+    const value = task?.acceptedAt?.toDate ? task.acceptedAt.toDate() : task?.acceptedAt ? new Date(task.acceptedAt) : null;
+    const when = value instanceof Date && !Number.isNaN(value.getTime())
+      ? new Intl.DateTimeFormat("vi-VN", { dateStyle: "short", timeStyle: "short" }).format(value)
+      : "";
+    return when ? `Đã xác nhận · ${when}` : "Đã xác nhận";
+  }
+  if (state === "PENDING") return "Chưa xác nhận";
+  return "Không áp dụng";
+}
+
 function detail(label, value) {
   return `<div class="detail-item"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`;
 }
 
 function statusName(task) {
-  if (String(task.scoringStatus || "").toUpperCase() === "ADJUSTMENT_EXEMPT") return "Miễn đánh giá";
-  if (String(task.noOccurrenceStatus || "").toUpperCase() === "CONFIRMED") return "Không phát sinh";
+  if (String(task.scoringStatus || "").toUpperCase() === "ADJUSTMENT_EXEMPT") return "Không tính KPI";
+  if (String(task.noOccurrenceStatus || "").toUpperCase() === "CONFIRMED") return "Không tính KPI";
   if (task._overdue) return "Trễ hạn";
   const eventDriven = String(task.deadlineMode || "").toUpperCase() === "EVENT_DRIVEN";
   if (eventDriven && task._completed) return "Đã kết thúc theo dõi";
@@ -1014,8 +951,8 @@ function scoringStatusName(value) {
     NOT_ASSESSED: "Chưa tự đánh giá",
     PENDING_REVIEW: "Chờ xác nhận",
     CONFIRMED: "Đã xác nhận chính thức",
-    ADJUSTMENT_EXEMPT: "Miễn đánh giá do điều động",
-    NO_OCCURRENCE_CONFIRMED: "Không phát sinh đã xác nhận",
+    ADJUSTMENT_EXEMPT: "Không tính KPI — Điều động/lý do khách quan",
+    NO_OCCURRENCE_CONFIRMED: "Không tính KPI — Không phát sinh trong kỳ",
     CANCELLED: "Đã hủy"
   })[status] || status;
 }
