@@ -1,8 +1,8 @@
-import { UserContext } from "../../core/user-context.js?v=20260913.V1_23_2";
-import { Permissions } from "../../core/permissions.js?v=20260913.V1_23_2";
-import { ToastService } from "../../core/toast-service.js?v=20260913.V1_23_2";
-import { DashboardReadService } from "../../services/dashboard-read-service.js?v=20260913.V1_23_2";
-import { TaskReadService } from "../../services/task-read-service.js?v=20260913.V1_23_2";
+import { UserContext } from "../../core/user-context.js?v=20260914.V1_24_2";
+import { Permissions } from "../../core/permissions.js?v=20260914.V1_24_2";
+import { ToastService } from "../../core/toast-service.js?v=20260914.V1_24_2";
+import { DashboardReadService } from "../../services/dashboard-read-service.js?v=20260914.V1_24_2";
+import { TaskReadService } from "../../services/task-read-service.js?v=20260914.V1_24_2";
 let currentData = null;
 let dashboardRenderSequence = 0;
 let dashboardDepartmentScope = "ALL";
@@ -77,7 +77,7 @@ export async function renderDashboardView(outlet) {
   outlet.innerHTML = loadingCard("Đang tải dữ liệu trang chủ…");
 
   try {
-    currentData = await DashboardReadService.load({ force: false });
+    currentData = await DashboardReadService.load({ force: false, includeTasks: false });
     if (sequence !== dashboardRenderSequence || window.location.hash !== "#/dashboard") return;
     mountDashboard(outlet, user);
     updateDashboard(currentData);
