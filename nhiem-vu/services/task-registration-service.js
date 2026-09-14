@@ -1,12 +1,12 @@
-import { FirebaseService } from "../core/firebase-service.js?v=20260914.V1_24_3";
-import { UserContext } from "../core/user-context.js?v=20260914.V1_24_3";
-import { Permissions } from "../core/permissions.js?v=20260914.V1_24_3";
-import { TaskLogService } from "./task-log-service.js?v=20260914.V1_24_3";
-import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260914.V1_24_3";
-import { PeriodReadService } from "./period-read-service.js?v=20260914.V1_24_3";
-import { UserNotificationService } from "./user-notification-service.js?v=20260914.V1_24_3";
-import { APP_VERSION } from "../core/app-version.js?v=20260914.V1_24_3";
-import { deriveDeadlinePlan, deadlineDateFromKey, isDateKey, requiresManualDeadline, isEventDrivenFrequency, canonicalFrequency } from "../core/deadline-engine.js?v=20260914.V1_24_3";
+import { FirebaseService } from "../core/firebase-service.js?v=20260914.V1_24_4";
+import { UserContext } from "../core/user-context.js?v=20260914.V1_24_4";
+import { Permissions } from "../core/permissions.js?v=20260914.V1_24_4";
+import { TaskLogService } from "./task-log-service.js?v=20260914.V1_24_4";
+import { StandardTaskReadService } from "./standard-task-read-service.js?v=20260914.V1_24_4";
+import { PeriodReadService } from "./period-read-service.js?v=20260914.V1_24_4";
+import { UserNotificationService } from "./user-notification-service.js?v=20260914.V1_24_4";
+import { APP_VERSION } from "../core/app-version.js?v=20260914.V1_24_4";
+import { deriveDeadlinePlan, deadlineDateFromKey, isDateKey, requiresManualDeadline, isEventDrivenFrequency, canonicalFrequency } from "../core/deadline-engine.js?v=20260914.V1_24_4";
 
 const clean = value => String(value ?? "").trim();
 const upper = value => clean(value).toUpperCase();
@@ -263,7 +263,10 @@ function taskDocumentCancellable(task, user, registration = null) {
     emptyTaskField(task.evidenceFileName) &&
     emptyTaskField(task.evidenceStoragePath) &&
     emptyTaskField(task.pendingAdjustmentId) &&
+    Number(task.eventWorkItemCount || 0) === 0 &&
+    Number(task.milestoneCompletedCount || 0) === 0 &&
     emptyTaskField(task.confirmedActualScore) &&
+    emptyTaskField(task.preCouncilConfirmedActualScore) &&
     task.scoreLocked !== true &&
     ["", "NOT_ASSESSED"].includes(scoringStatus) &&
     !["CONFIRMED", "REQUESTED"].includes(upper(task.noOccurrenceStatus))
@@ -277,43 +280,55 @@ async function canCancelApprovedOwnRegistration(user, registration) {
 async function cancellationBlockers(task, registration, user) {
   const periodId = clean(task?.periodId || registration?.periodId);
   const departmentId = registrationDepartmentId(registration || task);
+  const taskId = clean(task?.id || registration?.taskId);
+  if (!taskId) throw new Error("Không xác định được nhiệm vụ cần kiểm tra trước khi hủy.");
+
+  /*
+   * V1.24.4: đây là revalidation authoritative khi người dùng thật sự bấm Hủy.
+   * Query theo đúng taskId + owner/user để không quét toàn bộ dữ liệu cá nhân và để Rules
+   * có đủ ràng buộc chứng minh phạm vi đọc. Render UI không gọi các query blocker này.
+   */
   const [workItemsSnapshot, evidenceSnapshot, evaluationsSnapshot, adjustmentsSnapshot, plan, activeEvaluationPeriod] = await Promise.all([
     FirebaseService.getDocs(
       FirebaseService.query(
         FirebaseService.collection(FirebaseService.db, "taskWorkItems"),
-        FirebaseService.where("ownerUserId", "==", user.uid)
+        FirebaseService.where("taskId", "==", taskId),
+        FirebaseService.where("ownerUserId", "==", user.uid),
+        FirebaseService.limit(1)
       )
     ),
     FirebaseService.getDocs(
       FirebaseService.query(
         FirebaseService.collection(FirebaseService.db, "taskEvidenceFiles"),
-        FirebaseService.where("ownerUserId", "==", user.uid)
+        FirebaseService.where("taskId", "==", taskId),
+        FirebaseService.where("ownerUserId", "==", user.uid),
+        FirebaseService.limit(1)
       )
     ),
-    periodId
-      ? FirebaseService.getDocs(
-          FirebaseService.query(
-            FirebaseService.collection(FirebaseService.db, "taskEvaluations"),
-            FirebaseService.where("periodId", "==", periodId),
-            FirebaseService.where("ownerUserId", "==", user.uid)
-          )
-        )
-      : Promise.resolve({ docs: [] }),
+    FirebaseService.getDocs(
+      FirebaseService.query(
+        FirebaseService.collection(FirebaseService.db, "taskEvaluations"),
+        FirebaseService.where("taskId", "==", taskId),
+        FirebaseService.where("ownerUserId", "==", user.uid),
+        FirebaseService.limit(1)
+      )
+    ),
     FirebaseService.getDocs(
       FirebaseService.query(
         FirebaseService.collection(FirebaseService.db, "kpiAdjustments"),
-        FirebaseService.where("userId", "==", user.uid)
+        FirebaseService.where("taskId", "==", taskId),
+        FirebaseService.where("userId", "==", user.uid),
+        FirebaseService.limit(1)
       )
     ),
     departmentPlan(periodId, departmentId),
     activePeriod()
   ]);
 
-  const taskId = clean(task?.id || registration?.taskId);
-  const hasWorkItems = workItemsSnapshot.docs.some(item => clean(item.data()?.taskId) === taskId);
-  const hasEvidence = evidenceSnapshot.docs.some(item => clean(item.data()?.taskId) === taskId && item.data()?.active !== false);
-  const hasEvaluation = evaluationsSnapshot.docs.some(item => clean(item.data()?.taskId) === taskId);
-  const hasAdjustment = adjustmentsSnapshot.docs.some(item => clean(item.data()?.taskId) === taskId);
+  const hasWorkItems = workItemsSnapshot.docs.length > 0;
+  const hasEvidence = evidenceSnapshot.docs.some(item => item.data()?.active !== false);
+  const hasEvaluation = evaluationsSnapshot.docs.length > 0;
+  const hasAdjustment = adjustmentsSnapshot.docs.length > 0;
   const planLocked = plan?.locked === true;
   const periodClosed = !activeEvaluationPeriod || clean(activeEvaluationPeriod.id) !== periodId;
 
@@ -1402,9 +1417,11 @@ export const TaskRegistrationService = Object.freeze({
           FirebaseService.doc(FirebaseService.db, "tasks", registration.taskId)
         );
         const task = snapshot.exists() ? { id: snapshot.id, ...snapshot.data() } : null;
-        if (!taskDocumentCancellable(task, user, registration)) return [registration.id, false];
-        const blockers = await cancellationBlockers(task, registration, user);
-        return [registration.id, blockers.any !== true];
+        /*
+         * Chỉ dùng state của task để quyết định hiển thị nút. Các blocker collection
+         * được kiểm tra lại authoritative ngay trước batch cancel trong cancelApprovedRegistration().
+         */
+        return [registration.id, taskDocumentCancellable(task, user, registration)];
       } catch (error) {
         console.warn("Không kiểm tra được điều kiện hủy nhiệm vụ tự đăng ký:", error);
         return [registration.id, false];

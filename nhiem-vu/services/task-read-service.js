@@ -1,9 +1,9 @@
 /** Đọc nhiệm vụ theo kỳ hiện hành, phạm vi tài khoản và bộ nhớ đệm ngắn. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260914.V1_24_3";
-import { UserContext } from "../core/user-context.js?v=20260914.V1_24_3";
-import { Permissions } from "../core/permissions.js?v=20260914.V1_24_3";
-import { PeriodReadService } from "./period-read-service.js?v=20260914.V1_24_3";
-import { taskAcceptanceState } from "../core/task-display-order.js?v=20260914.V1_24_3";
+import { FirebaseService } from "../core/firebase-service.js?v=20260914.V1_24_4";
+import { UserContext } from "../core/user-context.js?v=20260914.V1_24_4";
+import { Permissions } from "../core/permissions.js?v=20260914.V1_24_4";
+import { PeriodReadService } from "./period-read-service.js?v=20260914.V1_24_4";
+import { taskAcceptanceState } from "../core/task-display-order.js?v=20260914.V1_24_4";
 
 const TASK_CACHE_MS = 2 * 60 * 1000;
 const PROFESSIONAL_DEPARTMENT_IDS = Object.freeze(["BGD", "TCHC", "CTXH", "KHTC", "YT", "KI", "KII", "KIII"]);
