@@ -8,11 +8,12 @@
  * - executiveDirectiveStates (trạng thái hiện hành theo Phòng/Khu)
  * - executiveWeeklyReports
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260913.V1_23_2";
-import { UserContext } from "../core/user-context.js?v=20260913.V1_23_2";
-import { Permissions } from "../core/permissions.js?v=20260913.V1_23_2";
-import { PeriodReadService } from "./period-read-service.js?v=20260913.V1_23_2";
-import { APP_VERSION } from "../core/app-version.js?v=20260913.V1_23_2";
+import { FirebaseService } from "../core/firebase-service.js?v=20260914.V1_24_2";
+import { UserContext } from "../core/user-context.js?v=20260914.V1_24_2";
+import { Permissions } from "../core/permissions.js?v=20260914.V1_24_2";
+import { ExecutiveNotificationService } from "./executive-notification-service.js?v=20260914.V1_24_2";
+import { PeriodReadService } from "./period-read-service.js?v=20260914.V1_24_2";
+import { APP_VERSION } from "../core/app-version.js?v=20260914.V1_24_2";
 
 const DIRECTIVES = "executiveDirectives";
 const UPDATES = "executiveDirectiveUpdates";
@@ -38,21 +39,6 @@ function numericSuffix(value) {
 }
 function formatUnexpectedCode(departmentId, numberValue) {
   return `${normalizedCode(departmentId)}-DX${String(Math.max(1, Math.trunc(Number(numberValue || 1)))).padStart(2, "0")}`;
-}
-async function observedUnexpectedNumber(departmentId) {
-  const snapshot = await FirebaseService.getDocs(
-    FirebaseService.query(
-      FirebaseService.collection(FirebaseService.db, STANDARD_TASKS),
-      FirebaseService.where("departmentId", "==", upper(departmentId)),
-      FirebaseService.limit(2000)
-    )
-  );
-  return snapshot.docs.reduce((highest, docItem) => {
-    const data = docItem.data() || {};
-    const code = upper(data.code || docItem.id);
-    if (!code.startsWith(`${upper(departmentId)}-DX`)) return highest;
-    return Math.max(highest, numericSuffix(code));
-  }, 0);
 }
 function validKpiCoefficient(value) {
   const numberValue = Number(value || 1);
@@ -217,13 +203,51 @@ function transitionAllowed(previous, next) {
   return false;
 }
 function dispatchPushInBackground(action, directiveId, eventData = {}, options = {}) {
-  // V1.23.2: toàn bộ notification đã tắt. Không gọi backend, không poll log.
-  return {
-    ok: true,
-    status: "DISABLED",
-    notificationsDisabled: true,
-    eventId: clean(options?.eventId)
-  };
+  const normalizedAction = upper(action);
+  const normalizedDirectiveId = clean(directiveId);
+  const eventId = clean(options?.eventId);
+
+  console.info("[EXEC PUSH] Đã xếp hàng gửi nền:", {
+    action: normalizedAction,
+    directiveId: normalizedDirectiveId,
+    eventId
+  });
+
+  // Không await ở critical path: dữ liệu nghiệp vụ đã commit thành công trước khi đến đây.
+  // keepalive trong ExecutiveNotificationService giúp request tiếp tục gửi khi UI chuyển trạng thái.
+  void ExecutiveNotificationService.send(
+    normalizedAction,
+    normalizedDirectiveId,
+    eventData,
+    { ...options, confirmDelivery: false }
+  ).then(result => {
+    const status = upper(result?.status);
+    if (["SENT", "SUBMITTED", "NO_SUBSCRIPTIONS"].includes(status)) {
+      console.info("[EXEC PUSH] Đã chuyển sang backend:", {
+        action: normalizedAction,
+        directiveId: normalizedDirectiveId,
+        eventId: clean(result?.eventId) || eventId,
+        status
+      });
+    } else {
+      console.warn("[EXEC PUSH] Backend chưa xác nhận nhận sự kiện:", {
+        action: normalizedAction,
+        directiveId: normalizedDirectiveId,
+        eventId: clean(result?.eventId) || eventId,
+        status: status || "NO_RESULT",
+        result
+      });
+    }
+  }).catch(error => {
+    console.error("[EXEC PUSH] Gửi nền gặp lỗi:", {
+      action: normalizedAction,
+      directiveId: normalizedDirectiveId,
+      eventId,
+      error: error?.message || String(error)
+    });
+  });
+
+  return { ok: true, status: "QUEUED", eventId };
 }
 
 
@@ -709,7 +733,6 @@ export const ExecutiveDirectiveService = Object.freeze({
     const dueDateKey = normalizeDateKey(directive.dueDateKey);
     const coefficient = validKpiCoefficient(directive.kpiCoefficient);
     if (!departmentId || !periodId || !dueDateKey || !coefficient) throw new Error("Chỉ đạo KPI thiếu đơn vị, kỳ, thời hạn hoặc hệ số hợp lệ.");
-    const observed = await observedUnexpectedNumber(departmentId);
     const dRef = directiveRef(id);
     const seqRef = sequenceRef(departmentId);
     let createdCode = "";
@@ -726,7 +749,6 @@ export const ExecutiveDirectiveService = Object.freeze({
       const seqSnap = await transaction.get(seqRef);
       const seq = seqSnap.exists() ? (seqSnap.data() || {}) : {};
       const floor = Math.max(
-        observed,
         Number(seq.unexpectedHighestExistingNumber || 0),
         Number(seq.unexpectedLastNumber || 0),
         Math.max(0, Number(seq.unexpectedNextAvailableNumber || 1) - 1)
@@ -736,7 +758,7 @@ export const ExecutiveDirectiveService = Object.freeze({
       let taskRef = standardTaskRef(code);
       let candidateSnapshot = await transaction.get(taskRef);
       let attempts = 0;
-      while (candidateSnapshot.exists() && attempts < 50) {
+      while (candidateSnapshot.exists() && attempts < 5) {
         numberValue += 1;
         code = formatUnexpectedCode(departmentId, numberValue);
         taskRef = standardTaskRef(code);
@@ -744,7 +766,7 @@ export const ExecutiveDirectiveService = Object.freeze({
         attempts += 1;
       }
       if (candidateSnapshot.exists()) {
-        throw new Error("Không tìm được mã KPI đột xuất còn trống trong phạm vi an toàn. Hãy kiểm tra chuỗi mã trước khi thử lại.");
+        throw new Error("Chuỗi mã KPI đột xuất đang lệch quá phạm vi an toàn. Hãy đối soát standardTaskSequences trước khi thử lại; hệ thống không quét toàn bộ danh mục hoặc tái sử dụng mã cũ.");
       }
       createdCode = code;
       const maxScore = moneyRound(12 * coefficient);

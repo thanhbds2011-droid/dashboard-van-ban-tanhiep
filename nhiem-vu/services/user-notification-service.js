@@ -1,5 +1,5 @@
 /**
- * V1.23.2 — NOTIFICATION CENTER OFF.
+ * V1.24.1 — NOTIFICATION CENTER OFF.
  *
  * Public API được giữ nguyên để Evidence / Registration / Work Item không bị lỗi import.
  * Không tạo userNotifications, không mở onSnapshot, không mark read.

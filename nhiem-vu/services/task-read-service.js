@@ -1,8 +1,9 @@
 /** Đọc nhiệm vụ theo kỳ hiện hành, phạm vi tài khoản và bộ nhớ đệm ngắn. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260913.V1_23_2";
-import { UserContext } from "../core/user-context.js?v=20260913.V1_23_2";
-import { Permissions } from "../core/permissions.js?v=20260913.V1_23_2";
-import { PeriodReadService } from "./period-read-service.js?v=20260913.V1_23_2";
+import { FirebaseService } from "../core/firebase-service.js?v=20260914.V1_24_2";
+import { UserContext } from "../core/user-context.js?v=20260914.V1_24_2";
+import { Permissions } from "../core/permissions.js?v=20260914.V1_24_2";
+import { PeriodReadService } from "./period-read-service.js?v=20260914.V1_24_2";
+import { taskAcceptanceState } from "../core/task-display-order.js?v=20260914.V1_24_2";
 
 const TASK_CACHE_MS = 2 * 60 * 1000;
 const PROFESSIONAL_DEPARTMENT_IDS = Object.freeze(["BGD", "TCHC", "CTXH", "KHTC", "YT", "KI", "KII", "KIII"]);
@@ -72,13 +73,12 @@ function scopedReferences(periodId) {
         periodFilter,
         FirebaseService.where("primaryDepartmentId", "in", viewDepartments),
         FirebaseService.limit(3000)
-      )] : []),
-      FirebaseService.query(
+      )] : [FirebaseService.query(
         reference,
         periodFilter,
         FirebaseService.where("primaryDepartmentId", "==", departmentId),
         FirebaseService.limit(1000)
-      ),
+      )]),
       FirebaseService.query(
         reference,
         periodFilter,
@@ -172,8 +172,10 @@ function deadlineOf(task) {
 function enrichTask(task) {
   const deadline = deadlineOf(task);
   const completed = isCompleted(task);
-  const exempt = String(task?.scoringStatus || "").trim().toUpperCase() === "ADJUSTMENT_EXEMPT";
-  const adjustmentPending = String(task?.adjustmentStatus || "").trim().toUpperCase() === "REQUESTED";
+  const scoringStatus = String(task?.scoringStatus || "").trim().toUpperCase();
+  const exempt = ["ADJUSTMENT_EXEMPT", "NO_OCCURRENCE_CONFIRMED"].includes(scoringStatus);
+  const adjustmentPending = String(task?.adjustmentStatus || "").trim().toUpperCase() === "REQUESTED"
+    || String(task?.noOccurrenceStatus || "").trim().toUpperCase() === "REQUESTED";
   const now = new Date();
   const hoursToDeadline = deadline ? (deadline.getTime() - now.getTime()) / 36e5 : null;
   return {
@@ -183,6 +185,7 @@ function enrichTask(task) {
     _completed: completed,
     _exempt: exempt,
     _adjustmentPending: adjustmentPending,
+    _acceptanceState: taskAcceptanceState(task),
     _overdue: Boolean(deadline && !completed && !exempt && hoursToDeadline < 0),
     _dueSoon: Boolean(deadline && !completed && !exempt && hoursToDeadline >= 0 && hoursToDeadline <= 72)
   };

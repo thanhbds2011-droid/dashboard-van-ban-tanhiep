@@ -1,5 +1,5 @@
 /**
- * V1.23.2 — NOTIFICATIONS OFF.
+ * V1.24.1 — NOTIFICATIONS OFF.
  *
  * Toàn bộ Push/Notification Center đã được tắt theo yêu cầu production.
  * Giữ nguyên public API để các luồng nghiệp vụ cũ không phải thay đổi call-site.

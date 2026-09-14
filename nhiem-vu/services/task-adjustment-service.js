@@ -2,12 +2,13 @@
  * Quy trình đề nghị và phê duyệt điều chỉnh nhiệm vụ.
  * Không chuyển điểm giữa nhân sự; mọi thay đổi được lưu trong kpiAdjustments và taskLogs.
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260913.V1_23_2";
-import { UserContext } from "../core/user-context.js?v=20260913.V1_23_2";
-import { TaskLogService } from "./task-log-service.js?v=20260913.V1_23_2";
-import { TaskNotificationService } from "./task-notification-service.js?v=20260913.V1_23_2";
-import { TaskMilestoneService } from "./task-milestone-service.js?v=20260913.V1_23_2";
-import { daysInMonth, deadlineDateFromKey } from "../core/deadline-engine.js?v=20260913.V1_23_2";
+import { FirebaseService } from "../core/firebase-service.js?v=20260914.V1_24_2";
+import { UserContext } from "../core/user-context.js?v=20260914.V1_24_2";
+import { Permissions } from "../core/permissions.js?v=20260914.V1_24_2";
+import { TaskLogService } from "./task-log-service.js?v=20260914.V1_24_2";
+import { TaskNotificationService } from "./task-notification-service.js?v=20260914.V1_24_2";
+import { TaskMilestoneService } from "./task-milestone-service.js?v=20260914.V1_24_2";
+import { daysInMonth, deadlineDateFromKey } from "../core/deadline-engine.js?v=20260914.V1_24_2";
 
 const COLLECTION = "kpiAdjustments";
 const TYPES = Object.freeze({
@@ -45,9 +46,39 @@ function approvalUserId(task) {
   return clean(task.adjustmentApproverUserId || task.assignedByUserId || task.createdByUserId, 200);
 }
 
+function selfAutoApprovedTask(task) {
+  return clean(task?.entryMode, 80).toUpperCase() === "SELF_REGISTERED_APPROVED"
+    && clean(task?.ownerUserId, 200) !== ""
+    && clean(task?.assignedByUserId, 200) === clean(task?.ownerUserId, 200);
+}
+
+function canApproveByBusinessAuthority(task, adjustment, user) {
+  if (!task || !adjustment || !user?.uid || user.active !== true) return false;
+  if (String(adjustment.status || "").toUpperCase() !== "PENDING") return false;
+  if (clean(task.ownerUserId, 200) === user.uid || clean(adjustment.userId, 200) === user.uid) return false;
+
+  const type = normalizeAdjustmentType(adjustment.adjustmentType) || TYPES.ADJUST_SCOPE;
+  if (type !== TYPES.EXEMPT_FROM_SCORING) {
+    const explicitApprover = clean(adjustment.approverUserId || approvalUserId(task), 200);
+    return Boolean(explicitApprover && explicitApprover !== clean(task.ownerUserId, 200) && explicitApprover === user.uid);
+  }
+
+  /* V1.24.0: “Không tính KPI” là quyết định scoring, không dùng assignedBy/createdBy làm quyền duyệt. */
+  const designatedScoringApprover = clean(task.adjustmentApproverUserId, 200);
+  if (designatedScoringApprover && designatedScoringApprover !== clean(task.ownerUserId, 200) && designatedScoringApprover === user.uid) return true;
+  const scope = clean(task.primaryDepartmentId || task.organizationId, 30).toUpperCase();
+  if (selfAutoApprovedTask(task)) {
+    if (scope === "BGD") return false;
+    return Permissions.isDirectorHead(user);
+  }
+  if (scope === "BGD") return Permissions.isDirectorHead(user);
+  if (scope === "CDTN") return Permissions.isCdtnSecretary(user);
+  return Permissions.hasDirectHeadAuthorityForDepartment(user, scope);
+}
+
 function label(type) {
   return type === TYPES.EXEMPT_FROM_SCORING
-    ? "Miễn đánh giá do điều động"
+    ? "Không tính KPI — Điều động/lý do khách quan"
     : "Điều chỉnh khối lượng/phạm vi";
 }
 
@@ -107,7 +138,7 @@ function baseRequestAllowed(task, user) {
     task?.ownerUserId === user?.uid &&
     task?.scoreLocked !== true &&
     !["CONFIRMED", "ADJUSTMENT_EXEMPT", "NO_OCCURRENCE_CONFIRMED"].includes(scoringStatus) &&
-    String(task?.noOccurrenceStatus || "").trim().toUpperCase() !== "CONFIRMED" &&
+    !["REQUESTED", "CONFIRMED"].includes(String(task?.noOccurrenceStatus || "").trim().toUpperCase()) &&
     !pendingStatus(task)
   );
 }
@@ -176,11 +207,14 @@ export const TaskAdjustmentService = Object.freeze({
       constraints.push(FirebaseService.where("userId", "==", user.uid));
     } else if (approverId === user.uid) {
       constraints.push(FirebaseService.where("approverUserId", "==", user.uid));
-    } else if (["ADMIN", "DIRECTOR", "TCHC_COORDINATOR"].includes(role)) {
-      // Tài khoản xem toàn Trung tâm được phép đọc theo taskId.
+    } else if (Permissions.isDirector(user) || Permissions.isTchcCoordinator(user)) {
+      // Business center scope: được đọc theo taskId.
+    } else if (Permissions.hasHeadAuthorityForDepartment(user, clean(task?.primaryDepartmentId, 30))) {
+      constraints.push(FirebaseService.where("departmentId", "==", clean(task.primaryDepartmentId, 30)));
     } else if (role === "DEPARTMENT_LEADER" && sameDepartment) {
       constraints.push(FirebaseService.where("departmentId", "==", clean(task.primaryDepartmentId, 30)));
     } else {
+      /* ADMIN-as-business-staff không kế thừa quyền xem đề nghị của người khác. */
       return [];
     }
 
@@ -206,12 +240,8 @@ export const TaskAdjustmentService = Object.freeze({
 
   canApprove(task, adjustment = null) {
     const user = UserContext.requireUser();
-    return Boolean(
-      user.active === true &&
-      approvalUserId(task) === user.uid &&
-      (!adjustment || String(adjustment.status || "").toUpperCase() === "PENDING") &&
-      (!adjustment || adjustment.approverUserId === user.uid)
-    );
+    if (!adjustment) return false;
+    return canApproveByBusinessAuthority(task, adjustment, user);
   },
 
   async request(task, data = {}) {
@@ -226,7 +256,7 @@ export const TaskAdjustmentService = Object.freeze({
         throw new Error("Nhiệm vụ đã có một đề nghị đang chờ phê duyệt.");
       }
       if (completedTask(task) && requestedType === TYPES.ADJUST_SCOPE) {
-        throw new Error("Nhiệm vụ đã hoàn thành; chỉ có thể chọn “Miễn đánh giá do điều động” nếu điểm chưa được khóa.");
+        throw new Error("Nhiệm vụ đã hoàn thành; chỉ có thể chọn “Đề nghị không tính KPI” nếu điểm chưa được khóa.");
       }
       throw new Error("Nhiệm vụ không đủ điều kiện gửi đề nghị hoặc tài khoản không phải người phụ trách.");
     }
@@ -324,7 +354,7 @@ export const TaskAdjustmentService = Object.freeze({
 
   async approve(task, adjustment) {
     const user = UserContext.requireUser();
-    if (!this.canApprove(task, adjustment)) throw new Error("Chỉ người giao nhiệm vụ được phê duyệt đề nghị này.");
+    if (!this.canApprove(task, adjustment)) throw new Error("Tài khoản hiện tại không phải cấp có thẩm quyền xác nhận KPI của nhiệm vụ này.");
     const approvedType = Object.values(TYPES).includes(String(adjustment.adjustmentType || "").toUpperCase())
       ? String(adjustment.adjustmentType).toUpperCase()
       : TYPES.ADJUST_SCOPE;

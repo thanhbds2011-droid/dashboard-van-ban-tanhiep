@@ -1,5 +1,5 @@
 /**
- * V1.23.2 — EXECUTIVE PUSH SUBSCRIPTION OFF.
+ * V1.24.1 — EXECUTIVE PUSH SUBSCRIPTION OFF.
  * Không đọc/ghi executivePushSubscriptions và không gọi OneSignal.
  */
 const EMPTY_SNAPSHOT = Object.freeze({

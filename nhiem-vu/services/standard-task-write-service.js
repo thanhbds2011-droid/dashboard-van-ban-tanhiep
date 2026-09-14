@@ -5,12 +5,12 @@
  * - Chỉ Bí thư được tạo/quản lý đầu việc trong phạm vi Chi đoàn; Phó Bí thư/Ủy viên BCH là vai trò thực hiện hoặc được ủy quyền nghiệp vụ khác.
  * - Quyền tạo, sửa và xóa được tách riêng; Firestore Rules là lớp bảo vệ cuối cùng.
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260913.V1_23_2";
-import { UserContext } from "../core/user-context.js?v=20260913.V1_23_2";
-import { Permissions } from "../core/permissions.js?v=20260913.V1_23_2";
-import { validateDeadlineConfiguration, isEventDrivenFrequency, canonicalFrequency, isStandardFrequency } from "../core/deadline-engine.js?v=20260913.V1_23_2";
+import { FirebaseService } from "../core/firebase-service.js?v=20260914.V1_24_2";
+import { UserContext } from "../core/user-context.js?v=20260914.V1_24_2";
+import { Permissions } from "../core/permissions.js?v=20260914.V1_24_2";
+import { validateDeadlineConfiguration, isEventDrivenFrequency, canonicalFrequency, isStandardFrequency } from "../core/deadline-engine.js?v=20260914.V1_24_2";
 
-const SYNC_VERSION = "20260913.V1_23_2";
+const SYNC_VERSION = "20260914.V1_24_2";
 const MAX_STANDARD_TASK_NAME_LENGTH = 1000;
 const STANDARD_TASK_COLLECTION = "standardTasks";
 const SEQUENCE_COLLECTION = "standardTaskSequences";
@@ -282,57 +282,30 @@ async function taskHasHistory(task) {
   return checks.some(Boolean);
 }
 
-async function listDepartmentTasks(departmentId) {
-  const snapshot = await FirebaseService.getDocs(
-    FirebaseService.query(
-      FirebaseService.collection(FirebaseService.db, STANDARD_TASK_COLLECTION),
-      FirebaseService.where("departmentId", "==", upper(departmentId))
-    )
-  );
-  return snapshot.docs.map(item => ({ ...item.data(), id: item.id, uid: item.id }));
-}
-
-function departmentSequenceNumbers(items, departmentId, workType = "THUONG_XUYEN") {
-  const department = upper(departmentId);
-  return new Set(
-    (items || [])
-      .filter(item => taskBelongsToSequence(item, department, workType))
-      .map(item => numericSuffix(item.code || item.id, department))
-      .filter(numberValue => Number.isInteger(numberValue) && numberValue > 0)
-  );
-}
-
-async function observedSequenceState(departmentId, workType = "THUONG_XUYEN") {
+function sequenceStateFromDocument(sequenceData, departmentId, workType = "THUONG_XUYEN") {
   const department = upper(departmentId);
   const normalizedType = normalizeWorkType(workType);
-  const items = await listDepartmentTasks(department);
-  const usedNumbers = departmentSequenceNumbers(items, department, normalizedType);
-  const highestExistingNumber = usedNumbers.size ? Math.max(...usedNumbers) : 0;
-  return { items, usedNumbers, highestExistingNumber, workType: normalizedType };
-}
-
-async function updateSequenceHint(departmentId, user, workType = "THUONG_XUYEN") {
-  const department = upper(departmentId);
-  const normalizedType = normalizeWorkType(workType);
-  const state = await observedSequenceState(department, normalizedType);
-  const reference = FirebaseService.doc(FirebaseService.db, SEQUENCE_COLLECTION, department);
-  const currentSnapshot = await FirebaseService.getDoc(reference);
-  const current = currentSnapshot.exists() ? currentSnapshot.data() : {};
   const fieldPrefix = normalizedType === "DOT_XUAT" ? "unexpected" : "regular";
-  const storedHighest = Number(current?.[`${fieldPrefix}HighestExistingNumber`] || current?.[`${fieldPrefix}LastNumber`] || 0);
-  const highestExistingNumber = Math.max(state.highestExistingNumber, storedHighest);
-  const nextAvailableNumber = highestExistingNumber + 1;
-  await FirebaseService.setDoc(reference, {
+  const data = sequenceData || {};
+  const highest = Math.max(
+    Number(data?.[`${fieldPrefix}HighestExistingNumber`] || 0),
+    Number(data?.[`${fieldPrefix}LastNumber`] || 0),
+    Math.max(0, Number(data?.[`${fieldPrefix}NextAvailableNumber`] || 1) - 1)
+  );
+  return {
     departmentId: department,
-    allocationMode: "MONOTONIC_MAX_PLUS_ONE",
-    [`${fieldPrefix}NextAvailableNumber`]: nextAvailableNumber,
-    [`${fieldPrefix}NextAvailableCode`]: formatTaskCode(department, nextAvailableNumber, normalizedType),
-    [`${fieldPrefix}HighestExistingNumber`]: highestExistingNumber,
-    updatedAt: FirebaseService.serverTimestamp(),
-    updatedByUserId: user.uid,
-    updatedByName: user.fullName || ""
-  }, { merge: true });
-  return { ...state, nextAvailableNumber, highestExistingNumber };
+    workType: normalizedType,
+    fieldPrefix,
+    highestExistingNumber: Number.isFinite(highest) ? highest : 0,
+    nextAvailableNumber: (Number.isFinite(highest) ? highest : 0) + 1
+  };
+}
+
+async function sequenceState(departmentId, workType = "THUONG_XUYEN") {
+  const department = upper(departmentId);
+  const reference = FirebaseService.doc(FirebaseService.db, SEQUENCE_COLLECTION, department);
+  const snapshot = await FirebaseService.getDoc(reference);
+  return sequenceStateFromDocument(snapshot.exists() ? snapshot.data() : {}, department, workType);
 }
 
 function taskPayload({ data, user, departmentId, code, sequence, existing = false, authorization = null }) {
@@ -473,15 +446,8 @@ export const StandardTaskWriteService = Object.freeze({
     }
 
     const normalizedType = normalizeWorkType(workType);
-    const state = await observedSequenceState(department, normalizedType);
-    const sequenceSnapshot = await FirebaseService.getDoc(
-      FirebaseService.doc(FirebaseService.db, SEQUENCE_COLLECTION, department)
-    );
-    const sequenceData = sequenceSnapshot.exists() ? sequenceSnapshot.data() : {};
-    const fieldPrefix = normalizedType === "DOT_XUAT" ? "unexpected" : "regular";
-    const storedHighest = Number(sequenceData?.[`${fieldPrefix}HighestExistingNumber`] || sequenceData?.[`${fieldPrefix}LastNumber`] || 0);
-    const nextNumber = Math.max(state.highestExistingNumber, storedHighest) + 1;
-    return formatTaskCode(department, nextNumber, normalizedType);
+    const state = await sequenceState(department, normalizedType);
+    return formatTaskCode(department, state.nextAvailableNumber, normalizedType);
   },
 
   async listDelegationCandidates() {
@@ -679,30 +645,26 @@ export const StandardTaskWriteService = Object.freeze({
     let lastError = null;
 
     for (let attempt = 0; attempt < 3; attempt += 1) {
-      const observedState = await observedSequenceState(departmentId, workType);
       try {
         return await FirebaseService.runTransaction(FirebaseService.db, async transaction => {
           const sequenceSnapshot = await transaction.get(sequenceReference);
           const sequenceData = sequenceSnapshot.exists() ? sequenceSnapshot.data() : {};
-          const fieldPrefix = workType === "DOT_XUAT" ? "unexpected" : "regular";
-          const storedHighest = Number(
-            sequenceData?.[`${fieldPrefix}HighestExistingNumber`]
-            || sequenceData?.[`${fieldPrefix}LastNumber`]
-            || 0
-          );
-          const sequence = Math.max(observedState.highestExistingNumber, storedHighest) + 1;
+          const sequenceStateData = sequenceStateFromDocument(sequenceData, departmentId, workType);
+          const fieldPrefix = sequenceStateData.fieldPrefix;
+          const sequence = sequenceStateData.nextAvailableNumber;
           const code = formatTaskCode(departmentId, sequence, workType);
           const reference = FirebaseService.doc(FirebaseService.db, STANDARD_TASK_COLLECTION, code);
+          const candidateSnapshot = await transaction.get(reference);
+          if (candidateSnapshot.exists()) {
+            const error = new Error(`Chuỗi mã ${departmentId} đang lệch: ${code} đã tồn tại. Hãy chạy đối soát standardTaskSequences rồi thử lại; hệ thống không tái sử dụng hoặc ghi đè mã cũ.`);
+            error.code = "SEQUENCE_COLLISION";
+            throw error;
+          }
           const nextAvailableNumber = sequence + 1;
 
-          /*
-           * Không transaction.get() document mã mới. Việc đọc một document chưa tồn tại
-           * từng bị Rules từ chối trước khi nhánh create được đánh giá. Sequence document
-           * là khóa transaction; update rule của standardTasks bảo vệ không ghi đè mã cũ.
-           */
           transaction.set(sequenceReference, {
             departmentId,
-            allocationMode: "MONOTONIC_MAX_PLUS_ONE",
+            allocationMode: "MONOTONIC_NO_REUSE",
             ...(workType === "DOT_XUAT" ? {
               unexpectedLastNumber: sequence,
               unexpectedLastCode: code,
@@ -731,8 +693,9 @@ export const StandardTaskWriteService = Object.freeze({
         });
       } catch (error) {
         lastError = error;
+        if (error?.code === "SEQUENCE_COLLISION") break;
         if (!isPermissionDenied(error) || attempt === 2) break;
-        console.warn(`Mã dự kiến vừa thay đổi; thử cấp lại mã lần ${attempt + 2}.`, error);
+        console.warn(`Transaction cấp mã chưa hoàn tất; thử lại lần ${attempt + 2}.`, error);
       }
     }
 
@@ -779,11 +742,7 @@ export const StandardTaskWriteService = Object.freeze({
     }
 
     await FirebaseService.deleteDoc(reference);
-    try {
-      await updateSequenceHint(departmentId, user, task?.workType);
-    } catch (error) {
-      console.warn("Đã xóa đầu việc nhưng chưa cập nhật được gợi ý mã kế tiếp:", error);
-    }
+    /* MONOTONIC_NO_REUSE: hard-delete bản chưa từng dùng không làm giảm sequence. */
     return { mode: "DELETED" };
   },
 

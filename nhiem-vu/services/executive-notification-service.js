@@ -1,5 +1,5 @@
 /**
- * V1.23.2 — EXECUTIVE NOTIFICATIONS OFF.
+ * V1.24.1 — EXECUTIVE NOTIFICATIONS OFF.
  * Giữ interface để Chỉ đạo điều hành không phải thay đổi nghiệp vụ ghi Firestore.
  */
 function clean(value) { return String(value ?? "").trim(); }

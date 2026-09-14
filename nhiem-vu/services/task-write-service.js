@@ -1,14 +1,14 @@
 /** Tạo, phân công, tiếp nhận, cập nhật tiến độ và hoàn thành nhiệm vụ. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260913.V1_23_2";
-import { UserContext } from "../core/user-context.js?v=20260913.V1_23_2";
-import { Permissions } from "../core/permissions.js?v=20260913.V1_23_2";
-import { TaskLogService } from "./task-log-service.js?v=20260913.V1_23_2";
-import { TaskWorkItemService } from "./task-work-item-service.js?v=20260913.V1_23_2";
-import { PeriodReadService } from "./period-read-service.js?v=20260913.V1_23_2";
-import { TaskNotificationService } from "./task-notification-service.js?v=20260913.V1_23_2";
-import { APP_VERSION, BUILD_VERSION } from "../core/app-version.js?v=20260913.V1_23_2";
-import { deadlineDateFromKey, isDateKey } from "../core/deadline-engine.js?v=20260913.V1_23_2";
-import { confirmWriteWithServerRecovery } from "./firestore-write-recovery.js?v=20260913.V1_23_2";
+import { FirebaseService } from "../core/firebase-service.js?v=20260914.V1_24_2";
+import { UserContext } from "../core/user-context.js?v=20260914.V1_24_2";
+import { Permissions } from "../core/permissions.js?v=20260914.V1_24_2";
+import { TaskLogService } from "./task-log-service.js?v=20260914.V1_24_2";
+import { TaskWorkItemService } from "./task-work-item-service.js?v=20260914.V1_24_2";
+import { PeriodReadService } from "./period-read-service.js?v=20260914.V1_24_2";
+import { TaskNotificationService } from "./task-notification-service.js?v=20260914.V1_24_2";
+import { APP_VERSION, BUILD_VERSION } from "../core/app-version.js?v=20260914.V1_24_2";
+import { deadlineDateFromKey, isDateKey } from "../core/deadline-engine.js?v=20260914.V1_24_2";
+import { confirmWriteWithServerRecovery } from "./firestore-write-recovery.js?v=20260914.V1_24_2";
 
 const TASK_WRITE_BUILD_VERSION = BUILD_VERSION;
 const MAX_CODE_SCAN = 1000;
@@ -120,6 +120,26 @@ function normalizeDepartmentId(value) {
   return String(value || "")
     .replace(/[^A-Za-z0-9]/g, "")
     .toUpperCase();
+}
+
+
+function selfAutoApprovedTask(task) {
+  return String(task?.entryMode || "").toUpperCase() === "SELF_REGISTERED_APPROVED"
+    && String(task?.assignedByUserId || "").trim() !== ""
+    && String(task?.assignedByUserId || "").trim() === String(task?.ownerUserId || "").trim();
+}
+
+function canReviewNoOccurrenceTask(task, user = UserContext.getUser()) {
+  if (!task || !user?.uid || user.active !== true || String(task.ownerUserId || "") === user.uid) return false;
+  const scope = normalizeDepartmentId(task.primaryDepartmentId || task.organizationId);
+  const designatedScoringApprover = String(task.adjustmentApproverUserId || "").trim();
+  if (designatedScoringApprover && designatedScoringApprover !== String(task.ownerUserId || "") && designatedScoringApprover === user.uid) return true;
+  if (scope === "BGD") return Permissions.isDirectorHead(user);
+  if (scope === "CDTN") {
+    return selfAutoApprovedTask(task) ? Permissions.isDirectorHead(user) : Permissions.isCdtnSecretary(user);
+  }
+  if (selfAutoApprovedTask(task)) return Permissions.isDirectorHead(user);
+  return Permissions.hasDirectHeadAuthorityForDepartment(user, scope);
 }
 
 function parseUnexpectedSequence(code, departmentId) {
@@ -253,6 +273,10 @@ function snapshotTask(task) {
 }
 
 export const TaskWriteService = Object.freeze({
+  canReviewNoOccurrence(task) {
+    return canReviewNoOccurrenceTask(task, UserContext.requireUser());
+  },
+
   async canCreateUnexpectedTask() {
     const user = UserContext.requireUser();
     if (Permissions.canCreateUnexpectedTask(false, user)) return true;
@@ -772,7 +796,7 @@ export const TaskWriteService = Object.freeze({
     if (["HOAN_THANH", "COMPLETED", "DA_HOAN_THANH"].includes(String(task.status || "").toUpperCase()) || task.completedAt) {
       throw new Error("Nhiệm vụ đã hoàn thành nên không cần xác nhận tiếp nhận.");
     }
-    if (task.assignmentStatus === "DA_TIEP_NHAN") throw new Error("Nhiệm vụ đã được tiếp nhận trước đó.");
+    if (task.assignmentStatus === "DA_TIEP_NHAN" || task.acceptedAt) throw new Error("Nhiệm vụ đã được tiếp nhận trước đó.");
     const payload = {
       assignmentStatus: "DA_TIEP_NHAN",
       status: "DANG_XU_LY",
@@ -984,8 +1008,17 @@ export const TaskWriteService = Object.freeze({
     if (task.ownerUserId !== user.uid) {
       throw new Error("Chỉ người thực hiện mới được đề nghị xác nhận không phát sinh.");
     }
-    if (String(task.trackingMode || "").toUpperCase() !== "ITEMIZED") {
-      throw new Error("Chỉ đầu việc theo từng lượt phát sinh mới áp dụng quy trình này.");
+    if (String(task.deadlineMode || "").toUpperCase() !== "EVENT_DRIVEN" || String(task.trackingMode || "").toUpperCase() !== "ITEMIZED") {
+      throw new Error("Chỉ đầu việc “Khi phát sinh” theo từng lượt mới được đề nghị Không phát sinh trong kỳ.");
+    }
+    if (["REQUESTED", "CONFIRMED"].includes(String(task.noOccurrenceStatus || "").toUpperCase())) {
+      throw new Error("Nhiệm vụ đã có đề nghị Không phát sinh đang chờ xử lý hoặc đã được xác nhận.");
+    }
+    if (String(task.adjustmentStatus || "").toUpperCase() === "REQUESTED" || String(task.pendingAdjustmentId || "").trim()) {
+      throw new Error("Nhiệm vụ đã có một đề nghị điều chỉnh đang chờ xử lý.");
+    }
+    if (String(task.scoringStatus || "").toUpperCase() === "ADJUSTMENT_EXEMPT") {
+      throw new Error("Nhiệm vụ đã được xác nhận không tính KPI theo lý do khác.");
     }
     if (!normalizedReason) throw new Error("Hãy nêu lý do đầu việc không phát sinh trong kỳ.");
     if (task.scoreLocked === true || String(task.scoringStatus || "").toUpperCase() === "CONFIRMED") {
@@ -993,7 +1026,7 @@ export const TaskWriteService = Object.freeze({
     }
     const items = await TaskWorkItemService.list(task);
     if (items.length) {
-      throw new Error("Đầu việc đã có lượt phát sinh nên không thể đề nghị “Không phát sinh”.");
+      throw new Error("Không thể đề nghị Không phát sinh vì nhiệm vụ đã có công việc thực tế trong kỳ.");
     }
 
     const payload = {
@@ -1006,6 +1039,9 @@ export const TaskWriteService = Object.freeze({
       noOccurrenceConfirmedByUserId: "",
       noOccurrenceConfirmedByName: "",
       noOccurrenceRejectionReason: "",
+      noOccurrenceRejectedAt: null,
+      noOccurrenceRejectedByUserId: "",
+      noOccurrenceRejectedByName: "",
       updatedAt: FirebaseService.serverTimestamp(),
       updatedByUserId: user.uid,
       updatedByName: user.fullName || ""
@@ -1033,12 +1069,8 @@ export const TaskWriteService = Object.freeze({
     if (task.ownerUserId === user.uid) {
       throw new Error("Người thực hiện không được tự xác nhận đề nghị “Không phát sinh” của chính mình.");
     }
-    const sameDepartmentLeader = Permissions.isDepartmentHead() &&
-      String(task.primaryDepartmentId || "") === String(user.departmentId || "");
-    const otherDirectorForBgd = Permissions.isDirector() &&
-      String(task.primaryDepartmentId || "") === "BGD";
-    if (!(sameDepartmentLeader || otherDirectorForBgd)) {
-      throw new Error("Chỉ Trưởng/Phụ trách đơn vị hoặc thành viên Ban Giám đốc phù hợp được xác nhận.");
+    if (!canReviewNoOccurrenceTask(task, user)) {
+      throw new Error("Tài khoản hiện tại không phải cấp có thẩm quyền xác nhận KPI của nhiệm vụ này.");
     }
     if (String(task.noOccurrenceStatus || "").toUpperCase() !== "REQUESTED") {
       throw new Error("Đầu việc chưa có đề nghị “Không phát sinh” đang chờ xác nhận.");
@@ -1096,12 +1128,8 @@ export const TaskWriteService = Object.freeze({
     if (task.ownerUserId === user.uid) {
       throw new Error("Người thực hiện không được tự xử lý đề nghị của chính mình.");
     }
-    const sameDepartmentLeader = Permissions.isDepartmentHead() &&
-      String(task.primaryDepartmentId || "") === String(user.departmentId || "");
-    const otherDirectorForBgd = Permissions.isDirector() &&
-      String(task.primaryDepartmentId || "") === "BGD";
-    if (!(sameDepartmentLeader || otherDirectorForBgd)) {
-      throw new Error("Chỉ Trưởng/Phụ trách đơn vị hoặc thành viên Ban Giám đốc phù hợp được xử lý đề nghị.");
+    if (!canReviewNoOccurrenceTask(task, user)) {
+      throw new Error("Tài khoản hiện tại không phải cấp có thẩm quyền xác nhận KPI của nhiệm vụ này.");
     }
     if (String(task.noOccurrenceStatus || "").toUpperCase() !== "REQUESTED") {
       throw new Error("Đầu việc không còn ở trạng thái chờ xác nhận.");
