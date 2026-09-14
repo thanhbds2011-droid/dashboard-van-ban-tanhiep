@@ -2,7 +2,7 @@
  * Lớp kiểm tra quyền dùng thống nhất cho giao diện.
  * Firestore Security Rules vẫn là lớp kiểm soát bắt buộc ở phía dữ liệu.
  */
-import { UserContext } from "./user-context.js?v=20260913.V1_23_2";
+import { UserContext } from "./user-context.js?v=20260914.V1_24_2";
 
 function clean(value) {
   return String(value ?? "").trim();
@@ -521,11 +521,12 @@ export const Permissions = Object.freeze({
     const departmentId = upper(registration?.departmentId);
     if (!activeUser(user) || !registration || registration.userId !== user.uid) return false;
     if (upper(registration.status) !== "APPROVED" || !clean(registration.taskId)) return false;
+    /* V1.24.0: cửa sổ hủy sau duyệt chỉ dành cho chính registration được tự động duyệt. */
+    if (registration.autoApproved !== true || clean(registration.approvedByUserId) !== user.uid) return false;
 
-    if (departmentId === "CDTN") return this.isCdtnExecutiveMember(user);
-    if (departmentId === "BGD") return this.isDirector(user) && sameDepartment(user, "BGD");
-    return this.hasDirectHeadAuthorityForDepartment(user, departmentId)
-      || (sameDepartment(user, departmentId) && this.isDepartmentDeputy(user));
+    if (departmentId === "CDTN") return this.isCdtnSecretary(user);
+    if (departmentId === "BGD") return this.isDirectorHead(user);
+    return this.hasDirectHeadAuthorityForDepartment(user, departmentId);
   },
 
   canCancelRegistrationForEmployee(registration, planLocked = false, hasDelegation = false) {

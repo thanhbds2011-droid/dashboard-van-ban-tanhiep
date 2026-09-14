@@ -43,6 +43,23 @@ export function isTerminalTask(task = {}) {
     || scoringStatus === "CONFIRMED";
 }
 
+/**
+ * Trạng thái tiếp nhận cá nhân độc lập với trạng thái nghiệp vụ.
+ * Dữ liệu legacy có acceptedAt nhưng chưa chuẩn assignmentStatus vẫn được xem là đã xác nhận.
+ */
+export function taskAcceptanceState(task = {}) {
+  const ownerUserId = clean(task.ownerUserId);
+  if (!ownerUserId) return "NONE";
+  const assignmentStatus = normalizeTaskStatus(task.assignmentStatus);
+  if (assignmentStatus === "DA_TIEP_NHAN" || timestampMillis(task.acceptedAt) > 0) return "ACCEPTED";
+  if (isTerminalTask(task)) return "NONE";
+  return "PENDING";
+}
+
+export function isTaskAccepted(task = {}) {
+  return taskAcceptanceState(task) === "ACCEPTED";
+}
+
 export function effectiveDepartmentAssignmentStatus(task = {}) {
   const explicit = normalizeTaskStatus(task.departmentAssignmentStatus);
   if (explicit) return explicit;
@@ -106,7 +123,7 @@ export function taskDisplayGroup(task = {}) {
     || assignmentStatus === "CHO_PHAN_CONG"
   )) return 1;
 
-  if (ownerUserId && assignmentStatus !== "DA_TIEP_NHAN") return 2;
+  if (ownerUserId && taskAcceptanceState(task) === "PENDING") return 2;
 
   const unexpected = normalizeTaskStatus(task.workType) === "DOT_XUAT"
     || normalizeTaskStatus(task.priority) === "DOT_XUAT"
