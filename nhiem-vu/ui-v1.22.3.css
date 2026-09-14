@@ -130,17 +130,71 @@
   text-align: center;
 }
 .registration-plan-table th:nth-child(2),
-.registration-plan-table td:nth-child(2) {
-  min-width: 320px;
-}
+.registration-plan-table td:nth-child(2),
 .registration-plan-table th:nth-child(3),
+.registration-plan-table td:nth-child(3) {
+  min-width: 280px;
+  width: 30%;
+}
+.registration-plan-table td:nth-child(2),
+.registration-plan-table td:nth-child(3) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  line-height: 1.45;
+}
 .registration-plan-table th:nth-child(4),
 .registration-plan-table th:nth-child(5),
 .registration-plan-table th:nth-child(6),
-.registration-plan-table th:nth-child(7) {
+.registration-plan-table th:nth-child(7),
+.registration-plan-table th:nth-child(8),
+.registration-plan-table td:nth-child(4),
+.registration-plan-table td:nth-child(5),
+.registration-plan-table td:nth-child(6),
+.registration-plan-table td:nth-child(7),
+.registration-plan-table td:nth-child(8) {
   white-space: nowrap;
   overflow-wrap: normal;
   word-break: keep-all;
+}
+.registration-plan-table th:nth-child(4),
+.registration-plan-table td:nth-child(4) { min-width: 92px; width: 92px; }
+.registration-plan-table th:nth-child(5),
+.registration-plan-table td:nth-child(5) { min-width: 112px; width: 112px; }
+.registration-plan-table th:nth-child(6),
+.registration-plan-table td:nth-child(6) { min-width: 104px; width: 104px; }
+.registration-plan-table th:nth-child(7),
+.registration-plan-table td:nth-child(7) { min-width: 112px; width: 112px; }
+.registration-plan-table th:nth-child(8),
+.registration-plan-table td:nth-child(8) { min-width: 155px; width: 155px; }
+.registration-plan-output,
+.registration-approval-output {
+  color: #334155;
+}
+.registration-approval-output {
+  display: block;
+  margin-top: 6px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+}
+
+/*
+ * V1.24.4 · Firefox-safe standard-task vertical list.
+ * Parent list only changes vertical stacking. Each .registration-row remains its existing grid,
+ * so business controls/layout inside the card are untouched.
+ */
+.standard-task-page .registration-column-list {
+  display: flex !important;
+  flex-direction: column;
+  align-items: stretch;
+}
+.standard-task-page .registration-column-list > .registration-row {
+  flex: 0 0 auto;
+  width: 100%;
+  height: auto !important;
+  min-height: 0;
+  align-self: stretch;
 }
 
 @media (max-width: 980px) {
@@ -193,7 +247,7 @@
     flex: 0 0 auto;
   }
   .registration-plan-table {
-    min-width: 900px !important;
+    min-width: 1180px !important;
   }
   .task-detail-tabbed > .modal-header .page-eyebrow {
     font-size: 14px !important;

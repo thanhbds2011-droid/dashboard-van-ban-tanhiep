@@ -1,5 +1,5 @@
 /** Release marker V1.24.1 - quota-safe, notifications off; giữ nguyên nghiệp vụ V1.24.0. */
-import { APP_VERSION, BUILD_VERSION } from "./core/app-version.js?v=20260914.V1_24_3";
+import { APP_VERSION, BUILD_VERSION } from "./core/app-version.js?v=20260914.V1_24_4";
 
 window.__KPI_RELEASE__ = Object.freeze({
   appVersion: APP_VERSION,
