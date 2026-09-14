@@ -1,28 +1,28 @@
-import { auth, db } from '../../firebase-config.js?v=20260914.V1_24_3';
+import { auth, db } from '../../firebase-config.js?v=20260914.V1_24_4';
 import {
   addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, onSnapshot, query,
   serverTimestamp, setDoc, Timestamp, updateDoc, where, limit, writeBatch
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
-import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260914.V1_24_3';
-import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260914.V1_24_3';
-import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260914.V1_24_3';
-import { TaskEvidenceService } from '../../services/task-evidence-service.js?v=20260914.V1_24_3';
-import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260914.V1_24_3';
-import { PeriodReadService } from '../../services/period-read-service.js?v=20260914.V1_24_3';
-import { TaskReadService } from '../../services/task-read-service.js?v=20260914.V1_24_3';
-import { Permissions } from '../../core/permissions.js?v=20260914.V1_24_3';
-import { UserContext } from '../../core/user-context.js?v=20260914.V1_24_3';
-import { APP_VERSION } from '../../core/app-version.js?v=20260914.V1_24_3';
-import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260914.V1_24_3';
-import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260914.V1_24_3';
+import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260914.V1_24_4';
+import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260914.V1_24_4';
+import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260914.V1_24_4';
+import { TaskEvidenceService } from '../../services/task-evidence-service.js?v=20260914.V1_24_4';
+import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260914.V1_24_4';
+import { PeriodReadService } from '../../services/period-read-service.js?v=20260914.V1_24_4';
+import { TaskReadService } from '../../services/task-read-service.js?v=20260914.V1_24_4';
+import { Permissions } from '../../core/permissions.js?v=20260914.V1_24_4';
+import { UserContext } from '../../core/user-context.js?v=20260914.V1_24_4';
+import { APP_VERSION } from '../../core/app-version.js?v=20260914.V1_24_4';
+import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260914.V1_24_4';
+import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260914.V1_24_4';
 import {
   KPI2B as KPI2C, M01_GROUPS, COMMON_CRITERIA, commonCriteriaForProfile, reportFormTypeForProfile, calculateTaskScore, calculateKpiSummary,
   proposedRating, resolveQualityRating, ratingName, round2, progressRateFromDates, convertAppendix04Rate, calculateMilestoneProgress, calculateBonusScore
-} from '../../kpi-engine.js?v=20260914.V1_24_3';
-import { resolveKpiReviewer, canReviewKpiOwner } from '../../core/kpi-review-authority.js?v=20260914.V1_24_3';
-import { ModalService } from '../../core/modal-service.js?v=20260914.V1_24_3';
-import { exportFormattedKpiWorkbook, exportProductCatalogWorkbook } from '../../services/xlsx-export-service.js?v=20260914.V1_24_3';
-import { exportDomToDocx } from '../../services/docx-export-service.js?v=20260914.V1_24_3';
+} from '../../kpi-engine.js?v=20260914.V1_24_4';
+import { resolveKpiReviewer, canReviewKpiOwner } from '../../core/kpi-review-authority.js?v=20260914.V1_24_4';
+import { ModalService } from '../../core/modal-service.js?v=20260914.V1_24_4';
+import { exportFormattedKpiWorkbook, exportProductCatalogWorkbook } from '../../services/xlsx-export-service.js?v=20260914.V1_24_4';
+import { exportDomToDocx } from '../../services/docx-export-service.js?v=20260914.V1_24_4';
 
 export const KpiWorkflowState = {
   user: null,
@@ -401,7 +401,13 @@ function kpiRealtimeQueries(kind) {
 
   if (kind === 'taskRegistrations') {
     if (fullCenterScope) return [q(where('periodId','==',periodId), limit(5000))];
-    if (professionalCenterScope) return [q(where('periodId','==',periodId), where('departmentId','in',PROFESSIONAL_DEPARTMENT_IDS), limit(5000))];
+    if (professionalCenterScope) {
+      const references = [q(where('periodId','==',periodId), where('departmentId','in',PROFESSIONAL_DEPARTMENT_IDS), limit(5000))];
+      if (managerMonitoringScope) {
+        references.push(q(where('periodId','==',periodId), where('homeDepartmentId','==',managerHomeDepartmentId), limit(2000)));
+      }
+      return references;
+    }
     if (departmentId === 'CDTN' && registrationDepartmentScope) return [
       q(where('periodId','==',periodId), where('departmentId','==','CDTN'), limit(1000)),
       q(where('periodId','==',periodId), where('organizationId','==','CDTN'), limit(1000))
@@ -416,7 +422,13 @@ function kpiRealtimeQueries(kind) {
 
   if (kind === 'taskEvaluations') {
     if (fullCenterScope) return [q(where('periodId','==',periodId), limit(5000))];
-    if (professionalCenterScope) return [q(where('periodId','==',periodId), where('departmentId','in',PROFESSIONAL_DEPARTMENT_IDS), limit(5000))];
+    if (professionalCenterScope) {
+      const references = [q(where('periodId','==',periodId), where('departmentId','in',PROFESSIONAL_DEPARTMENT_IDS), limit(5000))];
+      if (managerMonitoringScope) {
+        references.push(q(where('periodId','==',periodId), where('homeDepartmentId','==',managerHomeDepartmentId), limit(2000)));
+      }
+      return references;
+    }
     if (departmentId === 'CDTN' && evaluationDepartmentScope) return [
       q(where('periodId','==',periodId), where('departmentId','==','CDTN'), limit(1000)),
       q(where('periodId','==',periodId), where('organizationId','==','CDTN'), limit(1000))
@@ -1395,7 +1407,12 @@ async function loadAll(options = {}) {
       : fullCenterScope
       ? getDocs(query(collection(db, 'taskRegistrations'), where('periodId', '==', periodId), limit(5000)))
       : professionalCenterScope
-        ? getDocs(query(collection(db, 'taskRegistrations'), where('periodId', '==', periodId), where('departmentId', 'in', PROFESSIONAL_DEPARTMENT_IDS), limit(5000)))
+        ? mergeAvailableSnapshotRequests([
+            getDocs(query(collection(db, 'taskRegistrations'), where('periodId', '==', periodId), where('departmentId', 'in', PROFESSIONAL_DEPARTMENT_IDS), limit(5000))),
+            ...(managerMonitoringScope
+              ? [getDocs(query(collection(db, 'taskRegistrations'), where('periodId', '==', periodId), where('homeDepartmentId', '==', managerHomeDepartmentId), limit(2000)))]
+              : [])
+          ], managerMonitoringScope ? 'đăng ký chuyên môn toàn Trung tâm và đăng ký kiêm nhiệm/Chi đoàn của đơn vị' : 'đăng ký chuyên môn toàn Trung tâm')
         : departmentId === 'CDTN' && registrationDepartmentScope
           ? mergeAvailableSnapshotRequests([
               getDocs(query(collection(db, 'taskRegistrations'), where('periodId', '==', periodId), where('departmentId', '==', 'CDTN'), limit(1000))),
@@ -1415,7 +1432,12 @@ async function loadAll(options = {}) {
       : fullCenterScope
       ? getDocs(query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId), limit(5000)))
       : professionalCenterScope
-        ? getDocs(query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId), where('departmentId', 'in', PROFESSIONAL_DEPARTMENT_IDS), limit(5000)))
+        ? mergeAvailableSnapshotRequests([
+            getDocs(query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId), where('departmentId', 'in', PROFESSIONAL_DEPARTMENT_IDS), limit(5000))),
+            ...(managerMonitoringScope
+              ? [getDocs(query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId), where('homeDepartmentId', '==', managerHomeDepartmentId), limit(2000)))]
+              : [])
+          ], managerMonitoringScope ? 'đánh giá chuyên môn toàn Trung tâm và đánh giá kiêm nhiệm/Chi đoàn của đơn vị' : 'đánh giá chuyên môn toàn Trung tâm')
         : departmentId === 'CDTN' && evaluationDepartmentScope
           ? mergeAvailableSnapshotRequests([
               getDocs(query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId), where('departmentId', '==', 'CDTN'), limit(1000))),
@@ -2136,13 +2158,15 @@ function openPersonPlanDetail(uid) {
       const groupPending = registrations.filter(reg => groupKeyFor(reg) === key && reg.status === 'PENDING' && canApproveRegistration(reg));
       const groupName = item.standardTaskName || item.title || '';
       const groupCode = item.standardTaskCode || item.taskCode || '';
-      groupHeader = `<tr class="kpi-registration-group-row"><td colspan="7"><div><strong>${esc(groupCode)} — ${esc(groupName)}</strong><span>${count} công việc cá nhân</span>${groupPending.length ? `<button class="kpi-button danger" type="button" data-reject-registration-group="${esc(key)}">Không duyệt cả nhóm</button>` : ''}</div></td></tr>`;
+      groupHeader = `<tr class="kpi-registration-group-row"><td colspan="8"><div><strong>${esc(groupCode)} — ${esc(groupName)}</strong><span>${count} công việc cá nhân</span>${groupPending.length ? `<button class="kpi-button danger" type="button" data-reject-registration-group="${esc(key)}">Không duyệt cả nhóm</button>` : ''}</div></td></tr>`;
     }
     const canManagerCancel = item.kind === 'registration' && canCancelRegistrationAsManager(item);
-    const personalLabel = count > 1 ? (item.title || item.description || item.standardTaskName || '') : (item.standardTaskName || item.title || '');
+    const personalLabel = count > 1 ? (item.title || item.standardTaskName || '') : (item.standardTaskName || item.title || '');
+    const outputSnapshot = clean(item.description);
     return `${groupHeader}<tr>
       <td>${item.kind === 'registration' && item.status === 'PENDING' ? `<input type="checkbox" data-reg-review value="${esc(item.id)}" ${canApproveRegistration(item) ? 'checked' : 'disabled'}>` : '—'}</td>
       <td>${count > 1 ? `<span class="kpi-small">Công việc cá nhân ${Number(item.personalItemOrder || 0) || ''}</span><br>` : `<strong>${esc(item.standardTaskCode || item.taskCode || '')}</strong><br>`}${esc(personalLabel)}</td>
+      <td class="registration-plan-output">${outputSnapshot ? esc(outputSnapshot) : '<span class="kpi-muted">Chưa ghi kết quả đầu ra</span>'}</td>
       <td>${fmt(item.baseScore)}</td><td>${coefficientPercent(item.difficultyCoefficient)}</td><td>${fmt(item.maximumConvertedScore)}</td>
       <td>${esc(item.status === 'PENDING' ? 'Chờ duyệt' : item.status === 'REJECTED' ? 'Không duyệt' : item.planApprovalStatus === 'APPROVED' || item.status === 'APPROVED' ? 'Đã duyệt' : item.status || '')}</td>
       <td>${item.kind === 'registration' && item.status === 'PENDING' && canApproveRegistration(item)
@@ -2155,7 +2179,7 @@ function openPersonPlanDetail(uid) {
     <div class="registration-modal-tools">
       ${canApprove ? '<button id="regSelectAll" class="kpi-button secondary" type="button">Chọn tất cả</button><button id="regClearAll" class="kpi-button secondary" type="button">Bỏ chọn tất cả</button>' : ''}
     </div>
-    <div class="kpi-table-wrap registration-plan-table-wrap"><table class="kpi-table registration-plan-table"><thead><tr><th>Duyệt</th><th>Đầu việc</th><th>Điểm chuẩn</th><th>Hệ số độ khó</th><th>Điểm tối đa</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>
+    <div class="kpi-table-wrap registration-plan-table-wrap"><table class="kpi-table registration-plan-table"><thead><tr><th>Duyệt</th><th>Đầu việc</th><th>Kết quả đầu ra</th><th>Điểm chuẩn</th><th>Hệ số độ khó</th><th>Điểm tối đa</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>
       ${tableRows}
     </tbody></table></div>`,
     canApprove ? '<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button><button id="personProductCatalog" class="kpi-button secondary" type="button">Danh mục sản phẩm</button><button id="regApproveSelected" class="kpi-button" type="button">Duyệt mục đã chọn</button>' : '<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button><button id="personProductCatalog" class="kpi-button" type="button">Danh mục sản phẩm</button>'
@@ -2948,7 +2972,7 @@ function openRegistrationGroup(userId) {
   const items = KpiWorkflowState.registrations.filter(r => r.userId === userId && r.status === 'PENDING');
   if (!items.length) return;
   const canApprove = items.some(canApproveRegistration);
-  const body = `<div class="registration-modal-tools"><button id="regSelectAll" class="kpi-button secondary" type="button">Chọn tất cả</button><button id="regClearAll" class="kpi-button secondary" type="button">Bỏ chọn tất cả</button></div><div class="registration-approval-list">${items.map(r=>`<div class="registration-approval-row"><input type="checkbox" data-reg-review value="${esc(r.id)}" ${canApproveRegistration(r)?'checked':'disabled'}><span><strong>${esc(r.standardTaskCode || '')} — ${esc(r.title || r.standardTaskName || '')}</strong>${r.title && r.title !== r.standardTaskName ? `<small>Danh mục chuẩn: ${esc(r.standardTaskName || '')}</small>` : ''}<small>Điểm tối đa: ${fmt(r.maximumConvertedScore)}</small></span>${canApproveRegistration(r) ? `<button class="kpi-button danger" type="button" data-reject-one-registration="${esc(r.id)}">Không duyệt</button>` : ''}</div>`).join('')}</div>`;
+  const body = `<div class="registration-modal-tools"><button id="regSelectAll" class="kpi-button secondary" type="button">Chọn tất cả</button><button id="regClearAll" class="kpi-button secondary" type="button">Bỏ chọn tất cả</button></div><div class="registration-approval-list">${items.map(r=>{ const outputSnapshot = clean(r.description); return `<div class="registration-approval-row"><input type="checkbox" data-reg-review value="${esc(r.id)}" ${canApproveRegistration(r)?'checked':'disabled'}><span><strong>${esc(r.standardTaskCode || '')} — ${esc(r.title || r.standardTaskName || '')}</strong>${r.title && r.title !== r.standardTaskName ? `<small>Danh mục chuẩn: ${esc(r.standardTaskName || '')}</small>` : ''}<small class="registration-approval-output"><strong>Kết quả đầu ra:</strong> ${outputSnapshot ? esc(outputSnapshot) : 'Chưa ghi kết quả đầu ra'}</small><small>Điểm tối đa: ${fmt(r.maximumConvertedScore)}</small></span>${canApproveRegistration(r) ? `<button class="kpi-button danger" type="button" data-reject-one-registration="${esc(r.id)}">Không duyệt</button>` : ''}</div>`; }).join('')}</div>`;
   const footer = canApprove ? '<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button><button id="regRejectAll" class="kpi-button danger" type="button">Không duyệt toàn bộ</button><button id="regApproveSelected" class="kpi-button" type="button">Duyệt các mục đã chọn</button>' : '<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button>';
   const root = modal(`Đăng ký của ${items[0].userName || ''}`, body, footer);
   root.querySelector('#regSelectAll')?.addEventListener('click',()=>root.querySelectorAll('[data-reg-review]:not(:disabled)').forEach(x=>x.checked=true));
