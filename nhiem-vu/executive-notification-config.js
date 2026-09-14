@@ -1,5 +1,5 @@
 /**
- * V1.23.2 — EXECUTIVE NOTIFICATIONS OFF.
+ * V1.24.1 — EXECUTIVE NOTIFICATIONS OFF.
  * Backend URL cố ý để trống. Nghiệp vụ Chỉ đạo điều hành vẫn dùng Firestore bình thường;
  * chỉ lớp thông báo/push bị vô hiệu hóa.
  */
