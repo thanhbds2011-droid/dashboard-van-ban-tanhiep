@@ -8,12 +8,12 @@
  * - executiveDirectiveStates (trạng thái hiện hành theo Phòng/Khu)
  * - executiveWeeklyReports
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260914.V1_24_2";
-import { UserContext } from "../core/user-context.js?v=20260914.V1_24_2";
-import { Permissions } from "../core/permissions.js?v=20260914.V1_24_2";
-import { ExecutiveNotificationService } from "./executive-notification-service.js?v=20260914.V1_24_2";
-import { PeriodReadService } from "./period-read-service.js?v=20260914.V1_24_2";
-import { APP_VERSION } from "../core/app-version.js?v=20260914.V1_24_2";
+import { FirebaseService } from "../core/firebase-service.js?v=20260914.V1_24_3";
+import { UserContext } from "../core/user-context.js?v=20260914.V1_24_3";
+import { Permissions } from "../core/permissions.js?v=20260914.V1_24_3";
+import { ExecutiveNotificationService } from "./executive-notification-service.js?v=20260914.V1_24_3";
+import { PeriodReadService } from "./period-read-service.js?v=20260914.V1_24_3";
+import { APP_VERSION } from "../core/app-version.js?v=20260914.V1_24_3";
 
 const DIRECTIVES = "executiveDirectives";
 const UPDATES = "executiveDirectiveUpdates";
