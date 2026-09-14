@@ -1329,3 +1329,28 @@ textarea.app-dialog-input{min-height:104px}.app-dialog-input:focus{outline:2px s
 .notification-empty{padding:2.5rem 1rem;text-align:center;color:#71838e}.notification-empty>span{display:block;font-size:2rem;margin-bottom:.5rem}.notification-empty strong{display:block;color:#31596d}.notification-empty p{margin:.35rem 0 0}
 .route-render-host{min-width:0}
 @media(max-width:640px){.notification-center-toolbar{justify-content:stretch}.notification-center-toolbar button{flex:1 1 180px}.notification-center-card{max-height:90vh}.notification-item{padding:.9rem 1rem}}
+
+
+/* ==================== V1.24.0 · TASK ACCEPTANCE STATE ==================== */
+.task-acceptance-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .35rem;
+  min-height: 28px;
+  padding: .25rem .65rem;
+  border-radius: 999px;
+  font-size: .82rem;
+  font-weight: 800;
+  line-height: 1.1;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+.task-acceptance-pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; flex: 0 0 8px; }
+.task-acceptance-pill.pending { color: #8a4b08; background: #fff7e6; border-color: #f4d7a1; }
+.task-acceptance-pill.pending::before { background: #f59e0b; }
+.task-acceptance-pill.accepted { color: #14633e; background: #eaf8f0; border-color: #bfe5ce; }
+.task-acceptance-pill.accepted::before { background: #22a35a; }
+@media (max-width: 720px) {
+  .task-acceptance-pill { min-height: 26px; padding: .22rem .55rem; font-size: .76rem; }
+}

@@ -1,5 +1,5 @@
 /**
- * V1.23.2 — ONESIGNAL OFF.
+ * V1.24.1 — ONESIGNAL OFF.
  * Adapter no-op để tránh đăng ký OneSignal/subscription nếu file bị gọi ngoài ý muốn.
  */
 (() => {

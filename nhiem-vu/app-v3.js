@@ -1,11 +1,11 @@
 /** Ứng dụng quản lý nhiệm vụ và đánh giá KPI. */
-import { Router } from "./core/router.js?v=20260913.V1_23_2";
-import { APP_VERSION_LABEL, BUILD_VERSION } from "./core/app-version.js?v=20260913.V1_23_2";
-import { AuthService } from "./core/auth-service.js?v=20260913.V1_23_2";
-import { Permissions } from "./core/permissions.js?v=20260913.V1_23_2";
-import { ToastService } from "./core/toast-service.js?v=20260913.V1_23_2";
-import { FirebaseService } from "./core/firebase-service.js?v=20260913.V1_23_2";
-import { UserContext } from "./core/user-context.js?v=20260913.V1_23_2";
+import { Router } from "./core/router.js?v=20260914.V1_24_1";
+import { APP_VERSION_LABEL, BUILD_VERSION } from "./core/app-version.js?v=20260914.V1_24_1";
+import { AuthService } from "./core/auth-service.js?v=20260914.V1_24_1";
+import { Permissions } from "./core/permissions.js?v=20260914.V1_24_1";
+import { ToastService } from "./core/toast-service.js?v=20260914.V1_24_1";
+import { FirebaseService } from "./core/firebase-service.js?v=20260914.V1_24_1";
+import { UserContext } from "./core/user-context.js?v=20260914.V1_24_1";
 
 let activeRouter = null;
 let sessionRecoveryInProgress = false;
@@ -31,15 +31,15 @@ function lazyRoute(modulePath, exportName) {
   };
 }
 
-const renderDashboardView = lazyRoute("./modules/dashboard/dashboard-view.js?v=20260913.V1_23_2", "renderDashboardView");
-const renderExecutiveDirectivesView = lazyRoute("./modules/executive-directives/executive-directives-view.js?v=20260913.V1_23_2", "renderExecutiveDirectivesView");
-const renderTasksView = lazyRoute("./modules/tasks/tasks-view.js?v=20260913.V1_23_2", "renderTasksView");
-const renderStandardTasksView = lazyRoute("./modules/standard-tasks/standard-tasks-view.js?v=20260913.V1_23_2", "renderStandardTasksView");
-const renderPeriodsView = lazyRoute("./modules/periods/periods-view.js?v=20260913.V1_23_2", "renderPeriodsView");
-const renderPlansView = lazyRoute("./modules/plans/plans-view.js?v=20260913.V1_23_2", "renderPlansView");
-const renderEvaluationsView = lazyRoute("./modules/evaluations/evaluations-view.js?v=20260913.V1_23_2", "renderEvaluationsView");
-const renderReportsView = lazyRoute("./modules/reports/reports-view.js?v=20260913.V1_23_2", "renderReportsView");
-const renderAdminView = lazyRoute("./modules/admin/admin-view.js?v=20260913.V1_23_2", "renderAdminView");
+const renderDashboardView = lazyRoute("./modules/dashboard/dashboard-view.js?v=20260914.V1_24_1", "renderDashboardView");
+const renderExecutiveDirectivesView = lazyRoute("./modules/executive-directives/executive-directives-view.js?v=20260914.V1_24_1", "renderExecutiveDirectivesView");
+const renderTasksView = lazyRoute("./modules/tasks/tasks-view.js?v=20260914.V1_24_1", "renderTasksView");
+const renderStandardTasksView = lazyRoute("./modules/standard-tasks/standard-tasks-view.js?v=20260914.V1_24_1", "renderStandardTasksView");
+const renderPeriodsView = lazyRoute("./modules/periods/periods-view.js?v=20260914.V1_24_1", "renderPeriodsView");
+const renderPlansView = lazyRoute("./modules/plans/plans-view.js?v=20260914.V1_24_1", "renderPlansView");
+const renderEvaluationsView = lazyRoute("./modules/evaluations/evaluations-view.js?v=20260914.V1_24_1", "renderEvaluationsView");
+const renderReportsView = lazyRoute("./modules/reports/reports-view.js?v=20260914.V1_24_1", "renderReportsView");
+const renderAdminView = lazyRoute("./modules/admin/admin-view.js?v=20260914.V1_24_1", "renderAdminView");
 
 async function purgeRuntimeCaches() {
   if (!("caches" in window)) return;
@@ -237,7 +237,6 @@ function bindLogout() {
     UserContext.beginTransition("LOGOUT");
     buttons.forEach(button => { button.disabled = true; });
     try {
-      // V1.23.2: toàn bộ Notification/OneSignal đã tắt; logout không đọc/ghi subscription.
       await AuthService.logout();
     } catch (error) {
       console.error("Logout error:", error);
@@ -272,7 +271,7 @@ function bindMobileNavigation() {
   document.addEventListener("v3:route-changed", close);
 }
 
-/* V1.23.2: Notification/OneSignal helpers đã loại khỏi runtime production. */
+/* V1.24.1 QUOTA SAFE: toàn bộ Push/Notification Center/Toast listener đã tắt. */
 
 function currentUserSubtitle(user) {
   const departments = {
