@@ -451,8 +451,11 @@ function openWorkItemEditor(task, item, onSaved, existingEvidenceFiles = []) {
     box.textContent = message || "";
   };
   const renderStaged = () => {
+    const snapshot = staged.snapshot();
+    const box = overlay.querySelector("#workItemEvidenceStagedBox");
     const target = overlay.querySelector("#workItemUploadStatus");
-    if (target) target.innerHTML = workItemStagedEvidenceHtml(staged.snapshot());
+    if (box) box.hidden = snapshot.length === 0;
+    if (target) target.innerHTML = workItemStagedEvidenceHtml(snapshot);
   };
   const refreshSaveState = () => {
     const button = overlay.querySelector("#saveWorkItemButton");
