@@ -367,7 +367,12 @@ export function buildProductCatalogWorkbookBlob({
     { value:'TRUNG TÂM BẢO TRỢ XÃ HỘI TÂN HIỆP', style:5 }, { value:'',style:5 }, { value:'',style:5 }, { value:'',style:5 },
     { value:'',style:5 }, { value:'Độc lập - Tự do - Hạnh phúc',style:5 }, { value:'',style:5 }, { value:'',style:5 }, { value:'',style:5 }
   ], 22);
-  row(3, blank9(), 8);
+  // Standard administrative header: short centered underline below the agency block
+  // and below the national motto block.
+  row(3, [
+    { value:'________________', style:11 }, { value:'',style:11 }, { value:'',style:11 }, { value:'',style:11 },
+    { value:'',style:11 }, { value:'________________',style:11 }, { value:'',style:11 }, { value:'',style:11 }, { value:'',style:11 }
+  ], 15);
   row(4, [{ value:`DANH MỤC SẢN PHẨM CHUẨN${periodLabel ? ` – ${periodLabel}` : ''}`, style:6 }, ...blank9().slice(1)], 30);
   row(5, [{ value:`Họ và tên: ${employeeName || ''}`, style:10 }, ...blank9().slice(1)], 22);
   row(6, [
@@ -410,8 +415,8 @@ export function buildProductCatalogWorkbookBlob({
   ], 22);
   rn += 1;
   row(rn, [
-    { value:'(Ký, ghi rõ họ tên)', style:10 }, {value:'',style:10},{value:'',style:10},{value:'',style:10},
-    { value:'',style:10 }, { value:'(Ký, ghi rõ họ tên)', style:10 }, {value:'',style:10},{value:'',style:10},{value:'',style:10}
+    { value:'(Ký, ghi rõ họ tên)', style:12 }, {value:'',style:12},{value:'',style:12},{value:'',style:12},
+    { value:'',style:12 }, { value:'(Ký, ghi rõ họ tên)', style:12 }, {value:'',style:12},{value:'',style:12},{value:'',style:12}
   ], 20);
   rn += 4;
   row(rn, [
@@ -420,7 +425,7 @@ export function buildProductCatalogWorkbookBlob({
   ], 22);
 
   const merges = [
-    'A1:D1','F1:I1','A2:D2','F2:I2','A4:I4','A5:I5','A6:D6','E6:I6',
+    'A1:D1','F1:I1','A2:D2','F2:I2','A3:D3','F3:I3','A4:I4','A5:I5','A6:D6','E6:I6',
     `A${totalRow}:H${totalRow}`, `A${exceedRow}:H${exceedRow}`,
     `A${sigTop}:D${sigTop}`, `F${sigTop}:I${sigTop}`,
     `A${sigTop+1}:D${sigTop+1}`, `F${sigTop+1}:I${sigTop+1}`,
@@ -444,11 +449,11 @@ export function buildProductCatalogWorkbookBlob({
   const stylesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
   <numFmts count="1"><numFmt numFmtId="164" formatCode="#,##0.00"/></numFmts>
-  <fonts count="3"><font><sz val="11"/><name val="Times New Roman"/><family val="1"/></font><font><b/><sz val="11"/><name val="Times New Roman"/><family val="1"/></font><font><b/><sz val="14"/><name val="Times New Roman"/><family val="1"/></font></fonts>
+  <fonts count="4"><font><sz val="11"/><name val="Times New Roman"/><family val="1"/></font><font><b/><sz val="11"/><name val="Times New Roman"/><family val="1"/></font><font><b/><sz val="14"/><name val="Times New Roman"/><family val="1"/></font><font><i/><sz val="11"/><name val="Times New Roman"/><family val="1"/></font></fonts>
   <fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFEAF3F8"/><bgColor indexed="64"/></patternFill></fill></fills>
   <borders count="2"><border/><border><left style="thin"><color rgb="FF000000"/></left><right style="thin"><color rgb="FF000000"/></right><top style="thin"><color rgb="FF000000"/></top><bottom style="thin"><color rgb="FF000000"/></bottom><diagonal/></border></borders>
   <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
-  <cellXfs count="11">
+  <cellXfs count="13">
     <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
     <xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
     <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>
@@ -460,6 +465,8 @@ export function buildProductCatalogWorkbookBlob({
     <xf numFmtId="164" fontId="1" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
     <xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
     <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+    <xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
   </cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
 </styleSheet>`;
 
