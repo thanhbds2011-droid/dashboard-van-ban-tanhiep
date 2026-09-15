@@ -1,5 +1,5 @@
 const BUILD_VERSION = "20260914.V1_24_4";
-const CACHE_NAME = "nhiem-vu-" + BUILD_VERSION.toLowerCase().replace(/[^a-z0-9]+/g, "-") + "-export-hotfix-20260915";
+const CACHE_NAME = "nhiem-vu-" + BUILD_VERSION.toLowerCase().replace(/[^a-z0-9]+/g, "-") + "-export-hotfix-20260915-v2";
 const versioned = path => `${path}?v=${BUILD_VERSION}`;
 const SHELL = [
   "./", "./index.html", "./offline.html", "./manifest.webmanifest",
