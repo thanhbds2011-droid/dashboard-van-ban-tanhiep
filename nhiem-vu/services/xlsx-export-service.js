@@ -332,6 +332,8 @@ export function exportFormattedKpiWorkbook(options = {}) {
 /**
  * Native XLSX exporter for the approved personal Product Catalog.
  * Export is a read-only snapshot and intentionally contains no Firestore writes.
+ * Worksheet child order follows SpreadsheetML schema so Microsoft Excel and WPS
+ * can open the generated package consistently.
  */
 export function buildProductCatalogWorkbookBlob({
   sheetName = 'Danh mục sản phẩm',
@@ -434,9 +436,9 @@ export function buildProductCatalogWorkbookBlob({
   <sheetViews><sheetView workbookViewId="0"><pane ySplit="8" topLeftCell="A9" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>
   <sheetFormatPr defaultRowHeight="18"/>
   <cols>${colsXml}</cols><sheetData>${sheetRows.join('')}</sheetData>${mergeXml}
+  <printOptions horizontalCentered="1" verticalCentered="0"/>
   <pageMargins left="0.25" right="0.25" top="0.35" bottom="0.35" header="0.2" footer="0.2"/>
   <pageSetup orientation="landscape" paperSize="9" fitToWidth="1" fitToHeight="0"/>
-  <printOptions horizontalCentered="1" verticalCentered="0"/>
 </worksheet>`;
 
   const stylesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
