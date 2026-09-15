@@ -125,25 +125,68 @@ function normalizedWidths(percentages, total = CONTENT_WIDTH) {
   return widths;
 }
 
+function underlineRuleParagraphXml(cellWidth, lineWidth, { after = 25, before = 0 } = {}) {
+  const safeLineWidth = Math.max(300, Math.min(Number(lineWidth || 1000), Number(cellWidth || 1000) - 80));
+  const indent = Math.max(0, Math.round((Number(cellWidth || 1000) - safeLineWidth) / 2));
+  return `<w:p><w:pPr><w:jc w:val="center"/><w:ind w:left="${indent}" w:right="${indent}"/><w:pBdr><w:bottom w:val="single" w:sz="8" w:space="1" w:color="000000"/></w:pBdr><w:spacing w:before="${before}" w:after="${after}" w:line="40" w:lineRule="exact"/></w:pPr>${runXml(' ', { size:2 })}</w:p>`;
+}
+
 function topHeaderXml(top) {
   const agency = top?.querySelector?.('.m01-agency');
   const national = top?.querySelector?.('.m01-national');
   const form = top?.querySelector?.('.m01-form-number');
   const leftWidth = Math.round(CONTENT_WIDTH * 0.47);
   const rightWidth = CONTENT_WIDTH - leftWidth;
-  const agencyText = textOf(agency);
-  const nationalLines = textOf(national).split(/\n/).filter(Boolean);
   const formText = textOf(form);
 
-  const leftContent = paragraphXml(agencyText, { bold:true, center:true, size:21, after:0, line:240 });
+  // IMPORTANT: use distinct Word paragraphs instead of <w:br/> inside one paragraph.
+  // WPS/Word compatibility is much more stable and matches the official 01-A/01-B templates.
+  let agencyLines = textOf(agency).split(/\n/).map(cleanText).filter(Boolean);
+  if (/01\s*-?\s*B/i.test(formText)) {
+    const idx = agencyLines.findIndex(line => /^TRUNG TÂM\s+BẢO TRỢ XÃ HỘI TÂN HIỆP$/i.test(line));
+    if (idx >= 0) {
+      agencyLines = [
+        ...agencyLines.slice(0, idx),
+        'TRUNG TÂM',
+        'BẢO TRỢ XÃ HỘI TÂN HIỆP',
+        ...agencyLines.slice(idx + 1)
+      ];
+    }
+  }
+
+  const leftParts = agencyLines.map((line, index) => {
+    const bold = index >= 2;
+    return paragraphXml(line, {
+      bold,
+      center:true,
+      size:index >= 2 ? 20 : 19,
+      after:0,
+      line:220,
+      keepNext:true
+    });
+  });
+  if (agencyLines.length) leftParts.push(underlineRuleParagraphXml(leftWidth, /01\s*-?\s*B/i.test(formText) ? 1100 : 1250, { after:30 }));
+
+  const nationalLines = textOf(national).split(/\n/).map(cleanText).filter(Boolean);
   const rightParts = [];
-  if (formText) rightParts.push(paragraphXml(formText, { bold:true, right:true, size:18, after:0, line:220 }));
+  if (formText) rightParts.push(paragraphXml(formText, { bold:true, right:true, size:18, after:0, line:210, keepNext:true }));
+
   nationalLines.forEach((line, index) => {
     const isDate = /^(Đồng Nai|TP\.?\s*Hồ Chí Minh|Thành phố)/i.test(line) || /ngày\s+\d+/i.test(line);
-    rightParts.push(paragraphXml(line, { bold:!isDate, italic:isDate, center:true, size:isDate ? 18 : 21, after:index === nationalLines.length - 1 ? 0 : 10, line:230 }));
+    const isMotto = /^Độc lập\s*-\s*Tự do\s*-\s*Hạnh phúc$/i.test(line) || /^Độc lập\s*-\s*Tự do\s*-\s*Hạnh Phúc$/i.test(line);
+    rightParts.push(paragraphXml(line, {
+      bold:!isDate,
+      italic:isDate,
+      center:true,
+      size:isDate ? 18 : (index === 0 ? 20 : 19),
+      after:0,
+      line:220,
+      keepNext:!isDate
+    }));
+    if (isMotto) rightParts.push(underlineRuleParagraphXml(rightWidth, 2050, { after:20 }));
   });
 
-  return `<w:tbl><w:tblPr><w:tblW w:w="${CONTENT_WIDTH}" w:type="dxa"/><w:tblLayout w:type="fixed"/>${noBorderXml()}<w:tblCellMar><w:top w:w="0" w:type="dxa"/><w:left w:w="20" w:type="dxa"/><w:bottom w:w="0" w:type="dxa"/><w:right w:w="20" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid><w:gridCol w:w="${leftWidth}"/><w:gridCol w:w="${rightWidth}"/></w:tblGrid><w:tr><w:trPr><w:cantSplit/></w:trPr><w:tc><w:tcPr><w:tcW w:w="${leftWidth}" w:type="dxa"/><w:vAlign w:val="top"/></w:tcPr>${leftContent}</w:tc><w:tc><w:tcPr><w:tcW w:w="${rightWidth}" w:type="dxa"/><w:vAlign w:val="top"/></w:tcPr>${rightParts.join('')}</w:tc></w:tr></w:tbl>`;
+  return `<w:tbl><w:tblPr><w:tblW w:w="${CONTENT_WIDTH}" w:type="dxa"/><w:tblLayout w:type="fixed"/>${noBorderXml()}<w:tblCellMar><w:top w:w="0" w:type="dxa"/><w:left w:w="20" w:type="dxa"/><w:bottom w:w="0" w:type="dxa"/><w:right w:w="20" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid><w:gridCol w:w="${leftWidth}"/><w:gridCol w:w="${rightWidth}"/></w:tblGrid><w:tr><w:trPr><w:cantSplit/></w:trPr><w:tc><w:tcPr><w:tcW w:w="${leftWidth}" w:type="dxa"/><w:vAlign w:val="top"/></w:tcPr>${leftParts.join('')}</w:tc><w:tc><w:tcPr><w:tcW w:w="${rightWidth}" w:type="dxa"/><w:vAlign w:val="top"/></w:tcPr>${rightParts.join('')}</w:tc></w:tr></w:tbl>`;
 }
 
 function profileXml(profile) {
@@ -239,8 +282,24 @@ function tableXml(table) {
 function signatureBlockXml(el, fraction = 0.45, blankLines = 4) {
   const rightWidth = Math.max(1, Math.round(CONTENT_WIDTH * fraction));
   const leftWidth = CONTENT_WIDTH - rightWidth;
-  const content = `${paragraphXml(textOf(el), { bold:false, center:true, size:20, after:0, line:235 })}${Array.from({ length:blankLines }, () => emptyParagraph({ size:20 })).join('')}`;
-  return `<w:tbl><w:tblPr><w:tblW w:w="${CONTENT_WIDTH}" w:type="dxa"/><w:tblLayout w:type="fixed"/>${noBorderXml()}</w:tblPr><w:tblGrid><w:gridCol w:w="${leftWidth}"/><w:gridCol w:w="${rightWidth}"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w="${leftWidth}" w:type="dxa"/></w:tcPr>${emptyParagraph({ size:20 })}</w:tc><w:tc><w:tcPr><w:tcW w:w="${rightWidth}" w:type="dxa"/><w:vAlign w:val="top"/></w:tcPr>${content}</w:tc></w:tr></w:tbl>`;
+  const heading = cleanText(el?.querySelector?.('strong')?.innerText ?? el?.querySelector?.('strong')?.textContent ?? '');
+  const note = cleanText(el?.querySelector?.('em')?.innerText ?? el?.querySelector?.('em')?.textContent ?? '');
+  const fallback = textOf(el);
+
+  // Separate paragraphs are intentional. Some WPS builds collapse <w:br/> in generated DOCX.
+  // Keeping heading and signing note in two paragraphs guarantees the note stays underneath.
+  const contentParts = [];
+  if (heading) {
+    contentParts.push(paragraphXml(heading, { bold:true, center:true, size:20, after:0, line:225, keepNext:true }));
+    if (note) contentParts.push(paragraphXml(note, { italic:true, center:true, size:19, after:0, line:220, keepNext:true }));
+  } else if (fallback) {
+    const lines = fallback.split(/\n/).map(cleanText).filter(Boolean);
+    if (lines[0]) contentParts.push(paragraphXml(lines[0], { bold:true, center:true, size:20, after:0, line:225, keepNext:true }));
+    if (lines[1]) contentParts.push(paragraphXml(lines.slice(1).join(' '), { italic:true, center:true, size:19, after:0, line:220, keepNext:true }));
+  }
+  contentParts.push(...Array.from({ length:blankLines }, () => emptyParagraph({ size:20 })));
+
+  return `<w:tbl><w:tblPr><w:tblW w:w="${CONTENT_WIDTH}" w:type="dxa"/><w:tblLayout w:type="fixed"/>${noBorderXml()}</w:tblPr><w:tblGrid><w:gridCol w:w="${leftWidth}"/><w:gridCol w:w="${rightWidth}"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w="${leftWidth}" w:type="dxa"/></w:tcPr>${emptyParagraph({ size:20 })}</w:tc><w:tc><w:tcPr><w:tcW w:w="${rightWidth}" w:type="dxa"/><w:vAlign w:val="top"/></w:tcPr>${contentParts.join('')}</w:tc></w:tr></w:tbl>`;
 }
 
 function elementBlocks(root) {
