@@ -485,6 +485,193 @@ export function buildProductCatalogWorkbookBlob({
   return new Blob([zip], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 }
 
+/**
+ * V1.24.7 – Báo cáo Hội đồng Tổng hợp Phòng/Khu / Toàn Trung tâm.
+ * Snapshot từ state đã tải; không truy vấn hay ghi Firestore, không tính lại KPI.
+ * Các ô và hai vùng chữ ký là ô Excel thật, có thể chỉnh sửa trước khi in.
+ */
+export function buildDepartmentSummaryWorkbookBlob({
+  sheetName = 'Tổng hợp đánh giá',
+  periodLabel = '',
+  scopeTitle = '',
+  signerTitle = 'TRƯỞNG PHÒNG/KHU',
+  rows = []
+} = {}) {
+  if (!Array.isArray(rows) || !rows.length) {
+    throw new Error('Chưa có dữ liệu Tổng hợp Phòng/Khu để xuất Excel.');
+  }
+
+  const columns = [
+    { title:'STT', width:6 },
+    { title:'Họ và tên', width:22 },
+    { title:'Chức vụ', width:15 },
+    { title:'Nhiệm vụ tính KPI', width:24 },
+    { title:'Điểm kế hoạch (A)', width:14 },
+    { title:'Điểm thực hiện (B)', width:14 },
+    { title:'Điểm KPI công việc (70)', width:16 },
+    { title:'Đầu việc vượt', width:11 },
+    { title:'Điểm thưởng', width:14 },
+    { title:'Tiêu chí chung (30)', width:16 },
+    { title:'Tổng điểm', width:13 },
+    { title:'Mức xếp loại', width:28 },
+    { title:'Trạng thái điểm', width:21 }
+  ];
+  const sheetRows = [];
+  const merges = ['A1:M1', 'A2:M2', 'A3:M3', 'A4:M4'];
+  const blanks = (style = 0) => Array.from({ length:13 }, () => ({ value:'', style }));
+  const write = (n, cells, height = 0) => sheetRows.push(makeRow(n, cells, { height }));
+  const spanning = (n, text, style, height = 22) => {
+    const cells = blanks(style);
+    cells[0] = { value:text, style };
+    write(n, cells, height);
+  };
+  const validNumber = value => { const numeric = Number(value || 0); return Number.isFinite(numeric) ? numeric : 0; };
+
+  spanning(1, 'TRUNG TÂM BẢO TRỢ XÃ HỘI TÂN HIỆP', 5, 21);
+  spanning(2, 'BẢNG TỔNG HỢP KẾT QUẢ ĐÁNH GIÁ', 6, 27);
+  spanning(3, `${periodLabel}${periodLabel && scopeTitle ? ' · ' : ''}${scopeTitle}`, 5, 21);
+  spanning(4, 'Kết quả đánh giá theo từng cá nhân trong kỳ.', 7, 19);
+  write(5, blanks(), 7);
+  write(6, columns.map(column => ({ value:column.title, style:1 })), 40);
+
+  let rn = 7;
+  for (const item of rows) {
+    const hasKpi = item.kpi70 !== null && item.kpi70 !== undefined;
+    const hasTotal = item.total100 !== null && item.total100 !== undefined;
+    const line = [
+      { value:validNumber(item.index), style:3 },
+      { value:`${item.fullName || ''}${item.departmentName ? `\n${item.departmentName}` : ''}`, style:2 },
+      { value:item.position || '', style:2 },
+      { value:item.taskBreakdown || '—', style:3 },
+      { value:validNumber(item.A), style:4 },
+      { value:validNumber(item.B), style:4 },
+      { value:hasKpi ? validNumber(item.kpi70) : 'Chưa đủ cơ sở', style:hasKpi ? 4 : 3 },
+      { value:validNumber(item.exceededTasks), style:3 },
+      // Chỉ điểm thưởng đã xác nhận là numeric; pending thể hiện dưới bảng, không cộng vào tổng.
+      { value:validNumber(item.bonusApproved), style:4 },
+      { value:validNumber(item.common30), style:4 },
+      { value:hasTotal ? validNumber(item.total100) : '—', style:hasTotal ? 8 : 3 },
+      { value:item.ratingName || '', style:2 },
+      { value:item.scoreState || '', style:3 }
+    ];
+    write(rn, line, 27);
+    rn += 1;
+  }
+
+  const pending = rows.filter(item => Number(item.bonusPending || 0) > 0);
+  if (pending.length) {
+    rn += 1;
+    spanning(rn, 'GHI CHÚ: ĐIỂM THƯỞNG CHỜ XÁC NHẬN – KHÔNG CỘNG VÀO TỔNG ĐIỂM CHÍNH THỨC', 9, 21);
+    merges.push(`A${rn}:M${rn}`);
+    for (const item of pending) {
+      rn += 1;
+      const amount = Number(item.bonusPending).toLocaleString('vi-VN', { maximumFractionDigits:2 });
+      spanning(rn, `${item.fullName || ''}: +${amount} điểm thưởng chờ xác nhận`, 7, 20);
+      merges.push(`A${rn}:M${rn}`);
+    }
+  }
+
+  rn += 2;
+  const signatureCells = blanks(10);
+  signatureCells[0] = { value:'NGƯỜI LẬP BIỂU', style:10 };
+  signatureCells[7] = { value:signerTitle || 'TRƯỞNG PHÒNG/KHU', style:10 };
+  write(rn, signatureCells, 23);
+  merges.push(`A${rn}:F${rn}`, `H${rn}:M${rn}`);
+
+  rn += 1;
+  const hintCells = blanks(11);
+  hintCells[0] = { value:'(Ký, ghi rõ họ tên)', style:11 };
+  hintCells[7] = { value:'(Ký, ghi rõ họ tên)', style:11 };
+  write(rn, hintCells, 20);
+  merges.push(`A${rn}:F${rn}`, `H${rn}:M${rn}`);
+
+  for (let i = 0; i < 2; i += 1) {
+    rn += 1;
+    write(rn, blanks(), 18);
+  }
+  rn += 1;
+  // A/H là ô nhập tên editable của hai vùng, để trống vì không giả định người ký.
+  const nameCells = blanks(10);
+  write(rn, nameCells, 23);
+  merges.push(`A${rn}:F${rn}`, `H${rn}:M${rn}`);
+  const finalRow = rn;
+
+  const colsXml = columns.map((c, i) => `<col min="${i+1}" max="${i+1}" width="${c.width}" customWidth="1"/>`).join('');
+  const mergeXml = `<mergeCells count="${merges.length}">${merges.map(ref => `<mergeCell ref="${ref}"/>`).join('')}</mergeCells>`;
+  const sheetXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>
+  <dimension ref="A1:M${finalRow}"/>
+  <sheetViews><sheetView workbookViewId="0"><pane ySplit="6" topLeftCell="A7" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>
+  <sheetFormatPr defaultRowHeight="18"/>
+  <cols>${colsXml}</cols>
+  <sheetData>${sheetRows.join('')}</sheetData>
+  ${mergeXml}
+  <printOptions horizontalCentered="1" verticalCentered="0"/>
+  <pageMargins left="0.22" right="0.22" top="0.35" bottom="0.35" header="0.0" footer="0.0"/>
+  <pageSetup orientation="landscape" paperSize="9" fitToWidth="1" fitToHeight="0"/>
+  <headerFooter><oddHeader></oddHeader><oddFooter></oddFooter></headerFooter>
+</worksheet>`;
+
+  const stylesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <numFmts count="1"><numFmt numFmtId="164" formatCode="#,##0.##"/></numFmts>
+  <fonts count="4">
+    <font><sz val="10"/><name val="Times New Roman"/><family val="1"/></font>
+    <font><b/><sz val="10"/><name val="Times New Roman"/><family val="1"/></font>
+    <font><b/><sz val="14"/><name val="Times New Roman"/><family val="1"/></font>
+    <font><i/><sz val="10"/><name val="Times New Roman"/><family val="1"/></font>
+  </fonts>
+  <fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFEAF3F8"/><bgColor indexed="64"/></patternFill></fill></fills>
+  <borders count="2"><border/><border><left style="thin"><color rgb="FF000000"/></left><right style="thin"><color rgb="FF000000"/></right><top style="thin"><color rgb="FF000000"/></top><bottom style="thin"><color rgb="FF000000"/></bottom><diagonal/></border></borders>
+  <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+  <cellXfs count="12">
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
+    <xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+    <xf numFmtId="164" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+    <xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+    <xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+    <xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+    <xf numFmtId="164" fontId="1" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+    <xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="left" vertical="center" wrapText="1"/></xf>
+    <xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+    <xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+  </cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
+</styleSheet>`;
+  const name = sanitizedSheetName(sheetName);
+  const workbookXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets><sheet name="${xmlEscape(name)}" sheetId="1" r:id="rId1"/></sheets>
+  <definedNames><definedName name="_xlnm.Print_Area" localSheetId="0">'${xmlEscape(name.replaceAll("'", "''"))}'!$A$1:$M$${finalRow}</definedName><definedName name="_xlnm.Print_Titles" localSheetId="0">'${xmlEscape(name.replaceAll("'", "''"))}'!$6:$6</definedName></definedNames>
+</workbook>`;
+  const workbookRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`;
+  const rels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/></Relationships>`;
+  const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/><Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/></Types>`;
+  const now = new Date().toISOString();
+  const core = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:dcmitype="http://purl.org/dc/dcmitype/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>Bảng tổng hợp kết quả đánh giá</dc:title><dc:creator>Trung tâm Bảo trợ xã hội Tân Hiệp</dc:creator><dcterms:created xsi:type="dcterms:W3CDTF">${now}</dcterms:created><dcterms:modified xsi:type="dcterms:W3CDTF">${now}</dcterms:modified></cp:coreProperties>`;
+  const app = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"><Application>Nhiệm vụ và đánh giá KPI - Tân Hiệp</Application></Properties>`;
+  return new Blob([zipStore([
+    {name:'[Content_Types].xml',content:contentTypes}, {name:'_rels/.rels',content:rels},
+    {name:'docProps/core.xml',content:core}, {name:'docProps/app.xml',content:app},
+    {name:'xl/workbook.xml',content:workbookXml}, {name:'xl/_rels/workbook.xml.rels',content:workbookRels},
+    {name:'xl/styles.xml',content:stylesXml}, {name:'xl/worksheets/sheet1.xml',content:sheetXml}
+  ])], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
+
+export function exportDepartmentSummaryWorkbook(options = {}) {
+  const blob = buildDepartmentSummaryWorkbookBlob(options);
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = safeFileName(options.fileName || 'Tong_hop_KPI_Phong_Khu.xlsx');
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 export function exportProductCatalogWorkbook(options = {}) {
   const blob = buildProductCatalogWorkbookBlob(options);
   const url = URL.createObjectURL(blob);

@@ -1,5 +1,5 @@
 /** Chẩn đoán production dành riêng cho ADMIN. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260916.V1_24_6";
+import { FirebaseService } from "../core/firebase-service.js?v=20260916.V1_24_7";
 
 const COLLECTION_LIMIT = 2000;
 const clean = value => String(value ?? "").trim();
