@@ -1,28 +1,28 @@
-import { auth, db } from '../../firebase-config.js?v=20260916.V1_24_6';
+import { auth, db } from '../../firebase-config.js?v=20260916.V1_24_7';
 import {
   addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, onSnapshot, query,
   serverTimestamp, setDoc, Timestamp, updateDoc, where, limit, writeBatch
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
-import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260916.V1_24_6';
-import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260916.V1_24_6';
-import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260916.V1_24_6';
-import { TaskEvidenceService } from '../../services/task-evidence-service.js?v=20260916.V1_24_6';
-import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260916.V1_24_6';
-import { PeriodReadService } from '../../services/period-read-service.js?v=20260916.V1_24_6';
-import { TaskReadService } from '../../services/task-read-service.js?v=20260916.V1_24_6';
-import { Permissions } from '../../core/permissions.js?v=20260916.V1_24_6';
-import { UserContext } from '../../core/user-context.js?v=20260916.V1_24_6';
-import { APP_VERSION } from '../../core/app-version.js?v=20260916.V1_24_6';
-import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260916.V1_24_6';
-import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260916.V1_24_6';
+import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260916.V1_24_7';
+import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260916.V1_24_7';
+import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260916.V1_24_7';
+import { TaskEvidenceService } from '../../services/task-evidence-service.js?v=20260916.V1_24_7';
+import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260916.V1_24_7';
+import { PeriodReadService } from '../../services/period-read-service.js?v=20260916.V1_24_7';
+import { TaskReadService } from '../../services/task-read-service.js?v=20260916.V1_24_7';
+import { Permissions } from '../../core/permissions.js?v=20260916.V1_24_7';
+import { UserContext } from '../../core/user-context.js?v=20260916.V1_24_7';
+import { APP_VERSION } from '../../core/app-version.js?v=20260916.V1_24_7';
+import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260916.V1_24_7';
+import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260916.V1_24_7';
 import {
   KPI2B as KPI2C, M01_GROUPS, COMMON_CRITERIA, commonCriteriaForProfile, reportFormTypeForProfile, calculateTaskScore, calculateKpiSummary,
   proposedRating, resolveQualityRating, ratingName, round2, progressRateFromDates, convertAppendix04Rate, calculateMilestoneProgress, calculateBonusScore
-} from '../../kpi-engine.js?v=20260916.V1_24_6';
-import { resolveKpiReviewer, canReviewKpiOwner } from '../../core/kpi-review-authority.js?v=20260916.V1_24_6';
-import { ModalService } from '../../core/modal-service.js?v=20260916.V1_24_6';
-import { exportFormattedKpiWorkbook, exportProductCatalogWorkbook } from '../../services/xlsx-export-service.js?v=20260916.V1_24_6';
-import { exportDomToDocx } from '../../services/docx-export-service.js?v=20260916.V1_24_6';
+} from '../../kpi-engine.js?v=20260916.V1_24_7';
+import { resolveKpiReviewer, canReviewKpiOwner } from '../../core/kpi-review-authority.js?v=20260916.V1_24_7';
+import { ModalService } from '../../core/modal-service.js?v=20260916.V1_24_7';
+import { exportFormattedKpiWorkbook, exportProductCatalogWorkbook, exportDepartmentSummaryWorkbook } from '../../services/xlsx-export-service.js?v=20260916.V1_24_7';
+import { exportDomToDocx } from '../../services/docx-export-service.js?v=20260916.V1_24_7';
 
 export const KpiWorkflowState = {
   user: null,
@@ -2790,8 +2790,9 @@ function openDepartmentReport(options = {}) {
   const selector = canChooseDepartment
     ? `<div class="department-report-scope"><span>Phạm vi tổng hợp</span><div class="department-report-scope-options">${selectableDepartments.map(item => `<button type="button" class="department-report-scope-button ${item === defaultDepartment ? 'is-active' : ''}" data-department-report-scope="${esc(item)}">${esc(item === 'ALL' ? 'Toàn Trung tâm' : departmentDisplayName(item))}</button>`).join('')}</div></div>`
     : '';
-  const root = modal(options.title || 'Tổng hợp Phòng/Khu', `${selector}<div id="departmentReportContent"></div>`, '<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button><button id="printDepartmentReport" class="kpi-button" type="button">🖨️ In báo cáo</button>');
+  const root = modal(options.title || 'Tổng hợp Phòng/Khu', `${selector}<div id="departmentReportContent"></div>`, '<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button><button id="exportDepartmentReportXlsx" class="kpi-button secondary" type="button">📊 Xuất Excel (.xlsx)</button><button id="printDepartmentReport" class="kpi-button" type="button">🖨️ In báo cáo</button>');
   let selectedDepartmentId = defaultDepartment;
+  let currentWorkbookData = null;
 
   const renderDepartment = () => {
     const departmentId = normalizeDepartment(selectedDepartmentId || defaultDepartment);
@@ -2825,6 +2826,7 @@ function openDepartmentReport(options = {}) {
       return clean(user.cdtnRoleLabel) || 'Thành viên Chi đoàn';
     };
 
+    const workbookRows = [];
     const body = people.map((user, index) => {
       const data = isCdtnAggregate
         ? summaryForUserInDepartment(user.id, 'CDTN')
@@ -2862,9 +2864,35 @@ function openDepartmentReport(options = {}) {
         bonus.approved > 0 ? `<strong>+${fmt(bonus.approved)}</strong><br><span class="kpi-small">Đã xác nhận</span>` : '',
         bonus.pending > 0 ? `<strong class="kpi-bonus-pending">+${fmt(bonus.pending)}</strong><br><span class="kpi-small">Chờ xác nhận</span>` : ''
       ].filter(Boolean).join('<br>') || '0';
+      // Cùng snapshot và helper với row HTML: export không query Firestore và không tính KPI lại.
+      workbookRows.push({
+        index: index + 1,
+        fullName: clean(user.fullName || user.email || user.id),
+        departmentName: departmentDisplayName(user.departmentId),
+        position: clean(user.position || ''),
+        taskBreakdown: `${taskBreakdown}${exemptTaskCount ? `\n${exemptTaskCount} miễn` : ''}`,
+        A: Number(data.A || 0), B: Number(data.B || 0),
+        kpi70: data.hasCalculationBasis ? Number(data.kpi70 || 0) : null,
+        exceededTasks: Number(rating.exceededTasks || 0),
+        bonusApproved: Number(bonus.approved || 0),
+        bonusPending: Number(bonus.pending || 0),
+        common30: Number(data.common30 || 0),
+        total100: data.hasCalculationBasis ? Number(data.total100 || 0) : null,
+        ratingName: ratingName(rating.code), scoreState: stateLabel
+      });
       return `<tr><td>${index + 1}</td><td><strong>${esc(user.fullName || user.email || user.id)}</strong><br><span class="kpi-small">${esc(departmentDisplayName(user.departmentId))}</span></td><td>${esc(user.position || '')}</td><td class="m01-center">${esc(taskBreakdown)}${exemptTaskCount ? `<br><span class="kpi-small">${exemptTaskCount} miễn</span>` : ''}</td><td class="m01-center">${fmt(data.A)}</td><td class="m01-center">${fmt(data.B)}</td><td class="m01-center">${data.hasCalculationBasis ? fmt(data.kpi70) : 'Chưa đủ cơ sở'}</td><td class="m01-center"><strong>${Number(rating.exceededTasks || 0)}</strong></td><td class="m01-center">${bonusDisplay}</td><td class="m01-center">${fmt(data.common30)}</td><td class="m01-center"><strong>${data.hasCalculationBasis ? fmt(data.total100) : '—'}</strong></td><td>${esc(ratingName(rating.code))}</td><td><span class="kpi-score-badge">${esc(stateLabel)}</span></td></tr>`;
     }).join('');
 
+    currentWorkbookData = !isCdtnAggregate && people.length ? {
+      periodLabel: clean(KpiWorkflowState.period?.name || KpiWorkflowState.period?.id || ''),
+      scopeTitle: departmentId === 'ALL' ? 'Toàn Trung tâm' : departmentDisplayName(departmentId),
+      scopeId: departmentId,
+      periodId: clean(KpiWorkflowState.period?.id || 'ky'),
+      signerTitle: departmentId === 'ALL' ? 'BAN GIÁM ĐỐC' : 'TRƯỞNG PHÒNG/KHU',
+      rows: workbookRows
+    } : null;
+    const exportButton = root.querySelector('#exportDepartmentReportXlsx');
+    if (exportButton) exportButton.style.display = currentWorkbookData ? '' : 'none';
     const scopeTitle = departmentId === 'ALL' ? 'Toàn Trung tâm' : departmentDisplayName(departmentId);
     const reportHeading = isCdtnAggregate ? 'BẢNG TỔNG HỢP HOẠT ĐỘNG CHI ĐOÀN' : 'BẢNG TỔNG HỢP KẾT QUẢ ĐÁNH GIÁ';
     const reportNote = isCdtnAggregate
@@ -2885,6 +2913,22 @@ function openDepartmentReport(options = {}) {
     root.querySelectorAll('[data-department-report-scope]').forEach(item => item.classList.toggle('is-active', item === button));
     renderDepartment();
   }));
+  root.querySelector('#exportDepartmentReportXlsx')?.addEventListener('click', () => {
+    if (!canViewDepartmentReport() || !currentWorkbookData || !currentWorkbookData.rows.length) {
+      ModalService.alert('Phạm vi này chưa có dữ liệu Tổng hợp Phòng/Khu để xuất Excel.');
+      return;
+    }
+    try {
+      const snapshot = currentWorkbookData;
+      exportDepartmentSummaryWorkbook({
+        ...snapshot,
+        fileName: `Tong_hop_KPI_${snapshot.periodId}_${snapshot.scopeId}.xlsx`
+      });
+    } catch (error) {
+      console.error('Không thể xuất Excel Tổng hợp Phòng/Khu:', error);
+      ModalService.alert('Không thể tạo file Excel. Vui lòng thử lại hoặc báo quản trị.');
+    }
+  });
   root.querySelector('#printDepartmentReport')?.addEventListener('click', () => {
     const existingPageStyle = document.getElementById('departmentReportPrintPageStyle');
     existingPageStyle?.remove();
