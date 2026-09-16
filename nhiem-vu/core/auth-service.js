@@ -13,8 +13,8 @@
  * - Giữ nguyên UID Firebase và mô hình accessAccounts hiện hữu.
  */
 
-import { FirebaseService } from "./firebase-service.js?v=20260916.V1_24_6";
-import { UserContext } from "./user-context.js?v=20260916.V1_24_6";
+import { FirebaseService } from "./firebase-service.js?v=20260916.V1_24_7";
+import { UserContext } from "./user-context.js?v=20260916.V1_24_7";
 
 const LOGIN_URL = "./login.html";
 const AUTH_TIMEOUT_MS = 10000;
