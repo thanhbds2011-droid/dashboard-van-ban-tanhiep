@@ -1,9 +1,9 @@
-import { UserContext } from "../../core/user-context.js?v=20260916.V1_24_6";
-import { Permissions } from "../../core/permissions.js?v=20260916.V1_24_6";
-import { ToastService } from "../../core/toast-service.js?v=20260916.V1_24_6";
-import { ModalService } from "../../core/modal-service.js?v=20260916.V1_24_6";
-import { AdminReadService } from "../../services/admin-read-service.js?v=20260916.V1_24_6";
-import { AdminMaintenanceService } from "../../services/admin-maintenance-service.js?v=20260916.V1_24_6";
+import { UserContext } from "../../core/user-context.js?v=20260916.V1_24_7";
+import { Permissions } from "../../core/permissions.js?v=20260916.V1_24_7";
+import { ToastService } from "../../core/toast-service.js?v=20260916.V1_24_7";
+import { ModalService } from "../../core/modal-service.js?v=20260916.V1_24_7";
+import { AdminReadService } from "../../services/admin-read-service.js?v=20260916.V1_24_7";
+import { AdminMaintenanceService } from "../../services/admin-maintenance-service.js?v=20260916.V1_24_7";
 
 let currentDiagnostic = null;
 
