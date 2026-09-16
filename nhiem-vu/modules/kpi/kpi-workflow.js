@@ -1,28 +1,28 @@
-import { auth, db } from '../../firebase-config.js?v=20260914.V1_24_4';
+import { auth, db } from '../../firebase-config.js?v=20260916.V1_24_5';
 import {
   addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, onSnapshot, query,
   serverTimestamp, setDoc, Timestamp, updateDoc, where, limit, writeBatch
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
-import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260914.V1_24_4';
-import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260914.V1_24_4';
-import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260914.V1_24_4';
-import { TaskEvidenceService } from '../../services/task-evidence-service.js?v=20260914.V1_24_4';
-import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260914.V1_24_4';
-import { PeriodReadService } from '../../services/period-read-service.js?v=20260914.V1_24_4';
-import { TaskReadService } from '../../services/task-read-service.js?v=20260914.V1_24_4';
-import { Permissions } from '../../core/permissions.js?v=20260914.V1_24_4';
-import { UserContext } from '../../core/user-context.js?v=20260914.V1_24_4';
-import { APP_VERSION } from '../../core/app-version.js?v=20260914.V1_24_4';
-import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260914.V1_24_4';
-import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260914.V1_24_4';
+import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260916.V1_24_5';
+import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260916.V1_24_5';
+import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260916.V1_24_5';
+import { TaskEvidenceService } from '../../services/task-evidence-service.js?v=20260916.V1_24_5';
+import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260916.V1_24_5';
+import { PeriodReadService } from '../../services/period-read-service.js?v=20260916.V1_24_5';
+import { TaskReadService } from '../../services/task-read-service.js?v=20260916.V1_24_5';
+import { Permissions } from '../../core/permissions.js?v=20260916.V1_24_5';
+import { UserContext } from '../../core/user-context.js?v=20260916.V1_24_5';
+import { APP_VERSION } from '../../core/app-version.js?v=20260916.V1_24_5';
+import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260916.V1_24_5';
+import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260916.V1_24_5';
 import {
   KPI2B as KPI2C, M01_GROUPS, COMMON_CRITERIA, commonCriteriaForProfile, reportFormTypeForProfile, calculateTaskScore, calculateKpiSummary,
   proposedRating, resolveQualityRating, ratingName, round2, progressRateFromDates, convertAppendix04Rate, calculateMilestoneProgress, calculateBonusScore
-} from '../../kpi-engine.js?v=20260914.V1_24_4';
-import { resolveKpiReviewer, canReviewKpiOwner } from '../../core/kpi-review-authority.js?v=20260914.V1_24_4';
-import { ModalService } from '../../core/modal-service.js?v=20260914.V1_24_4';
-import { exportFormattedKpiWorkbook, exportProductCatalogWorkbook } from '../../services/xlsx-export-service.js?v=20260914.V1_24_4';
-import { exportDomToDocx } from '../../services/docx-export-service.js?v=20260914.V1_24_4';
+} from '../../kpi-engine.js?v=20260916.V1_24_5';
+import { resolveKpiReviewer, canReviewKpiOwner } from '../../core/kpi-review-authority.js?v=20260916.V1_24_5';
+import { ModalService } from '../../core/modal-service.js?v=20260916.V1_24_5';
+import { exportFormattedKpiWorkbook, exportProductCatalogWorkbook } from '../../services/xlsx-export-service.js?v=20260916.V1_24_5';
+import { exportDomToDocx } from '../../services/docx-export-service.js?v=20260916.V1_24_5';
 
 export const KpiWorkflowState = {
   user: null,
@@ -2161,7 +2161,7 @@ function openPersonPlanDetail(uid) {
       groupHeader = `<tr class="kpi-registration-group-row"><td colspan="8"><div><strong>${esc(groupCode)} — ${esc(groupName)}</strong><span>${count} công việc cá nhân</span>${groupPending.length ? `<button class="kpi-button danger" type="button" data-reject-registration-group="${esc(key)}">Không duyệt cả nhóm</button>` : ''}</div></td></tr>`;
     }
     const canManagerCancel = item.kind === 'registration' && canCancelRegistrationAsManager(item);
-    const personalLabel = count > 1 ? (item.title || item.standardTaskName || '') : (item.standardTaskName || item.title || '');
+    const personalLabel = clean(item.title) || clean(item.standardTaskName) || '';
     const outputSnapshot = clean(item.description);
     return `${groupHeader}<tr>
       <td>${item.kind === 'registration' && item.status === 'PENDING' ? `<input type="checkbox" data-reg-review value="${esc(item.id)}" ${canApproveRegistration(item) ? 'checked' : 'disabled'}>` : '—'}</td>
@@ -2764,7 +2764,7 @@ async function openProductCatalog(userId = KpiWorkflowState.user.uid) {
       fileName:`Danh_muc_san_pham_${KpiWorkflowState.period?.id || 'ky'}_${safeDepartment}_${clean(user.fullName || 'ca_nhan')}.xlsx`,
       sheetName:'Danh mục sản phẩm', periodLabel, employeeName:clean(user.fullName || ''),
       employeePosition:userPositionWithDepartment(user), departmentName,
-      rows:tasks.map((task,index)=>({index:index+1,taskCode:task.taskCode||'',title:task.title||task.standardTaskName||'',outputRequirement:task.description||task.outputRequirement||task.standardTaskOutputRequirement||'',deadlineLabel:productCatalogDeadlineLabel(task),workTypeLabel:clean(task.workType).toUpperCase()==='DOT_XUAT'?'Đột xuất':'Thường xuyên',baseScore:Number(task.baseScore||0),coefficientLabel:coefficientPercent(task.difficultyCoefficient),maximumConvertedScore:Number(task.maximumConvertedScore||0),evidence:task.standardTaskMandatoryEvidence||task.mandatoryEvidence||'—'})),
+      rows:tasks.map((task,index)=>({index:index+1,title:task.title||task.standardTaskName||'',outputRequirement:task.description||task.outputRequirement||task.standardTaskOutputRequirement||'',deadlineLabel:productCatalogDeadlineLabel(task),workTypeLabel:clean(task.workType).toUpperCase()==='DOT_XUAT'?'Đột xuất':'Thường xuyên',baseScore:Number(task.baseScore||0),coefficientLabel:coefficientPercent(task.difficultyCoefficient),maximumConvertedScore:Number(task.maximumConvertedScore||0),evidence:task.standardTaskMandatoryEvidence||task.mandatoryEvidence||'—'})),
       exceededCount
     });
   });
