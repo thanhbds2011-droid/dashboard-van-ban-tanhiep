@@ -1,4 +1,4 @@
-const BUILD_VERSION = "20260916.V1_24_5";
+const BUILD_VERSION = "20260916.V1_24_6";
 const CACHE_NAME = "nhiem-vu-" + BUILD_VERSION.toLowerCase().replace(/[^a-z0-9]+/g, "-") + "-export-hotfix-20260915-v3";
 const versioned = path => `${path}?v=${BUILD_VERSION}`;
 const SHELL = [

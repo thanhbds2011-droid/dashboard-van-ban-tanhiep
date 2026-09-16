@@ -732,6 +732,52 @@
   font-size: 12px;
 }
 
+/* V1.24.6 - Bảng tổng hợp Hội đồng: đủ A/B/KPI/vượt/thưởng nhưng vẫn đọc rõ trên màn hình. */
+.department-report-kpi-summary-table {
+  min-width: 1180px;
+  table-layout: fixed;
+  font-size: 11.5px;
+}
+
+.department-report-kpi-summary-table th {
+  text-align: center;
+  vertical-align: middle;
+  line-height: 1.25;
+  white-space: normal;
+}
+
+.department-report-kpi-summary-table td {
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+}
+
+.department-report-kpi-summary-table th:nth-child(1),
+.department-report-kpi-summary-table td:nth-child(1) { width: 4%; }
+.department-report-kpi-summary-table th:nth-child(2),
+.department-report-kpi-summary-table td:nth-child(2) { width: 11%; }
+.department-report-kpi-summary-table th:nth-child(3),
+.department-report-kpi-summary-table td:nth-child(3) { width: 8%; }
+.department-report-kpi-summary-table th:nth-child(4),
+.department-report-kpi-summary-table td:nth-child(4) { width: 10%; }
+.department-report-kpi-summary-table th:nth-child(5),
+.department-report-kpi-summary-table td:nth-child(5) { width: 6%; }
+.department-report-kpi-summary-table th:nth-child(6),
+.department-report-kpi-summary-table td:nth-child(6) { width: 6%; }
+.department-report-kpi-summary-table th:nth-child(7),
+.department-report-kpi-summary-table td:nth-child(7) { width: 7%; }
+.department-report-kpi-summary-table th:nth-child(8),
+.department-report-kpi-summary-table td:nth-child(8) { width: 5.5%; }
+.department-report-kpi-summary-table th:nth-child(9),
+.department-report-kpi-summary-table td:nth-child(9) { width: 6%; }
+.department-report-kpi-summary-table th:nth-child(10),
+.department-report-kpi-summary-table td:nth-child(10) { width: 7%; }
+.department-report-kpi-summary-table th:nth-child(11),
+.department-report-kpi-summary-table td:nth-child(11) { width: 6%; }
+.department-report-kpi-summary-table th:nth-child(12),
+.department-report-kpi-summary-table td:nth-child(12) { width: 12.5%; }
+.department-report-kpi-summary-table th:nth-child(13),
+.department-report-kpi-summary-table td:nth-child(13) { width: 11%; }
+
 .department-report-signatures {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1182,6 +1228,40 @@
 
   .department-report-table {
     font-size: 9pt;
+  }
+
+  .department-report-kpi-summary .kpi-table-wrap {
+    overflow: visible !important;
+  }
+
+  .department-report-kpi-summary-table {
+    width: 100%;
+    min-width: 0;
+    table-layout: fixed;
+    font-size: 7.6pt;
+  }
+
+  .department-report-kpi-summary-table th,
+  .department-report-kpi-summary-table td {
+    padding: 3px 2px;
+    line-height: 1.2;
+  }
+
+  .department-report-kpi-summary-table .kpi-small {
+    font-size: 7pt;
+    line-height: 1.2;
+  }
+
+  .department-report-kpi-summary-table .kpi-score-badge {
+    padding: 3px 4px;
+    font-size: 7pt;
+    line-height: 1.15;
+    white-space: normal;
+  }
+
+  .department-report-kpi-summary .department-report-signatures {
+    margin-top: 18px;
+    min-height: 95px;
   }
 
   .department-report-heading,

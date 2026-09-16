@@ -1,11 +1,11 @@
 /** Ứng dụng quản lý nhiệm vụ và đánh giá KPI. */
-import { Router } from "./core/router.js?v=20260916.V1_24_5";
-import { APP_VERSION_LABEL, BUILD_VERSION } from "./core/app-version.js?v=20260916.V1_24_5";
-import { AuthService } from "./core/auth-service.js?v=20260916.V1_24_5";
-import { Permissions } from "./core/permissions.js?v=20260916.V1_24_5";
-import { ToastService } from "./core/toast-service.js?v=20260916.V1_24_5";
-import { FirebaseService } from "./core/firebase-service.js?v=20260916.V1_24_5";
-import { UserContext } from "./core/user-context.js?v=20260916.V1_24_5";
+import { Router } from "./core/router.js?v=20260916.V1_24_6";
+import { APP_VERSION_LABEL, BUILD_VERSION } from "./core/app-version.js?v=20260916.V1_24_6";
+import { AuthService } from "./core/auth-service.js?v=20260916.V1_24_6";
+import { Permissions } from "./core/permissions.js?v=20260916.V1_24_6";
+import { ToastService } from "./core/toast-service.js?v=20260916.V1_24_6";
+import { FirebaseService } from "./core/firebase-service.js?v=20260916.V1_24_6";
+import { UserContext } from "./core/user-context.js?v=20260916.V1_24_6";
 
 let activeRouter = null;
 let sessionRecoveryInProgress = false;
@@ -31,15 +31,15 @@ function lazyRoute(modulePath, exportName) {
   };
 }
 
-const renderDashboardView = lazyRoute("./modules/dashboard/dashboard-view.js?v=20260916.V1_24_5", "renderDashboardView");
-const renderExecutiveDirectivesView = lazyRoute("./modules/executive-directives/executive-directives-view.js?v=20260916.V1_24_5", "renderExecutiveDirectivesView");
-const renderTasksView = lazyRoute("./modules/tasks/tasks-view.js?v=20260916.V1_24_5", "renderTasksView");
-const renderStandardTasksView = lazyRoute("./modules/standard-tasks/standard-tasks-view.js?v=20260916.V1_24_5", "renderStandardTasksView");
-const renderPeriodsView = lazyRoute("./modules/periods/periods-view.js?v=20260916.V1_24_5", "renderPeriodsView");
-const renderPlansView = lazyRoute("./modules/plans/plans-view.js?v=20260916.V1_24_5", "renderPlansView");
-const renderEvaluationsView = lazyRoute("./modules/evaluations/evaluations-view.js?v=20260916.V1_24_5", "renderEvaluationsView");
-const renderReportsView = lazyRoute("./modules/reports/reports-view.js?v=20260916.V1_24_5", "renderReportsView");
-const renderAdminView = lazyRoute("./modules/admin/admin-view.js?v=20260916.V1_24_5", "renderAdminView");
+const renderDashboardView = lazyRoute("./modules/dashboard/dashboard-view.js?v=20260916.V1_24_6", "renderDashboardView");
+const renderExecutiveDirectivesView = lazyRoute("./modules/executive-directives/executive-directives-view.js?v=20260916.V1_24_6", "renderExecutiveDirectivesView");
+const renderTasksView = lazyRoute("./modules/tasks/tasks-view.js?v=20260916.V1_24_6", "renderTasksView");
+const renderStandardTasksView = lazyRoute("./modules/standard-tasks/standard-tasks-view.js?v=20260916.V1_24_6", "renderStandardTasksView");
+const renderPeriodsView = lazyRoute("./modules/periods/periods-view.js?v=20260916.V1_24_6", "renderPeriodsView");
+const renderPlansView = lazyRoute("./modules/plans/plans-view.js?v=20260916.V1_24_6", "renderPlansView");
+const renderEvaluationsView = lazyRoute("./modules/evaluations/evaluations-view.js?v=20260916.V1_24_6", "renderEvaluationsView");
+const renderReportsView = lazyRoute("./modules/reports/reports-view.js?v=20260916.V1_24_6", "renderReportsView");
+const renderAdminView = lazyRoute("./modules/admin/admin-view.js?v=20260916.V1_24_6", "renderAdminView");
 
 async function purgeRuntimeCaches() {
   if (!("caches" in window)) return;

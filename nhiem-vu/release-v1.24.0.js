@@ -1,5 +1,5 @@
 /** Release marker V1.24.0 - system-wide authority hardening, acceptance UX và unified non-scoring workflow. */
-import { APP_VERSION, BUILD_VERSION } from "./core/app-version.js?v=20260916.V1_24_5";
+import { APP_VERSION, BUILD_VERSION } from "./core/app-version.js?v=20260916.V1_24_6";
 
 window.__KPI_RELEASE__ = Object.freeze({
   appVersion: APP_VERSION,
