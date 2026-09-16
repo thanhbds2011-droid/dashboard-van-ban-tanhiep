@@ -1,5 +1,5 @@
 /** Release marker V1.24.2 - release-integrity + CDTN self-assessment fix; Rules/Indexes unchanged. */
-import { APP_VERSION, BUILD_VERSION } from "./core/app-version.js?v=20260914.V1_24_4";
+import { APP_VERSION, BUILD_VERSION } from "./core/app-version.js?v=20260916.V1_24_5";
 
 window.__KPI_RELEASE__ = Object.freeze({
   appVersion: APP_VERSION,

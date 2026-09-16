@@ -1,5 +1,5 @@
 /** Release marker V1.22.7 - ADMIN mở lại registration recurring sạch và chuyển sang Khi phát sinh. */
-import { APP_VERSION, BUILD_VERSION } from "./core/app-version.js?v=20260914.V1_24_4";
+import { APP_VERSION, BUILD_VERSION } from "./core/app-version.js?v=20260916.V1_24_5";
 
 window.__KPI_RELEASE__ = Object.freeze({
   appVersion: APP_VERSION,
