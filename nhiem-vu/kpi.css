@@ -1264,6 +1264,14 @@
     min-height: 95px;
   }
 
+  /* Chữ ký Tổng hợp Phòng/Khu và Toàn Trung tâm luôn trái–phải khi in. */
+  .department-report-kpi-summary .department-report-signatures {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+    gap: 20px !important;
+    break-inside: avoid;
+  }
+
   .department-report-heading,
   .department-report-signatures,
   .m01-task-row {
