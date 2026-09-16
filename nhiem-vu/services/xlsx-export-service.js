@@ -386,7 +386,7 @@ export function buildProductCatalogWorkbookBlob({
   for (const item of rows) {
     row(rn, [
       { value:item.index ?? '', style:3 },
-      { value:[item.taskCode, item.title].filter(Boolean).join('\n'), style:2 },
+      { value:item.title || '', style:2 },
       { value:item.outputRequirement || '', style:2 },
       { value:item.deadlineLabel || '', style:3 },
       { value:item.workTypeLabel || '', style:3 },
