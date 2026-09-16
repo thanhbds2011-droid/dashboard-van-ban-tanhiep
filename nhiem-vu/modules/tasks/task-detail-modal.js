@@ -1,17 +1,17 @@
 /** Chi tiết, phân công và các lượt công việc phát sinh của nhiệm vụ. */
-import { UserContext } from "../../core/user-context.js?v=20260914.V1_24_4";
-import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260914.V1_24_4";
-import { ModalService } from "../../core/modal-service.js?v=20260914.V1_24_4";
-import { Permissions } from "../../core/permissions.js?v=20260914.V1_24_4";
-import { effectiveDepartmentAssignmentStatus, isTerminalTask, taskAcceptanceState } from "../../core/task-display-order.js?v=20260914.V1_24_4";
-import { UserReadService } from "../../services/user-read-service.js?v=20260914.V1_24_4";
-import { TaskWriteService } from "../../services/task-write-service.js?v=20260914.V1_24_4";
-import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260914.V1_24_4";
-import { TaskEvidenceService } from "../../services/task-evidence-service.js?v=20260914.V1_24_4";
-import { StagedEvidenceUploader } from "../../services/staged-evidence-uploader.js?v=20260914.V1_24_4";
-import { openTaskProgressModal } from "./task-progress-modal.js?v=20260914.V1_24_4";
-import { mountTaskAdjustmentPanel } from "./task-adjustment-panel.js?v=20260914.V1_24_4";
-import { TaskLogService } from "../../services/task-log-service.js?v=20260914.V1_24_4";
+import { UserContext } from "../../core/user-context.js?v=20260916.V1_24_5";
+import { friendlyErrorMessage } from "../../core/friendly-error.js?v=20260916.V1_24_5";
+import { ModalService } from "../../core/modal-service.js?v=20260916.V1_24_5";
+import { Permissions } from "../../core/permissions.js?v=20260916.V1_24_5";
+import { effectiveDepartmentAssignmentStatus, isTerminalTask, taskAcceptanceState } from "../../core/task-display-order.js?v=20260916.V1_24_5";
+import { UserReadService } from "../../services/user-read-service.js?v=20260916.V1_24_5";
+import { TaskWriteService } from "../../services/task-write-service.js?v=20260916.V1_24_5";
+import { TaskWorkItemService } from "../../services/task-work-item-service.js?v=20260916.V1_24_5";
+import { TaskEvidenceService } from "../../services/task-evidence-service.js?v=20260916.V1_24_5";
+import { StagedEvidenceUploader } from "../../services/staged-evidence-uploader.js?v=20260916.V1_24_5";
+import { openTaskProgressModal } from "./task-progress-modal.js?v=20260916.V1_24_5";
+import { mountTaskAdjustmentPanel } from "./task-adjustment-panel.js?v=20260916.V1_24_5";
+import { TaskLogService } from "../../services/task-log-service.js?v=20260916.V1_24_5";
 
 const TEAM_LABELS = Object.freeze({
   BAO_VE: "Tổ Bảo vệ",
