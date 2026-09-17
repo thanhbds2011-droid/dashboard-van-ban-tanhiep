@@ -1,5 +1,5 @@
-const BUILD_VERSION = "20260916.V1_24_7";
-const CACHE_NAME = "nhiem-vu-" + BUILD_VERSION.toLowerCase().replace(/[^a-z0-9]+/g, "-") + "-department-excel-v1247";
+const BUILD_VERSION = "20260917.V1_24_8";
+const CACHE_NAME = "nhiem-vu-" + BUILD_VERSION.toLowerCase().replace(/[^a-z0-9]+/g, "-") + "-cdtn-plan-visibility-v1248";
 const versioned = path => `${path}?v=${BUILD_VERSION}`;
 const SHELL = [
   "./", "./index.html", "./offline.html", "./manifest.webmanifest",
