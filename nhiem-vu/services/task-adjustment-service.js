@@ -2,13 +2,13 @@
  * Quy trình đề nghị và phê duyệt điều chỉnh nhiệm vụ.
  * Không chuyển điểm giữa nhân sự; mọi thay đổi được lưu trong kpiAdjustments và taskLogs.
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260916.V1_24_7";
-import { UserContext } from "../core/user-context.js?v=20260916.V1_24_7";
-import { Permissions } from "../core/permissions.js?v=20260916.V1_24_7";
-import { TaskLogService } from "./task-log-service.js?v=20260916.V1_24_7";
-import { TaskNotificationService } from "./task-notification-service.js?v=20260916.V1_24_7";
-import { TaskMilestoneService } from "./task-milestone-service.js?v=20260916.V1_24_7";
-import { daysInMonth, deadlineDateFromKey } from "../core/deadline-engine.js?v=20260916.V1_24_7";
+import { FirebaseService } from "../core/firebase-service.js?v=20260917.V1_24_8";
+import { UserContext } from "../core/user-context.js?v=20260917.V1_24_8";
+import { Permissions } from "../core/permissions.js?v=20260917.V1_24_8";
+import { TaskLogService } from "./task-log-service.js?v=20260917.V1_24_8";
+import { TaskNotificationService } from "./task-notification-service.js?v=20260917.V1_24_8";
+import { TaskMilestoneService } from "./task-milestone-service.js?v=20260917.V1_24_8";
+import { daysInMonth, deadlineDateFromKey } from "../core/deadline-engine.js?v=20260917.V1_24_8";
 
 const COLLECTION = "kpiAdjustments";
 const TYPES = Object.freeze({

@@ -1,7 +1,7 @@
 /** Đọc người dùng theo đúng phạm vi Firestore Rules. */
-import { FirebaseService } from "../core/firebase-service.js?v=20260916.V1_24_7";
-import { UserContext } from "../core/user-context.js?v=20260916.V1_24_7";
-import { Permissions } from "../core/permissions.js?v=20260916.V1_24_7";
+import { FirebaseService } from "../core/firebase-service.js?v=20260917.V1_24_8";
+import { UserContext } from "../core/user-context.js?v=20260917.V1_24_8";
+import { Permissions } from "../core/permissions.js?v=20260917.V1_24_8";
 
 const CACHE_MS = 5 * 60 * 1000;
 const caches = new Map();
