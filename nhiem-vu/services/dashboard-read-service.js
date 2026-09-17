@@ -3,8 +3,8 @@
  * Tổng hợp dữ liệu chỉ đọc cho Dashboard.
  */
 
-import { TaskReadService } from "./task-read-service.js?v=20260917.V1_24_8";
-import { PeriodReadService } from "./period-read-service.js?v=20260917.V1_24_8";
+import { TaskReadService } from "./task-read-service.js?v=20260917.V1_24_9";
+import { PeriodReadService } from "./period-read-service.js?v=20260917.V1_24_9";
 
 export const DashboardReadService = Object.freeze({
   async load(options = {}) {

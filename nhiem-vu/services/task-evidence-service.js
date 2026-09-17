@@ -2,10 +2,10 @@
  * Nhiều tệp minh chứng cho nhiệm vụ KPI - V1.16.0.
  * Mỗi tệp là một document riêng để có thể bổ sung dần mà không ghi đè tệp cũ.
  */
-import { FirebaseService } from "../core/firebase-service.js?v=20260917.V1_24_8";
-import { UserContext } from "../core/user-context.js?v=20260917.V1_24_8";
-import { Permissions } from "../core/permissions.js?v=20260917.V1_24_8";
-import { UserNotificationService } from "./user-notification-service.js?v=20260917.V1_24_8";
+import { FirebaseService } from "../core/firebase-service.js?v=20260917.V1_24_9";
+import { UserContext } from "../core/user-context.js?v=20260917.V1_24_9";
+import { Permissions } from "../core/permissions.js?v=20260917.V1_24_9";
+import { UserNotificationService } from "./user-notification-service.js?v=20260917.V1_24_9";
 
 const COLLECTION = "taskEvidenceFiles";
 export const MAX_EVIDENCE_FILES_PER_TASK = 20;
