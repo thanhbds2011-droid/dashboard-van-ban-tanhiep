@@ -1,5 +1,5 @@
 /** Chuẩn hóa và kiểm tra dữ liệu form nhiệm vụ. */
-import { normalizeSentenceText } from "../../core/text-normalizer.js?v=20260917.V1_24_8";
+import { normalizeSentenceText } from "../../core/text-normalizer.js?v=20260917.V1_24_9";
 
 export function cleanText(value, maxLength = 5000) {
   return String(value || "").replace(/\s+/g, " ").trim().slice(0, maxLength);
