@@ -1,28 +1,28 @@
-import { auth, db } from '../../firebase-config.js?v=20260917.V1_24_8';
+import { auth, db } from '../../firebase-config.js?v=20260917.V1_24_9';
 import {
   addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, onSnapshot, query,
   serverTimestamp, setDoc, Timestamp, updateDoc, where, limit, writeBatch
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
-import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260917.V1_24_8';
-import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260917.V1_24_8';
-import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260917.V1_24_8';
-import { TaskEvidenceService } from '../../services/task-evidence-service.js?v=20260917.V1_24_8';
-import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260917.V1_24_8';
-import { PeriodReadService } from '../../services/period-read-service.js?v=20260917.V1_24_8';
-import { TaskReadService } from '../../services/task-read-service.js?v=20260917.V1_24_8';
-import { Permissions } from '../../core/permissions.js?v=20260917.V1_24_8';
-import { UserContext } from '../../core/user-context.js?v=20260917.V1_24_8';
-import { APP_VERSION } from '../../core/app-version.js?v=20260917.V1_24_8';
-import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260917.V1_24_8';
-import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260917.V1_24_8';
+import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260917.V1_24_9';
+import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260917.V1_24_9';
+import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260917.V1_24_9';
+import { TaskEvidenceService } from '../../services/task-evidence-service.js?v=20260917.V1_24_9';
+import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260917.V1_24_9';
+import { PeriodReadService } from '../../services/period-read-service.js?v=20260917.V1_24_9';
+import { TaskReadService } from '../../services/task-read-service.js?v=20260917.V1_24_9';
+import { Permissions } from '../../core/permissions.js?v=20260917.V1_24_9';
+import { UserContext } from '../../core/user-context.js?v=20260917.V1_24_9';
+import { APP_VERSION } from '../../core/app-version.js?v=20260917.V1_24_9';
+import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260917.V1_24_9';
+import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260917.V1_24_9';
 import {
   KPI2B as KPI2C, M01_GROUPS, COMMON_CRITERIA, commonCriteriaForProfile, reportFormTypeForProfile, calculateTaskScore, calculateKpiSummary,
   proposedRating, resolveQualityRating, ratingName, round2, progressRateFromDates, convertAppendix04Rate, calculateMilestoneProgress, calculateBonusScore
-} from '../../kpi-engine.js?v=20260917.V1_24_8';
-import { resolveKpiReviewer, canReviewKpiOwner } from '../../core/kpi-review-authority.js?v=20260917.V1_24_8';
-import { ModalService } from '../../core/modal-service.js?v=20260917.V1_24_8';
-import { exportFormattedKpiWorkbook, exportProductCatalogWorkbook, exportDepartmentSummaryWorkbook } from '../../services/xlsx-export-service.js?v=20260917.V1_24_8';
-import { exportDomToDocx } from '../../services/docx-export-service.js?v=20260917.V1_24_8';
+} from '../../kpi-engine.js?v=20260917.V1_24_9';
+import { resolveKpiReviewer, canReviewKpiOwner } from '../../core/kpi-review-authority.js?v=20260917.V1_24_9';
+import { ModalService } from '../../core/modal-service.js?v=20260917.V1_24_9';
+import { exportFormattedKpiWorkbook, exportProductCatalogWorkbook, exportDepartmentSummaryWorkbook } from '../../services/xlsx-export-service.js?v=20260917.V1_24_9';
+import { exportDomToDocx } from '../../services/docx-export-service.js?v=20260917.V1_24_9';
 
 export const KpiWorkflowState = {
   user: null,
@@ -1919,6 +1919,8 @@ function planVisiblePeople() {
       uid,
       fullName: clean(registration.userName) || 'Thành viên Chi đoàn (cần đối soát)',
       position: clean(registration.userPosition),
+      // Phòng/Khu chính là snapshot của chính registration; không suy diễn CDTN là đơn vị chính.
+      departmentId: clean(registration.homeDepartmentId),
       active: true,
       _cdtnRegistrationSnapshotOnly: true
     });
@@ -2228,7 +2230,8 @@ function openPersonPlanDetail(uid) {
     canApprove ? '<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button><button id="personProductCatalog" class="kpi-button secondary" type="button">Danh mục sản phẩm</button><button id="regApproveSelected" class="kpi-button" type="button">Duyệt mục đã chọn</button>' : '<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button><button id="personProductCatalog" class="kpi-button" type="button">Danh mục sản phẩm</button>'
   );
 
-  root.querySelector('#personProductCatalog')?.addEventListener('click', () => { closeModal(); openProductCatalog(uid); });
+  // openProductCatalog tự thay modal SAU khi xác định người/kỳ hợp lệ; không đóng trước rồi thoát sớm.
+  root.querySelector('#personProductCatalog')?.addEventListener('click', () => { openProductCatalog(uid); });
   root.querySelector('#regSelectAll')?.addEventListener('click', () => root.querySelectorAll('[data-reg-review]:not(:disabled)').forEach(input => { input.checked = true; }));
   root.querySelector('#regClearAll')?.addEventListener('click', () => root.querySelectorAll('[data-reg-review]').forEach(input => { input.checked = false; }));
   root.querySelectorAll('[data-reject-registration-group]').forEach(button => {
@@ -2789,24 +2792,34 @@ function productCatalogDeadlineLabel(task = {}) {
 }
 
 async function openProductCatalog(userId = KpiWorkflowState.user.uid) {
-  const user = KpiWorkflowState.users.find(item => item.id === userId) || (userId === KpiWorkflowState.user.uid ? KpiWorkflowState.profile : null);
-  if (!user || !KpiWorkflowState.period) return;
+  // V1.24.9: chỉ nhận fallback đã qua guard UID/kỳ/scope/role của planVisiblePeople().
+  // Không sửa global users, không thêm query và không dùng registration ngoài phạm vi.
+  const user = KpiWorkflowState.users.find(item => item.id === userId)
+    || (userId === KpiWorkflowState.user.uid ? KpiWorkflowState.profile : null)
+    || (isCdtnScope() && canViewDepartmentData()
+      ? planVisiblePeople().find(item => item.id === userId && item._cdtnRegistrationSnapshotOnly === true)
+      : null);
+  if (!user || !KpiWorkflowState.period) {
+    await ModalService.alert('Chưa có đủ thông tin người dùng hoặc kỳ đánh giá để mở Danh mục sản phẩm. Vui lòng cập nhật dữ liệu và thử lại.');
+    return;
+  }
   const tasks = productCatalogTasksForUser(userId);
-  const departmentName = departmentDisplayName(user.departmentId);
+  const departmentName = user.departmentId ? departmentDisplayName(user.departmentId) : 'Chưa xác minh Phòng/Khu';
+  const catalogPosition = user.departmentId ? userPositionWithDepartment(user) : [clean(user.position), 'Chưa xác minh Phòng/Khu'].filter(Boolean).join(' · ');
   const rows = tasks.map((task,index)=> {
     const deadlineLabel = productCatalogDeadlineLabel(task);
     return `<tr><td>${index+1}</td><td>${esc(task.title || task.standardTaskName || '')}</td><td>${esc(task.description || task.outputRequirement || task.standardTaskOutputRequirement || '')}</td><td>${esc(deadlineLabel)}</td><td>${esc(clean(task.workType).toUpperCase()==='DOT_XUAT'?'Đột xuất':'Thường xuyên')}</td><td>${fmt(task.baseScore)}</td><td>${coefficientPercent(task.difficultyCoefficient)}</td><td>${fmt(task.maximumConvertedScore)}</td><td>${esc(task.standardTaskMandatoryEvidence || task.mandatoryEvidence || '—')}</td></tr>`;
   }).join('');
   const title = productCatalogPeriodTitle(KpiWorkflowState.period, departmentName);
   const exceededCount = exceededSummaryForUser(userId,{officialOnly:true}).exceededTasks;
-  modal('Danh mục sản phẩm cá nhân', `<div id="kpiProductCatalogPrint" class="kpi-product-report kpi-report-print"><div class="m01-top kpi-product-official-header"><div class="m01-agency"><strong>SỞ Y TẾ<br>THÀNH PHỐ HỒ CHÍ MINH<br>TRUNG TÂM BẢO TRỢ XÃ HỘI TÂN HIỆP</strong></div><div class="m01-national"><strong>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</strong><div class="m01-motto"><strong>Độc lập - Tự do - Hạnh phúc</strong></div></div></div><div class="kpi-product-heading"><h2>${esc(title)}</h2><p><strong>Họ và tên:</strong> ${esc(user.fullName || '')}</p><p><strong>Chức vụ:</strong> ${esc(userPositionWithDepartment(user))}</p></div><div class="kpi-table-wrap"><table class="kpi-report-table kpi-product-table"><thead><tr><th>TT</th><th>Tên công việc</th><th>Kết quả đầu ra</th><th>Thời hạn hoàn thành</th><th>Loại công việc</th><th>Điểm chuẩn</th><th>Hệ số độ khó</th><th>Điểm quy đổi tối đa</th><th>Minh chứng</th></tr></thead><tbody>${rows || '<tr><td colspan="9">Chưa có nhiệm vụ được duyệt.</td></tr>'}</tbody></table></div><div class="kpi-product-totals"><p><strong>Tổng số nhiệm vụ thực hiện trong kỳ:</strong> ${tasks.length}</p><p><strong>Tổng số nhiệm vụ vượt tiến độ/chất lượng:</strong> ${exceededCount}</p></div><div class="kpi-product-signatures"><div><strong>XÁC NHẬN CỦA LÃNH ĐẠO, ĐƠN VỊ</strong><br><em>(Ký, ghi rõ họ tên)</em><div class="kpi-signature-space"></div></div><div><strong>NGƯỜI LẬP DANH MỤC SẢN PHẨM</strong><br><em>(Ký, ghi rõ họ tên)</em><div class="kpi-signature-space"></div><strong>${esc(user.fullName || '')}</strong></div></div></div>`, '<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button><button id="kpiExportProductCatalogXlsx" class="kpi-button secondary" type="button">📊 Xuất Excel (.xlsx)</button><button id="kpiPrintProductCatalog" class="kpi-button" type="button">🖨️ In danh mục</button>');
+  modal('Danh mục sản phẩm cá nhân', `<div id="kpiProductCatalogPrint" class="kpi-product-report kpi-report-print"><div class="m01-top kpi-product-official-header"><div class="m01-agency"><strong>SỞ Y TẾ<br>THÀNH PHỐ HỒ CHÍ MINH<br>TRUNG TÂM BẢO TRỢ XÃ HỘI TÂN HIỆP</strong></div><div class="m01-national"><strong>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</strong><div class="m01-motto"><strong>Độc lập - Tự do - Hạnh phúc</strong></div></div></div><div class="kpi-product-heading"><h2>${esc(title)}</h2><p><strong>Họ và tên:</strong> ${esc(user.fullName || '')}</p><p><strong>Chức vụ:</strong> ${esc(catalogPosition)}</p></div><div class="kpi-table-wrap"><table class="kpi-report-table kpi-product-table"><thead><tr><th>TT</th><th>Tên công việc</th><th>Kết quả đầu ra</th><th>Thời hạn hoàn thành</th><th>Loại công việc</th><th>Điểm chuẩn</th><th>Hệ số độ khó</th><th>Điểm quy đổi tối đa</th><th>Minh chứng</th></tr></thead><tbody>${rows || '<tr><td colspan="9">Chưa có nhiệm vụ được duyệt.</td></tr>'}</tbody></table></div><div class="kpi-product-totals"><p><strong>Tổng số nhiệm vụ thực hiện trong kỳ:</strong> ${tasks.length}</p><p><strong>Tổng số nhiệm vụ vượt tiến độ/chất lượng:</strong> ${exceededCount}</p></div><div class="kpi-product-signatures"><div><strong>XÁC NHẬN CỦA LÃNH ĐẠO, ĐƠN VỊ</strong><br><em>(Ký, ghi rõ họ tên)</em><div class="kpi-signature-space"></div></div><div><strong>NGƯỜI LẬP DANH MỤC SẢN PHẨM</strong><br><em>(Ký, ghi rõ họ tên)</em><div class="kpi-signature-space"></div><strong>${esc(user.fullName || '')}</strong></div></div></div>`, '<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button><button id="kpiExportProductCatalogXlsx" class="kpi-button secondary" type="button">📊 Xuất Excel (.xlsx)</button><button id="kpiPrintProductCatalog" class="kpi-button" type="button">🖨️ In danh mục</button>');
   el('kpiExportProductCatalogXlsx')?.addEventListener('click',()=>{
     const periodLabel = clean(KpiWorkflowState.period?.name || KpiWorkflowState.period?.id || '');
     const safeDepartment = normalizeDepartment(user.departmentId) || 'DON_VI';
     exportProductCatalogWorkbook({
       fileName:`Danh_muc_san_pham_${KpiWorkflowState.period?.id || 'ky'}_${safeDepartment}_${clean(user.fullName || 'ca_nhan')}.xlsx`,
       sheetName:'Danh mục sản phẩm', periodLabel, employeeName:clean(user.fullName || ''),
-      employeePosition:userPositionWithDepartment(user), departmentName,
+      employeePosition:catalogPosition, departmentName,
       rows:tasks.map((task,index)=>({index:index+1,title:task.title||task.standardTaskName||'',outputRequirement:task.description||task.outputRequirement||task.standardTaskOutputRequirement||'',deadlineLabel:productCatalogDeadlineLabel(task),workTypeLabel:clean(task.workType).toUpperCase()==='DOT_XUAT'?'Đột xuất':'Thường xuyên',baseScore:Number(task.baseScore||0),coefficientLabel:coefficientPercent(task.difficultyCoefficient),maximumConvertedScore:Number(task.maximumConvertedScore||0),evidence:task.standardTaskMandatoryEvidence||task.mandatoryEvidence||'—'})),
       exceededCount
     });
