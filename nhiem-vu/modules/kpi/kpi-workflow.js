@@ -1,28 +1,28 @@
-import { auth, db } from '../../firebase-config.js?v=20260916.V1_24_7';
+import { auth, db } from '../../firebase-config.js?v=20260917.V1_24_8';
 import {
   addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, onSnapshot, query,
   serverTimestamp, setDoc, Timestamp, updateDoc, where, limit, writeBatch
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
-import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260916.V1_24_7';
-import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260916.V1_24_7';
-import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260916.V1_24_7';
-import { TaskEvidenceService } from '../../services/task-evidence-service.js?v=20260916.V1_24_7';
-import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260916.V1_24_7';
-import { PeriodReadService } from '../../services/period-read-service.js?v=20260916.V1_24_7';
-import { TaskReadService } from '../../services/task-read-service.js?v=20260916.V1_24_7';
-import { Permissions } from '../../core/permissions.js?v=20260916.V1_24_7';
-import { UserContext } from '../../core/user-context.js?v=20260916.V1_24_7';
-import { APP_VERSION } from '../../core/app-version.js?v=20260916.V1_24_7';
-import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260916.V1_24_7';
-import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260916.V1_24_7';
+import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260917.V1_24_8';
+import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260917.V1_24_8';
+import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260917.V1_24_8';
+import { TaskEvidenceService } from '../../services/task-evidence-service.js?v=20260917.V1_24_8';
+import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260917.V1_24_8';
+import { PeriodReadService } from '../../services/period-read-service.js?v=20260917.V1_24_8';
+import { TaskReadService } from '../../services/task-read-service.js?v=20260917.V1_24_8';
+import { Permissions } from '../../core/permissions.js?v=20260917.V1_24_8';
+import { UserContext } from '../../core/user-context.js?v=20260917.V1_24_8';
+import { APP_VERSION } from '../../core/app-version.js?v=20260917.V1_24_8';
+import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260917.V1_24_8';
+import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260917.V1_24_8';
 import {
   KPI2B as KPI2C, M01_GROUPS, COMMON_CRITERIA, commonCriteriaForProfile, reportFormTypeForProfile, calculateTaskScore, calculateKpiSummary,
   proposedRating, resolveQualityRating, ratingName, round2, progressRateFromDates, convertAppendix04Rate, calculateMilestoneProgress, calculateBonusScore
-} from '../../kpi-engine.js?v=20260916.V1_24_7';
-import { resolveKpiReviewer, canReviewKpiOwner } from '../../core/kpi-review-authority.js?v=20260916.V1_24_7';
-import { ModalService } from '../../core/modal-service.js?v=20260916.V1_24_7';
-import { exportFormattedKpiWorkbook, exportProductCatalogWorkbook, exportDepartmentSummaryWorkbook } from '../../services/xlsx-export-service.js?v=20260916.V1_24_7';
-import { exportDomToDocx } from '../../services/docx-export-service.js?v=20260916.V1_24_7';
+} from '../../kpi-engine.js?v=20260917.V1_24_8';
+import { resolveKpiReviewer, canReviewKpiOwner } from '../../core/kpi-review-authority.js?v=20260917.V1_24_8';
+import { ModalService } from '../../core/modal-service.js?v=20260917.V1_24_8';
+import { exportFormattedKpiWorkbook, exportProductCatalogWorkbook, exportDepartmentSummaryWorkbook } from '../../services/xlsx-export-service.js?v=20260917.V1_24_8';
+import { exportDomToDocx } from '../../services/docx-export-service.js?v=20260917.V1_24_8';
 
 export const KpiWorkflowState = {
   user: null,
@@ -1885,10 +1885,53 @@ function visiblePeople() {
 }
 function rowsForPerson(uid){return KpiWorkflowState.tasks.filter(t=>t.ownerUserId===uid&&t.active!==false&&taskInPlanMonitoringScope(t));}
 function regsForPerson(uid){return KpiWorkflowState.registrations.filter(r=>r.userId===uid&&r.active!==false&&itemInActiveScope(r));}
+/* V1.24.8: chỉ bổ sung hàng ở BẢNG KẾ HOẠCH Chi đoàn từ registration đã được tải
+ * khi danh bạ cdtnMembers thiếu/chưa đồng bộ. Không chỉnh global users, role, reviewer,
+ * scoring hoặc query; các màn hình đánh giá/báo cáo tiếp tục dùng visiblePeople() cũ.
+ */
+function planVisiblePeople() {
+  const people = visiblePeople();
+  if (!isCdtnScope() || !canViewDepartmentData()) return people;
+  const periodId = clean(KpiWorkflowState.period?.id);
+  if (!periodId) return people;
+
+  const byUid = new Map(people.filter(person => clean(person.id)).map(person => [clean(person.id), person]));
+  const cdtnRoles = new Set(['CDTN_BI_THU', 'CDTN_PHO_BI_THU', 'CDTN_UY_VIEN_BCH', 'CDTN_DOAN_VIEN']);
+  let added = false;
+  for (const registration of KpiWorkflowState.registrations) {
+    const uid = clean(registration?.userId);
+    if (!uid || byUid.has(uid) || registration.active === false
+      || clean(registration.periodId) !== periodId
+      || normalizeDepartment(registration.departmentId) !== 'CDTN'
+      || (normalizeDepartment(registration.organizationId) && normalizeDepartment(registration.organizationId) !== 'CDTN')
+      || !itemInActiveScope(registration)) continue;
+
+    // Không phục hồi nhân sự mà danh sách người dùng đã xác định là ngừng hoạt động.
+    if (KpiWorkflowState.users.some(user => clean(user.id) === uid && user.active === false)) continue;
+    const snapshotRoles = Array.isArray(registration.userAdditionalRoles)
+      ? registration.userAdditionalRoles.map(normalizeDepartment) : [];
+    // Snapshot vai trò có thể thiếu ở registration legacy: chỉ fallback khi chính
+    // người xem được phép duyệt PENDING bằng authority hiện hữu. Không cấp quyền mới.
+    if (!snapshotRoles.some(role => cdtnRoles.has(role)) && !canApproveRegistration(registration)) continue;
+
+    byUid.set(uid, {
+      id: uid,
+      uid,
+      fullName: clean(registration.userName) || 'Thành viên Chi đoàn (cần đối soát)',
+      position: clean(registration.userPosition),
+      active: true,
+      _cdtnRegistrationSnapshotOnly: true
+    });
+    added = true;
+  }
+  return added
+    ? [...byUid.values()].sort((left, right) => clean(left.fullName).localeCompare(clean(right.fullName), 'vi'))
+    : people;
+}
 function renderPlanDashboard() {
   const target = el('kpiTaskList');
   if (!target) return;
-  const people = visiblePeople().filter(user => rowsForPerson(user.id).length || regsForPerson(user.id).length || user.id === KpiWorkflowState.user.uid);
+  const people = planVisiblePeople().filter(user => rowsForPerson(user.id).length || regsForPerson(user.id).length || user.id === KpiWorkflowState.user.uid);
   if (!people.length) {
     target.innerHTML = '<div class="kpi-empty">Chưa có đăng ký hoặc nhiệm vụ trong kỳ.</div>';
     return;
@@ -2132,7 +2175,7 @@ async function batchConfirmEvaluations(evaluationIds) {
 }
 
 function openPersonPlanDetail(uid) {
-  const user = KpiWorkflowState.users.find(item => item.id === uid) || { id: uid, fullName: 'Cá nhân' };
+  const user = planVisiblePeople().find(item => item.id === uid) || { id: uid, fullName: 'Cá nhân' };
   const registrations = regsForPerson(uid);
   const tasks = rowsForPerson(uid);
   const pending = registrations.filter(item => item.status === 'PENDING');
