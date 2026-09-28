@@ -1,28 +1,28 @@
-import { auth, db } from '../../firebase-config.js?v=20260917.V1_24_9';
+import { auth, db } from '../../firebase-config.js?v=20260914.V1_24_4';
 import {
   addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, onSnapshot, query,
   serverTimestamp, setDoc, Timestamp, updateDoc, where, limit, writeBatch
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
-import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260917.V1_24_9';
-import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260917.V1_24_9';
-import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260917.V1_24_9';
-import { TaskEvidenceService } from '../../services/task-evidence-service.js?v=20260917.V1_24_9';
-import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260917.V1_24_9';
-import { PeriodReadService } from '../../services/period-read-service.js?v=20260917.V1_24_9';
-import { TaskReadService } from '../../services/task-read-service.js?v=20260917.V1_24_9';
-import { Permissions } from '../../core/permissions.js?v=20260917.V1_24_9';
-import { UserContext } from '../../core/user-context.js?v=20260917.V1_24_9';
-import { APP_VERSION } from '../../core/app-version.js?v=20260917.V1_24_9';
-import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260917.V1_24_9';
-import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260917.V1_24_9';
+import { TaskRegistrationService } from '../../services/task-registration-service.js?v=20260914.V1_24_4';
+import { TaskWorkItemService } from '../../services/task-work-item-service.js?v=20260914.V1_24_4';
+import { TaskMilestoneService } from '../../services/task-milestone-service.js?v=20260914.V1_24_4';
+import { TaskEvidenceService } from '../../services/task-evidence-service.js?v=20260914.V1_24_4';
+import { PeriodArchiveService } from '../../services/period-archive-service.js?v=20260914.V1_24_4';
+import { PeriodReadService } from '../../services/period-read-service.js?v=20260914.V1_24_4';
+import { TaskReadService } from '../../services/task-read-service.js?v=20260914.V1_24_4';
+import { Permissions } from '../../core/permissions.js?v=20260914.V1_24_4';
+import { UserContext } from '../../core/user-context.js?v=20260914.V1_24_4';
+import { APP_VERSION } from '../../core/app-version.js?v=20260914.V1_24_4';
+import { compareTasksForDisplay } from '../../core/task-display-order.js?v=20260914.V1_24_4';
+import { friendlyErrorMessage, isPermissionDeniedError } from '../../core/friendly-error.js?v=20260914.V1_24_4';
 import {
   KPI2B as KPI2C, M01_GROUPS, COMMON_CRITERIA, commonCriteriaForProfile, reportFormTypeForProfile, calculateTaskScore, calculateKpiSummary,
   proposedRating, resolveQualityRating, ratingName, round2, progressRateFromDates, convertAppendix04Rate, calculateMilestoneProgress, calculateBonusScore
-} from '../../kpi-engine.js?v=20260917.V1_24_9';
-import { resolveKpiReviewer, canReviewKpiOwner } from '../../core/kpi-review-authority.js?v=20260917.V1_24_9';
-import { ModalService } from '../../core/modal-service.js?v=20260917.V1_24_9';
-import { exportFormattedKpiWorkbook, exportProductCatalogWorkbook, exportDepartmentSummaryWorkbook } from '../../services/xlsx-export-service.js?v=20260917.V1_24_9';
-import { exportDomToDocx } from '../../services/docx-export-service.js?v=20260917.V1_24_9';
+} from '../../kpi-engine.js?v=20260914.V1_24_4';
+import { resolveKpiReviewer, canReviewKpiOwner } from '../../core/kpi-review-authority.js?v=20260914.V1_24_4';
+import { ModalService } from '../../core/modal-service.js?v=20260914.V1_24_4';
+import { exportFormattedKpiWorkbook, exportProductCatalogWorkbook } from '../../services/xlsx-export-service.js?v=20260914.V1_24_4';
+import { exportDomToDocx } from '../../services/docx-export-service.js?v=20260914.V1_24_4';
 
 export const KpiWorkflowState = {
   user: null,
@@ -1885,55 +1885,10 @@ function visiblePeople() {
 }
 function rowsForPerson(uid){return KpiWorkflowState.tasks.filter(t=>t.ownerUserId===uid&&t.active!==false&&taskInPlanMonitoringScope(t));}
 function regsForPerson(uid){return KpiWorkflowState.registrations.filter(r=>r.userId===uid&&r.active!==false&&itemInActiveScope(r));}
-/* V1.24.8: chỉ bổ sung hàng ở BẢNG KẾ HOẠCH Chi đoàn từ registration đã được tải
- * khi danh bạ cdtnMembers thiếu/chưa đồng bộ. Không chỉnh global users, role, reviewer,
- * scoring hoặc query; các màn hình đánh giá/báo cáo tiếp tục dùng visiblePeople() cũ.
- */
-function planVisiblePeople() {
-  const people = visiblePeople();
-  if (!isCdtnScope() || !canViewDepartmentData()) return people;
-  const periodId = clean(KpiWorkflowState.period?.id);
-  if (!periodId) return people;
-
-  const byUid = new Map(people.filter(person => clean(person.id)).map(person => [clean(person.id), person]));
-  const cdtnRoles = new Set(['CDTN_BI_THU', 'CDTN_PHO_BI_THU', 'CDTN_UY_VIEN_BCH', 'CDTN_DOAN_VIEN']);
-  let added = false;
-  for (const registration of KpiWorkflowState.registrations) {
-    const uid = clean(registration?.userId);
-    if (!uid || byUid.has(uid) || registration.active === false
-      || clean(registration.periodId) !== periodId
-      || normalizeDepartment(registration.departmentId) !== 'CDTN'
-      || (normalizeDepartment(registration.organizationId) && normalizeDepartment(registration.organizationId) !== 'CDTN')
-      || !itemInActiveScope(registration)) continue;
-
-    // Không phục hồi nhân sự mà danh sách người dùng đã xác định là ngừng hoạt động.
-    if (KpiWorkflowState.users.some(user => clean(user.id) === uid && user.active === false)) continue;
-    const snapshotRoles = Array.isArray(registration.userAdditionalRoles)
-      ? registration.userAdditionalRoles.map(normalizeDepartment) : [];
-    // Snapshot vai trò có thể thiếu ở registration legacy: chỉ fallback khi chính
-    // người xem được phép duyệt PENDING bằng authority hiện hữu. Không cấp quyền mới.
-    if (!snapshotRoles.some(role => cdtnRoles.has(role)) && !canApproveRegistration(registration)) continue;
-
-    byUid.set(uid, {
-      id: uid,
-      uid,
-      fullName: clean(registration.userName) || 'Thành viên Chi đoàn (cần đối soát)',
-      position: clean(registration.userPosition),
-      // Phòng/Khu chính là snapshot của chính registration; không suy diễn CDTN là đơn vị chính.
-      departmentId: clean(registration.homeDepartmentId),
-      active: true,
-      _cdtnRegistrationSnapshotOnly: true
-    });
-    added = true;
-  }
-  return added
-    ? [...byUid.values()].sort((left, right) => clean(left.fullName).localeCompare(clean(right.fullName), 'vi'))
-    : people;
-}
 function renderPlanDashboard() {
   const target = el('kpiTaskList');
   if (!target) return;
-  const people = planVisiblePeople().filter(user => rowsForPerson(user.id).length || regsForPerson(user.id).length || user.id === KpiWorkflowState.user.uid);
+  const people = visiblePeople().filter(user => rowsForPerson(user.id).length || regsForPerson(user.id).length || user.id === KpiWorkflowState.user.uid);
   if (!people.length) {
     target.innerHTML = '<div class="kpi-empty">Chưa có đăng ký hoặc nhiệm vụ trong kỳ.</div>';
     return;
@@ -2177,7 +2132,7 @@ async function batchConfirmEvaluations(evaluationIds) {
 }
 
 function openPersonPlanDetail(uid) {
-  const user = planVisiblePeople().find(item => item.id === uid) || { id: uid, fullName: 'Cá nhân' };
+  const user = KpiWorkflowState.users.find(item => item.id === uid) || { id: uid, fullName: 'Cá nhân' };
   const registrations = regsForPerson(uid);
   const tasks = rowsForPerson(uid);
   const pending = registrations.filter(item => item.status === 'PENDING');
@@ -2206,7 +2161,7 @@ function openPersonPlanDetail(uid) {
       groupHeader = `<tr class="kpi-registration-group-row"><td colspan="8"><div><strong>${esc(groupCode)} — ${esc(groupName)}</strong><span>${count} công việc cá nhân</span>${groupPending.length ? `<button class="kpi-button danger" type="button" data-reject-registration-group="${esc(key)}">Không duyệt cả nhóm</button>` : ''}</div></td></tr>`;
     }
     const canManagerCancel = item.kind === 'registration' && canCancelRegistrationAsManager(item);
-    const personalLabel = clean(item.title) || clean(item.standardTaskName) || '';
+    const personalLabel = count > 1 ? (item.title || item.standardTaskName || '') : (item.standardTaskName || item.title || '');
     const outputSnapshot = clean(item.description);
     return `${groupHeader}<tr>
       <td>${item.kind === 'registration' && item.status === 'PENDING' ? `<input type="checkbox" data-reg-review value="${esc(item.id)}" ${canApproveRegistration(item) ? 'checked' : 'disabled'}>` : '—'}</td>
@@ -2230,8 +2185,7 @@ function openPersonPlanDetail(uid) {
     canApprove ? '<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button><button id="personProductCatalog" class="kpi-button secondary" type="button">Danh mục sản phẩm</button><button id="regApproveSelected" class="kpi-button" type="button">Duyệt mục đã chọn</button>' : '<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button><button id="personProductCatalog" class="kpi-button" type="button">Danh mục sản phẩm</button>'
   );
 
-  // openProductCatalog tự thay modal SAU khi xác định người/kỳ hợp lệ; không đóng trước rồi thoát sớm.
-  root.querySelector('#personProductCatalog')?.addEventListener('click', () => { openProductCatalog(uid); });
+  root.querySelector('#personProductCatalog')?.addEventListener('click', () => { closeModal(); openProductCatalog(uid); });
   root.querySelector('#regSelectAll')?.addEventListener('click', () => root.querySelectorAll('[data-reg-review]:not(:disabled)').forEach(input => { input.checked = true; }));
   root.querySelector('#regClearAll')?.addEventListener('click', () => root.querySelectorAll('[data-reg-review]').forEach(input => { input.checked = false; }));
   root.querySelectorAll('[data-reject-registration-group]').forEach(button => {
@@ -2792,35 +2746,47 @@ function productCatalogDeadlineLabel(task = {}) {
 }
 
 async function openProductCatalog(userId = KpiWorkflowState.user.uid) {
-  // V1.24.9: chỉ nhận fallback đã qua guard UID/kỳ/scope/role của planVisiblePeople().
-  // Không sửa global users, không thêm query và không dùng registration ngoài phạm vi.
-  const user = KpiWorkflowState.users.find(item => item.id === userId)
-    || (userId === KpiWorkflowState.user.uid ? KpiWorkflowState.profile : null)
-    || (isCdtnScope() && canViewDepartmentData()
-      ? planVisiblePeople().find(item => item.id === userId && item._cdtnRegistrationSnapshotOnly === true)
-      : null);
-  if (!user || !KpiWorkflowState.period) {
-    await ModalService.alert('Chưa có đủ thông tin người dùng hoặc kỳ đánh giá để mở Danh mục sản phẩm. Vui lòng cập nhật dữ liệu và thử lại.');
-    return;
-  }
+  const user = KpiWorkflowState.users.find(item => item.id === userId) || (userId === KpiWorkflowState.user.uid ? KpiWorkflowState.profile : null);
+  if (!user || !KpiWorkflowState.period) return;
   const tasks = productCatalogTasksForUser(userId);
-  const departmentName = user.departmentId ? departmentDisplayName(user.departmentId) : 'Chưa xác minh Phòng/Khu';
-  const catalogPosition = user.departmentId ? userPositionWithDepartment(user) : [clean(user.position), 'Chưa xác minh Phòng/Khu'].filter(Boolean).join(' · ');
+  const departmentName = departmentDisplayName(user.departmentId);
   const rows = tasks.map((task,index)=> {
     const deadlineLabel = productCatalogDeadlineLabel(task);
     return `<tr><td>${index+1}</td><td>${esc(task.title || task.standardTaskName || '')}</td><td>${esc(task.description || task.outputRequirement || task.standardTaskOutputRequirement || '')}</td><td>${esc(deadlineLabel)}</td><td>${esc(clean(task.workType).toUpperCase()==='DOT_XUAT'?'Đột xuất':'Thường xuyên')}</td><td>${fmt(task.baseScore)}</td><td>${coefficientPercent(task.difficultyCoefficient)}</td><td>${fmt(task.maximumConvertedScore)}</td><td>${esc(task.standardTaskMandatoryEvidence || task.mandatoryEvidence || '—')}</td></tr>`;
   }).join('');
   const title = productCatalogPeriodTitle(KpiWorkflowState.period, departmentName);
   const exceededCount = exceededSummaryForUser(userId,{officialOnly:true}).exceededTasks;
-  modal('Danh mục sản phẩm cá nhân', `<div id="kpiProductCatalogPrint" class="kpi-product-report kpi-report-print"><div class="m01-top kpi-product-official-header"><div class="m01-agency"><strong>SỞ Y TẾ<br>THÀNH PHỐ HỒ CHÍ MINH<br>TRUNG TÂM BẢO TRỢ XÃ HỘI TÂN HIỆP</strong></div><div class="m01-national"><strong>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</strong><div class="m01-motto"><strong>Độc lập - Tự do - Hạnh phúc</strong></div></div></div><div class="kpi-product-heading"><h2>${esc(title)}</h2><p><strong>Họ và tên:</strong> ${esc(user.fullName || '')}</p><p><strong>Chức vụ:</strong> ${esc(catalogPosition)}</p></div><div class="kpi-table-wrap"><table class="kpi-report-table kpi-product-table"><thead><tr><th>TT</th><th>Tên công việc</th><th>Kết quả đầu ra</th><th>Thời hạn hoàn thành</th><th>Loại công việc</th><th>Điểm chuẩn</th><th>Hệ số độ khó</th><th>Điểm quy đổi tối đa</th><th>Minh chứng</th></tr></thead><tbody>${rows || '<tr><td colspan="9">Chưa có nhiệm vụ được duyệt.</td></tr>'}</tbody></table></div><div class="kpi-product-totals"><p><strong>Tổng số nhiệm vụ thực hiện trong kỳ:</strong> ${tasks.length}</p><p><strong>Tổng số nhiệm vụ vượt tiến độ/chất lượng:</strong> ${exceededCount}</p></div><div class="kpi-product-signatures"><div><strong>XÁC NHẬN CỦA LÃNH ĐẠO, ĐƠN VỊ</strong><br><em>(Ký, ghi rõ họ tên)</em><div class="kpi-signature-space"></div></div><div><strong>NGƯỜI LẬP DANH MỤC SẢN PHẨM</strong><br><em>(Ký, ghi rõ họ tên)</em><div class="kpi-signature-space"></div><strong>${esc(user.fullName || '')}</strong></div></div></div>`, '<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button><button id="kpiExportProductCatalogXlsx" class="kpi-button secondary" type="button">📊 Xuất Excel (.xlsx)</button><button id="kpiPrintProductCatalog" class="kpi-button" type="button">🖨️ In danh mục</button>');
+  modal('Danh mục sản phẩm cá nhân', `<div id="kpiProductCatalogPrint" class="kpi-product-report kpi-report-print"><div class="m01-top kpi-product-official-header"><div class="m01-agency"><strong>SỞ Y TẾ<br>THÀNH PHỐ HỒ CHÍ MINH<br>TRUNG TÂM BẢO TRỢ XÃ HỘI TÂN HIỆP</strong></div><div class="m01-national"><strong>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</strong><div class="m01-motto"><strong>Độc lập - Tự do - Hạnh phúc</strong></div></div></div><div class="kpi-product-heading"><h2>${esc(title)}</h2><p><strong>Họ và tên:</strong> ${esc(user.fullName || '')}</p><p><strong>Chức vụ:</strong> ${esc(userPositionWithDepartment(user))}</p></div><div class="kpi-table-wrap"><table class="kpi-report-table kpi-product-table"><thead><tr><th>TT</th><th>Tên công việc</th><th>Kết quả đầu ra</th><th>Thời hạn hoàn thành</th><th>Loại công việc</th><th>Điểm chuẩn</th><th>Hệ số độ khó</th><th>Điểm quy đổi tối đa</th><th>Minh chứng</th></tr></thead><tbody>${rows || '<tr><td colspan="9">Chưa có nhiệm vụ được duyệt.</td></tr>'}</tbody></table></div><div class="kpi-product-totals"><p><strong>Tổng số nhiệm vụ thực hiện trong kỳ:</strong> ${tasks.length}</p><p><strong>Tổng số nhiệm vụ vượt tiến độ/chất lượng:</strong> ${exceededCount}</p></div><div class="kpi-product-signatures"><div><strong>XÁC NHẬN CỦA LÃNH ĐẠO, ĐƠN VỊ</strong><br><em>(Ký, ghi rõ họ tên)</em><div class="kpi-signature-space"></div></div><div><strong>NGƯỜI LẬP DANH MỤC SẢN PHẨM</strong><br><em>(Ký, ghi rõ họ tên)</em><div class="kpi-signature-space"></div><strong>${esc(user.fullName || '')}</strong></div></div></div>`, '<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button><button id="kpiExportProductCatalogXlsx" class="kpi-button secondary" type="button">📊 Xuất Excel (.xlsx)</button><button id="kpiPrintProductCatalog" class="kpi-button" type="button">🖨️ In danh mục</button>');
   el('kpiExportProductCatalogXlsx')?.addEventListener('click',()=>{
     const periodLabel = clean(KpiWorkflowState.period?.name || KpiWorkflowState.period?.id || '');
     const safeDepartment = normalizeDepartment(user.departmentId) || 'DON_VI';
     exportProductCatalogWorkbook({
       fileName:`Danh_muc_san_pham_${KpiWorkflowState.period?.id || 'ky'}_${safeDepartment}_${clean(user.fullName || 'ca_nhan')}.xlsx`,
       sheetName:'Danh mục sản phẩm', periodLabel, employeeName:clean(user.fullName || ''),
-      employeePosition:catalogPosition, departmentName,
-      rows:tasks.map((task,index)=>({index:index+1,title:task.title||task.standardTaskName||'',outputRequirement:task.description||task.outputRequirement||task.standardTaskOutputRequirement||'',deadlineLabel:productCatalogDeadlineLabel(task),workTypeLabel:clean(task.workType).toUpperCase()==='DOT_XUAT'?'Đột xuất':'Thường xuyên',baseScore:Number(task.baseScore||0),coefficientLabel:coefficientPercent(task.difficultyCoefficient),maximumConvertedScore:Number(task.maximumConvertedScore||0),evidence:task.standardTaskMandatoryEvidence||task.mandatoryEvidence||'—'})),
+      employeePosition:userPositionWithDepartment(user), departmentName,
+      rows:tasks.map((task,index)=>{
+        // Danh mục sản phẩm phải dùng cùng snapshot điểm đang hiển thị tại Bảng KPI,
+        // không tính lại và không phát sinh thêm Firestore query/write.
+        const evaluation = KpiWorkflowState.evaluations.find(item => item.taskId === task.id && item.ownerUserId === userId);
+        const applied = evaluationScoreSnapshot(evaluation);
+        return {
+          index:index+1,
+          taskCode:task.taskCode||'',
+          title:task.title||task.standardTaskName||'',
+          outputRequirement:task.description||task.outputRequirement||task.standardTaskOutputRequirement||'',
+          deadlineLabel:productCatalogDeadlineLabel(task),
+          workTypeLabel:clean(task.workType).toUpperCase()==='DOT_XUAT'?'Đột xuất':'Thường xuyên',
+          baseScore:Number(task.baseScore||0),
+          coefficientLabel:coefficientPercent(task.difficultyCoefficient),
+          maximumConvertedScore:Number(task.maximumConvertedScore||0),
+          progressLabel:applied.progressRate == null ? '' : `${applied.progressRate}%`,
+          resultLabel:applied.resultRate == null ? '' : `${applied.resultRate}%`,
+          executionScore:applied.hasScore ? Number(applied.executionScore || 0) : '',
+          actualScore:applied.hasScore ? Number(applied.convertedActualScore || 0) : '',
+          exceededLabel:scorecardExceededLabel(evaluation),
+          evidence:task.standardTaskMandatoryEvidence||task.mandatoryEvidence||'—'
+        };
+      }),
       exceededCount
     });
   });
@@ -2846,9 +2812,8 @@ function openDepartmentReport(options = {}) {
   const selector = canChooseDepartment
     ? `<div class="department-report-scope"><span>Phạm vi tổng hợp</span><div class="department-report-scope-options">${selectableDepartments.map(item => `<button type="button" class="department-report-scope-button ${item === defaultDepartment ? 'is-active' : ''}" data-department-report-scope="${esc(item)}">${esc(item === 'ALL' ? 'Toàn Trung tâm' : departmentDisplayName(item))}</button>`).join('')}</div></div>`
     : '';
-  const root = modal(options.title || 'Tổng hợp Phòng/Khu', `${selector}<div id="departmentReportContent"></div>`, '<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button><button id="exportDepartmentReportXlsx" class="kpi-button secondary" type="button">📊 Xuất Excel (.xlsx)</button><button id="printDepartmentReport" class="kpi-button" type="button">🖨️ In báo cáo</button>');
+  const root = modal(options.title || 'Tổng hợp Phòng/Khu', `${selector}<div id="departmentReportContent"></div>`, '<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button><button id="printDepartmentReport" class="kpi-button" type="button">🖨️ In báo cáo</button>');
   let selectedDepartmentId = defaultDepartment;
-  let currentWorkbookData = null;
 
   const renderDepartment = () => {
     const departmentId = normalizeDepartment(selectedDepartmentId || defaultDepartment);
@@ -2882,7 +2847,6 @@ function openDepartmentReport(options = {}) {
       return clean(user.cdtnRoleLabel) || 'Thành viên Chi đoàn';
     };
 
-    const workbookRows = [];
     const body = people.map((user, index) => {
       const data = isCdtnAggregate
         ? summaryForUserInDepartment(user.id, 'CDTN')
@@ -2908,47 +2872,17 @@ function openDepartmentReport(options = {}) {
         return `<tr><td>${index + 1}</td><td><strong>${esc(user.fullName || user.email || user.id)}</strong><br><span class="kpi-small">${esc(departmentDisplayName(user.departmentId))}</span></td><td>${esc(cdtnRoleName(user))}</td><td class="m01-center">${taskCount}${exemptTaskCount ? `<br><span class="kpi-small">${exemptTaskCount} miễn</span>` : ''}</td><td class="m01-center">${data.hasCalculationBasis ? fmt(data.A) : '0'}</td><td class="m01-center">${data.hasCalculationBasis ? fmt(data.B) : 'Chưa đủ cơ sở'}</td><td><span class="kpi-score-badge">${esc(stateLabel)}</span></td></tr>`;
       }
 
-      const taskBreakdownParts = [];
-      if (professionalCount > 0) taskBreakdownParts.push(`${professionalCount} chuyên môn`);
-      if (cdtnCount > 0) taskBreakdownParts.push(`${cdtnCount} Chi đoàn`);
-      const taskBreakdown = taskBreakdownParts.join(' · ') || '—';
+      const taskBreakdown = `${professionalCount} chuyên môn · ${cdtnCount} Chi đoàn`;
       const bonus = bonusSummaryForUser(user.id);
       const officialState = scoreStateForUserCombined(user.id).code === 'OFFICIAL';
-      const ratingSnapshot = ratingForUser(user.id, data.total100, { officialOnly: officialState });
-      const rating = data.hasCalculationBasis ? ratingSnapshot : { ...ratingSnapshot, code:'NO_BASIS' };
+      const rating = data.hasCalculationBasis ? ratingForUser(user.id, data.total100, { officialOnly: officialState }) : { code:'NO_BASIS' };
       const bonusDisplay = [
         bonus.approved > 0 ? `<strong>+${fmt(bonus.approved)}</strong><br><span class="kpi-small">Đã xác nhận</span>` : '',
         bonus.pending > 0 ? `<strong class="kpi-bonus-pending">+${fmt(bonus.pending)}</strong><br><span class="kpi-small">Chờ xác nhận</span>` : ''
       ].filter(Boolean).join('<br>') || '0';
-      // Cùng snapshot và helper với row HTML: export không query Firestore và không tính KPI lại.
-      workbookRows.push({
-        index: index + 1,
-        fullName: clean(user.fullName || user.email || user.id),
-        departmentName: departmentDisplayName(user.departmentId),
-        position: clean(user.position || ''),
-        taskBreakdown: `${taskBreakdown}${exemptTaskCount ? `\n${exemptTaskCount} miễn` : ''}`,
-        A: Number(data.A || 0), B: Number(data.B || 0),
-        kpi70: data.hasCalculationBasis ? Number(data.kpi70 || 0) : null,
-        exceededTasks: Number(rating.exceededTasks || 0),
-        bonusApproved: Number(bonus.approved || 0),
-        bonusPending: Number(bonus.pending || 0),
-        common30: Number(data.common30 || 0),
-        total100: data.hasCalculationBasis ? Number(data.total100 || 0) : null,
-        ratingName: ratingName(rating.code), scoreState: stateLabel
-      });
-      return `<tr><td>${index + 1}</td><td><strong>${esc(user.fullName || user.email || user.id)}</strong><br><span class="kpi-small">${esc(departmentDisplayName(user.departmentId))}</span></td><td>${esc(user.position || '')}</td><td class="m01-center">${esc(taskBreakdown)}${exemptTaskCount ? `<br><span class="kpi-small">${exemptTaskCount} miễn</span>` : ''}</td><td class="m01-center">${fmt(data.A)}</td><td class="m01-center">${fmt(data.B)}</td><td class="m01-center">${data.hasCalculationBasis ? fmt(data.kpi70) : 'Chưa đủ cơ sở'}</td><td class="m01-center"><strong>${Number(rating.exceededTasks || 0)}</strong></td><td class="m01-center">${bonusDisplay}</td><td class="m01-center">${fmt(data.common30)}</td><td class="m01-center"><strong>${data.hasCalculationBasis ? fmt(data.total100) : '—'}</strong></td><td>${esc(ratingName(rating.code))}</td><td><span class="kpi-score-badge">${esc(stateLabel)}</span></td></tr>`;
+      return `<tr><td>${index + 1}</td><td><strong>${esc(user.fullName || user.email || user.id)}</strong><br><span class="kpi-small">${esc(departmentDisplayName(user.departmentId))}</span></td><td>${esc(user.position || '')}</td><td class="m01-center">${esc(taskBreakdown)}${exemptTaskCount ? `<br><span class="kpi-small">${exemptTaskCount} miễn</span>` : ''}</td><td class="m01-center">${data.hasCalculationBasis ? fmt(data.kpi70) : 'Chưa đủ cơ sở'}</td><td class="m01-center">${bonusDisplay}</td><td class="m01-center">${fmt(data.common30)}</td><td class="m01-center"><strong>${data.hasCalculationBasis ? fmt(data.total100) : '—'}</strong></td><td>${esc(ratingName(rating.code))}</td><td><span class="kpi-score-badge">${esc(stateLabel)}</span></td></tr>`;
     }).join('');
 
-    currentWorkbookData = !isCdtnAggregate && people.length ? {
-      periodLabel: clean(KpiWorkflowState.period?.name || KpiWorkflowState.period?.id || ''),
-      scopeTitle: departmentId === 'ALL' ? 'Toàn Trung tâm' : departmentDisplayName(departmentId),
-      scopeId: departmentId,
-      periodId: clean(KpiWorkflowState.period?.id || 'ky'),
-      signerTitle: departmentId === 'ALL' ? 'BAN GIÁM ĐỐC' : 'TRƯỞNG PHÒNG/KHU',
-      rows: workbookRows
-    } : null;
-    const exportButton = root.querySelector('#exportDepartmentReportXlsx');
-    if (exportButton) exportButton.style.display = currentWorkbookData ? '' : 'none';
     const scopeTitle = departmentId === 'ALL' ? 'Toàn Trung tâm' : departmentDisplayName(departmentId);
     const reportHeading = isCdtnAggregate ? 'BẢNG TỔNG HỢP HOẠT ĐỘNG CHI ĐOÀN' : 'BẢNG TỔNG HỢP KẾT QUẢ ĐÁNH GIÁ';
     const reportNote = isCdtnAggregate
@@ -2956,10 +2890,10 @@ function openDepartmentReport(options = {}) {
       : 'Kết quả đánh giá theo từng cá nhân trong kỳ.';
     const tableHead = isCdtnAggregate
       ? '<tr><th>STT</th><th>Họ và tên</th><th>Vai trò Chi đoàn</th><th>Nhiệm vụ Chi đoàn</th><th>Điểm kế hoạch (A)</th><th>Điểm thực tế (B)</th><th>Trạng thái đánh giá</th></tr>'
-      : '<tr><th>STT</th><th>Họ và tên</th><th>Chức vụ</th><th>Nhiệm vụ tính KPI</th><th>Điểm kế hoạch<br>(A)</th><th>Điểm thực hiện<br>(B)</th><th>Điểm KPI công việc<br>(70)</th><th>Đầu việc<br>vượt</th><th>Điểm thưởng</th><th>Tiêu chí chung<br>(30)</th><th>Tổng điểm</th><th>Mức xếp loại</th><th>Trạng thái điểm</th></tr>';
-    root.querySelector('#departmentReportContent').innerHTML = people.length ? `<div id="departmentReportPrint" class="department-report kpi-report-print ${isCdtnAggregate ? 'department-report-cdtn' : 'department-report-kpi-summary'}">
+      : '<tr><th>STT</th><th>Họ và tên</th><th>Chức vụ</th><th>Nhiệm vụ tính KPI</th><th>Điểm công việc</th><th>Điểm thưởng</th><th>Điểm tiêu chí chung</th><th>Tổng điểm</th><th>Mức xếp loại</th><th>Trạng thái điểm</th></tr>';
+    root.querySelector('#departmentReportContent').innerHTML = people.length ? `<div id="departmentReportPrint" class="department-report kpi-report-print">
       <div class="department-report-heading"><strong>TRUNG TÂM BẢO TRỢ XÃ HỘI TÂN HIỆP</strong><h2>${reportHeading}</h2><p>${esc(KpiWorkflowState.period?.name || '')} · ${esc(scopeTitle)}</p><small>${esc(reportNote)}</small></div>
-      <div class="kpi-table-wrap"><table class="kpi-report-table department-report-table ${isCdtnAggregate ? '' : 'department-report-kpi-summary-table'}"><thead>${tableHead}</thead><tbody>${body}</tbody></table></div>
+      <div class="kpi-table-wrap"><table class="kpi-report-table department-report-table"><thead>${tableHead}</thead><tbody>${body}</tbody></table></div>
       <div class="department-report-signatures"><div><strong>NGƯỜI LẬP BIỂU</strong><br><em>(Ký, ghi rõ họ tên)</em></div><div><strong>${isCdtnAggregate ? 'BÍ THƯ/PHÓ BÍ THƯ CHI ĐOÀN' : departmentId === 'ALL' ? 'BAN GIÁM ĐỐC' : 'TRƯỞNG PHÒNG/KHU'}</strong><br><em>(Ký, ghi rõ họ tên)</em></div></div>
     </div>` : '<div class="kpi-empty">Chưa có dữ liệu đánh giá trong kỳ này.</div>';
   };
@@ -2969,37 +2903,7 @@ function openDepartmentReport(options = {}) {
     root.querySelectorAll('[data-department-report-scope]').forEach(item => item.classList.toggle('is-active', item === button));
     renderDepartment();
   }));
-  root.querySelector('#exportDepartmentReportXlsx')?.addEventListener('click', () => {
-    if (!canViewDepartmentReport() || !currentWorkbookData || !currentWorkbookData.rows.length) {
-      ModalService.alert('Phạm vi này chưa có dữ liệu Tổng hợp Phòng/Khu để xuất Excel.');
-      return;
-    }
-    try {
-      const snapshot = currentWorkbookData;
-      exportDepartmentSummaryWorkbook({
-        ...snapshot,
-        fileName: `Tong_hop_KPI_${snapshot.periodId}_${snapshot.scopeId}.xlsx`
-      });
-    } catch (error) {
-      console.error('Không thể xuất Excel Tổng hợp Phòng/Khu:', error);
-      ModalService.alert('Không thể tạo file Excel. Vui lòng thử lại hoặc báo quản trị.');
-    }
-  });
-  root.querySelector('#printDepartmentReport')?.addEventListener('click', () => {
-    const existingPageStyle = document.getElementById('departmentReportPrintPageStyle');
-    existingPageStyle?.remove();
-    const professionalSummary = normalizeDepartment(selectedDepartmentId || defaultDepartment) !== 'CDTN';
-    if (professionalSummary) {
-      const pageStyle = document.createElement('style');
-      pageStyle.id = 'departmentReportPrintPageStyle';
-      pageStyle.textContent = '@page { size: A4 landscape; margin: 10mm; }';
-      document.head.appendChild(pageStyle);
-    }
-    const cleanupPrintPageStyle = () => document.getElementById('departmentReportPrintPageStyle')?.remove();
-    window.addEventListener('afterprint', cleanupPrintPageStyle, { once:true });
-    window.addEventListener('focus', cleanupPrintPageStyle, { once:true });
-    window.print();
-  });
+  root.querySelector('#printDepartmentReport')?.addEventListener('click', () => window.print());
   renderDepartment();
 }
 
