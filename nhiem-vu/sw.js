@@ -1,5 +1,5 @@
 const BUILD_VERSION = "20260917.V1_24_9";
-const CACHE_NAME = "nhiem-vu-" + BUILD_VERSION.toLowerCase().replace(/[^a-z0-9]+/g, "-") + "-cdtn-catalog-v1249";
+const CACHE_NAME = "nhiem-vu-" + BUILD_VERSION.toLowerCase().replace(/[^a-z0-9]+/g, "-") + "-production-final-20260928-r1";
 const versioned = path => `${path}?v=${BUILD_VERSION}`;
 const SHELL = [
   "./", "./index.html", "./offline.html", "./manifest.webmanifest",
@@ -27,7 +27,13 @@ self.addEventListener("install", event => {
      * V1.14.0: không sao chép asset từ cache release cũ sang release mới.
      * Mỗi build có URL ?v= riêng, tránh giữ nhầm JS/CSS cũ trên PWA iOS.
      */
-    await Promise.allSettled(SHELL.map(url => target.add(url)));
+    await Promise.allSettled(SHELL.map(async url => {
+      // R1: cùng BUILD_VERSION V1.24.9 nhưng đổi nội dung hotfix; buộc lấy bytes mới
+      // từ origin/CDN thay vì tái sử dụng HTTP cache cũ của trình duyệt.
+      const request = new Request(url, { cache: "reload" });
+      const response = await fetch(request);
+      if (response.ok) await target.put(url, response);
+    }));
   })());
 });
 
@@ -94,7 +100,7 @@ self.addEventListener("fetch", event => {
       const hit = await cachedExact(request);
       if (hit) return hit;
       try {
-        const response = await fetch(request);
+        const response = await fetch(request, { cache: "reload" });
         if (response.ok) {
           const copy = response.clone();
           event.waitUntil(cacheResponse(request, copy));
