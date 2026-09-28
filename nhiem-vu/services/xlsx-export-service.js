@@ -379,7 +379,7 @@ export function buildProductCatalogWorkbookBlob({
   };
   const productRowHeight = item => {
     const candidates = [
-      estimateWrappedLines([item.taskCode, item.title].filter(Boolean).join('\n'), columns[1].width),
+      estimateWrappedLines(item.title, columns[1].width),
       estimateWrappedLines(item.outputRequirement, columns[2].width),
       estimateWrappedLines(item.deadlineLabel, columns[3].width),
       estimateWrappedLines(item.workTypeLabel, columns[4].width),
@@ -387,7 +387,7 @@ export function buildProductCatalogWorkbookBlob({
       estimateWrappedLines(item.evidence, columns[13].width)
     ];
     const lines = Math.max(1, ...candidates);
-    return Math.min(120, Math.max(42, 8 + lines * 14));
+    return Math.min(300, Math.max(42, 10 + lines * 15));
   };
 
   row(1, splitHeaderRow('SỞ Y TẾ THÀNH PHỐ HỒ CHÍ MINH', 'CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM'), 22);
@@ -413,7 +413,7 @@ export function buildProductCatalogWorkbookBlob({
   for (const item of rows) {
     row(rn, [
       { value:item.index ?? '', style:3 },
-      { value:[item.taskCode, item.title].filter(Boolean).join('\n'), style:2 },
+      { value:item.title || '', style:2 },
       { value:item.outputRequirement || '', style:2 },
       { value:item.deadlineLabel || '', style:3 },
       { value:item.workTypeLabel || '', style:3 },

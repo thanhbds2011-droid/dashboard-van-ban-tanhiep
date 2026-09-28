@@ -2822,11 +2822,19 @@ async function buildProductCatalogRuntimeRows(tasks = [], userId = '') {
     const activeItems = workItems.filter(item => item?.active !== false);
     const actualResultLines = catalogUniqueLines(activeItems.map(item => item.resultNote));
     const actualEvidenceLines = catalogUniqueLines(activeItems.map(item => item.evidenceText));
+    // Hồ sơ lưu chính thức ưu tiên hạn hoàn thành cụ thể người dùng đã ghi nhận
+    // ở từng lượt phát sinh. Ngày trùng được loại bỏ và sắp xếp tăng dần.
+    const actualDeadlineKeys = [...new Set(activeItems
+      .map(item => clean(item.deadlineDateKey))
+      .filter(value => /^\d{4}-\d{2}-\d{2}$/.test(value)))]
+      .sort();
+    const actualDeadlineLines = actualDeadlineKeys.map(dateVi);
     const standardOutput = clean(task.description || task.outputRequirement || task.standardTaskOutputRequirement || '');
     const standardEvidence = clean(task.standardTaskMandatoryEvidence || task.mandatoryEvidence || '—');
     const taskEvidence = clean(task.evidenceText || '');
     const effectiveOutput = actualResultLines.length ? actualResultLines.join('\n') : standardOutput;
     const effectiveEvidence = actualEvidenceLines.length ? actualEvidenceLines.join('\n') : (taskEvidence || standardEvidence);
+    const effectiveDeadline = actualDeadlineLines.length ? actualDeadlineLines.join('\n') : productCatalogDeadlineLabel(task);
     const evaluation = KpiWorkflowState.evaluations.find(item => item.taskId === task.id && item.ownerUserId === userId);
     const applied = evaluationScoreSnapshot(evaluation || {});
 
@@ -2836,6 +2844,7 @@ async function buildProductCatalogRuntimeRows(tasks = [], userId = '') {
       readError,
       effectiveOutput,
       effectiveEvidence,
+      effectiveDeadline,
       evaluation,
       applied
     };
@@ -2865,9 +2874,8 @@ async function openProductCatalog(userId = KpiWorkflowState.user.uid) {
     return;
   }
 
-  const rows = runtimeRows.map(({ task, index, effectiveOutput, effectiveEvidence }) => {
-    const deadlineLabel = productCatalogDeadlineLabel(task);
-    return `<tr><td>${index+1}</td><td>${esc(task.title || task.standardTaskName || '')}</td><td>${catalogMultilineHtml(effectiveOutput)}</td><td>${esc(deadlineLabel)}</td><td>${esc(clean(task.workType).toUpperCase()==='DOT_XUAT'?'Đột xuất':'Thường xuyên')}</td><td>${fmt(task.baseScore)}</td><td>${coefficientPercent(task.difficultyCoefficient)}</td><td>${fmt(task.maximumConvertedScore)}</td><td>${catalogMultilineHtml(effectiveEvidence)}</td></tr>`;
+  const rows = runtimeRows.map(({ task, index, effectiveOutput, effectiveEvidence, effectiveDeadline }) => {
+    return `<tr><td>${index+1}</td><td>${esc(task.title || task.standardTaskName || '')}</td><td>${catalogMultilineHtml(effectiveOutput)}</td><td>${catalogMultilineHtml(effectiveDeadline)}</td><td>${esc(clean(task.workType).toUpperCase()==='DOT_XUAT'?'Đột xuất':'Thường xuyên')}</td><td>${fmt(task.baseScore)}</td><td>${coefficientPercent(task.difficultyCoefficient)}</td><td>${fmt(task.maximumConvertedScore)}</td><td>${catalogMultilineHtml(effectiveEvidence)}</td></tr>`;
   }).join('');
 
   const title = productCatalogPeriodTitle(KpiWorkflowState.period, departmentName);
@@ -2881,12 +2889,12 @@ async function openProductCatalog(userId = KpiWorkflowState.user.uid) {
       fileName:`Danh_muc_san_pham_${KpiWorkflowState.period?.id || 'ky'}_${safeDepartment}_${clean(user.fullName || 'ca_nhan')}.xlsx`,
       sheetName:'Danh mục sản phẩm', periodLabel, employeeName:clean(user.fullName || ''),
       employeePosition:catalogPosition, departmentName,
-      rows:runtimeRows.map(({ task, index, effectiveOutput, effectiveEvidence, evaluation, applied })=>({
+      rows:runtimeRows.map(({ task, index, effectiveOutput, effectiveEvidence, effectiveDeadline, evaluation, applied })=>({
         index:index+1,
-        taskCode:task.taskCode||'',
+        // Hồ sơ Danh mục sản phẩm chỉ in tên công việc; mã đầu việc vẫn giữ trong dữ liệu hệ thống.
         title:task.title||task.standardTaskName||'',
         outputRequirement:effectiveOutput,
-        deadlineLabel:productCatalogDeadlineLabel(task),
+        deadlineLabel:effectiveDeadline,
         workTypeLabel:clean(task.workType).toUpperCase()==='DOT_XUAT'?'Đột xuất':'Thường xuyên',
         baseScore:Number(task.baseScore||0),
         coefficientLabel:coefficientPercent(task.difficultyCoefficient),
