@@ -2837,6 +2837,9 @@ async function buildProductCatalogRuntimeRows(tasks = [], userId = '') {
     const effectiveDeadline = actualDeadlineLines.length ? actualDeadlineLines.join('\n') : productCatalogDeadlineLabel(task);
     const evaluation = KpiWorkflowState.evaluations.find(item => item.taskId === task.id && item.ownerUserId === userId);
     const applied = evaluationScoreSnapshot(evaluation || {});
+    // R3: cùng một snapshot quyết định dấu X và tổng số nhiệm vụ vượt trong hồ sơ.
+    // Không dùng một bộ lọc tổng hợp khác để tránh trường hợp có X nhưng tổng cuối bằng 0.
+    const exceededLabel = scorecardExceededLabel(evaluation);
 
     return {
       task,
@@ -2846,7 +2849,8 @@ async function buildProductCatalogRuntimeRows(tasks = [], userId = '') {
       effectiveEvidence,
       effectiveDeadline,
       evaluation,
-      applied
+      applied,
+      exceededLabel
     };
   }));
   return rows;
@@ -2879,7 +2883,8 @@ async function openProductCatalog(userId = KpiWorkflowState.user.uid) {
   }).join('');
 
   const title = productCatalogPeriodTitle(KpiWorkflowState.period, departmentName);
-  const exceededCount = exceededSummaryForUser(userId,{officialOnly:true}).exceededTasks;
+  // R3: dòng tổng phải bằng đúng số dấu X đang có trong chính Danh mục sản phẩm.
+  const exceededCount = runtimeRows.reduce((count, item) => count + (item.exceededLabel === 'X' ? 1 : 0), 0);
   modal('Danh mục sản phẩm cá nhân', `<div id="kpiProductCatalogPrint" class="kpi-product-report kpi-report-print"><div class="m01-top kpi-product-official-header"><div class="m01-agency"><strong>SỞ Y TẾ<br>THÀNH PHỐ HỒ CHÍ MINH<br>TRUNG TÂM BẢO TRỢ XÃ HỘI TÂN HIỆP</strong></div><div class="m01-national"><strong>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</strong><div class="m01-motto"><strong>Độc lập - Tự do - Hạnh phúc</strong></div></div></div><div class="kpi-product-heading"><h2>${esc(title)}</h2><p><strong>Họ và tên:</strong> ${esc(user.fullName || '')}</p><p><strong>Chức vụ:</strong> ${esc(catalogPosition)}</p></div><div class="kpi-table-wrap"><table class="kpi-report-table kpi-product-table"><thead><tr><th>TT</th><th>Tên công việc</th><th>Kết quả đầu ra</th><th>Thời hạn hoàn thành</th><th>Loại công việc</th><th>Điểm chuẩn</th><th>Hệ số độ khó</th><th>Điểm quy đổi tối đa</th><th>Minh chứng</th></tr></thead><tbody>${rows || '<tr><td colspan="9">Chưa có nhiệm vụ được duyệt.</td></tr>'}</tbody></table></div><div class="kpi-product-totals"><p><strong>Tổng số nhiệm vụ thực hiện trong kỳ:</strong> ${tasks.length}</p><p><strong>Tổng số nhiệm vụ vượt tiến độ/chất lượng:</strong> ${exceededCount}</p></div><div class="kpi-product-signatures"><div><strong>XÁC NHẬN CỦA LÃNH ĐẠO, ĐƠN VỊ</strong><br><em>(Ký, ghi rõ họ tên)</em><div class="kpi-signature-space"></div></div><div><strong>NGƯỜI LẬP DANH MỤC SẢN PHẨM</strong><br><em>(Ký, ghi rõ họ tên)</em><div class="kpi-signature-space"></div><strong>${esc(user.fullName || '')}</strong></div></div></div>`, '<button class="kpi-button secondary" data-kpi-close type="button">Đóng</button><button id="kpiExportProductCatalogXlsx" class="kpi-button secondary" type="button">📊 Xuất Excel (.xlsx)</button><button id="kpiPrintProductCatalog" class="kpi-button" type="button">🖨️ In danh mục</button>');
 
   el('kpiExportProductCatalogXlsx')?.addEventListener('click',()=>{
@@ -2889,7 +2894,7 @@ async function openProductCatalog(userId = KpiWorkflowState.user.uid) {
       fileName:`Danh_muc_san_pham_${KpiWorkflowState.period?.id || 'ky'}_${safeDepartment}_${clean(user.fullName || 'ca_nhan')}.xlsx`,
       sheetName:'Danh mục sản phẩm', periodLabel, employeeName:clean(user.fullName || ''),
       employeePosition:catalogPosition, departmentName,
-      rows:runtimeRows.map(({ task, index, effectiveOutput, effectiveEvidence, effectiveDeadline, evaluation, applied })=>({
+      rows:runtimeRows.map(({ task, index, effectiveOutput, effectiveEvidence, effectiveDeadline, applied, exceededLabel })=>({
         index:index+1,
         // Hồ sơ Danh mục sản phẩm chỉ in tên công việc; mã đầu việc vẫn giữ trong dữ liệu hệ thống.
         title:task.title||task.standardTaskName||'',
@@ -2903,7 +2908,7 @@ async function openProductCatalog(userId = KpiWorkflowState.user.uid) {
         resultLabel:applied.resultRate == null ? '' : `${applied.resultRate}%`,
         executionScore:applied.hasScore ? Number(applied.executionScore || 0) : '',
         actualScore:applied.hasScore ? Number(applied.convertedActualScore || 0) : '',
-        exceededLabel:scorecardExceededLabel(evaluation),
+        exceededLabel,
         evidence:effectiveEvidence
       })),
       exceededCount
