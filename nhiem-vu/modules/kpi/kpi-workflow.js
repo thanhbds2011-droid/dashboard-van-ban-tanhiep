@@ -412,7 +412,13 @@ function kpiRealtimeQueries(kind) {
       q(where('periodId','==',periodId), where('departmentId','==','CDTN'), limit(1000)),
       q(where('periodId','==',periodId), where('organizationId','==','CDTN'), limit(1000))
     ];
-    if (combinedDepartmentReportScope || primaryHomeDepartmentLeaderScope) return [
+    /*
+     * R4: Ở màn hình đánh giá, Trưởng/Phó chỉ cần realtime hồ sơ đúng scope chuyên môn
+     * đang chấm. Query bổ sung homeDepartmentId có thể bao gồm hồ sơ scope khác (ví dụ
+     * Chi đoàn) và Firestore Rules không bảo đảm cho phép toàn bộ tập kết quả đó.
+     * Giữ query bổ sung ở plans/reports, nhưng không mở nó trong evaluations.
+     */
+    if (combinedDepartmentReportScope || (primaryHomeDepartmentLeaderScope && KpiWorkflowState.mode !== 'evaluations')) return [
       q(where('periodId','==',periodId), where('departmentId','==',departmentId), limit(2000)),
       q(where('periodId','==',periodId), where('homeDepartmentId','==',departmentId), limit(2000))
     ];
@@ -433,7 +439,7 @@ function kpiRealtimeQueries(kind) {
       q(where('periodId','==',periodId), where('departmentId','==','CDTN'), limit(1000)),
       q(where('periodId','==',periodId), where('organizationId','==','CDTN'), limit(1000))
     ];
-    if (combinedDepartmentReportScope || primaryHomeDepartmentLeaderScope) return [
+    if (combinedDepartmentReportScope || (primaryHomeDepartmentLeaderScope && KpiWorkflowState.mode !== 'evaluations')) return [
       q(where('periodId','==',periodId), where('departmentId','==',departmentId), limit(2000)),
       q(where('periodId','==',periodId), where('homeDepartmentId','==',departmentId), limit(2000))
     ];
@@ -1418,7 +1424,7 @@ async function loadAll(options = {}) {
               getDocs(query(collection(db, 'taskRegistrations'), where('periodId', '==', periodId), where('departmentId', '==', 'CDTN'), limit(1000))),
               getDocs(query(collection(db, 'taskRegistrations'), where('periodId', '==', periodId), where('organizationId', '==', 'CDTN'), limit(1000)))
             ], 'đăng ký nhiệm vụ Chi đoàn')
-          : (combinedDepartmentReportScope || primaryHomeDepartmentLeaderScope)
+          : (combinedDepartmentReportScope || (primaryHomeDepartmentLeaderScope && KpiWorkflowState.mode !== 'evaluations'))
             ? mergeAvailableSnapshotRequests([
                 getDocs(query(collection(db, 'taskRegistrations'), where('periodId', '==', periodId), where('departmentId', '==', departmentId), limit(2000))),
                 getDocs(query(collection(db, 'taskRegistrations'), where('periodId', '==', periodId), where('homeDepartmentId', '==', departmentId), limit(2000)))
@@ -1443,7 +1449,7 @@ async function loadAll(options = {}) {
               getDocs(query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId), where('departmentId', '==', 'CDTN'), limit(1000))),
               getDocs(query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId), where('organizationId', '==', 'CDTN'), limit(1000)))
             ], 'đánh giá nhiệm vụ Chi đoàn')
-          : (combinedDepartmentReportScope || primaryHomeDepartmentLeaderScope)
+          : (combinedDepartmentReportScope || (primaryHomeDepartmentLeaderScope && KpiWorkflowState.mode !== 'evaluations'))
             ? mergeAvailableSnapshotRequests([
                 getDocs(query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId), where('departmentId', '==', departmentId), limit(2000))),
                 getDocs(query(collection(db, 'taskEvaluations'), where('periodId', '==', periodId), where('homeDepartmentId', '==', departmentId), limit(2000)))
@@ -2074,8 +2080,16 @@ async function batchConfirmEvaluations(evaluationIds) {
   if (!rows.length) throw new Error('Các nhiệm vụ đã chọn chưa có tự đánh giá hợp lệ hoặc không thuộc quyền xác nhận.');
   if (!await ModalService.confirm(`Xác nhận ${rows.length} nhiệm vụ theo điểm tự đánh giá hiện tại? Các điểm này sẽ được khóa chính thức.`)) return;
 
-  const batch = writeBatch(db);
-  rows.forEach(({ evaluation, task, score }) => {
+  /*
+   * R4 BULK CONFIRM SAFE:
+   * Mỗi nhiệm vụ được commit bằng một batch riêng gồm đúng 2 write liên quan:
+   * taskEvaluations + tasks. Người dùng vẫn bấm xác nhận một lần, nhưng không gom
+   * hàng chục nhiệm vụ vào cùng một batch khiến Security Rules vượt access-call budget.
+   * Tính atomic vẫn được giữ trọn vẹn cho từng nhiệm vụ.
+   */
+  const committedRows = [];
+
+  const appendConfirmationWrites = (batch, { evaluation, task, score }) => {
     batch.update(doc(db, 'taskEvaluations', evaluation.id), {
       confirmedProgressRate: Number(evaluation.selfProgressRate),
       confirmedResultRate: Number(evaluation.selfResultRate),
@@ -2125,13 +2139,9 @@ async function batchConfirmEvaluations(evaluationIds) {
       updatedByUserId: KpiWorkflowState.user.uid,
       updatedByName: KpiWorkflowState.profile.fullName || ''
     });
-  });
-  await batch.commit();
+  };
 
-  /* V1.20.0: cập nhật state cục bộ ngay sau write thành công; onSnapshot sẽ
-     hòa giải lại serverTimestamp sau đó. Không loadAll toàn phạm vi chỉ vì
-     một lô xác nhận vừa thay đổi. */
-  rows.forEach(({ evaluation, task, score }) => {
+  const applyLocalConfirmation = ({ evaluation, task, score }) => {
     Object.assign(evaluation, {
       confirmedProgressRate: Number(evaluation.selfProgressRate),
       confirmedResultRate: Number(evaluation.selfResultRate),
@@ -2167,9 +2177,31 @@ async function batchConfirmEvaluations(evaluationIds) {
       bonusBasisScore: 0,
       bonusScore: 0
     });
-  });
+  };
+
+  for (const row of rows) {
+    const batch = writeBatch(db);
+    appendConfirmationWrites(batch, row);
+    try {
+      await batch.commit();
+      committedRows.push(row);
+      applyLocalConfirmation(row);
+    } catch (error) {
+      scheduleKpiLiveRender();
+      if (committedRows.length) {
+        await audit('CONFIRM_TASK_SCORES_BATCH_PARTIAL', {
+          confirmedCount: committedRows.length,
+          requestedCount: rows.length,
+          evaluationIds: committedRows.map(item => item.evaluation.id)
+        });
+        throw new Error(`Đã xác nhận ${committedRows.length}/${rows.length} nhiệm vụ. ${rows.length - committedRows.length} nhiệm vụ còn lại chưa được xác nhận; vui lòng thử lại.`);
+      }
+      throw error;
+    }
+  }
+
   scheduleKpiLiveRender();
-  await audit('CONFIRM_TASK_SCORES_BATCH', { count: rows.length, evaluationIds: rows.map(row => row.evaluation.id) });
+  await audit('CONFIRM_TASK_SCORES_BATCH', { count: committedRows.length, evaluationIds: committedRows.map(row => row.evaluation.id) });
 }
 
 function openPersonPlanDetail(uid) {
