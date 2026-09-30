@@ -4280,7 +4280,6 @@ async function openReview(evalId) {
       if (button) { button.dataset.saving = '0'; button.disabled = false; button.textContent = 'Xác nhận điểm'; }
       ModalService.alert(friendlyErrorMessage(error));
     }
-    }
   });
 }
 
