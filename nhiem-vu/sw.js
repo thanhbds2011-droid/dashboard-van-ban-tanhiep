@@ -1,5 +1,5 @@
 const BUILD_VERSION = "20260917.V1_24_9";
-const CACHE_NAME = "nhiem-vu-" + BUILD_VERSION.toLowerCase().replace(/[^a-z0-9]+/g, "-") + "-production-final-20260929-r4";
+const CACHE_NAME = "nhiem-vu-" + BUILD_VERSION.toLowerCase().replace(/[^a-z0-9]+/g, "-") + "-production-final-20260930-r5";
 const versioned = path => `${path}?v=${BUILD_VERSION}`;
 const SHELL = [
   "./", "./index.html", "./offline.html", "./manifest.webmanifest",
@@ -28,7 +28,8 @@ self.addEventListener("install", event => {
      * Mỗi build có URL ?v= riêng, tránh giữ nhầm JS/CSS cũ trên PWA iOS.
      */
     await Promise.allSettled(SHELL.map(async url => {
-      // R4: cùng BUILD_VERSION V1.24.9 nhưng sửa bulk-confirm an toàn và realtime scope màn hình đánh giá; buộc lấy bytes mới
+      // R5 GitHub-only: giữ nguyên Rules V1.24.1; sửa xác nhận KPI thành hai write độc lập/idempotent
+      // cho taskEvaluations + tasks và buộc lấy bytes mới
       // từ origin/CDN thay vì tái sử dụng HTTP cache cũ của trình duyệt.
       const request = new Request(url, { cache: "reload" });
       const response = await fetch(request);

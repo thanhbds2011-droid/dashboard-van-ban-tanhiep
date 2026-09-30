@@ -2060,6 +2060,115 @@ function renderCompactEvaluationPanel(target) {
   });
 }
 
+function kpiScoreNumberMatches(actual, expected) {
+  const left = Number(actual);
+  const right = Number(expected);
+  return Number.isFinite(left) && Number.isFinite(right) && Math.abs(left - right) <= 0.011;
+}
+
+function kpiEvaluationAlreadyConfirmed(data = {}, payload = {}) {
+  if (data.status !== 'CONFIRMED' || data.scoreLocked !== true) return false;
+  if (!kpiScoreNumberMatches(data.confirmedProgressRate, payload.confirmedProgressRate)) return false;
+  if (!kpiScoreNumberMatches(data.confirmedResultRate, payload.confirmedResultRate)) return false;
+  if (!kpiScoreNumberMatches(data.confirmedActualScore, payload.confirmedActualScore)) return false;
+  if (Object.prototype.hasOwnProperty.call(payload, 'bonusDecision') && data.bonusDecision !== payload.bonusDecision) return false;
+  if (Object.prototype.hasOwnProperty.call(payload, 'confirmedExceededRequirement')
+    && data.confirmedExceededRequirement !== payload.confirmedExceededRequirement) return false;
+  return true;
+}
+
+function kpiTaskAlreadyConfirmed(data = {}, payload = {}) {
+  if (data.scoringStatus !== 'CONFIRMED' || data.scoreLocked !== true) return false;
+  if (!kpiScoreNumberMatches(data.confirmedActualScore, payload.confirmedActualScore)) return false;
+  if (Object.prototype.hasOwnProperty.call(payload, 'bonusDecision') && data.bonusDecision !== payload.bonusDecision) return false;
+  return true;
+}
+
+async function commitKpiScorePairGithubOnly({ evaluationId, taskId, evaluationPayload, taskPayload }) {
+  const evaluationRef = doc(db, 'taskEvaluations', evaluationId);
+  const taskRef = doc(db, 'tasks', taskId);
+  let evaluationCommitted = false;
+
+  /*
+   * R5 GITHUB-ONLY:
+   * Không sửa Firestore Rules. Hai document được ghi thành hai request độc lập để mỗi
+   * request được Rules V1.24.1 đánh giá trong budget riêng. taskEvaluations là bản ghi
+   * quyết định chính thức; tasks là dữ liệu tổng hợp/denormalized và được đồng bộ ngay sau.
+   * Trước mỗi write đều kiểm tra trạng thái hiện tại để thao tác có tính idempotent khi
+   * trình duyệt mất ACK hoặc người dùng bấm lại sau lỗi mạng.
+   */
+  try {
+    const currentEvaluation = await getDoc(evaluationRef);
+    if (currentEvaluation.exists() && currentEvaluation.data()?.status === 'CONFIRMED') {
+      if (!kpiEvaluationAlreadyConfirmed(currentEvaluation.data(), evaluationPayload)) {
+        const conflict = new Error('Nhiệm vụ đã được xác nhận trước đó với kết quả khác. Vui lòng bấm Cập nhật và kiểm tra lại.');
+        conflict.code = 'kpi/evaluation-confirmation-conflict';
+        throw conflict;
+      }
+      evaluationCommitted = true;
+    }
+  } catch (error) {
+    if (String(error?.code || '').startsWith('kpi/')) throw error;
+    // Không chặn write chỉ vì bước đọc xác minh tạm thời lỗi; updateDoc phía dưới vẫn là nguồn quyết định.
+  }
+
+  if (!evaluationCommitted) {
+    try {
+      await updateDoc(evaluationRef, evaluationPayload);
+      evaluationCommitted = true;
+    } catch (error) {
+      try {
+        const verifyEvaluation = await getDoc(evaluationRef);
+        if (verifyEvaluation.exists() && kpiEvaluationAlreadyConfirmed(verifyEvaluation.data(), evaluationPayload)) {
+          evaluationCommitted = true;
+        }
+      } catch (_) { /* xác minh hậu kiểm best-effort */ }
+
+      if (!evaluationCommitted) {
+        if (isPermissionDeniedError(error)) {
+          const denied = new Error('Không thể ghi kết quả xác nhận vào hồ sơ đánh giá theo quyền hiện hành. Dữ liệu chưa thay đổi; vui lòng liên hệ quản trị viên.');
+          denied.code = 'kpi/evaluation-confirm-write-denied';
+          denied.cause = error;
+          throw denied;
+        }
+        throw error;
+      }
+    }
+  }
+
+  let taskCommitted = false;
+  try {
+    const currentTask = await getDoc(taskRef);
+    if (currentTask.exists() && kpiTaskAlreadyConfirmed(currentTask.data(), taskPayload)) {
+      taskCommitted = true;
+    }
+  } catch (_) { /* updateDoc phía dưới sẽ quyết định */ }
+
+  if (!taskCommitted) {
+    try {
+      await updateDoc(taskRef, taskPayload);
+      taskCommitted = true;
+    } catch (error) {
+      try {
+        const verifyTask = await getDoc(taskRef);
+        if (verifyTask.exists() && kpiTaskAlreadyConfirmed(verifyTask.data(), taskPayload)) {
+          taskCommitted = true;
+        }
+      } catch (_) { /* xác minh hậu kiểm best-effort */ }
+
+      if (!taskCommitted) {
+        const partial = new Error('Điểm đã được xác nhận trong hồ sơ đánh giá nhưng trạng thái nhiệm vụ chưa đồng bộ. Vui lòng bấm Cập nhật để tải trạng thái mới; nếu vẫn chưa đồng bộ, liên hệ quản trị viên. Không tự chấm lại nhiệm vụ này.');
+        partial.code = 'kpi/task-confirm-sync-failed';
+        partial.evaluationCommitted = true;
+        partial.cause = error;
+        throw partial;
+      }
+    }
+  }
+
+  return { evaluationCommitted: true, taskCommitted: true };
+}
+
 async function batchConfirmEvaluations(evaluationIds) {
   const uniqueIds = [...new Set(evaluationIds)].slice(0, 200);
   const rows = uniqueIds.map(id => {
@@ -2081,65 +2190,12 @@ async function batchConfirmEvaluations(evaluationIds) {
   if (!await ModalService.confirm(`Xác nhận ${rows.length} nhiệm vụ theo điểm tự đánh giá hiện tại? Các điểm này sẽ được khóa chính thức.`)) return;
 
   /*
-   * R4 BULK CONFIRM SAFE:
-   * Mỗi nhiệm vụ được commit bằng một batch riêng gồm đúng 2 write liên quan:
-   * taskEvaluations + tasks. Người dùng vẫn bấm xác nhận một lần, nhưng không gom
-   * hàng chục nhiệm vụ vào cùng một batch khiến Security Rules vượt access-call budget.
-   * Tính atomic vẫn được giữ trọn vẹn cho từng nhiệm vụ.
+   * R5 GITHUB-ONLY BULK CONFIRM:
+   * Không sửa Rules, không ghi batch taskEvaluations + tasks. Mỗi nhiệm vụ dùng helper
+   * hai bước idempotent để tách budget Rules của hai collection nhưng người dùng vẫn
+   * chỉ bấm xác nhận một lần.
    */
   const committedRows = [];
-
-  const appendConfirmationWrites = (batch, { evaluation, task, score }) => {
-    batch.update(doc(db, 'taskEvaluations', evaluation.id), {
-      confirmedProgressRate: Number(evaluation.selfProgressRate),
-      confirmedResultRate: Number(evaluation.selfResultRate),
-      confirmedExecutionScore: score.execution,
-      confirmedActualScore: score.actual,
-      confirmedExceededRequirement: false,
-      exceededDecision: 'NOT_REQUESTED', exceededDecisionReason: '', exceededDecisionByUserId: KpiWorkflowState.user.uid, exceededDecisionByName: KpiWorkflowState.profile.fullName || '', exceededDecisionAt: serverTimestamp(),
-      bonusDecision: 'NOT_REQUESTED',
-      bonusDecisionReason: '',
-      bonusDecisionByUserId: KpiWorkflowState.user.uid,
-      bonusDecisionByName: KpiWorkflowState.profile.fullName || '',
-      bonusDecisionAt: serverTimestamp(),
-      bonusAwarded: false,
-      bonusType: '',
-      bonusRate: 0,
-      bonusBasisScore: 0,
-      bonusScore: 0,
-      bonusConfirmedAt: null,
-      bonusConfirmedByUserId: '',
-      bonusConfirmedByName: '',
-      reviewerComment: 'Xác nhận theo điểm tự đánh giá đã chọn hàng loạt.',
-      status: 'CONFIRMED',
-      scoreLocked: true,
-      reviewedByUserId: KpiWorkflowState.user.uid,
-      reviewedByName: KpiWorkflowState.profile.fullName || '',
-      confirmedAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    });
-    batch.update(doc(db, 'tasks', task.id), {
-      scoringStatus: 'CONFIRMED',
-      scoreLocked: true,
-      confirmedActualScore: score.actual,
-      bonusDecision: 'NOT_REQUESTED',
-      bonusDecisionReason: '',
-      bonusDecisionByUserId: KpiWorkflowState.user.uid,
-      bonusDecisionByName: KpiWorkflowState.profile.fullName || '',
-      bonusDecisionAt: serverTimestamp(),
-      bonusAwarded: false,
-      bonusType: '',
-      bonusRate: 0,
-      bonusBasisScore: 0,
-      bonusScore: 0,
-      bonusConfirmedAt: null,
-      bonusConfirmedByUserId: '',
-      bonusConfirmedByName: '',
-      updatedAt: serverTimestamp(),
-      updatedByUserId: KpiWorkflowState.user.uid,
-      updatedByName: KpiWorkflowState.profile.fullName || ''
-    });
-  };
 
   const applyLocalConfirmation = ({ evaluation, task, score }) => {
     Object.assign(evaluation, {
@@ -2147,20 +2203,9 @@ async function batchConfirmEvaluations(evaluationIds) {
       confirmedResultRate: Number(evaluation.selfResultRate),
       confirmedExecutionScore: score.execution,
       confirmedActualScore: score.actual,
-      confirmedExceededRequirement: false,
-      exceededDecision: 'NOT_REQUESTED',
-      exceededDecisionReason: '',
-      exceededDecisionByUserId: KpiWorkflowState.user.uid,
-      exceededDecisionByName: KpiWorkflowState.profile.fullName || '',
       bonusDecision: 'NOT_REQUESTED',
-      bonusDecisionReason: '',
       bonusDecisionByUserId: KpiWorkflowState.user.uid,
       bonusDecisionByName: KpiWorkflowState.profile.fullName || '',
-      bonusAwarded: false,
-      bonusType: '',
-      bonusRate: 0,
-      bonusBasisScore: 0,
-      bonusScore: 0,
       reviewerComment: 'Xác nhận theo điểm tự đánh giá đã chọn hàng loạt.',
       status: 'CONFIRMED',
       scoreLocked: true,
@@ -2170,31 +2215,69 @@ async function batchConfirmEvaluations(evaluationIds) {
     Object.assign(task, {
       scoringStatus: 'CONFIRMED',
       scoreLocked: true,
-      confirmedActualScore: score.actual,
-      bonusDecision: 'NOT_REQUESTED',
-      bonusAwarded: false,
-      bonusRate: 0,
-      bonusBasisScore: 0,
-      bonusScore: 0
+      confirmedActualScore: score.actual
     });
   };
 
   for (const row of rows) {
-    const batch = writeBatch(db);
-    appendConfirmationWrites(batch, row);
+    const { evaluation, task, score } = row;
+    const evaluationPayload = {
+      confirmedProgressRate: Number(evaluation.selfProgressRate),
+      confirmedResultRate: Number(evaluation.selfResultRate),
+      confirmedExecutionScore: score.execution,
+      confirmedActualScore: score.actual,
+      bonusDecision: 'NOT_REQUESTED',
+      bonusDecisionByUserId: KpiWorkflowState.user.uid,
+      bonusDecisionByName: KpiWorkflowState.profile.fullName || '',
+      bonusDecisionAt: serverTimestamp(),
+      reviewerComment: 'Xác nhận theo điểm tự đánh giá đã chọn hàng loạt.',
+      status: 'CONFIRMED',
+      scoreLocked: true,
+      reviewedByUserId: KpiWorkflowState.user.uid,
+      reviewedByName: KpiWorkflowState.profile.fullName || '',
+      confirmedAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    };
+    const taskPayload = {
+      scoringStatus: 'CONFIRMED',
+      scoreLocked: true,
+      confirmedActualScore: score.actual,
+      updatedAt: serverTimestamp(),
+      updatedByUserId: KpiWorkflowState.user.uid,
+      updatedByName: KpiWorkflowState.profile.fullName || ''
+    };
+
     try {
-      await batch.commit();
+      await commitKpiScorePairGithubOnly({
+        evaluationId: evaluation.id,
+        taskId: task.id,
+        evaluationPayload,
+        taskPayload
+      });
       committedRows.push(row);
       applyLocalConfirmation(row);
     } catch (error) {
       scheduleKpiLiveRender();
+      if (error?.evaluationCommitted === true) {
+        Object.assign(evaluation, {
+          confirmedProgressRate: Number(evaluation.selfProgressRate),
+          confirmedResultRate: Number(evaluation.selfResultRate),
+          confirmedExecutionScore: score.execution,
+          confirmedActualScore: score.actual,
+          bonusDecision: 'NOT_REQUESTED',
+          reviewerComment: 'Xác nhận theo điểm tự đánh giá đã chọn hàng loạt.',
+          status: 'CONFIRMED',
+          scoreLocked: true,
+          reviewedByUserId: KpiWorkflowState.user.uid,
+          reviewedByName: KpiWorkflowState.profile.fullName || ''
+        });
+      }
       if (committedRows.length) {
         await audit('CONFIRM_TASK_SCORES_BATCH_PARTIAL', {
           confirmedCount: committedRows.length,
           requestedCount: rows.length,
           evaluationIds: committedRows.map(item => item.evaluation.id)
         });
-        throw new Error(`Đã xác nhận ${committedRows.length}/${rows.length} nhiệm vụ. ${rows.length - committedRows.length} nhiệm vụ còn lại chưa được xác nhận; vui lòng thử lại.`);
       }
       throw error;
     }
@@ -3853,26 +3936,88 @@ async function openReview(evalId) {
         confirmedExceededRequirement, exceededDecision, exceededDecisionReason: exceededReason,
         exceededDecisionByUserId: KpiWorkflowState.user.uid, exceededDecisionByName: KpiWorkflowState.profile.fullName || '', exceededDecisionAt: serverTimestamp()
       };
-      const scoreBatch = writeBatch(db);
-      scoreBatch.update(doc(db, 'taskEvaluations', ev.id), {
+      const writeExceededFields = (exceededRequested || exceededDecision !== 'NOT_REQUESTED') ? exceededFields : {};
+      const writeBonusFields = bonusRequested ? finalBonusFields : {
+        bonusDecision: 'NOT_REQUESTED',
+        bonusDecisionByUserId: KpiWorkflowState.user.uid,
+        bonusDecisionByName: KpiWorkflowState.profile.fullName || '',
+        bonusDecisionAt: serverTimestamp()
+      };
+      const writeTaskBonusFields = bonusRequested ? finalBonusFields : {};
+      const evaluationPayload = {
         confirmedProgressRate:p, confirmedResultRate:r, confirmedExecutionScore:x.execution, confirmedActualScore:x.actual,
-        ...exceededFields, ...finalBonusFields,
+        ...writeExceededFields, ...writeBonusFields,
         reviewerComment:note, status:'CONFIRMED', scoreLocked:true,
         reviewedByUserId:KpiWorkflowState.user.uid, reviewedByName:KpiWorkflowState.profile.fullName || '', confirmedAt:serverTimestamp(), updatedAt:serverTimestamp()
-      });
-      scoreBatch.update(doc(db, 'tasks', task.id), {
+      };
+      const taskPayload = {
         scoringStatus:'CONFIRMED', scoreLocked:true, confirmedActualScore:x.actual,
-        ...finalBonusFields,
+        ...writeTaskBonusFields,
         updatedAt:serverTimestamp(), updatedByUserId:KpiWorkflowState.user.uid, updatedByName:KpiWorkflowState.profile.fullName || ''
+      };
+      await commitKpiScorePairGithubOnly({
+        evaluationId: ev.id,
+        taskId: task.id,
+        evaluationPayload,
+        taskPayload
       });
-      await scoreBatch.commit();
-      Object.assign(ev, { confirmedProgressRate:p, confirmedResultRate:r, confirmedExecutionScore:x.execution, confirmedActualScore:x.actual, ...exceededFields, ...finalBonusFields, reviewerComment:note, status:'CONFIRMED', scoreLocked:true, reviewedByUserId:KpiWorkflowState.user.uid, reviewedByName:KpiWorkflowState.profile.fullName || '' });
-      Object.assign(task, { scoringStatus:'CONFIRMED', scoreLocked:true, confirmedActualScore:x.actual, ...finalBonusFields });
+      Object.assign(ev, {
+        confirmedProgressRate:p, confirmedResultRate:r, confirmedExecutionScore:x.execution, confirmedActualScore:x.actual,
+        ...(exceededRequested || exceededDecision !== 'NOT_REQUESTED' ? exceededFields : {}),
+        ...(bonusRequested ? finalBonusFields : {
+          bonusDecision:'NOT_REQUESTED', bonusDecisionByUserId:KpiWorkflowState.user.uid, bonusDecisionByName:KpiWorkflowState.profile.fullName || ''
+        }),
+        reviewerComment:note, status:'CONFIRMED', scoreLocked:true,
+        reviewedByUserId:KpiWorkflowState.user.uid, reviewedByName:KpiWorkflowState.profile.fullName || ''
+      });
+      Object.assign(task, {
+        scoringStatus:'CONFIRMED', scoreLocked:true, confirmedActualScore:x.actual,
+        ...(bonusRequested ? finalBonusFields : {})
+      });
       closeModal();
       void audit('CONFIRM_TASK_SCORE', { taskId:task.id, confirmedExecutionScore:x.execution, confirmedActualScore:x.actual, confirmedExceededRequirement, exceededDecision, exceededDecisionReason:exceededReason, bonusRequested, bonusDecision, bonusAwarded, bonusType, bonusRate, bonusScore, bonusDecisionReason });
       scheduleKpiLiveRender();
     } catch (error) {
-      if (button) { button.dataset.saving = '0'; button.disabled = false; button.textContent = 'Xác nhận điểm'; }
+      if (error?.evaluationCommitted === true) {
+        const partialLocalDecisionFields = {};
+        if (exceededRequested || exceededDecision !== 'NOT_REQUESTED') {
+          Object.assign(partialLocalDecisionFields, {
+            confirmedExceededRequirement,
+            exceededDecision,
+            exceededDecisionReason: exceededReason,
+            exceededDecisionByUserId: KpiWorkflowState.user.uid,
+            exceededDecisionByName: KpiWorkflowState.profile.fullName || ''
+          });
+        }
+        if (bonusRequested) {
+          Object.assign(partialLocalDecisionFields, {
+            bonusDecision, bonusDecisionReason,
+            bonusDecisionByUserId: KpiWorkflowState.user.uid,
+            bonusDecisionByName: KpiWorkflowState.profile.fullName || '',
+            bonusAwarded, bonusType, bonusRate,
+            bonusBasisScore: bonusAwarded ? x.actual : 0,
+            bonusScore,
+            bonusConfirmedByUserId: bonusAwarded ? KpiWorkflowState.user.uid : '',
+            bonusConfirmedByName: bonusAwarded ? (KpiWorkflowState.profile.fullName || '') : ''
+          });
+        } else {
+          Object.assign(partialLocalDecisionFields, {
+            bonusDecision:'NOT_REQUESTED',
+            bonusDecisionByUserId:KpiWorkflowState.user.uid,
+            bonusDecisionByName:KpiWorkflowState.profile.fullName || ''
+          });
+        }
+        Object.assign(ev, {
+          confirmedProgressRate:p, confirmedResultRate:r, confirmedExecutionScore:x.execution, confirmedActualScore:x.actual,
+          ...partialLocalDecisionFields,
+          reviewerComment:note, status:'CONFIRMED', scoreLocked:true,
+          reviewedByUserId:KpiWorkflowState.user.uid, reviewedByName:KpiWorkflowState.profile.fullName || ''
+        });
+        closeModal();
+        scheduleKpiLiveRender();
+      } else if (button) {
+        button.dataset.saving = '0'; button.disabled = false; button.textContent = 'Xác nhận điểm';
+      }
       ModalService.alert(friendlyErrorMessage(error));
     }
   });
