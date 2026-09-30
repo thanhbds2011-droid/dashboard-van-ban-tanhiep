@@ -1999,7 +1999,7 @@ function renderCompactEvaluationPanel(target) {
   });
 
   target.innerHTML = `<section class="kpi-subsection kpi-compact-review">
-    <div class="kpi-compact-review-head"><div><h3>Đánh giá nhiệm vụ đã hoàn thành</h3><p class="kpi-small">Chọn một nhân viên, sau đó chọn từng nhiệm vụ hoặc chọn tất cả để xác nhận theo điểm tự đánh giá. Nhiệm vụ cần điều chỉnh điểm vẫn có nút mở chi tiết.</p></div></div>
+    <div class="kpi-compact-review-head"><div><h3>Đánh giá nhiệm vụ đã hoàn thành</h3><p class="kpi-small">Chọn một nhân viên, sau đó chọn từng nhiệm vụ hoặc chọn tất cả để xác nhận theo điểm tự đánh giá. Hệ thống chỉ cho xác nhận khi phạm vi hồ sơ đánh giá khớp đúng Security Rules hiện hành.</p></div></div>
     <div class="kpi-review-layout">
       <aside class="kpi-review-people" aria-label="Danh sách nhân viên">${people.map(user => {
         const pendingCount = user._tasks.filter(task => {
@@ -2016,19 +2016,39 @@ function renderCompactEvaluationPanel(target) {
           const locked = evaluation?.status === 'CONFIRMED' || evaluation?.scoreLocked === true;
           const score = evaluationScoreSnapshot(evaluation || {});
           const hasBonusRequest = evaluation?.bonusRequested === true;
-          const canOpenReview = Boolean(evaluation && canReviewEvaluation(evaluation, task) && !locked);
+          const authority = evaluation ? reviewAuthorityState(evaluation, task) : null;
+          const canOpenReview = Boolean(evaluation && authority?.allowed === true && !locked);
           const hasExceededRequest = evaluation?.isExceededRequirement === true;
-          const needsExceededDecision = Boolean(evaluation && evaluation.status === 'CONFIRMED' && evaluation.scoreLocked === true && hasExceededRequest && typeof evaluation.confirmedExceededRequirement !== 'boolean');
+          const needsExceededDecision = Boolean(
+            evaluation
+            && evaluation.status === 'CONFIRMED'
+            && evaluation.scoreLocked === true
+            && hasExceededRequest
+            && typeof evaluation.confirmedExceededRequirement !== 'boolean'
+            && authority?.allowed === true
+          );
           const canBatch = Boolean(canOpenReview && !hasBonusRequest && !hasExceededRequest);
+          const authorityNote = authority?.code === 'SCOPE_MISMATCH'
+            ? ` · ⚠ Phạm vi hồ sơ ${esc(authority.evaluationScope || '—')} ≠ nhiệm vụ ${esc(authority.taskRuleScope || '—')}`
+            : authority?.code === 'EVALUATION_SCOPE_MISSING'
+              ? ' · ⚠ Hồ sơ thiếu phạm vi xác nhận'
+              : '';
+          const blockedLabel = authority?.code === 'SCOPE_MISMATCH'
+            ? 'Sai phạm vi hồ sơ'
+            : authority?.code === 'EVALUATION_SCOPE_MISSING'
+              ? 'Thiếu phạm vi hồ sơ'
+              : 'Chờ đúng cấp xác nhận';
           return `<article class="kpi-review-task-row">
             <div class="kpi-review-task-check">${canBatch ? `<input type="checkbox" data-kpi-confirm-check value="${esc(evaluation.id)}">` : '<span>—</span>'}</div>
-            <div class="kpi-review-task-main"><strong>${esc(task.taskCode || task.id)} — ${esc(task.title || '')}</strong><span>Tiến độ: ${evaluation?.confirmedProgressRate ?? evaluation?.selfProgressRate ?? progressRateFromDates(task.deadline || task.dueDate, task.completedAt, Boolean(task.completedAt))}% · Kết quả: ${evaluation?.confirmedResultRate ?? evaluation?.selfResultRate ?? '—'}%${hasBonusRequest ? ' · ⭐ Có đề nghị điểm thưởng' : ''}${hasExceededRequest ? ' · ✓ Đề nghị vượt yêu cầu' : ''}</span></div>
+            <div class="kpi-review-task-main"><strong>${esc(task.taskCode || task.id)} — ${esc(task.title || '')}</strong><span>Tiến độ: ${evaluation?.confirmedProgressRate ?? evaluation?.selfProgressRate ?? progressRateFromDates(task.deadline || task.dueDate, task.completedAt, Boolean(task.completedAt))}% · Kết quả: ${evaluation?.confirmedResultRate ?? evaluation?.selfResultRate ?? '—'}%${hasBonusRequest ? ' · ⭐ Có đề nghị điểm thưởng' : ''}${hasExceededRequest ? ' · ✓ Đề nghị vượt yêu cầu' : ''}${authorityNote}</span></div>
             <div class="kpi-review-task-score"><span>Điểm thực tế</span><strong>${score.hasScore ? fmt(score.convertedActualScore) : '—'}</strong></div>
             <div class="kpi-review-task-action">${own
               ? (locked ? '<span class="kpi-status">Đã xác nhận</span>' : `<button class="kpi-button" data-kpi-self="${esc(task.id)}">${evaluation?.id ? 'Cập nhật tự đánh giá' : 'Tự đánh giá'}</button>`)
               : (canOpenReview || needsExceededDecision)
                 ? `<button class="kpi-button secondary" data-kpi-review="${esc(evaluation.id)}">${needsExceededDecision ? 'Xác nhận vượt' : 'Mở chi tiết'}</button>`
-                : `<span class="kpi-status">${evaluation ? taskStatus(task, evaluation) : 'Chưa tự đánh giá'}</span>`}</div>
+                : authority && !authority.allowed && evaluation && !locked
+                  ? `<button class="kpi-button secondary" type="button" data-kpi-authority-info="${esc(evaluation.id)}">${esc(blockedLabel)}</button>`
+                  : `<span class="kpi-status">${evaluation ? taskStatus(task, evaluation) : 'Chưa tự đánh giá'}</span>`}</div>
           </article>`;
         }).join('')}</div>
       </div>
@@ -2041,6 +2061,11 @@ function renderCompactEvaluationPanel(target) {
   }));
   target.querySelectorAll('[data-kpi-self]').forEach(button => button.addEventListener('click', () => openSelfAssessment(button.dataset.kpiSelf)));
   target.querySelectorAll('[data-kpi-review]').forEach(button => button.addEventListener('click', () => openReview(button.dataset.kpiReview)));
+  target.querySelectorAll('[data-kpi-authority-info]').forEach(button => button.addEventListener('click', () => {
+    const evaluation = KpiWorkflowState.evaluations.find(item => item.id === button.dataset.kpiAuthorityInfo);
+    const task = KpiWorkflowState.tasks.find(item => item.id === evaluation?.taskId);
+    ModalService.alert(reviewAuthorityMessage(reviewAuthorityState(evaluation, task)), { title:'Kiểm tra quyền xác nhận' });
+  }));
   target.querySelectorAll('[data-kpi-scorecard]').forEach(button => button.addEventListener('click', () => openUserScorecard(button.dataset.kpiScorecard)));
   target.querySelectorAll('[data-kpi-product-catalog]').forEach(button => button.addEventListener('click', () => openProductCatalog(button.dataset.kpiProductCatalog)));
   target.querySelector('#kpiReviewSelectAll')?.addEventListener('click', () => target.querySelectorAll('[data-kpi-confirm-check]').forEach(input => { input.checked = true; }));
@@ -2049,13 +2074,23 @@ function renderCompactEvaluationPanel(target) {
     const ids = [...target.querySelectorAll('[data-kpi-confirm-check]:checked')].map(input => input.value);
     if (!ids.length) return ModalService.alert('Hãy chọn ít nhất một nhiệm vụ cần xác nhận.');
     const button = event.currentTarget;
+    const originalText = button.textContent;
     button.disabled = true;
+    button.textContent = `Đang xác nhận 0/${ids.length}`;
     try {
-      await batchConfirmEvaluations(ids);
+      await batchConfirmEvaluations(ids, {
+        onProgress: ({ done, total }) => {
+          if (button?.isConnected) button.textContent = `Đang xác nhận ${done}/${total}`;
+        }
+      });
       scheduleKpiLiveRender();
     } catch (error) {
       ModalService.alert(friendlyErrorMessage(error, 'Không xác nhận được các nhiệm vụ đã chọn.'));
-      button.disabled = false;
+    } finally {
+      if (button?.isConnected) {
+        button.disabled = false;
+        button.textContent = originalText;
+      }
     }
   });
 }
@@ -2201,14 +2236,35 @@ async function commitKpiExceededDecisionGithubOnly(evaluationId, decisionPayload
   }
 }
 
-async function batchConfirmEvaluations(evaluationIds) {
+async function batchConfirmEvaluations(evaluationIds, { onProgress = null } = {}) {
   const uniqueIds = [...new Set(evaluationIds)].slice(0, 200);
+  const skippedRows = [];
   const rows = uniqueIds.map(id => {
     const evaluation = KpiWorkflowState.evaluations.find(item => item.id === id);
     const task = KpiWorkflowState.tasks.find(item => item.id === evaluation?.taskId);
-    if (!evaluation || !task || !canReviewEvaluation(evaluation, task)) return null;
-    if (evaluation.bonusRequested === true || evaluation.isExceededRequirement === true) return null;
-    if (!hasNumericValue(evaluation.selfProgressRate) || !hasNumericValue(evaluation.selfResultRate)) return null;
+    if (!evaluation || !task) {
+      skippedRows.push({ id, code:'MISSING_RECORD', message:'Không tìm thấy hồ sơ đánh giá hoặc nhiệm vụ.' });
+      return null;
+    }
+
+    const authority = reviewAuthorityState(evaluation, task);
+    if (!authority.allowed) {
+      skippedRows.push({ id, task, evaluation, code:authority.code, message:reviewAuthorityMessage(authority) });
+      return null;
+    }
+    if (evaluation.status === 'CONFIRMED' || evaluation.scoreLocked === true) {
+      skippedRows.push({ id, task, evaluation, code:'ALREADY_CONFIRMED', message:'Nhiệm vụ đã được xác nhận trước đó.' });
+      return null;
+    }
+    if (evaluation.bonusRequested === true || evaluation.isExceededRequirement === true) {
+      skippedRows.push({ id, task, evaluation, code:'DETAIL_REQUIRED', message:'Nhiệm vụ có đề nghị điểm thưởng/vượt yêu cầu phải mở chi tiết để quyết định riêng.' });
+      return null;
+    }
+    if (!hasNumericValue(evaluation.selfProgressRate) || !hasNumericValue(evaluation.selfResultRate)) {
+      skippedRows.push({ id, task, evaluation, code:'INVALID_SELF_SCORE', message:'Tự đánh giá chưa đủ dữ liệu số hợp lệ.' });
+      return null;
+    }
+
     const score = calculateTaskScore(
       Number(task.baseScore || evaluation.baseScore || 0),
       Number(task.difficultyCoefficient || evaluation.difficultyCoefficient || 1),
@@ -2218,12 +2274,18 @@ async function batchConfirmEvaluations(evaluationIds) {
     return { evaluation, task, score };
   }).filter(Boolean);
 
-  if (!rows.length) throw new Error('Các nhiệm vụ đã chọn chưa có tự đánh giá hợp lệ hoặc không thuộc quyền xác nhận.');
-  if (!await ModalService.confirm(`Xác nhận ${rows.length} nhiệm vụ theo điểm tự đánh giá hiện tại? Các điểm này sẽ được khóa chính thức.`)) return;
+  if (!rows.length) {
+    const scopeProblem = skippedRows.find(item => ['SCOPE_MISMATCH','EVALUATION_SCOPE_MISSING'].includes(item.code));
+    throw new Error(scopeProblem?.message || 'Các nhiệm vụ đã chọn chưa có tự đánh giá hợp lệ hoặc không thuộc quyền xác nhận theo hồ sơ đánh giá hiện tại.');
+  }
+
+  const skippedNote = skippedRows.length ? ` ${skippedRows.length} mục không đủ điều kiện sẽ không được ghi.` : '';
+  if (!await ModalService.confirm(`Xác nhận ${rows.length} nhiệm vụ theo điểm tự đánh giá hiện tại? Các điểm này sẽ được khóa chính thức.${skippedNote}`)) return;
 
   const confirmedRows = [];
   const taskSyncFailedRows = [];
   const evaluationFailedRows = [];
+  let processed = 0;
 
   const applyLocalEvaluationConfirmation = ({ evaluation, score }) => {
     Object.assign(evaluation, {
@@ -2279,6 +2341,13 @@ async function batchConfirmEvaluations(evaluationIds) {
     };
 
     try {
+      const liveAuthority = reviewAuthorityState(evaluation, task);
+      if (!liveAuthority.allowed) {
+        const denied = new Error(reviewAuthorityMessage(liveAuthority));
+        denied.code = `kpi/${String(liveAuthority.code || 'authority-mismatch').toLowerCase()}`;
+        throw denied;
+      }
+
       const result = await commitKpiScorePairGithubOnly({
         evaluationId: evaluation.id,
         taskId: task.id,
@@ -2296,30 +2365,43 @@ async function batchConfirmEvaluations(evaluationIds) {
       }
     } catch (error) {
       evaluationFailedRows.push({ row, error });
+    } finally {
+      processed += 1;
+      try { onProgress?.({ done:processed, total:rows.length }); } catch (_) {}
     }
   }
 
   scheduleKpiLiveRender();
 
   if (confirmedRows.length) {
-    await audit('CONFIRM_TASK_SCORES_BATCH', {
-      count: confirmedRows.length,
-      requestedCount: rows.length,
-      taskSyncFailedCount: taskSyncFailedRows.length,
-      evaluationFailedCount: evaluationFailedRows.length,
-      evaluationIds: confirmedRows.map(row => row.evaluation.id)
-    });
+    try {
+      await audit('CONFIRM_TASK_SCORES_BATCH', {
+        count: confirmedRows.length,
+        requestedCount: rows.length,
+        skippedCount: skippedRows.length,
+        taskSyncFailedCount: taskSyncFailedRows.length,
+        evaluationFailedCount: evaluationFailedRows.length,
+        evaluationIds: confirmedRows.map(row => row.evaluation.id)
+      });
+    } catch (error) {
+      console.warn('Không ghi được audit CONFIRM_TASK_SCORES_BATCH; điểm đã xác nhận không bị ảnh hưởng.', error);
+    }
   }
 
   if (evaluationFailedRows.length) {
-    await audit('CONFIRM_TASK_SCORES_BATCH_PARTIAL', {
-      confirmedCount: confirmedRows.length,
-      requestedCount: rows.length,
-      taskSyncFailedCount: taskSyncFailedRows.length,
-      evaluationFailedCount: evaluationFailedRows.length,
-      confirmedEvaluationIds: confirmedRows.map(item => item.evaluation.id),
-      failedEvaluationIds: evaluationFailedRows.map(item => item.row.evaluation.id)
-    });
+    try {
+      await audit('CONFIRM_TASK_SCORES_BATCH_PARTIAL', {
+        confirmedCount: confirmedRows.length,
+        requestedCount: rows.length,
+        skippedCount: skippedRows.length,
+        taskSyncFailedCount: taskSyncFailedRows.length,
+        evaluationFailedCount: evaluationFailedRows.length,
+        confirmedEvaluationIds: confirmedRows.map(item => item.evaluation.id),
+        failedEvaluationIds: evaluationFailedRows.map(item => item.row.evaluation.id)
+      });
+    } catch (error) {
+      console.warn('Không ghi được audit CONFIRM_TASK_SCORES_BATCH_PARTIAL; kết quả từng nhiệm vụ không bị thay đổi.', error);
+    }
   }
 
   if (!confirmedRows.length && evaluationFailedRows.length) {
@@ -2327,13 +2409,28 @@ async function batchConfirmEvaluations(evaluationIds) {
   }
 
   const messages = [];
-  if (confirmedRows.length) messages.push(`Đã xác nhận điểm ${confirmedRows.length}/${rows.length} nhiệm vụ.`);
-  if (evaluationFailedRows.length) messages.push(`${evaluationFailedRows.length} nhiệm vụ chưa xác nhận được điểm; hãy bấm Cập nhật rồi thử lại các mục còn chờ.`);
+  if (confirmedRows.length) messages.push(`Đã xác nhận điểm ${confirmedRows.length}/${rows.length} nhiệm vụ đủ điều kiện.`);
+  if (evaluationFailedRows.length) messages.push(`${evaluationFailedRows.length} nhiệm vụ chưa ghi được điểm; các nhiệm vụ còn lại vẫn đã được xử lý độc lập.`);
   if (taskSyncFailedRows.length) messages.push(`${taskSyncFailedRows.length} nhiệm vụ đã có điểm chính thức nhưng trạng thái tổng hợp chưa đồng bộ; không cần chấm lại.`);
-
-  if (evaluationFailedRows.length || taskSyncFailedRows.length) {
-    await ModalService.alert(messages.join(' '), { title: 'Kết quả xác nhận' });
+  if (skippedRows.length) {
+    const scopeSkipped = skippedRows.filter(item => ['SCOPE_MISMATCH','EVALUATION_SCOPE_MISSING'].includes(item.code)).length;
+    const detailSkipped = skippedRows.filter(item => item.code === 'DETAIL_REQUIRED').length;
+    if (scopeSkipped) messages.push(`${scopeSkipped} mục bị loại vì phạm vi hồ sơ đánh giá không khớp/không đầy đủ.`);
+    if (detailSkipped) messages.push(`${detailSkipped} mục có điểm thưởng/vượt yêu cầu phải mở chi tiết để xác nhận riêng.`);
   }
+
+  if (evaluationFailedRows.length || taskSyncFailedRows.length || skippedRows.length) {
+    await ModalService.alert(messages.join(' '), { title:'Kết quả xác nhận' });
+  }
+
+  return {
+    requestedCount: uniqueIds.length,
+    eligibleCount: rows.length,
+    confirmedCount: confirmedRows.length,
+    evaluationFailedCount: evaluationFailedRows.length,
+    taskSyncFailedCount: taskSyncFailedRows.length,
+    skippedCount: skippedRows.length
+  };
 }
 
 function openPersonPlanDetail(uid) {
@@ -3300,17 +3397,96 @@ function renderTasks() {
   }).join('')}</tbody></table></div>`;
 }
 
-function canReviewEvaluation(ev, task) {
-  if (!ev || !task || ev.ownerUserId === KpiWorkflowState.user.uid || ev.status === 'CONFIRMED' || ev.scoreLocked === true) return false;
-  const owner = KpiWorkflowState.users.find(user => user.id === ev.ownerUserId)
-    || { id: ev.ownerUserId, role: ev.ownerRole, departmentId: ev.homeDepartmentId || ev.departmentId, additionalRoles: ev.ownerAdditionalRoles || [] };
-  return canReviewKpiOwner({
+function firestoreTaskScoreScopeDepartmentId(task) {
+  const primaryDepartmentId = normalizeDepartment(task?.primaryDepartmentId);
+  const departmentId = normalizeDepartment(task?.departmentId);
+  const organizationId = normalizeDepartment(task?.organizationId);
+  const standardTaskDepartmentId = normalizeDepartment(task?.standardTaskDepartmentId);
+  if (
+    primaryDepartmentId === 'CDTN'
+    || departmentId === 'CDTN'
+    || organizationId === 'CDTN'
+    || standardTaskDepartmentId === 'CDTN'
+  ) return 'CDTN';
+  return primaryDepartmentId || departmentId;
+}
+
+function evaluationScopeDepartmentId(ev) {
+  return normalizeDepartment(ev?.departmentId);
+}
+
+function reviewAuthorityState(ev, task) {
+  if (!ev || !task) {
+    return { allowed:false, code:'MISSING_RECORD', message:'Không tìm thấy hồ sơ đánh giá hoặc nhiệm vụ tương ứng.' };
+  }
+  if (ev.ownerUserId === KpiWorkflowState.user.uid) {
+    return { allowed:false, code:'SELF_REVIEW', message:'Không được tự xác nhận điểm của chính mình.' };
+  }
+
+  const evaluationScope = evaluationScopeDepartmentId(ev);
+  const taskRuleScope = firestoreTaskScoreScopeDepartmentId(task);
+  if (!evaluationScope) {
+    return {
+      allowed:false,
+      code:'EVALUATION_SCOPE_MISSING',
+      evaluationScope,
+      taskRuleScope,
+      message:'Hồ sơ đánh giá đang thiếu Phòng/Khu xác nhận. Vui lòng liên hệ quản trị viên để kiểm tra dữ liệu.'
+    };
+  }
+  if (taskRuleScope && evaluationScope !== taskRuleScope) {
+    return {
+      allowed:false,
+      code:'SCOPE_MISMATCH',
+      evaluationScope,
+      taskRuleScope,
+      message:`Phạm vi hồ sơ đánh giá (${evaluationScope}) không khớp phạm vi nhiệm vụ (${taskRuleScope}). Không xác nhận để tránh ghi sai dữ liệu production.`
+    };
+  }
+
+  let owner = KpiWorkflowState.users.find(user => user.id === ev.ownerUserId) || null;
+  if (!owner) {
+    owner = {
+      id: ev.ownerUserId,
+      role: ev.ownerRole,
+      departmentId: ev.homeDepartmentId || ev.departmentId,
+      leaderLevel: ev.ownerLeaderLevel,
+      isDepartmentHead: ev.ownerIsDepartmentHead,
+      additionalRoles: ev.ownerAdditionalRoles || [],
+      active: true
+    };
+    if (Object.prototype.hasOwnProperty.call(ev, 'ownerApprovalAuthority')) {
+      owner.approvalAuthority = ev.ownerApprovalAuthority;
+    }
+  }
+
+  const allowed = canReviewKpiOwner({
     currentUser: { id: KpiWorkflowState.user.uid, ...KpiWorkflowState.profile },
     users: KpiWorkflowState.users,
     delegations: KpiWorkflowState.delegations,
     owner,
-    scopeDepartmentId: taskScopeDepartmentId(task)
+    scopeDepartmentId: evaluationScope
   });
+
+  return {
+    allowed,
+    code: allowed ? 'OK' : 'AUTHORITY_MISMATCH',
+    evaluationScope,
+    taskRuleScope,
+    owner,
+    message: allowed
+      ? ''
+      : 'Tài khoản hiện tại không phải cấp có thẩm quyền xác nhận hồ sơ này theo Phòng/Khu lưu trong hồ sơ đánh giá.'
+  };
+}
+
+function reviewAuthorityMessage(state) {
+  return clean(state?.message || 'Tài khoản hiện tại không có quyền xác nhận hồ sơ đánh giá này.');
+}
+
+function canReviewEvaluation(ev, task) {
+  if (!ev || !task || ev.status === 'CONFIRMED' || ev.scoreLocked === true) return false;
+  return reviewAuthorityState(ev, task).allowed === true;
 }
 
 function groupPendingRegistrations() {
@@ -3836,21 +4012,18 @@ function reviewEvidenceHtml(task, context = {}) {
 }
 
 function canResolveExceededDecision(ev, task) {
-  if (!ev || !task || ev.ownerUserId === KpiWorkflowState.user.uid) return false;
+  if (!ev || !task) return false;
   if (ev.status !== 'CONFIRMED' || ev.scoreLocked !== true || ev.isExceededRequirement !== true) return false;
   if (typeof ev.confirmedExceededRequirement === 'boolean') return false;
-  const owner = KpiWorkflowState.users.find(user => user.id === ev.ownerUserId)
-    || { id:ev.ownerUserId, role:ev.ownerRole, departmentId:ev.homeDepartmentId || ev.departmentId, additionalRoles:ev.ownerAdditionalRoles || [] };
-  return canReviewKpiOwner({
-    currentUser:{ id:KpiWorkflowState.user.uid, ...KpiWorkflowState.profile },
-    users:KpiWorkflowState.users,
-    delegations:KpiWorkflowState.delegations,
-    owner,
-    scopeDepartmentId:taskScopeDepartmentId(task)
-  });
+  return reviewAuthorityState(ev, task).allowed === true;
 }
 
 async function openExceededDecisionOnly(ev, task) {
+  const authority = reviewAuthorityState(ev, task);
+  if (!authority.allowed) {
+    await ModalService.alert(reviewAuthorityMessage(authority), { title:'Không thể xác nhận vượt yêu cầu' });
+    return;
+  }
   if (!canResolveExceededDecision(ev, task)) return;
   const context = await loadReviewEvidence(task);
   const root = modal('Xác nhận công việc vượt yêu cầu', `<div class="kpi-form-grid">
@@ -3861,6 +4034,11 @@ async function openExceededDecisionOnly(ev, task) {
     <div class="kpi-field full">${reviewEvidenceHtml(task, context)}</div>
   </div>`, '<button class="kpi-button secondary" data-kpi-close type="button">Hủy</button><button id="kpiSaveLegacyExceeded" class="kpi-button" type="button">Lưu xác nhận</button>');
   root.querySelector('#kpiSaveLegacyExceeded')?.addEventListener('click', async event => {
+    const liveAuthority = reviewAuthorityState(ev, task);
+    if (!liveAuthority.allowed) {
+      await ModalService.alert(reviewAuthorityMessage(liveAuthority), { title:'Không thể xác nhận vượt yêu cầu' });
+      return;
+    }
     const decision = clean(root.querySelector('#kpiLegacyExceededDecision')?.value || 'APPROVED');
     const reason = clean(root.querySelector('#kpiLegacyExceededReason')?.value || '');
     if (decision === 'REJECTED' && !reason) return ModalService.alert('Hãy nhập căn cứ khi không xác nhận công việc vượt yêu cầu.');
@@ -3884,8 +4062,19 @@ async function openReview(evalId) {
   const ev = KpiWorkflowState.evaluations.find(e => e.id === evalId);
   const task = KpiWorkflowState.tasks.find(t => t.id === ev?.taskId);
   if (!ev || !task) return;
-  if (canResolveExceededDecision(ev, task)) return openExceededDecisionOnly(ev, task);
-  if (!canReviewEvaluation(ev, task)) return;
+
+  const authority = reviewAuthorityState(ev, task);
+  if (ev.status === 'CONFIRMED' && ev.scoreLocked === true && ev.isExceededRequirement === true && typeof ev.confirmedExceededRequirement !== 'boolean') {
+    if (!authority.allowed) {
+      await ModalService.alert(reviewAuthorityMessage(authority), { title:'Không thể xác nhận vượt yêu cầu' });
+      return;
+    }
+    if (canResolveExceededDecision(ev, task)) return openExceededDecisionOnly(ev, task);
+  }
+  if (!canReviewEvaluation(ev, task)) {
+    if (!authority.allowed) await ModalService.alert(reviewAuthorityMessage(authority), { title:'Không thể xác nhận điểm' });
+    return;
+  }
 
   const context = await loadReviewEvidence(task);
   const automaticProgress = assessmentRate(ev.selfProgressRate, 'Tiến độ tự động');
@@ -3951,6 +4140,11 @@ async function openReview(evalId) {
   el('kpiConfirmEvaluation')?.addEventListener('click', async () => {
     const button = el('kpiConfirmEvaluation');
     if (button?.dataset?.saving === '1') return;
+    const liveAuthority = reviewAuthorityState(ev, task);
+    if (!liveAuthority.allowed) {
+      await ModalService.alert(reviewAuthorityMessage(liveAuthority), { title:'Không thể xác nhận điểm' });
+      return;
+    }
     let p, r;
     try { p = automaticProgress; r = assessmentRate(el('kpiConfirmResult').value, 'Kết quả xác nhận'); }
     catch (error) { ModalService.alert(friendlyErrorMessage(error)); return; }
