@@ -2090,12 +2090,11 @@ async function commitKpiScorePairGithubOnly({ evaluationId, taskId, evaluationPa
   let evaluationCommitted = false;
 
   /*
-   * R5 GITHUB-ONLY:
-   * Không sửa Firestore Rules. Hai document được ghi thành hai request độc lập để mỗi
-   * request được Rules V1.24.1 đánh giá trong budget riêng. taskEvaluations là bản ghi
-   * quyết định chính thức; tasks là dữ liệu tổng hợp/denormalized và được đồng bộ ngay sau.
-   * Trước mỗi write đều kiểm tra trạng thái hiện tại để thao tác có tính idempotent khi
-   * trình duyệt mất ACK hoặc người dùng bấm lại sau lỗi mạng.
+   * R6 GITHUB-ONLY:
+   * - taskEvaluations là nguồn điểm chính thức.
+   * - tasks là dữ liệu tổng hợp/denormalized, đồng bộ best-effort.
+   * - Lỗi đồng bộ tasks không được phép làm dừng các evaluation tiếp theo.
+   * - Không sửa Firestore Rules V1.24.1.
    */
   try {
     const currentEvaluation = await getDoc(evaluationRef);
@@ -2109,7 +2108,6 @@ async function commitKpiScorePairGithubOnly({ evaluationId, taskId, evaluationPa
     }
   } catch (error) {
     if (String(error?.code || '').startsWith('kpi/')) throw error;
-    // Không chặn write chỉ vì bước đọc xác minh tạm thời lỗi; updateDoc phía dưới vẫn là nguồn quyết định.
   }
 
   if (!evaluationCommitted) {
@@ -2122,7 +2120,7 @@ async function commitKpiScorePairGithubOnly({ evaluationId, taskId, evaluationPa
         if (verifyEvaluation.exists() && kpiEvaluationAlreadyConfirmed(verifyEvaluation.data(), evaluationPayload)) {
           evaluationCommitted = true;
         }
-      } catch (_) { /* xác minh hậu kiểm best-effort */ }
+      } catch (_) {}
 
       if (!evaluationCommitted) {
         if (isPermissionDeniedError(error)) {
@@ -2137,36 +2135,70 @@ async function commitKpiScorePairGithubOnly({ evaluationId, taskId, evaluationPa
   }
 
   let taskCommitted = false;
+  let taskSyncError = null;
+
   try {
     const currentTask = await getDoc(taskRef);
     if (currentTask.exists() && kpiTaskAlreadyConfirmed(currentTask.data(), taskPayload)) {
       taskCommitted = true;
     }
-  } catch (_) { /* updateDoc phía dưới sẽ quyết định */ }
+  } catch (_) {}
 
   if (!taskCommitted) {
     try {
       await updateDoc(taskRef, taskPayload);
       taskCommitted = true;
     } catch (error) {
+      taskSyncError = error;
       try {
         const verifyTask = await getDoc(taskRef);
         if (verifyTask.exists() && kpiTaskAlreadyConfirmed(verifyTask.data(), taskPayload)) {
           taskCommitted = true;
+          taskSyncError = null;
         }
-      } catch (_) { /* xác minh hậu kiểm best-effort */ }
-
-      if (!taskCommitted) {
-        const partial = new Error('Điểm đã được xác nhận trong hồ sơ đánh giá nhưng trạng thái nhiệm vụ chưa đồng bộ. Vui lòng bấm Cập nhật để tải trạng thái mới; nếu vẫn chưa đồng bộ, liên hệ quản trị viên. Không tự chấm lại nhiệm vụ này.');
-        partial.code = 'kpi/task-confirm-sync-failed';
-        partial.evaluationCommitted = true;
-        partial.cause = error;
-        throw partial;
-      }
+      } catch (_) {}
     }
   }
 
-  return { evaluationCommitted: true, taskCommitted: true };
+  return { evaluationCommitted: true, taskCommitted, taskSyncError };
+}
+
+function kpiExceededDecisionMatches(data = {}, payload = {}) {
+  return data.status === 'CONFIRMED'
+    && data.scoreLocked === true
+    && data.exceededDecision === payload.exceededDecision
+    && data.confirmedExceededRequirement === payload.confirmedExceededRequirement
+    && clean(data.exceededDecisionReason || '') === clean(payload.exceededDecisionReason || '')
+    && data.exceededDecisionByUserId === KpiWorkflowState.user.uid;
+}
+
+async function commitKpiExceededDecisionGithubOnly(evaluationId, decisionPayload) {
+  const evaluationRef = doc(db, 'taskEvaluations', evaluationId);
+
+  try {
+    const current = await getDoc(evaluationRef);
+    if (current.exists() && kpiExceededDecisionMatches(current.data(), decisionPayload)) {
+      return { committed: true, alreadyCommitted: true };
+    }
+  } catch (_) {}
+
+  try {
+    await updateDoc(evaluationRef, decisionPayload);
+    return { committed: true, alreadyCommitted: false };
+  } catch (error) {
+    try {
+      const verify = await getDoc(evaluationRef);
+      if (verify.exists() && kpiExceededDecisionMatches(verify.data(), decisionPayload)) {
+        return { committed: true, alreadyCommitted: true };
+      }
+    } catch (_) {}
+
+    const staged = new Error('Điểm nhiệm vụ đã được xác nhận nhưng quyết định “vượt yêu cầu” chưa lưu được. Hãy bấm Cập nhật, sau đó mở lại nhiệm vụ để xác nhận phần vượt yêu cầu; không tự chấm lại điểm.');
+    staged.code = 'kpi/exceeded-decision-write-failed';
+    staged.evaluationCommitted = true;
+    staged.cause = error;
+    throw staged;
+  }
 }
 
 async function batchConfirmEvaluations(evaluationIds) {
@@ -2189,15 +2221,11 @@ async function batchConfirmEvaluations(evaluationIds) {
   if (!rows.length) throw new Error('Các nhiệm vụ đã chọn chưa có tự đánh giá hợp lệ hoặc không thuộc quyền xác nhận.');
   if (!await ModalService.confirm(`Xác nhận ${rows.length} nhiệm vụ theo điểm tự đánh giá hiện tại? Các điểm này sẽ được khóa chính thức.`)) return;
 
-  /*
-   * R5 GITHUB-ONLY BULK CONFIRM:
-   * Không sửa Rules, không ghi batch taskEvaluations + tasks. Mỗi nhiệm vụ dùng helper
-   * hai bước idempotent để tách budget Rules của hai collection nhưng người dùng vẫn
-   * chỉ bấm xác nhận một lần.
-   */
-  const committedRows = [];
+  const confirmedRows = [];
+  const taskSyncFailedRows = [];
+  const evaluationFailedRows = [];
 
-  const applyLocalConfirmation = ({ evaluation, task, score }) => {
+  const applyLocalEvaluationConfirmation = ({ evaluation, score }) => {
     Object.assign(evaluation, {
       confirmedProgressRate: Number(evaluation.selfProgressRate),
       confirmedResultRate: Number(evaluation.selfResultRate),
@@ -2212,6 +2240,9 @@ async function batchConfirmEvaluations(evaluationIds) {
       reviewedByUserId: KpiWorkflowState.user.uid,
       reviewedByName: KpiWorkflowState.profile.fullName || ''
     });
+  };
+
+  const applyLocalTaskConfirmation = ({ task, score }) => {
     Object.assign(task, {
       scoringStatus: 'CONFIRMED',
       scoreLocked: true,
@@ -2248,43 +2279,61 @@ async function batchConfirmEvaluations(evaluationIds) {
     };
 
     try {
-      await commitKpiScorePairGithubOnly({
+      const result = await commitKpiScorePairGithubOnly({
         evaluationId: evaluation.id,
         taskId: task.id,
         evaluationPayload,
         taskPayload
       });
-      committedRows.push(row);
-      applyLocalConfirmation(row);
+
+      confirmedRows.push(row);
+      applyLocalEvaluationConfirmation(row);
+
+      if (result.taskCommitted) {
+        applyLocalTaskConfirmation(row);
+      } else {
+        taskSyncFailedRows.push({ row, error: result.taskSyncError });
+      }
     } catch (error) {
-      scheduleKpiLiveRender();
-      if (error?.evaluationCommitted === true) {
-        Object.assign(evaluation, {
-          confirmedProgressRate: Number(evaluation.selfProgressRate),
-          confirmedResultRate: Number(evaluation.selfResultRate),
-          confirmedExecutionScore: score.execution,
-          confirmedActualScore: score.actual,
-          bonusDecision: 'NOT_REQUESTED',
-          reviewerComment: 'Xác nhận theo điểm tự đánh giá đã chọn hàng loạt.',
-          status: 'CONFIRMED',
-          scoreLocked: true,
-          reviewedByUserId: KpiWorkflowState.user.uid,
-          reviewedByName: KpiWorkflowState.profile.fullName || ''
-        });
-      }
-      if (committedRows.length) {
-        await audit('CONFIRM_TASK_SCORES_BATCH_PARTIAL', {
-          confirmedCount: committedRows.length,
-          requestedCount: rows.length,
-          evaluationIds: committedRows.map(item => item.evaluation.id)
-        });
-      }
-      throw error;
+      evaluationFailedRows.push({ row, error });
     }
   }
 
   scheduleKpiLiveRender();
-  await audit('CONFIRM_TASK_SCORES_BATCH', { count: committedRows.length, evaluationIds: committedRows.map(row => row.evaluation.id) });
+
+  if (confirmedRows.length) {
+    await audit('CONFIRM_TASK_SCORES_BATCH', {
+      count: confirmedRows.length,
+      requestedCount: rows.length,
+      taskSyncFailedCount: taskSyncFailedRows.length,
+      evaluationFailedCount: evaluationFailedRows.length,
+      evaluationIds: confirmedRows.map(row => row.evaluation.id)
+    });
+  }
+
+  if (evaluationFailedRows.length) {
+    await audit('CONFIRM_TASK_SCORES_BATCH_PARTIAL', {
+      confirmedCount: confirmedRows.length,
+      requestedCount: rows.length,
+      taskSyncFailedCount: taskSyncFailedRows.length,
+      evaluationFailedCount: evaluationFailedRows.length,
+      confirmedEvaluationIds: confirmedRows.map(item => item.evaluation.id),
+      failedEvaluationIds: evaluationFailedRows.map(item => item.row.evaluation.id)
+    });
+  }
+
+  if (!confirmedRows.length && evaluationFailedRows.length) {
+    throw evaluationFailedRows[0].error;
+  }
+
+  const messages = [];
+  if (confirmedRows.length) messages.push(`Đã xác nhận điểm ${confirmedRows.length}/${rows.length} nhiệm vụ.`);
+  if (evaluationFailedRows.length) messages.push(`${evaluationFailedRows.length} nhiệm vụ chưa xác nhận được điểm; hãy bấm Cập nhật rồi thử lại các mục còn chờ.`);
+  if (taskSyncFailedRows.length) messages.push(`${taskSyncFailedRows.length} nhiệm vụ đã có điểm chính thức nhưng trạng thái tổng hợp chưa đồng bộ; không cần chấm lại.`);
+
+  if (evaluationFailedRows.length || taskSyncFailedRows.length) {
+    await ModalService.alert(messages.join(' '), { title: 'Kết quả xác nhận' });
+  }
 }
 
 function openPersonPlanDetail(uid) {
@@ -3934,9 +3983,9 @@ async function openReview(evalId) {
       };
       const exceededFields = {
         confirmedExceededRequirement, exceededDecision, exceededDecisionReason: exceededReason,
-        exceededDecisionByUserId: KpiWorkflowState.user.uid, exceededDecisionByName: KpiWorkflowState.profile.fullName || '', exceededDecisionAt: serverTimestamp()
+        exceededDecisionByUserId: KpiWorkflowState.user.uid, exceededDecisionByName: KpiWorkflowState.profile.fullName || '', exceededDecisionAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
       };
-      const writeExceededFields = (exceededRequested || exceededDecision !== 'NOT_REQUESTED') ? exceededFields : {};
       const writeBonusFields = bonusRequested ? finalBonusFields : {
         bonusDecision: 'NOT_REQUESTED',
         bonusDecisionByUserId: KpiWorkflowState.user.uid,
@@ -3944,9 +3993,17 @@ async function openReview(evalId) {
         bonusDecisionAt: serverTimestamp()
       };
       const writeTaskBonusFields = bonusRequested ? finalBonusFields : {};
+
+      /*
+       * R6 EXCEEDED TWO-STAGE:
+       * Rules V1.24.1 đã có nhánh reviewerExceededDecisionUpdateOnly() dành riêng cho
+       * việc quyết định "vượt yêu cầu" sau khi evaluation đã CONFIRMED + scoreLocked.
+       * Vì vậy bước 1 chỉ khóa điểm và GIỮ NGUYÊN exceededDecision=PENDING/null hiện có.
+       * Bước 2 mới ghi APPROVED/REJECTED bằng một request riêng.
+       */
       const evaluationPayload = {
         confirmedProgressRate:p, confirmedResultRate:r, confirmedExecutionScore:x.execution, confirmedActualScore:x.actual,
-        ...writeExceededFields, ...writeBonusFields,
+        ...writeBonusFields,
         reviewerComment:note, status:'CONFIRMED', scoreLocked:true,
         reviewedByUserId:KpiWorkflowState.user.uid, reviewedByName:KpiWorkflowState.profile.fullName || '', confirmedAt:serverTimestamp(), updatedAt:serverTimestamp()
       };
@@ -3955,70 +4012,80 @@ async function openReview(evalId) {
         ...writeTaskBonusFields,
         updatedAt:serverTimestamp(), updatedByUserId:KpiWorkflowState.user.uid, updatedByName:KpiWorkflowState.profile.fullName || ''
       };
-      await commitKpiScorePairGithubOnly({
+
+      const pairResult = await commitKpiScorePairGithubOnly({
         evaluationId: ev.id,
         taskId: task.id,
         evaluationPayload,
         taskPayload
       });
+
       Object.assign(ev, {
         confirmedProgressRate:p, confirmedResultRate:r, confirmedExecutionScore:x.execution, confirmedActualScore:x.actual,
-        ...(exceededRequested || exceededDecision !== 'NOT_REQUESTED' ? exceededFields : {}),
         ...(bonusRequested ? finalBonusFields : {
           bonusDecision:'NOT_REQUESTED', bonusDecisionByUserId:KpiWorkflowState.user.uid, bonusDecisionByName:KpiWorkflowState.profile.fullName || ''
         }),
         reviewerComment:note, status:'CONFIRMED', scoreLocked:true,
         reviewedByUserId:KpiWorkflowState.user.uid, reviewedByName:KpiWorkflowState.profile.fullName || ''
       });
-      Object.assign(task, {
-        scoringStatus:'CONFIRMED', scoreLocked:true, confirmedActualScore:x.actual,
-        ...(bonusRequested ? finalBonusFields : {})
-      });
-      closeModal();
-      void audit('CONFIRM_TASK_SCORE', { taskId:task.id, confirmedExecutionScore:x.execution, confirmedActualScore:x.actual, confirmedExceededRequirement, exceededDecision, exceededDecisionReason:exceededReason, bonusRequested, bonusDecision, bonusAwarded, bonusType, bonusRate, bonusScore, bonusDecisionReason });
-      scheduleKpiLiveRender();
-    } catch (error) {
-      if (error?.evaluationCommitted === true) {
-        const partialLocalDecisionFields = {};
-        if (exceededRequested || exceededDecision !== 'NOT_REQUESTED') {
-          Object.assign(partialLocalDecisionFields, {
+
+      let exceededCommitted = true;
+      let exceededError = null;
+      if (exceededRequested || exceededDecision !== 'NOT_REQUESTED') {
+        try {
+          await commitKpiExceededDecisionGithubOnly(ev.id, exceededFields);
+          Object.assign(ev, {
             confirmedExceededRequirement,
             exceededDecision,
             exceededDecisionReason: exceededReason,
             exceededDecisionByUserId: KpiWorkflowState.user.uid,
             exceededDecisionByName: KpiWorkflowState.profile.fullName || ''
           });
+        } catch (error) {
+          exceededCommitted = false;
+          exceededError = error;
         }
-        if (bonusRequested) {
-          Object.assign(partialLocalDecisionFields, {
-            bonusDecision, bonusDecisionReason,
-            bonusDecisionByUserId: KpiWorkflowState.user.uid,
-            bonusDecisionByName: KpiWorkflowState.profile.fullName || '',
-            bonusAwarded, bonusType, bonusRate,
-            bonusBasisScore: bonusAwarded ? x.actual : 0,
-            bonusScore,
-            bonusConfirmedByUserId: bonusAwarded ? KpiWorkflowState.user.uid : '',
-            bonusConfirmedByName: bonusAwarded ? (KpiWorkflowState.profile.fullName || '') : ''
-          });
-        } else {
-          Object.assign(partialLocalDecisionFields, {
-            bonusDecision:'NOT_REQUESTED',
-            bonusDecisionByUserId:KpiWorkflowState.user.uid,
-            bonusDecisionByName:KpiWorkflowState.profile.fullName || ''
-          });
-        }
-        Object.assign(ev, {
-          confirmedProgressRate:p, confirmedResultRate:r, confirmedExecutionScore:x.execution, confirmedActualScore:x.actual,
-          ...partialLocalDecisionFields,
-          reviewerComment:note, status:'CONFIRMED', scoreLocked:true,
-          reviewedByUserId:KpiWorkflowState.user.uid, reviewedByName:KpiWorkflowState.profile.fullName || ''
-        });
-        closeModal();
-        scheduleKpiLiveRender();
-      } else if (button) {
-        button.dataset.saving = '0'; button.disabled = false; button.textContent = 'Xác nhận điểm';
       }
+
+      if (pairResult.taskCommitted) {
+        Object.assign(task, {
+          scoringStatus:'CONFIRMED', scoreLocked:true, confirmedActualScore:x.actual,
+          ...(bonusRequested ? finalBonusFields : {})
+        });
+      }
+
+      closeModal();
+      void audit('CONFIRM_TASK_SCORE', {
+        taskId:task.id,
+        confirmedExecutionScore:x.execution,
+        confirmedActualScore:x.actual,
+        confirmedExceededRequirement: exceededCommitted ? confirmedExceededRequirement : null,
+        exceededDecision: exceededCommitted ? exceededDecision : 'PENDING',
+        exceededDecisionReason: exceededCommitted ? exceededReason : '',
+        bonusRequested, bonusDecision, bonusAwarded, bonusType, bonusRate, bonusScore, bonusDecisionReason,
+        taskSyncCommitted: pairResult.taskCommitted,
+        exceededDecisionCommitted: exceededCommitted
+      });
+      scheduleKpiLiveRender();
+
+      const warnings = [];
+      if (!pairResult.taskCommitted) {
+        warnings.push('Điểm đã được xác nhận chính thức nhưng trạng thái tổng hợp của nhiệm vụ chưa đồng bộ; không cần chấm lại.');
+      }
+      if (!exceededCommitted) {
+        warnings.push('Điểm đã được xác nhận nhưng quyết định “vượt yêu cầu” chưa lưu được. Bấm Cập nhật, sau đó mở lại nhiệm vụ để xác nhận riêng phần vượt yêu cầu.');
+      }
+      if (warnings.length) {
+        await ModalService.alert(warnings.join(' '), { title: 'Đã xác nhận điểm' });
+      }
+
+      if (exceededError) {
+        console.warn('Không đồng bộ được quyết định vượt yêu cầu sau khi đã xác nhận điểm', exceededError);
+      }
+    } catch (error) {
+      if (button) { button.dataset.saving = '0'; button.disabled = false; button.textContent = 'Xác nhận điểm'; }
       ModalService.alert(friendlyErrorMessage(error));
+    }
     }
   });
 }
